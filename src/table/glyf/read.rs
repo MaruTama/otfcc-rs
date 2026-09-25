@@ -22,6 +22,7 @@ use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
 use crate::vf::vq::{
     vq_add_delta, vq_create_still, vq_inplace_plus, vq_neutral,
 };
+use std::rc::Rc;
 
 // `GlyphVariationData`/`TupleVariationHeader`/`GVARHeader` (`#[repr(C,
 // packed)]` structs cast directly onto raw `gvar` bytes) are gone: every
@@ -540,14 +541,14 @@ fn apply_coords(
     n_touched_points: ShapeId,
     tuple_delta: &[Pos],
     points: &[ShapeId],
-    r: *const VqRegion,
+    r: &Rc<VqRegion>,
 ) -> Vec<VqSegment> {
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     for _ in 0..total_points {
         nudges.push(VqSegment::Delta(VqSegmentDelta {
             quantity: 0_i32 as Pos,
             touched: false,
-            region: r,
+            region: Rc::clone(r),
         }));
     }
     // Bounded by `n_touched_points`, not assumed equal to `points`/
@@ -584,7 +585,7 @@ fn apply_polymorphism(
     points: &[ShapeId],
     delta_x: &[Pos],
     delta_y: &[Pos],
-    r: *const VqRegion,
+    r: &Rc<VqRegion>,
 ) {
     // One immutable flattening pass over `contours` then `references` --
     // exactly the order `apply_polymorphism` used to build `glyph_refs`
@@ -635,11 +636,11 @@ fn apply_polymorphism(
     let mut j: usize = 0;
     for c in glyph.contours.iter_mut() {
         for p in c.iter_mut() {
-            let dx = nudges_x[j];
+            let dx = nudges_x[j].clone();
             if !(dx.unwrap_delta().quantity == 0. && dx.is_touched()) {
                 p.x.shift.push(dx);
             }
-            let dy = nudges_y[j];
+            let dy = nudges_y[j].clone();
             if !(dy.unwrap_delta().quantity == 0. && dy.is_touched()) {
                 p.y.shift.push(dy);
             }
@@ -647,11 +648,11 @@ fn apply_polymorphism(
         }
     }
     for rf in glyph.references.iter_mut() {
-        let dx = nudges_x[j];
+        let dx = nudges_x[j].clone();
         if !(dx.unwrap_delta().quantity == 0. && dx.is_touched()) {
             rf.x.shift.push(dx);
         }
-        let dy = nudges_y[j];
+        let dy = nudges_y[j].clone();
         if !(dy.unwrap_delta().quantity == 0. && dy.is_touched()) {
             rf.y.shift.push(dy);
         }
@@ -832,7 +833,7 @@ fn polymorphize_glyph(
         // region-dedup table) -- reborrowed fresh each iteration of this
         // loop, same as the reborrow that built `ctx.fvar` itself in
         // `polymorphize`.
-        let r: *const VqRegion =
+        let r: Rc<VqRegion> =
             fvar_register_region(ctx.fvar.as_deref_mut().expect("fvar checked non-null by polymorphize"), region);
 
         let tsd = data_offset + tsd_start;
@@ -866,7 +867,7 @@ fn polymorphize_glyph(
             read_packed_delta(gvar, after_x, n_points, &mut delta_y)?;
             // `apply_polymorphism` is a safe `fn` now; `glyph` reborrows
             // here exactly as it does across every iteration of this loop.
-            apply_polymorphism(total_points, glyph, n_points, &point_indeces, &delta_x, &delta_y, r);
+            apply_polymorphism(total_points, glyph, n_points, &point_indeces, &delta_x, &delta_y, &r);
         }
         tsd_start = tsd_start.wrapping_add(variation_data_size as usize);
         tvh_offset = next_tvh_offset(gvar, tvh_offset, ctx.dimensions)?;
@@ -1445,11 +1446,11 @@ mod gvar_polymorphize_tests {
         }
         glyph.contours.push(contour);
 
-        let r = vq_create_region(1);
+        let r: Rc<VqRegion> = Rc::from(vq_create_region(1));
         let points: [ShapeId; 2] = [0, 2];
         let delta_x: [Pos; 2] = [0.0, 100.0];
         let delta_y: [Pos; 2] = [0.0, 1000.0];
-        apply_polymorphism(3, &mut glyph, 2, &points, &delta_x, &delta_y, &*r);
+        apply_polymorphism(3, &mut glyph, 2, &points, &delta_x, &delta_y, &r);
 
         let p1 = &glyph.contours[0][1];
         // X: P1 sits 25% of the way from P0 to P2 -> interpolated
@@ -1493,11 +1494,11 @@ mod gvar_polymorphize_tests {
         reference.y = vq_create_still(0.0);
         glyph.references.push(reference);
 
-        let r = vq_create_region(1);
+        let r: Rc<VqRegion> = Rc::from(vq_create_region(1));
         let points: [ShapeId; 2] = [0, 1];
         let delta_x: [Pos; 2] = [5.0, 100.0];
         let delta_y: [Pos; 2] = [50.0, 200.0];
-        apply_polymorphism(2, &mut glyph, 2, &points, &delta_x, &delta_y, &*r);
+        apply_polymorphism(2, &mut glyph, 2, &points, &delta_x, &delta_y, &r);
 
         let p0 = &glyph.contours[0][0];
         assert_eq!(p0.x.shift.len(), 1);

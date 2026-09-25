@@ -25,18 +25,18 @@ use sha1::{Digest, Sha1};
 pub struct GlyphHash {
     pub hash: [u8; 20],
 }
-fn hash_vqs(buf: &mut Buffer, s: VqSegment) {
+fn hash_vqs(buf: &mut Buffer, s: &VqSegment) {
     buf.write_u8(s.discriminant_byte());
     match s {
         VqSegment::Still(still) => {
-            buf.write_u32be(otfcc_to_fixed(still as ::core::ffi::c_double) as u32);
+            buf.write_u32be(otfcc_to_fixed(*still as ::core::ffi::c_double) as u32);
         }
         VqSegment::Delta(delta) => {
-            // `delta.region: *const VqRegion` is a deliberately-raw
-            // borrowed pointer (Stage 7-2-f: a longer-lived, individually
-            // `Box`-owned `VqRegion` inside `FvarTable.masters`, never a
-            // c2rust residue), so only this deref needs `unsafe`.
-            let region = unsafe { &*delta.region };
+            // `delta.region: Rc<VqRegion>` is shared ownership of the same
+            // allocation `FvarTable.masters` holds (Stage M-28) -- plain
+            // field/method access through `Rc`'s `Deref`, no `unsafe {}`
+            // needed (unlike the raw-pointer form this replaces).
+            let region = &delta.region;
             buf.write_u32be(otfcc_to_fixed(delta.quantity as ::core::ffi::c_double) as u32);
             buf.write_u32be(region.dimensions as u32);
             for span in &region.spans {
@@ -51,7 +51,7 @@ fn hash_vq(buf: &mut Buffer, x: VQ) {
     buf.write_u32be(otfcc_to_fixed(x.kernel as ::core::ffi::c_double) as u32);
     buf.write_u32be(x.shift.len() as u32);
     for j in 0..x.shift.len() {
-        hash_vqs(buf, x.shift[j]);
+        hash_vqs(buf, &x.shift[j]);
     }
 }
 pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {

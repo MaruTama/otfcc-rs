@@ -3,17 +3,22 @@ unsafe extern "C" {
 }
 
 use crate::support::primitives::{Pos, Scale};
+use std::rc::Rc;
 
 use crate::vf::region::VqRegion;
 use crate::vf::region::vq_compare_region;
 // Was a C-shaped `struct { type_0: VQSegType, val: union { still: Pos,
 // delta: VqSegmentDelta } }` -- the same "tag fully determines the live
 // union arm" shape already converted elsewhere in the crate (`CffEncoding`,
-// `ChainingSubtable`, etc.). Unlike those, every field here is `Copy` (no
-// owned heap data -- `region: *const VqRegion` is a borrowed pointer), so
-// the new enum stays `Copy` too, with none of the `Drop`/ownership
-// bookkeeping those other conversions needed.
-#[derive(Copy, Clone, Debug)]
+// `ChainingSubtable`, etc.). Every field used to be `Copy` (no owned heap
+// data -- `region: *const VqRegion` was a borrowed, non-owning pointer), so
+// the enum stayed `Copy` too. Stage M-28 makes `region` an `Rc<VqRegion>`
+// (shared ownership of the same `FvarTable.masters`-owned allocation this
+// pointer used to alias, see `VqSegmentDelta`'s own doc comment below), and
+// `Rc` is `Clone` but not `Copy`, so this enum drops `Copy` here -- every
+// call site that used to rely on an implicit copy now calls `.clone()`
+// explicitly (a refcount bump, not a content copy).
+#[derive(Clone, Debug)]
 pub enum VqSegment {
     Still(Pos),
     Delta(VqSegmentDelta),
@@ -42,7 +47,7 @@ impl VqSegment {
     }
     pub fn unwrap_delta(&self) -> VqSegmentDelta {
         match self {
-            VqSegment::Delta(d) => *d,
+            VqSegment::Delta(d) => d.clone(),
             VqSegment::Still(_) => panic!("VqSegment::unwrap_delta called on a Still segment"),
         }
     }
@@ -53,25 +58,37 @@ impl VqSegment {
         }
     }
 }
-// Stage 7-2-f closes out here: `region` stays a raw pointer rather than
-// becoming an arena index, the last item this stage's plan named besides
-// `BkCellValue::Ptr` (see `bk/bkblock.rs`'s Box化 comment for that one).
-// Traced concretely, not assumed: `region` always ends up holding the
-// *canonical* pointer `table/fvar.rs`'s `fvar_register_region` returns,
-// which lives inside `FvarTable.masters` (an individually `Box`-owned
-// `VqRegion` per `vf/region.rs`'s `vq_create_region`) and is disposed
-// exactly once, by `FvarTable`'s own `Drop` impl, at final `Font` teardown
-// -- the same "borrowed pointer into a longer-lived Box/collection-owned
-// value, freed once, never revisited mid-algorithm" shape `Feature.lookups`/
-// `LanguageSystem.features` (`table/otl.rs`) already rely on. A region that
-// turns out to be a content-duplicate during registration is freed
-// immediately, before its pointer is ever handed to a `VqSegmentDelta` --
-// see `fvar_register_region`'s own comment.
-#[derive(Copy, Clone, Debug)]
+// Stage 7-2-f closed out with `region` staying a raw, non-owning pointer
+// into `table/fvar.rs`'s `fvar_register_region`-returned canonical
+// `VqRegion` (individually `Box`-owned inside `FvarTable.masters`,
+// disposed once by `FvarTable`'s own `Drop` at final `Font` teardown). That
+// pointer's read-back site (OTF-write time, well after the borrow that
+// registered it ended) was the last genuine raw-pointer wall in this
+// crate -- Stage M-28 retires it by making `region` an `Rc<VqRegion>`
+// instead: `FvarMaster.region` became `Rc<VqRegion>` in Stage M-27, and
+// every `VqSegmentDelta` now holds its own `Rc::clone` of that same
+// allocation (a refcount bump, not a copy) rather than a raw alias into
+// it. A `RegionKey`-owned-value field was considered and rejected: it
+// risked silently changing sort order, since `vqs_compare`/
+// `vqs_compatible` below sort by true `f64` numeric value via
+// `vq_compare_region`, while `RegionKey` compares IEEE-754 bit patterns
+// (built for `Eq`/`Hash`, not order) -- this project treats output byte
+// order as sacred. An index-into-`masters` approach was also rejected:
+// sorting needs real region content, not just an index, which would have
+// needed `&FvarTable` threaded through `consolidate.rs`/`table/cff.rs`/
+// `libcff/charstring_il.rs`, well beyond this pointer's actual reach.
+// `Rc::clone` sidesteps both problems (still compares the same `VqRegion`
+// content through the same `vq_compare_region`, no lifetime threading
+// needed) -- this crate has zero threading (no `Send`/`Sync` bounds
+// anywhere), so `Rc`, not `Arc`, is the right tool. A region that turns
+// out to be a content-duplicate during registration is freed immediately,
+// before any `Rc::clone` of it is ever handed to a `VqSegmentDelta` -- see
+// `fvar_register_region`'s own comment.
+#[derive(Clone, Debug)]
 pub struct VqSegmentDelta {
     pub quantity: Pos,
     pub touched: bool,
-    pub region: *const VqRegion,
+    pub region: Rc<VqRegion>,
 }
 #[derive(Clone, Default, Debug)]
 pub struct VQ {
@@ -89,9 +106,9 @@ fn init_vq_segment(vqs: &mut VqSegment) {
 }
 #[inline]
 fn copy_vq_segment(dst: &mut VqSegment, src: &VqSegment) {
-    match *src {
+    match src {
         VqSegment::Still(v) => {
-            *dst = VqSegment::Still(v);
+            *dst = VqSegment::Still(*v);
         }
         VqSegment::Delta(sd) => {
             // The original only copied `.quantity`/`.region`, leaving
@@ -102,13 +119,13 @@ fn copy_vq_segment(dst: &mut VqSegment, src: &VqSegment) {
             // this is the only case that actually occurs; `false` replaces
             // the old uninitialized read with a defined, safe value).
             let touched = match *dst {
-                VqSegment::Delta(dd) => dd.touched,
+                VqSegment::Delta(ref dd) => dd.touched,
                 VqSegment::Still(_) => false,
             };
             *dst = VqSegment::Delta(VqSegmentDelta {
                 quantity: sd.quantity,
                 touched,
-                region: sd.region,
+                region: Rc::clone(&sd.region),
             });
         }
     }
@@ -125,13 +142,15 @@ fn vq_segment_copy(dst: &mut VqSegment, src: &VqSegment) {
 fn vq_segment_dispose(x: &mut VqSegment) {
     dispose_vq_segment(x);
 }
-// `vq_compare_region` stays the one raw-pointer call in this file --
-// `VqSegmentDelta.region` is the deliberately-kept borrowed pointer into
-// `FvarTable.masters` from Stage 7-2-f (see the struct's own doc comment
-// above); everything else in this file is field-copy/arithmetic work with
-// no aliasing of its own, so this narrow `unsafe {}` is the only one that
-// survives.
-fn vqs_compare(a: VqSegment, b: VqSegment) -> i32 {
+// Both take `&VqSegment` now, not `VqSegment` by value: `VqSegment` lost
+// `Copy` in this stage (its `Delta` variant now holds an `Rc<VqRegion>`),
+// and every call site here only ever reads its argument, so borrowing
+// avoids an `Rc::clone` purely to satisfy a by-value parameter.
+// `ad.region`/`bd.region` are plain `&Rc<VqRegion>` here, dereferenced
+// through `Rc`'s own `Deref` (`&**` -- or just `&ad.region`/`vq_compare_region`
+// taking `&VqRegion` and `Rc<T>: Deref<Target = T>` coercing) -- no
+// `unsafe {}` needed, unlike the raw-pointer form this replaces.
+fn vqs_compare(a: &VqSegment, b: &VqSegment) -> i32 {
     match (a, b) {
         (VqSegment::Still(_), VqSegment::Delta(_)) => -1_i32,
         (VqSegment::Delta(_), VqSegment::Still(_)) => 1_i32,
@@ -145,7 +164,7 @@ fn vqs_compare(a: VqSegment, b: VqSegment) -> i32 {
             0_i32
         }
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
-            let vqrc: i32 = vq_compare_region(unsafe { &*ad.region }, unsafe { &*bd.region });
+            let vqrc: i32 = vq_compare_region(&ad.region, &bd.region);
             if vqrc != 0 {
                 return vqrc;
             }
@@ -162,11 +181,11 @@ fn vqs_compare(a: VqSegment, b: VqSegment) -> i32 {
 pub(crate) fn vq_neutral() -> VQ {
     return vq_create_still(0_i32 as Pos);
 }
-fn vqs_compatible(a: VqSegment, b: VqSegment) -> bool {
+fn vqs_compatible(a: &VqSegment, b: &VqSegment) -> bool {
     match (a, b) {
         (VqSegment::Still(_), VqSegment::Still(_)) => true,
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
-            0_i32 == vq_compare_region(unsafe { &*ad.region }, unsafe { &*bd.region })
+            0_i32 == vq_compare_region(&ad.region, &bd.region)
         }
         _ => false,
     }
@@ -176,12 +195,12 @@ fn simplify_vq(x: &mut VQ) {
         return;
     }
     let shift: &mut Vec<VqSegment> = &mut x.shift;
-    shift.sort_by(|a, b| vqs_compare(*a, *b).cmp(&0_i32));
+    shift.sort_by(|a, b| vqs_compare(a, b).cmp(&0_i32));
     let mut k: usize = 0_usize;
     let mut j: usize = 1_usize;
     while j < shift.len() {
-        if vqs_compatible(shift[k], shift[j]) {
-            let other = shift[j];
+        if vqs_compatible(&shift[k], &shift[j]) {
+            let other = shift[j].clone();
             match &mut shift[k] {
                 VqSegment::Still(sv) => {
                     if let VqSegment::Still(ov) = other {
@@ -196,7 +215,7 @@ fn simplify_vq(x: &mut VQ) {
             }
             vq_segment_dispose(&mut shift[j]);
         } else {
-            shift[k] = shift[j];
+            shift[k] = shift[j].clone();
             k = k.wrapping_add(1);
         }
         j = j.wrapping_add(1);
@@ -207,7 +226,7 @@ pub(crate) fn vq_inplace_plus(a: &mut VQ, b: VQ) {
     a.kernel += b.kernel;
     let mut p: usize = 0_usize;
     while p < b.shift.len() {
-        let k: VqSegment = b.shift[p];
+        let k: VqSegment = b.shift[p].clone();
         if let VqSegment::Still(still) = k {
             a.kernel += still;
         } else {
@@ -276,7 +295,7 @@ pub(crate) fn vq_compare(a: VQ, b: VQ) -> i32 {
     }
     let mut j: usize = 0_usize;
     while j < a.shift.len() {
-        let cr: i32 = vqs_compare(a.shift[j], b.shift[j]);
+        let cr: i32 = vqs_compare(&a.shift[j], &b.shift[j]);
         if cr != 0 {
             return cr;
         }
@@ -288,8 +307,8 @@ pub(crate) fn vq_get_still(v: VQ) -> Pos {
     let mut result: Pos = v.kernel;
     let mut j: usize = 0_usize;
     while j < v.shift.len() {
-        if let VqSegment::Still(still) = v.shift[j] {
-            result += still;
+        if let VqSegment::Still(still) = &v.shift[j] {
+            result += *still;
         }
         j = j.wrapping_add(1);
     }
@@ -315,14 +334,20 @@ pub(crate) fn vq_is_zero(v: VQ, err: Pos) -> bool {
     return vq_is_still(v.clone()) as i32 != 0
         && unsafe { fabs(vq_get_still(v) as ::core::ffi::c_double) } < err;
 }
-pub(crate) fn vq_add_delta(v: &mut VQ, touched: bool, r: *const VqRegion, quantity: Pos) {
+// Takes `&Rc<VqRegion>`, not `Rc<VqRegion>`: `table/glyf/read.rs`'s four
+// call sites in `apply_polymorphism` all share one region across several
+// calls (two `apply_coords` calls plus up to four `vq_add_delta` calls per
+// tuple), so borrowing here and cloning once per constructed
+// `VqSegmentDelta` (below) avoids bumping the refcount at every call site
+// just to satisfy a by-value parameter.
+pub(crate) fn vq_add_delta(v: &mut VQ, touched: bool, r: &Rc<VqRegion>, quantity: Pos) {
     if quantity == 0. {
         return;
     }
     let nudge = VqSegment::Delta(VqSegmentDelta {
         quantity,
         touched,
-        region: r,
+        region: Rc::clone(r),
     });
     v.shift.push(nudge);
 }
@@ -347,7 +372,7 @@ mod tests {
             VqSegment::Delta(VqSegmentDelta {
                 quantity: 0.,
                 touched: false,
-                region: ::core::ptr::null(),
+                region: Rc::new(VqRegion { dimensions: 0, spans: Vec::new() }),
             })
             .discriminant_byte(),
             1

@@ -16558,3 +16558,213 @@ on the other platform before a commit is trusted.
     minus the one new one in `json_new_vq_region_impl`), raw pointer
     types 512 -> 511 (the two deleted `*const VqRegion` parameter types
     on the two helpers, minus the one added on `json_new_vq_region_impl`).
+
+- **Stage M-27: `FvarMaster.region` is `Rc<VqRegion>`, not `Box<VqRegion>`.**
+  Twenty-seventh installment, and the first of a two-stage pair (with
+  M-28) closing out `VqSegmentDelta.region` (`vf/vq.rs`) -- the one
+  remaining item M-25/M-26's sweeps kept re-confirming as a genuine
+  raw-pointer wall rather than a leftover pattern: a `*const VqRegion`
+  non-owning alias into a `Box<VqRegion>` inside `FvarTable.masters`,
+  read back at OTF-write time, long after the borrow that registered it
+  (`fvar_register_region`) had ended. A prior investigation (reported and
+  approved separately) scoped two approaches and rejected both before this
+  pair was scoped: a `RegionKey`-owned-value field on `VqSegmentDelta`
+  risked silently changing sort order -- `vqs_compare`/`vqs_compatible`
+  use `vq_compare_region` for actual **sorting** (true `f64` numeric
+  order, which determines final output byte order, treated as sacred by
+  this project), while `RegionKey` (this file's own content-hash key)
+  compares IEEE-754 bit patterns, built for `Eq`/`Hash`, not order --
+  swapping one for the other risked changing which bytes come out where.
+  An index-into-`masters` approach was rejected too: sorting needs real
+  region *content*, not just an index, so it would have needed
+  `&FvarTable` threaded through `consolidate.rs`, `table/cff.rs`, and
+  `libcff/charstring_il.rs` -- three files well outside this pointer's
+  actual reach, and the exact three files the rejected approach would
+  have needed that this pair's own instructions flagged as a stop-and-
+  reconsider signal if touched. `Rc<VqRegion>` (not `Arc`: this crate has
+  zero threading anywhere -- no `Send`/`Sync` bounds, no `thread::spawn`/
+  `rayon`, confirmed by grep) sidesteps both: `Rc::clone` is a refcount
+  bump, not a content copy or a fresh allocation, so every consumer keeps
+  comparing the exact same `VqRegion` content through the unmodified
+  `vq_compare_region` (no sort-order risk), and no lifetime needs
+  threading anywhere (no scope creep into the three files above).
+  - **This stage's own scope.** Storage only: `FvarMaster.region` becomes
+    `Rc<VqRegion>`; `fvar_register_region` still takes `region: Box<VqRegion>`
+    and still returns `*const VqRegion` (via `Rc::as_ptr`) -- `VqSegmentDelta`
+    itself, and the `Copy`-removal ripple that field type change forces
+    through `vf/vq.rs`/`table/glyf/read.rs`/`otf_reader/unconsolidate.rs`,
+    is deliberately left for M-28, keeping this stage's diff small and
+    independently verifiable (one file, `table/fvar.rs`, touched at all).
+    The dedup branch (`fvar.masters.get(&key)` hit) now returns
+    `Rc::clone(&existing.region)` instead of re-deriving a raw pointer from
+    a `Box` deref; the fresh-registration branch does `Rc::from(region)`
+    (converts the owned `Box<VqRegion>` into an `Rc<VqRegion>` with one
+    move, no realloc/copy) before inserting and returning `Rc::as_ptr` of
+    it. The two `fvar_register_region_tests` unit tests needed no
+    assertion changes (the function's return type is untouched this
+    stage, confirmed by the diff, not just expected).
+  - **Verification**: `cargo build --lib` and `cargo clippy --all-targets
+    -- -D warnings` both clean. `cargo test -- --test-threads=1`: 419
+    passed, 1 pre-existing timing-threshold failure (the usual sandbox-CPU
+    flake, same class as every stage since M-10, though this run only hit
+    one of the two documented flaky tests rather than both). Targeted
+    Miri (`cargo +nightly-2026-08-17 miri test --lib table::fvar:: --
+    --test-threads=1`): 10 passed, 0 failed. `survey-unsafe.sh`:
+    `unsafe fn` unchanged at 8; `unsafe blocks` 54 -> 53 and raw pointer
+    types 511 -> 510 both come solely from deleting stale `Box`/
+    `*mut VqRegion`-shaped wording in this function's own doc comment (the
+    script's grep-based counters match literal `unsafe {`/`*const`/`*mut`
+    text anywhere in the file, comments included) -- no unsafe block or
+    raw-pointer type was added or removed in actual code this stage,
+    confirmed by re-reading the diff line by line; M-28's counters below
+    are the ones that reflect this pair's real unsafe-code removal.
+
+- **Stage M-28: `VqSegmentDelta.region` is `Rc<VqRegion>`, not
+  `*const VqRegion`; `VqSegment`/`VqSegmentDelta` lose `Copy`.**
+  Twenty-eighth installment, the second half of the M-27/M-28 pair and the
+  stage that actually retires the last genuine raw-pointer wall in this
+  crate. `fvar_register_region`'s return type follows `VqSegmentDelta`'s
+  field to `Rc<VqRegion>` (`table/fvar.rs`); its one production caller
+  (`table/glyf/read.rs`'s `polymorphize_glyph`) now gets a real
+  `Rc<VqRegion>` straight out of it and hands a borrow of that same `Rc`
+  down through `apply_polymorphism`/`apply_coords`/`vq_add_delta`, each of
+  which clones it (a refcount bump) exactly where a new `VqSegmentDelta`
+  is actually constructed, rather than manufacturing and re-dereferencing
+  a raw pointer at every read site the way the old code did.
+  - **The `Copy`-removal ripple.** `Rc<T>` is `Clone`, not `Copy`, so
+    `VqSegment`/`VqSegmentDelta` (both previously `#[derive(Copy, Clone)]`)
+    drop `Copy` here. Rather than hand-enumerating every call site up
+    front, `Copy` was removed and the compiler's own errors were fixed one
+    at a time, confirming the instructions' own expectation that this
+    ripple can't be shrunk further without leaving the crate
+    inconsistent. What actually needed a change, all mechanical:
+    - `vf/vq.rs`: `VqSegment::unwrap_delta` clones its `Delta` payload
+      instead of copying it; `copy_vq_segment` matches its `src` argument
+      by reference and `Rc::clone`s `.region` into the new `VqSegmentDelta`
+      instead of copying the pointer; `simplify_vq`'s in-place compaction
+      (`shift[k] = shift[j]`, `let other = shift[j]`) and `vq_inplace_plus`'s
+      per-element copy (`let k: VqSegment = b.shift[p]`) each become a
+      `.clone()` of the indexed element (`Vec::index` returns a place, and
+      moving a non-`Copy` value out of it is rejected outright -- these
+      three are genuine copies of a whole segment, not a pointer alias, so
+      a `.clone()` is the direct mechanical translation); `vq_compare`'s
+      per-element `vqs_compare` call borrows the two indexed elements
+      instead of copying them; `vq_get_still`'s `if let Still(still) =
+      v.shift[j]` matches `&v.shift[j]` instead (only a `Pos`, itself
+      `Copy`, is read out, no clone needed).
+    - `table/glyf/read.rs`: `apply_coords`'s per-point `VqSegmentDelta`
+      construction (the hot per-point path the investigation flagged)
+      does one `Rc::clone(r)` per point -- confirmed to be exactly a
+      refcount increment, no allocation, by reading `Rc::clone`'s own
+      definition and by this stage's fuzz/timing checks below turning up
+      nothing anomalous; `apply_polymorphism`'s write-back pass (the only
+      place still needing `&mut Point`/`&mut ComponentReference`) clones
+      each `nudges_x[j]`/`nudges_y[j]` before pushing it onto the point's/
+      reference's own `.shift`, since each nudge is read there once but
+      the backing `Vec` isn't otherwise consumed.
+    - `otf_reader/unconsolidate.rs`: `hash_vqs` takes `&VqSegment` instead
+      of `VqSegment` by value (it only ever reads its argument to write
+      hash bytes), and its one call site (`hash_vq`) passes `&x.shift[j]`
+      instead of copying the indexed element.
+  - **`vqs_compare`/`vqs_compatible` now take `&VqSegment`.** Both used to
+    take `VqSegment`/`(VqSegment, VqSegment)` by value, relying on `Copy`;
+    per this stage's own instructions, this was the natural, still-
+    mechanical adjustment once `Copy` was gone, since every call site only
+    ever reads its arguments -- switching to `&VqSegment` avoids an
+    `Rc::clone` purely to satisfy a by-value parameter at each of their
+    three call sites (`simplify_vq`'s sort comparator and compatibility
+    check, `vq_compare`'s per-element comparison).
+  - **The four raw-pointer dereferences are gone.** `vqs_compare`/
+    `vqs_compatible`'s `unsafe { &*ad.region }`/`unsafe { &*bd.region }`
+    (four blocks total, two apiece) become plain `&ad.region`/`&bd.region`
+    -- `vq_compare_region` takes `&VqRegion`, and `Rc<VqRegion>` coerces to
+    it through `Deref`, no `unsafe {}` needed. `hash_vqs`'s
+    `unsafe { &*delta.region }` becomes a plain `&delta.region` the same
+    way. `table/fvar.rs`'s `json_new_vq_region`/`_region_impl` (M-26's own
+    private-helper split) collapse back to taking `&VqRegion` directly --
+    `json_new_vq_segment`'s one call site already held a live
+    `&VqSegmentDelta` (via `Rc`'s `Deref`), so passing `&delta.region`
+    straight through needed no cast and no `unsafe {}` either, closing
+    the "genuinely raw, aliasing-wall pointer" M-26's own comment named at
+    exactly this spot.
+  - **`vq_add_delta` takes `r: &Rc<VqRegion>`, not `Rc<VqRegion>`.** Its
+    four call sites in `apply_polymorphism` (`horizontal_origin`/
+    `advance_width`/`vertical_origin`/`advance_height`) all share the same
+    region across up to four calls plus the two `apply_coords` calls in
+    the same function -- taking a borrowed `&Rc<VqRegion>` and `Rc::clone`-
+    ing only inside `vq_add_delta`'s own `VqSegmentDelta` construction (the
+    same pattern `apply_coords` uses) avoids bumping the refcount at every
+    call site just to satisfy a by-value parameter, chosen after reading
+    all four call sites per this stage's own instructions rather than
+    guessing.
+  - **`copy_vq_segment`/`vq_segment_copy` re-read, unchanged in shape.**
+    Both already existed purely to thread `src`'s fields into `dst` one at
+    a time (preserving `dst`'s existing `.touched` when overwriting a
+    `Delta` with a `Delta`, the behavior their own doc comment already
+    explained); the only change either needed was `region: sd.region` ->
+    `region: Rc::clone(&sd.region)`, confirming neither needed
+    restructuring, just the one field's copy becoming a clone.
+  - **Why this is safe, not just tidy.** Every one of the crate's 16
+    `.region` references (grepped fresh this stage, matching the prior
+    investigation's own count) was already either a construction site or a
+    read-only comparison/dereference -- no pointer-identity (`ptr::eq`)
+    comparison exists anywhere that an `Rc::clone` could have silently
+    changed the meaning of. `Rc::clone` bumps a refcount and returns a
+    handle to the exact same heap allocation; every consumer that used to
+    dereference the raw pointer now derefs the `Rc` instead, reading the
+    exact same bytes. The one place this migration's own "byte-exact
+    output is sacred" standard was directly at stake -- `vqs_compare`/
+    `vqs_compatible`'s use of `vq_compare_region` for real sort order --
+    is untouched in substance: both still call the same
+    `vq_compare_region(&VqRegion, &VqRegion)` on the same two allocations'
+    content, just reached through `Rc`'s `Deref` instead of a raw
+    pointer's `unsafe` deref.
+  - **Verification**: `cargo build --lib` and `cargo clippy --all-targets
+    -- -D warnings` both clean. `cargo test -- --test-threads=1`: 419
+    passed, 1 pre-existing timing-threshold failure (same sandbox-CPU
+    flake as M-27 and every stage since M-10). Targeted Miri, all clean --
+    `vf::` (1 passed, the discriminant-byte test; every other `vf::vq`
+    behavior is exercised indirectly through the `table::glyf::read`/
+    `table::fvar` suites below, which is where the `Rc`-sharing/aliasing
+    behavior actually gets exercised end to end), `table::fvar::` (10
+    passed), `table::glyf::read::` (18 passed, including both
+    `gvar_polymorphize_tests` cases that call `apply_polymorphism`
+    directly, the two updated to build their test region as
+    `Rc::from(vq_create_region(1))`). **Golden byte-exact check** (the
+    standard directly at stake for this pair): `cargo test --test golden
+    -- --test-threads=1`, all 4 tests passing, including
+    `fixed_payloads_match_golden`'s `gvar-test.ttf` variable-font fixture
+    -- byte-identical output before and after, no `UPDATE_GOLDEN=1`
+    regeneration needed or attempted. Fuzz: `otf_dump` (the target that
+    reaches this code, confirmed reachable via `otfcc_read_sfnt ->
+    read_otf -> otfcc_consolidate_font -> serialize_to_json` for any
+    variable font with `fvar`/`gvar`, per the investigation and M-26's own
+    confirmation) -- `cargo +nightly fuzz run otf_dump tests/fuzz-corpus/
+    known-issues/ -- -runs=0` (all 21 known-issues corpus files, 0
+    crashes) and `cargo +nightly fuzz run otf_dump -- -max_total_time=100`
+    (3,388,806 executions in 101s, 0 crashes, no new coverage-triggered
+    slow units beyond the two pre-existing ones already on record).
+    Benchmarks: `benches/dump.rs`/`build.rs`/`subroutinize.rs` were
+    checked for a `gvar`/`fvar`/variable-font fixture to sanity-check
+    timing against -- none of the three exercise one (`Molengo-Regular.ttf`/
+    `iosevka-r.ttf`/`NotoNastaliqUrdu-Regular.ttf`/`WorkSans-Regular.json`/
+    `cid-fdselect-test.json`, none variable), so there was nothing to
+    re-time; the fuzz run's own steady throughput (no slowdown relative to
+    M-27's baseline run) is the only timing signal available for the
+    per-point `Rc::clone` in `apply_coords`, and it showed none.
+    `survey-unsafe.sh`: `unsafe fn` unchanged at 8; `unsafe blocks` 53 ->
+    48 (the five deleted `unsafe { &*... }` blocks: two apiece in
+    `vqs_compare`/`vqs_compatible`, one in `hash_vqs`); raw pointer types
+    510 -> 498 (twelve fewer: `VqSegmentDelta.region`'s field type,
+    `vq_add_delta`/`apply_coords`/`apply_polymorphism`'s `r` parameters,
+    `json_new_vq_region`/`_region_impl`'s `rs` parameters, and
+    `fvar_register_region`'s return type, each `*const VqRegion` ->
+    `Rc<VqRegion>`/`&Rc<VqRegion>`/`&VqRegion`, plus a few more from the
+    doc-comment wording changes the same way M-27's counters moved).
+    Diff scope stayed exactly within `vf/vq.rs`, `table/fvar.rs`,
+    `table/glyf/read.rs`, and `otf_reader/unconsolidate.rs` (`hash_vqs`'s
+    signature, the one call site the investigation's own "every `.region`
+    reference" count already included) -- `consolidate.rs`, `table/cff.rs`,
+    and `libcff/charstring_il.rs` (the files the rejected index-approach
+    would have needed) were never touched, confirming the `Rc` approach's
+    self-containment held as the investigation predicted.
