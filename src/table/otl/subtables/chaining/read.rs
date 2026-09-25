@@ -332,7 +332,7 @@ pub fn format3_coverage(
     mut _kind: u16,
     _max_glyphs: GlyphId,
 ) -> Coverage {
-    return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32));
+    read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32))
 }
 // Every guard below is expressed as a `FontReader` read or `require_room`
 // call in the exact sequence the original's hand-written `table_length <

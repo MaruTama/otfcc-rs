@@ -101,5 +101,5 @@ pub fn consolidate_gsub_reverse(
             name: toname,
         } as GlyphHandle);
     }
-    return false;
+    false
 }

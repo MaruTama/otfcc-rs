@@ -147,7 +147,7 @@ pub fn otfcc_build_gpos_single(
                 Some(bk_gpos_value(subtable[0].value, format)),
             ),
         ]);
-        return bk_build_block(b);
+        bk_build_block(b)
     } else {
         let mut b_0: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 2_u32),
@@ -164,8 +164,8 @@ pub fn otfcc_build_gpos_single(
                 )],
             );
         }
-        return bk_build_block(b_0);
-    };
+        bk_build_block(b_0)
+    }
 }
 
 #[cfg(test)]

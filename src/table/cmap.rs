@@ -936,7 +936,7 @@ fn otfcc_build_cmap_format12(cmap: &CmapTable) -> Buffer {
     buf.write_u32be(buf.len() as u32);
     buf.seek(12_usize);
     buf.write_u32be(n_groups);
-    return buf;
+    buf
 }
 pub const MAX_UNICODE: i32 = 0x110001_i32;
 pub const HAS_DEFAULT: i32 = 1_i32;
@@ -1025,7 +1025,7 @@ fn build_format14_for_selector(
     dflt.write_u32be(num_unicode_value_ranges);
     nondflt.seek(0_usize);
     nondflt.write_u32be(num_uvs_mappings);
-    return ((if num_unicode_value_ranges != 0 {
+    ((if num_unicode_value_ranges != 0 {
         HAS_DEFAULT
     } else {
         0_i32
@@ -1033,7 +1033,7 @@ fn build_format14_for_selector(
         HAS_NON_DEFAULT
     } else {
         0_i32
-    })) as u8;
+    })) as u8
 }
 fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];

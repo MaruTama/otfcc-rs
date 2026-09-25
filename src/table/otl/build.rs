@@ -91,7 +91,7 @@ fn feature_name_to_tag(name: &[u8]) -> u32 {
     } else {
         tag |= (' ' as i32 as u8 as i32) as u32;
     }
-    return tag;
+    tag
 }
 fn _declare_lookup_writer(
     type_0: LookupType,
@@ -128,7 +128,7 @@ fn _declare_lookup_writer(
         }
         return lookup.subtables.len() as TableId;
     }
-    return 0 as TableId;
+    0 as TableId
 }
 fn _declare_lookup_writer_split(
     type_0: LookupType,
@@ -164,7 +164,7 @@ fn _declare_lookup_writer_split(
         }
         return total;
     }
-    return 0 as TableId;
+    0 as TableId
 }
 fn _build_lookup(
     lookup: &Lookup,
@@ -328,7 +328,7 @@ fn _build_lookup(
             heuristics,
         );
     }
-    return written;
+    written
 }
 fn get_lookup_heuristics(table: &OtlTable, lut_idx: LookupIdx, lut: &Lookup) -> BuildHeuristics {
     let mut heu: BuildHeuristics = BuildHeuristics::empty();
@@ -347,7 +347,7 @@ fn get_lookup_heuristics(table: &OtlTable, lut_idx: LookupIdx, lut: &Lookup) -> 
             }
         }
     }
-    return heu;
+    heu
 }
 fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock {
     // Storage-space `(LookupIdx, &Lookup)` pairs, holes (consolidation-
@@ -494,7 +494,7 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
         bk_push(&mut blk, vec![bk_int(BkCellType::B16, 0_u32)]);
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(blk))]);
     }
-    return root;
+    root
 }
 fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock {
     // Same "storage index, holes skipped, dense position is the binary
@@ -526,7 +526,7 @@ fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock
             ],
         );
     }
-    return root;
+    root
 }
 // Resolves a `FeatureIdx` (storage index) to its dense binary position via
 // `feature_dense` -- `0xffff` (the binary format's own "no feature" /
@@ -560,7 +560,7 @@ fn write_language(
             )],
         );
     }
-    return Some(root);
+    Some(root)
 }
 fn write_script(
     dl: Option<&LanguageSystem>,
@@ -581,7 +581,7 @@ fn write_script(
             ],
         );
     }
-    return root;
+    root
 }
 fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>]) -> BkBlock {
     // Groups languages by script tag (the first 4 bytes of `language.name`),
@@ -665,7 +665,7 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
             ],
         );
     }
-    return root;
+    root
 }
 pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) -> Option<Buffer> {
     let table: &OtlTable = table?;
@@ -688,5 +688,5 @@ pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) 
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
-    return buf;
+    buf
 }

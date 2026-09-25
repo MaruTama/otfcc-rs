@@ -264,5 +264,5 @@ pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
     }
     let otf: Buffer = otfcc_sfnt_builder_serialize(&builder);
     otfcc_unstat_font(&mut *font);
-    return otf;
+    otf
 }

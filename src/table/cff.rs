@@ -841,7 +841,7 @@ pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> ::co
     } else {
         1.0f64
     };
-    return f64::from_bits(bits) - q;
+    f64::from_bits(bits) - q
 }
 // `stack` is caller-owned and reused across every glyph in the font
 // (`otfcc_read_cff_and_glyf_tables`'s per-glyph loop constructs it once,
@@ -1005,7 +1005,7 @@ fn build_outline(
     *seed = bc.randx;
 }
 fn form_cid_string(cid: CffSid) -> Vec<u8> {
-    return crate::bytesbuild!(b"CID", cid as i32);
+    crate::bytesbuild!(b"CID", cid as i32)
 }
 fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_file: &CffFile) {
     let charset: &CffCharset = &cff_file.charsets;
@@ -1124,7 +1124,7 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
     };
 }
 fn qround(x: ::core::ffi::c_double) -> ::core::ffi::c_double {
-    return otfcc_from_fixed(otfcc_to_fixed(x));
+    otfcc_from_fixed(otfcc_to_fixed(x))
 }
 // `head: Option<&HeadTable>`, not a nullable `*const HeadTable` -- the
 // caller (`otfcc_read_cff_and_glyf_tables`) used to build this from
@@ -1355,7 +1355,7 @@ pub fn otfcc_read_cff_and_glyf_tables(
         // `cff_file`'s own `Drop` glue runs here, at the end of its scope
         // -- no explicit `Box::from_raw` + `drop` needed any more.
     }
-    return ret;
+    ret
 }
 fn pd_delta_to_json(target: &mut BuiltValue, field: &[u8], values: &[::core::ffi::c_double]) {
     if values.is_empty() {
@@ -1698,7 +1698,7 @@ fn sidof(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> i32 {
     }
     let idx = h.len();
     h.insert(key, s.to_vec());
-    return 391_i32 + idx as i32;
+    391_i32 + idx as i32
 }
 fn cffdict_givemeablank(dict: &mut CffDict) -> &mut CffDictEntry {
     dict.ents.push(CffDictEntry {
@@ -1925,7 +1925,7 @@ fn cff_make_charset(
     } else {
         CffCharset::IsoAdobe
     };
-    return cff_build_charset(&charset);
+    cff_build_charset(&charset)
 }
 // The `range3` array's final length isn't pre-counted anymore -- a `Vec`
 // absorbs the counting pass, same as `Coverage`/`ClassDef`/`gpos_pair.rs`'s
@@ -1966,7 +1966,7 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
     } else {
         CffFdSelect::Unspecified
     };
-    return cff_build_fd_select(&fds);
+    cff_build_fd_select(&fds)
 }
 fn compile_fd_buffer(
     fd_array: &[Box<CffTable>],
@@ -2174,7 +2174,7 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         blob.data[ptr_off + 2] = (ls_offset >> 8_i32 & 0xff_usize) as u8;
         blob.data[ptr_off + 3] = (ls_offset & 0xff_usize) as u8;
     }
-    return blob;
+    blob
 }
 // `otfcc_build_cff`/`writecff_cid_keyed` are plain safe `fn`s now (Stage
 // M-10): `cff`/`glyf` are `CffAndGlyfRef`'s own borrows, `fd_array_index`

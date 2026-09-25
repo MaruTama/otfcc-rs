@@ -139,7 +139,7 @@ pub fn otfcc_build_gpos_cursive(
             ],
         );
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 
 #[cfg(test)]

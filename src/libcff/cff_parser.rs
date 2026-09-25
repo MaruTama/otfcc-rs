@@ -367,7 +367,7 @@ pub fn cff_open_stream(data: &[u8], options: &Options) -> Box<CffFile> {
     file.raw_data = data.to_vec();
     file.cnt_glyph = 0_u16;
     parse_cff_bytecode(&mut file, options);
-    return file;
+    file
 }
 // No longer `extern "C"`: `&CffFdSelect` has no C spelling. Only called
 // from within `table/cff.rs`, not part of the crate's public ABI -- same
@@ -459,7 +459,7 @@ pub fn cff_parse_subr(
     } else {
         empty_index(subr);
     }
-    return fd;
+    fd
 }
 #[inline]
 // The subroutine index a `callsubr`/`callgsubr` operator uses is an
@@ -495,12 +495,12 @@ fn locate_subr(subr_index: &CffIndex, bias: u16, subr: u32) -> Option<&[u8]> {
 }
 fn compute_subr_bias(cnt: u16) -> u16 {
     if (cnt as i32) < 1240_i32 {
-        return 107_u16;
+        107_u16
     } else if (cnt as i32) < 33900_i32 {
-        return 1131_u16;
+        1131_u16
     } else {
-        return 32768_u16;
-    };
+        32768_u16
+    }
 }
 // The original's two-pointer swap-until-cross is a plain reversal of
 // `stack[left..=right]` -- but only when `left <= right`: `p1 < p2`

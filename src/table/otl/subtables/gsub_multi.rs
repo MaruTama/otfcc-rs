@@ -174,7 +174,7 @@ fn build_gsub_multi_subtable_range(
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(b))]);
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: i32 = 0xff00_i32;
 pub fn otfcc_build_gsub_multi_subtable_split(

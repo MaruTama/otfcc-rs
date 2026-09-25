@@ -104,7 +104,7 @@ pub(crate) fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffV
             res = stack[idx as usize];
         }
     });
-    return res;
+    res
 }
 /// `parse_dict_key`'s value as a plain `i32`, `-1` if the key wasn't
 /// present or wasn't a number -- the "not found" convention every one of

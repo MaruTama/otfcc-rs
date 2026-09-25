@@ -88,7 +88,7 @@ pub fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
     parse_svg(&table.data).ok()
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {
-    return doc.len() > 4_usize
+    doc.len() > 4_usize
         && doc[0_usize] as i32 == '<' as i32
         && doc[1_usize] as i32 == 's' as i32
         && doc[2_usize] as i32 == 'v' as i32
@@ -98,7 +98,7 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && doc[1_usize] as i32 == '?' as i32
             && doc[2_usize] as i32 == 'x' as i32
             && doc[3_usize] as i32 == 'm' as i32
-            && doc[4_usize] as i32 == 'l' as i32;
+            && doc[4_usize] as i32 == 'l' as i32
 }
 pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &Options) {
     let svg = match svg {
@@ -163,7 +163,7 @@ pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
-    return Some(svg);
+    Some(svg)
 }
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {

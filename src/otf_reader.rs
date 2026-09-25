@@ -54,7 +54,7 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
             return FontSubtype::Cff;
         }
     }
-    return FontSubtype::Ttf;
+    FontSubtype::Ttf
 }
 /// Reads one subfont out of an already-parsed sfnt container.
 ///
@@ -69,7 +69,7 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
 /// references now and the cast pairs are gone.
 pub unsafe fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Option<Box<Font>> {
     if sfnt.count.wrapping_sub(1_u32) < index {
-        return None;
+        None
     } else {
         let mut font: Box<Font> = Box::default();
         let sfnt_packets = &sfnt.packets;
@@ -158,8 +158,8 @@ pub unsafe fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options
         font.tsi_23 = otfcc_read_tsi(packet, crate::tag::TAG_TSI2, crate::tag::TAG_TSI3);
         font.tsi5 = otfcc_read_tsi5(packet);
         otfcc_unconsolidate_font(&mut font, options);
-        return Some(font);
-    };
+        Some(font)
+    }
 }
 
 #[cfg(test)]

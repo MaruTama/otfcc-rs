@@ -205,7 +205,7 @@ pub fn glyf_point_dup(src: Point) -> Point {
         on_curve: 0,
     };
     glyf_point_copy(&mut dst, &src);
-    return dst;
+    dst
 }
 #[inline]
 fn glyf_point_copy(dst: &mut Point, src: &Point) {
@@ -276,7 +276,7 @@ pub fn glyf_component_reference_empty() -> ComponentReference {
         outer: 0,
     };
     glyf_component_reference_init(&mut x);
-    return x;
+    x
 }
 #[inline]
 pub fn glyf_component_reference_init(x: &mut ComponentReference) {
@@ -719,7 +719,7 @@ fn otfcc_glyf_parse_glyph(
     if g.y_pel == 0 {
         g.y_pel = glyphdump.get_int(b"yPel") as u8;
     }
-    return g;
+    g
 }
 // `glyph_order` was `*mut GlyphOrder`; `GlyphOrder` itself has been fully
 // safe since the `support/glyph_order.rs` shell PR, so the only reason this

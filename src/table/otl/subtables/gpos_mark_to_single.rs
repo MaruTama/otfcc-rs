@@ -307,7 +307,7 @@ pub fn otfcc_build_gpos_mark_to_single(
             bk_ptr(BkCellType::P16, Some(base_array)),
         ],
     );
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 
 #[cfg(test)]

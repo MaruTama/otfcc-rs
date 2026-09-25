@@ -66,12 +66,12 @@ pub(crate) fn new_empty_cff_index() -> CffIndex {
 pub(crate) fn get_index_length(i: &CffIndex) -> u32 {
     if i.count != 0 as Arity {
         let offset = &i.offset;
-        return 3_u32
+        3_u32
             .wrapping_add((offset[i.count as usize]).wrapping_sub(1_u32))
-            .wrapping_add(i.count.wrapping_add(1_u32).wrapping_mul(i.off_size as u32));
+            .wrapping_add(i.count.wrapping_add(1_u32).wrapping_mul(i.off_size as u32))
     } else {
-        return 3_u32;
-    };
+        3_u32
+    }
 }
 pub(crate) fn empty_index(i: &mut CffIndex) {
     cff_index_dispose(i);
@@ -275,7 +275,7 @@ pub(crate) fn build_index(index: &CffIndex) -> Buffer {
             blob.write_bytes(&index.data[..n]);
         }
     }
-    return blob;
+    blob
 }
 
 #[cfg(test)]

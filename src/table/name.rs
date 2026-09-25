@@ -40,17 +40,17 @@ pub const COPYRIGHT_LEN: i32 = 32_i32;
 // `create_font_table` and its other callee `table_otl_create` are dead
 // for the same reason, deleted alongside it.
 fn should_decode_as_utf16(record: &NameRecord) -> bool {
-    return record.platform_id as i32 == 0_i32
+    record.platform_id as i32 == 0_i32
         || record.platform_id as i32 == 2_i32 && record.encoding_id as i32 == 1_i32
         || record.platform_id as i32 == 3_i32
             && (record.encoding_id as i32 == 0_i32
                 || record.encoding_id as i32 == 1_i32
-                || record.encoding_id as i32 == 10_i32);
+                || record.encoding_id as i32 == 10_i32)
 }
 fn should_decode_as_bytes(record: &NameRecord) -> bool {
-    return record.platform_id as i32 == 1_i32
+    record.platform_id as i32 == 1_i32
         && record.encoding_id as i32 == 0_i32
-        && record.language_id as i32 == 0_i32;
+        && record.language_id as i32 == 0_i32
 }
 // The record *array* (12 bytes/record starting at offset 6) was already
 // guarded (`length < 6 + 12 * count`) -- but each record's *string*, read

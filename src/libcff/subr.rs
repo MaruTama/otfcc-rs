@@ -344,9 +344,9 @@ fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
     let mn = g.node(m);
     let nn = g.node(n);
     if let Some(mr) = mn.rule {
-        return Some(mr) == nn.rule;
+        Some(mr) == nn.rule
     } else if nn.rule.is_some() {
-        return false;
+        false
     } else {
         let m_terminal = mn.terminal.as_ref().unwrap();
         let n_terminal = nn.terminal.as_ref().unwrap();
@@ -359,15 +359,15 @@ fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
         // after it would compare "equal" here), not something introduced by
         // this conversion -- deliberately preserved, not fixed, matching
         // this crate's rule of not changing behavior in a safety-only pass.
-        return m_terminal.data.len() == n_terminal.data.len()
+        m_terminal.data.len() == n_terminal.data.len()
             && unsafe {
                 strncmp(
                     m_terminal.data.as_ptr() as *const ::core::ffi::c_char,
                     n_terminal.data.as_ptr() as *const ::core::ffi::c_char,
                     m_terminal.data.len(),
                 )
-            } == 0_i32;
-    };
+            } == 0_i32
+    }
 }
 fn join_nodes(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     if g.node(m).next.is_some() {
@@ -694,26 +694,26 @@ fn cff_number_subroutines(g: &mut CffSubrGraph) -> u32 {
         }
         e = g.node(e).next.unwrap();
     }
-    return current;
+    current
 }
 #[inline]
 fn subroutine_bias(cnt: i32) -> i32 {
     if cnt < 1240_i32 {
-        return 107_i32;
+        107_i32
     } else if cnt < 33900_i32 {
-        return 1131_i32;
+        1131_i32
     } else {
-        return 32768_i32;
-    };
+        32768_i32
+    }
 }
 fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
     let node = last_node_of(g, rule);
     let n = g.node(node);
     if n.terminal.is_some() {
-        return n.last;
+        n.last
     } else {
-        return ends_with_end_char(g, n.rule.unwrap());
-    };
+        ends_with_end_char(g, n.rule.unwrap())
+    }
 }
 // A selector for which buffer a `serialize_node_to_buffer` call should
 // write to, resolved to an actual `&mut Buffer` fresh at each use point

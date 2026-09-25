@@ -448,7 +448,7 @@ fn main_0(args: Vec<String>) -> i32 {
         ___loggedstep_v_5 = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
-    return 0_i32;
+    0_i32
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();

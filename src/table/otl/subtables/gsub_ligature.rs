@@ -226,7 +226,7 @@ pub fn otfcc_build_gsub_ligature_subtable(
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(ligset))]);
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 
 #[cfg(test)]

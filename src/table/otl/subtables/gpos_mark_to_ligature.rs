@@ -354,7 +354,7 @@ pub fn otfcc_build_gpos_mark_to_ligature(
             bk_ptr(BkCellType::P16, Some(ligature_array)),
         ],
     );
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 
 #[cfg(test)]

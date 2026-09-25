@@ -179,7 +179,7 @@ fn vqs_compare(a: &VqSegment, b: &VqSegment) -> i32 {
     }
 }
 pub(crate) fn vq_neutral() -> VQ {
-    return vq_create_still(0_i32 as Pos);
+    vq_create_still(0_i32 as Pos)
 }
 fn vqs_compatible(a: &VqSegment, b: &VqSegment) -> bool {
     match (a, b) {
@@ -261,14 +261,14 @@ fn vq_inplace_negate(a: &mut VQ) {
 fn vq_negate(a: VQ) -> VQ {
     let mut result: VQ = a;
     vq_inplace_negate(&mut result);
-    return result;
+    result
 }
 #[inline]
 pub(crate) fn vq_minus(a: VQ, b: VQ) -> VQ {
     let mut result: VQ = vq_neutral();
     vq_inplace_plus(&mut result, a);
     vq_inplace_minus(&mut result, b);
-    return result;
+    result
 }
 #[inline]
 fn vq_inplace_minus(a: &mut VQ, b: VQ) {
@@ -284,7 +284,7 @@ pub(crate) fn vq_inplace_plus_scale(a: &mut VQ, b: Pos, c: VQ) {
 pub(crate) fn vq_scale(a: VQ, b: Pos) -> VQ {
     let mut result: VQ = a;
     vq_inplace_scale(&mut result, b);
-    return result;
+    result
 }
 pub(crate) fn vq_compare(a: VQ, b: VQ) -> i32 {
     if a.shift.len() < b.shift.len() {
@@ -299,7 +299,7 @@ pub(crate) fn vq_compare(a: VQ, b: VQ) -> i32 {
             return cr;
         }
     }
-    return (a.kernel - b.kernel) as i32;
+    (a.kernel - b.kernel) as i32
 }
 pub(crate) fn vq_get_still(v: VQ) -> Pos {
     let mut result: Pos = v.kernel;
@@ -310,7 +310,7 @@ pub(crate) fn vq_get_still(v: VQ) -> Pos {
         }
         j = j.wrapping_add(1);
     }
-    return result;
+    result
 }
 pub(crate) fn vq_create_still(x: Pos) -> VQ {
     VQ {
@@ -322,8 +322,8 @@ pub(crate) fn vq_is_still(v: VQ) -> bool {
     v.shift.iter().all(|s| matches!(s, VqSegment::Still(_)))
 }
 pub(crate) fn vq_is_zero(v: VQ, err: Pos) -> bool {
-    return vq_is_still(v.clone()) as i32 != 0
-        && unsafe { fabs(vq_get_still(v) as ::core::ffi::c_double) } < err;
+    vq_is_still(v.clone()) as i32 != 0
+        && unsafe { fabs(vq_get_still(v) as ::core::ffi::c_double) } < err
 }
 // Takes `&Rc<VqRegion>`, not `Rc<VqRegion>`: `table/glyf/read.rs`'s four
 // call sites in `apply_polymorphism` all share one region across several
@@ -346,7 +346,7 @@ pub(crate) fn vq_point_linear_tfm(ax: VQ, a: Pos, x: VQ, b: Pos, y: VQ) -> VQ {
     let mut target_x: VQ = ax;
     vq_inplace_plus_scale(&mut target_x, a as Scale, x);
     vq_inplace_plus_scale(&mut target_x, b as Scale, y);
-    return target_x;
+    target_x
 }
 #[cfg(test)]
 mod tests {

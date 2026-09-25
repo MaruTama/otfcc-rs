@@ -192,7 +192,7 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
         }
     }
     order_glyphs(go);
-    return Some(go_box);
+    Some(go_box)
 }
 /// Builds a font from an already-parsed JSON tree.
 ///

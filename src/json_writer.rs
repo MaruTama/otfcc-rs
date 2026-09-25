@@ -122,5 +122,5 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
         b"TSI_23",
     );
     otfcc_dump_tsi5((*font).tsi5.as_deref(), &mut root);
-    return root;
+    root
 }

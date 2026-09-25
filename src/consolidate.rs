@@ -340,7 +340,7 @@ pub unsafe fn get_point_coordinates(
         }
         r = r.wrapping_add(1);
     }
-    return false;
+    false
 }
 pub unsafe fn consolidate_anchor_ref(
     table: *mut GlyfTable,
@@ -476,7 +476,7 @@ pub unsafe fn consolidate_anchor_ref(
     // `rrx`/`rry`) are all plain owned locals that were never moved out --
     // they auto-drop at the `return false` below, so no explicit dispose
     // calls are needed.
-    return false;
+    false
 }
 pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     if font.glyph_order.is_none() || font.glyf.is_none() {

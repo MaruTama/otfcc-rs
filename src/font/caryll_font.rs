@@ -83,122 +83,93 @@ pub(crate) fn delete_font_table(font: &mut Font, tag: u32) {
     match tag {
         crate::tag::TAG_HEAD => {
             (*font).head = None;
-            return;
         }
         crate::tag::TAG_HHEA => {
             (*font).hhea = None;
-            return;
         }
         crate::tag::TAG_MAXP => {
             (*font).maxp = None;
-            return;
         }
         crate::tag::TAG_OS_2_ALT | crate::tag::TAG_OS_2 => {
             (*font).os_2 = None;
-            return;
         }
         crate::tag::TAG_NAME => {
             (*font).name = None;
-            return;
         }
         crate::tag::TAG_META => {
             (*font).meta = None;
-            return;
         }
         crate::tag::TAG_HMTX => {
             (*font).hmtx = None;
-            return;
         }
         crate::tag::TAG_VMTX => {
             (*font).vmtx = None;
-            return;
         }
         crate::tag::TAG_POST => {
             (*font).post = None;
-            return;
         }
         crate::tag::TAG_VHEA => {
             (*font).vhea = None;
-            return;
         }
         crate::tag::TAG_FPGM => {
             (*font).fpgm = None;
-            return;
         }
         crate::tag::TAG_PREP => {
             (*font).prep = None;
-            return;
         }
         crate::tag::TAG_CVT_ALT | crate::tag::TAG_CVT => {
             (*font).cvt_ = None;
-            return;
         }
         crate::tag::TAG_GASP => {
             (*font).gasp = None;
-            return;
         }
         crate::tag::TAG_CFF_ALT | crate::tag::TAG_CFF => {
             (*font).cff = None;
-            return;
         }
         crate::tag::TAG_GLYF => {
             (*font).glyf = None;
-            return;
         }
         crate::tag::TAG_CMAP => {
             (*font).cmap = None;
-            return;
         }
         crate::tag::TAG_LTSH => {
             (*font).ltsh = None;
-            return;
         }
         crate::tag::TAG_GSUB => {
             (*font).gsub = None;
-            return;
         }
         crate::tag::TAG_GPOS => {
             (*font).gpos = None;
-            return;
         }
         crate::tag::TAG_GDEF => {
             (*font).gdef = None;
-            return;
         }
         crate::tag::TAG_BASE => {
             (*font).base = None;
-            return;
         }
         crate::tag::TAG_VORG => {
             (*font).vorg = None;
-            return;
         }
         crate::tag::TAG_CPAL => {
             (*font).cpal = None;
-            return;
         }
         crate::tag::TAG_COLR => {
             (*font).colr = None;
-            return;
         }
         crate::tag::TAG_SVG | crate::tag::TAG_SVG_ALT => {
             (*font).svg = None;
-            return;
         }
         crate::tag::TAG_TSI0 | crate::tag::TAG_TSI1 => {
             (*font).tsi_01 = None;
-            return;
         }
         crate::tag::TAG_TSI2 | crate::tag::TAG_TSI3 => {
             (*font).tsi_23 = None;
-            return;
         }
         crate::tag::TAG_TSI5 => {
             (*font).tsi5 = None;
-            return;
         }
         _ => {}
-    };
+    }
 }
 /// An empty TrueType `Font` -- every table absent, no glyph order yet. Was
 /// `otfcc_font_create() -> *mut Font` (a bare `Box::into_raw`) paired with

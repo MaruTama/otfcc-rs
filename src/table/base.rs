@@ -344,7 +344,7 @@ pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<Bas
             logger_finish(&mut *options.logger.borrow_mut());
         }
     }
-    return base;
+    base
 }
 pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
     let mut taglist: BaseTagList = BaseTagList { items: Vec::new() };
@@ -438,10 +438,10 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
             ],
         );
     }
-    return bk_new_block(vec![
+    bk_new_block(vec![
         bk_ptr(BkCellType::P16, Some(base_tag_list)),
         bk_ptr(BkCellType::P16, Some(base_script_list)),
-    ]);
+    ])
 }
 pub fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
     let base = base?;

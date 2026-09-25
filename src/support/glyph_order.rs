@@ -128,7 +128,7 @@ pub(crate) fn otfcc_set_glyph_order_by_gid(
     let idx = go.entries.len() - 1;
     go.by_gid.insert(gid, idx);
     go.by_name.insert(final_bytes.clone(), idx);
-    return final_bytes;
+    final_bytes
 }
 // `name` is a caller-owned clone now (see the two `.clone()` call sites in
 // `consolidate.rs`): on the "already taken" path it simply drops here,
@@ -148,7 +148,7 @@ pub(crate) fn otfcc_set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, 
     let idx = go.entries.len() - 1;
     go.by_gid.insert(gid, idx);
     go.by_name.insert(name, idx);
-    return true;
+    true
 }
 pub(crate) fn otfcc_gord_name_a_field_shared(
     go: &GlyphOrder,
@@ -225,7 +225,7 @@ pub(crate) fn otfcc_gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle
             return true;
         }
     }
-    return false;
+    false
 }
 pub(crate) fn gord_lookup_name(go: &GlyphOrder, name: Vec<u8>) -> bool {
     go.by_name.contains_key(&name)

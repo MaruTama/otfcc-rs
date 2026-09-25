@@ -22,7 +22,7 @@ fn diy_fp_from_parts(f: u64, e: i32) -> DiyFp {
     let mut fp: DiyFp = DiyFp { f: 0, e: 0 };
     fp.f = f;
     fp.e = e;
-    return fp;
+    fp
 }
 pub fn diy_fp_from_double(d: ::core::ffi::c_double) -> DiyFp {
     // Was a `DoubleBits` union (`d: f64`/`u64_0: u64`, written via `.d`
@@ -40,11 +40,11 @@ pub fn diy_fp_from_double(d: ::core::ffi::c_double) -> DiyFp {
         res.f = significand;
         res.e = K_DP_MIN_EXPONENT + 1_i32;
     }
-    return res;
+    res
 }
 #[inline]
 fn diy_fp_subtract(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
-    return diy_fp_from_parts(lhs.f.wrapping_sub(rhs.f), lhs.e);
+    diy_fp_from_parts(lhs.f.wrapping_sub(rhs.f), lhs.e)
 }
 #[inline]
 fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
@@ -61,17 +61,17 @@ fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
         .wrapping_add(ad & m32)
         .wrapping_add(bc & m32);
     tmp = tmp.wrapping_add(((1 as ::core::ffi::c_uint) << 31_i32) as u64);
-    return diy_fp_from_parts(
+    diy_fp_from_parts(
         ac.wrapping_add(ad >> 32_i32)
             .wrapping_add(bc >> 32_i32)
             .wrapping_add(tmp >> 32_i32),
         lhs.e + rhs.e + 64_i32,
-    );
+    )
 }
 #[inline]
 fn normalize(lhs: DiyFp) -> DiyFp {
     let s: i32 = (lhs.f as ::core::ffi::c_ulonglong).leading_zeros() as i32;
-    return diy_fp_from_parts(lhs.f << s, lhs.e - s);
+    diy_fp_from_parts(lhs.f << s, lhs.e - s)
 }
 #[inline]
 fn normalize_boundary(lhs: DiyFp) -> DiyFp {
@@ -82,7 +82,7 @@ fn normalize_boundary(lhs: DiyFp) -> DiyFp {
     }
     res.f <<= K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2_i32;
     res.e = res.e - (K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2_i32);
-    return res;
+    res
 }
 #[inline]
 fn normalized_boundaries(lhs: DiyFp, minus: &mut DiyFp, plus: &mut DiyFp) {
@@ -384,10 +384,10 @@ fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
         ((k >> 3_i32) + 1_i32) as ::core::ffi::c_uint;
     *k_out =
         -(-348_i32 + (index << 3_i32) as i32);
-    return diy_fp_from_parts(
+    diy_fp_from_parts(
         K_CACHED_POWERS_F[index as usize],
         K_CACHED_POWERS_E[index as usize] as i32,
-    );
+    )
 }
 #[inline]
 fn grisu_round(buffer: &mut [u8], len: i32, delta: u64, mut rest: u64, ten_kappa: u64, wp_w: u64) {
@@ -429,7 +429,7 @@ fn count_decimal_digit32(n: u32) -> ::core::ffi::c_uint {
     if n < 1000000000_u32 {
         return 9 as ::core::ffi::c_uint;
     }
-    return 10 as ::core::ffi::c_uint;
+    10 as ::core::ffi::c_uint
 }
 #[inline]
 fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i32, k_out: &mut i32) {

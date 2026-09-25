@@ -50,7 +50,7 @@ pub const F16DOT16_K: i32 =
 pub const F16DOT16_INFINITY: F16Dot16 = 0x7fffffff_i32 as F16Dot16;
 pub const F16DOT16_NEGATIVE_INFINITY: F16Dot16 = 0x80000000 as ::core::ffi::c_uint as F16Dot16;
 pub fn otfcc_from_f2dot14(x: F2Dot14) -> ::core::ffi::c_double {
-    return x as i32 as ::core::ffi::c_double / 16384.0f64;
+    x as i32 as ::core::ffi::c_double / 16384.0f64
 }
 // `f64::round`, not libm's `round` through an `extern "C"` block: the two
 // agree bit-for-bit (both round half away from zero, per IEEE 754 / C99),
@@ -62,28 +62,28 @@ pub fn otfcc_from_f2dot14(x: F2Dot14) -> ::core::ffi::c_double {
 // `#[cfg_attr(miri, ignore)]`d purely because reaching `otfcc_to_fixed`
 // meant calling libm `round`, which Miri cannot execute on macOS.
 pub fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16 {
-    return (x * 16384.0f64).round() as i16;
+    (x * 16384.0f64).round() as i16
 }
 pub fn otfcc_from_fixed(x: F16Dot16) -> ::core::ffi::c_double {
-    return x as ::core::ffi::c_double / 65536.0f64;
+    x as ::core::ffi::c_double / 65536.0f64
 }
 pub fn otfcc_to_fixed(x: ::core::ffi::c_double) -> F16Dot16 {
-    return (x * 65536.0f64).round() as F16Dot16;
+    (x * 65536.0f64).round() as F16Dot16
 }
 #[inline]
 fn clamp(value: i64) -> F16Dot16 {
     value.clamp(F16DOT16_NEGATIVE_INFINITY as i64, F16DOT16_INFINITY as i64) as F16Dot16
 }
 pub fn otfcc_f1616_add(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
-    return a + b;
+    a + b
 }
 pub fn otfcc_f1616_minus(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
-    return a - b;
+    a - b
 }
 pub fn otfcc_f1616_multiply(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     let tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
     let product: F16Dot16 = clamp(tmp >> F16DOT16_PRECISION);
-    return product;
+    product
 }
 #[inline]
 fn divide(mut a: i64, b: i32) -> F16Dot16 {
@@ -99,12 +99,12 @@ fn divide(mut a: i64, b: i32) -> F16Dot16 {
     } else {
         a += (b / 2) as i64;
     }
-    return clamp(a / b as i64);
+    clamp(a / b as i64)
 }
 pub fn otfcc_f1616_muldiv(a: F16Dot16, b: F16Dot16, c: F16Dot16) -> F16Dot16 {
     let tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
-    return divide(tmp, c);
+    divide(tmp, c)
 }
 pub fn otfcc_f1616_divide(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
-    return divide((a as i64) << F16DOT16_PRECISION, b);
+    divide((a as i64) << F16DOT16_PRECISION, b)
 }

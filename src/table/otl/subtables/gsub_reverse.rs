@@ -251,7 +251,7 @@ pub fn otfcc_build_gsub_reverse(
             vec![bk_int(BkCellType::B16, (entry.index as i32) as u32)],
         );
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 
 #[cfg(test)]

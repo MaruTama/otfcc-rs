@@ -54,12 +54,12 @@ pub fn vq_axis_span_is_one(s: &VqAxisSpan) -> bool {
     let a: Pos = s.start;
     let p: Pos = s.peak;
     let z: Pos = s.end;
-    return a > p
+    a > p
         || p > z
         || a < 0_i32 as Pos
             && z > 0_i32 as Pos
             && p != 0_i32 as Pos
-        || p == 0_i32 as Pos;
+        || p == 0_i32 as Pos
 }
 #[inline]
 fn weight_axis_region(as_0: &VqAxisSpan, x: Pos) -> Pos {
@@ -67,23 +67,23 @@ fn weight_axis_region(as_0: &VqAxisSpan, x: Pos) -> Pos {
     let p: Pos = as_0.peak;
     let z: Pos = as_0.end;
     if a > p || p > z {
-        return 1_i32 as Pos;
+        1_i32 as Pos
     } else if a < 0_i32 as Pos
         && z > 0_i32 as Pos
         && p != 0_i32 as Pos
     {
-        return 1_i32 as Pos;
+        1_i32 as Pos
     } else if p == 0_i32 as Pos {
-        return 1_i32 as Pos;
+        1_i32 as Pos
     } else if x < a || x > z {
-        return 0_i32 as Pos;
+        0_i32 as Pos
     } else if x == p {
-        return 1_i32 as Pos;
+        1_i32 as Pos
     } else if x < p {
-        return (x - a) / (p - a);
+        (x - a) / (p - a)
     } else {
-        return (z - x) / (z - p);
-    };
+        (z - x) / (z - p)
+    }
 }
 pub fn vq_region_get_weight(r: &VqRegion, v: &VV) -> Pos {
     let coords: &Vec<Pos> = v;
@@ -93,5 +93,5 @@ pub fn vq_region_get_weight(r: &VqRegion, v: &VV) -> Pos {
         w *= weight_axis_region(&r.spans[j], coords[j]);
         j = j.wrapping_add(1);
     }
-    return w;
+    w
 }

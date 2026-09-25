@@ -430,7 +430,7 @@ fn il_matchtype(il: &CffCharstringIl, j: u32, k: u32, t: CffInstructionType) -> 
         }
         m = m.wrapping_add(1);
     }
-    return true;
+    true
 }
 fn il_matchop(il: &CffCharstringIl, j: u32, op: CffCharstringOperator) -> bool {
     if il.instr[j as usize].type_0 != CffInstructionType::Operator {
@@ -439,7 +439,7 @@ fn il_matchop(il: &CffCharstringIl, j: u32, op: CffCharstringOperator) -> bool {
     if il.instr[j as usize].i() != op.0 {
         return false;
     }
-    return true;
+    true
 }
 /// Collapse `op` into `op2` when the operands flagged in `zeros` are all zero.
 ///
@@ -505,13 +505,13 @@ fn zroll(
             let end_idx = j.wrapping_add(arity as u32) as usize;
             il.instr[end_idx].set_i(op2.0);
             il.instr[end_idx].arity = result_arity as Arity;
-            return arity;
+            arity
         } else {
-            return 0_u8;
+            0_u8
         }
     } else {
-        return 0_u8;
-    };
+        0_u8
+    }
 }
 fn opop_roll(
     il: &mut CffCharstringIl,
@@ -547,10 +547,10 @@ fn opop_roll(
         il.instr[j as usize].type_0 = CffInstructionType::PhantomOperator;
         il.instr[next_idx as usize].set_i(resultop.0);
         il.instr[next_idx as usize].arity = nextop.arity.wrapping_add(current.arity);
-        return (arity + 1_i32) as u8;
+        (arity + 1_i32) as u8
     } else {
-        return 0_u8;
-    };
+        0_u8
+    }
 }
 fn hvlineto_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     if j.wrapping_add(3_u32) >= il.instr.len() as u32 {
@@ -585,10 +585,10 @@ fn hvlineto_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
         let end_idx = j.wrapping_add(3_u32) as usize;
         il.instr[end_idx].set_i(current_i);
         il.instr[end_idx].arity = current.arity.wrapping_add(1 as Arity);
-        return 3_u8;
+        3_u8
     } else {
-        return 0_u8;
-    };
+        0_u8
+    }
 }
 fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     if !il_matchop(il, j, OP_HVCURVETO) && !il_matchop(il, j, OP_VHCURVETO) {
@@ -625,7 +625,7 @@ fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
             let end_idx = j.wrapping_add(7_u32) as usize;
             il.instr[end_idx].set_i(current_i);
             il.instr[end_idx].arity = current.arity.wrapping_add(4 as Arity);
-            return 7_u8;
+            7_u8
         } else if current.arity.wrapping_add(5 as Arity) <= TYPE2_ARGUMENT_STACK {
             il.instr[j.wrapping_add(checkdelta1) as usize].type_0 =
                 CffInstructionType::PhantomOperand;
@@ -642,13 +642,13 @@ fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
                 il.instr[idx5].set_d(swap_val);
                 il.instr[idx6].set_d(t);
             }
-            return 7_u8;
+            7_u8
         } else {
-            return 0_u8;
+            0_u8
         }
     } else {
-        return 0_u8;
-    };
+        0_u8
+    }
 }
 fn hhvvcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     if !il_matchop(il, j, OP_HHCURVETO) && !il_matchop(il, j, OP_VVCURVETO) {
@@ -680,10 +680,10 @@ fn hhvvcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
         let end_idx = j.wrapping_add(7_u32) as usize;
         il.instr[end_idx].set_i(current_i);
         il.instr[end_idx].arity = current.arity.wrapping_add(4 as Arity);
-        return 7_u8;
+        7_u8
     } else {
-        return 0_u8;
-    };
+        0_u8
+    }
 }
 fn nextstop(il: &CffCharstringIl, j: u32) -> u32 {
     let mut delta: u32 = 0_u32;
@@ -692,7 +692,7 @@ fn nextstop(il: &CffCharstringIl, j: u32) -> u32 {
     {
         delta = delta.wrapping_add(1);
     }
-    return delta;
+    delta
 }
 fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> u8 {
     let mut r: u8;
@@ -800,7 +800,7 @@ fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> 
     if r != 0 {
         return r;
     }
-    return 1_u8;
+    1_u8
 }
 pub fn cff_optimize_il(il: &mut CffCharstringIl, options: &Options) {
     if !options.cff_roll_char_string {

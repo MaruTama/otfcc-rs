@@ -397,7 +397,7 @@ fn cov_from_cd(cd: &ClassDef) -> Coverage {
     for glyph in cd.glyphs.iter() {
         push_to_coverage(&mut cov, glyph.clone());
     }
-    return cov;
+    cov
 }
 pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
@@ -504,7 +504,7 @@ pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(pair_set))]);
     }
-    return root;
+    root
 }
 pub fn otfcc_build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
@@ -571,7 +571,7 @@ pub fn otfcc_build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
             );
         }
     }
-    return root;
+    root
 }
 pub fn otfcc_build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let format1: BkBlock = otfcc_build_gpos_pair_individual(_subtable);
@@ -582,11 +582,11 @@ pub fn otfcc_build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeurist
     bk_minimize_graph(&mut g2);
     if bk_estimate_size_of_graph(&g1) > bk_estimate_size_of_graph(&g2) {
         bk_untangle_graph(&mut g2);
-        return bk_build_graph(&g2);
+        bk_build_graph(&g2)
     } else {
         bk_untangle_graph(&mut g1);
-        return bk_build_graph(&g1);
-    };
+        bk_build_graph(&g1)
+    }
 }
 
 #[cfg(test)]

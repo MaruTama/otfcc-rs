@@ -16939,3 +16939,79 @@ on the other platform before a commit is trusted.
     nothing here changes parsing/serialization logic, only where its
     source files live. No `survey-unsafe.sh` movement (file moves, no code
     changes).
+
+- **`clippy::needless_return` allow-listed count was stale by more than 2x --
+  bulk-fixed with `clippy --fix`, allow-list entry removed.** The
+  `[lints.clippy]` table's own comment says its counts are "what `cargo
+  clippy --release --all-targets` reported the day this table was added;
+  re-run it to see what's left before removing an entry" -- a check of
+  every entry (temporarily deleting the whole table and running `cargo
+  clippy --all-targets --message-format=json` fresh) found `needless_return`
+  itself had drifted furthest: documented at 1426 sites, actually 602 (301
+  distinct source lines -- `--all-targets` compiles `src/lib.rs` twice, once
+  as the library and once as its own unit-test harness, so each real site
+  is counted twice in the raw clippy tally). Several smaller entries in
+  that same table had drifted to zero and a few had grown, but this stage
+  is scoped to `needless_return` alone; the rest are left exactly as
+  written for a later pass.
+  - **What the lint catches**: c2rust's transpile shape writes every
+    function's last statement as an explicit `return expr;` even where it
+    is already in tail position, where idiomatic Rust just writes `expr`
+    (no `return`, no trailing `;`) since a block's final expression is
+    already its value -- a pure syntactic rewrite with no behavior change.
+  - **Fixed with `cargo clippy --fix`, scoped to just this lint** via
+    `-- -A clippy::all -W clippy::needless_return` (blanket-allow every
+    clippy lint, then re-enable only this one), so the run couldn't also
+    auto-apply any of the table's other still-deferred lints. Verified the
+    scoping held by re-running a full `--message-format=json` clippy pass
+    (whole table removed again) before and after the fix and diffing every
+    other lint's site count line-for-line -- identical in both runs
+    (`explicit_auto_deref` 1666, `collapsible_if` 68, `len_zero` 51,
+    `missing_safety_doc` 20, and so on down the list), confirming the fix
+    touched only `needless_return` sites. One leftover trailing space (from
+    a stripped `;` at end-of-line in `table/cmap.rs`) was cleaned up by
+    hand; everything else was `--fix`'s own output, untouched.
+  - **Spot-checked 20+ of the resulting diffs across a dozen files**
+    (`otf_reader.rs`, `table/_tsi.rs`, `table/name.rs`, `table/svg.rs`,
+    `vf/vq.rs`, `vf/region.rs`, `libcff/charstring_il.rs`,
+    `libcff/subr.rs`, `libcff/cff_opmean.rs`, `font/caryll_font.rs`,
+    `consolidate.rs`, `support/glyph_order.rs`,
+    `table/otl/subtables/chaining/{build,read}.rs`, both `src/bin/*.rs`)
+    covering every shape the lint fires on in this crate: plain tail
+    `return expr;`, an `if`/`else` chain whose every arm is itself a tail
+    return, a `match` whose every arm returns and which is the function's
+    only expression (including a unit-returning `match` where the arms had
+    a bare `return;`), and a value-returning tail call. In every case
+    `return`s that were *not* in tail position -- early exits inside a
+    loop body (`consolidate::get_point_coordinates`, `libcff::subr::
+    ident_node`'s early `if` branches) or inside a non-tail `if` guard
+    (`libcff::charstring_il::decide_advance`'s `if r != 0 { return r; }`) --
+    were correctly left untouched. No case of the lint touching a
+    non-tail `return` was found.
+  - **No `tests/`/`benches/`/`fuzz/` sites**: `git diff --stat` after the
+    fix shows only `Cargo.toml` and 47 files under `src/` touched; the
+    workspace's own test/bench/fuzz code had none for clippy to flag.
+  - **Allow-list entry deleted** (`needless_return = "allow" # 1426 -- ...`
+    removed from `Cargo.toml`'s `[lints.clippy]` table, every other line
+    left exactly as-is) after a final clippy pass with the entry gone
+    confirmed zero remaining sites.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean; `cargo
+    clippy --all-targets -- -D warnings` clean (with `needless_return` no
+    longer allow-listed); `cargo test -- --test-threads=1`: 422 passed, 1
+    failed -- `otf_reader::regression_tests::
+    otl_feature_ref_amplification_font_parses_promptly`, the same
+    pre-existing timing-threshold flake on record since M-10, confirmed
+    unrelated to this change by re-running it against the unmodified
+    commit this stage started from (also fails there, ~10.2-10.4s against
+    a 10s budget, consistently, in this sandbox); the golden/ABI/dll_abi/
+    log_output/cycles integration suites explicitly re-run and passing
+    byte-for-byte, as expected for a rewrite clippy itself guarantees is
+    semantically inert but this project checks directly rather than
+    assumes. `cargo check` in `fuzz/` clean. `survey-unsafe.sh`: all
+    counters unchanged (8 `unsafe fn` / 48 `unsafe` blocks / 498 raw
+    pointer types / 226 `while` loops), as expected -- this stage touches
+    no `unsafe` code and no control flow, only where a function's final
+    value gets written. Full Miri and fuzz-time runs were deliberately
+    skipped as out of scope for a pure syntax change with no behavioral
+    risk across 602 mechanical sites; build/clippy/test/golden coverage is
+    the right-sized check here, not an oversight.

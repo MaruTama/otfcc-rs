@@ -42,15 +42,15 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     // pointer -- `serialize_to_otf` returns the `Buffer` itself now.
     let otf: *mut Buffer = serialize_to_otf(&mut font, &*options).into_raw();
     drop(font);
-    return otf;
+    otf
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_len(buf: *mut Buffer) -> usize {
-    return (*buf).data.len();
+    (*buf).data.len()
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
-    return (*buf).data.as_mut_ptr();
+    (*buf).data.as_mut_ptr()
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_free_otfbuf(buf: *mut Buffer) {

@@ -113,7 +113,7 @@ pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
             ],
         );
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
@@ -232,14 +232,14 @@ pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, None)]);
         }
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub fn otfcc_build_chaining(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
-        return otfcc_build_chaining_classes(_subtable);
+        otfcc_build_chaining_classes(_subtable)
     } else {
-        return otfcc_build_chaining_coverage(_subtable);
-    };
+        otfcc_build_chaining_coverage(_subtable)
+    }
 }
 pub fn otfcc_build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let ChainingSubtable::Canonical(rule) = _subtable else {
@@ -283,7 +283,7 @@ pub fn otfcc_build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
             ],
         );
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub fn otfcc_build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
@@ -370,12 +370,12 @@ pub fn otfcc_build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, None)]);
         }
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub fn otfcc_build_contextual(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
-        return otfcc_build_contextual_classes(_subtable);
+        otfcc_build_contextual_classes(_subtable)
     } else {
-        return otfcc_build_contextual_coverage(_subtable);
-    };
+        otfcc_build_contextual_coverage(_subtable)
+    }
 }

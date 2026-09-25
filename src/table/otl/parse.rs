@@ -283,7 +283,7 @@ fn _parse_lookup(
             lh,
         );
     }
-    return parsed;
+    parsed
 }
 fn _declare_lookup_parser(
     llt: LookupType,
@@ -388,7 +388,7 @@ fn _declare_lookup_parser(
         order_type: LookupOrderType::File,
         order_val,
     });
-    return true;
+    true
 }
 fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>, options: &Options) -> PendingLookups {
     let mut lh = PendingLookups {
@@ -442,7 +442,7 @@ fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>, options: &Options
             }
         }
     }
-    return lh;
+    lh
 }
 /// Replicates `strncmp(a, b, 4) == 0` for two of `ParsedValue`'s own
 /// NUL-terminated key buffers (each carrying exactly one trailing NUL,
@@ -639,10 +639,10 @@ fn figure_out_features_from_json(
             }
         }
     }
-    return fh;
+    fh
 }
 pub fn is_valid_language_name(name: &[u8]) -> bool {
-    return name.len() == 9_usize && name[4] == SCRIPT_LANGUAGE_SEPARATOR as u8;
+    name.len() == 9_usize && name[4] == SCRIPT_LANGUAGE_SEPARATOR as u8
 }
 fn figure_out_languages_from_json(
     languages: Option<&ParsedValue>,
@@ -732,7 +732,7 @@ fn figure_out_languages_from_json(
             }
         }
     }
-    return sh;
+    sh
 }
 pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
     let otl: *mut OtlTable;
@@ -919,7 +919,7 @@ pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8])
             ),
         );
     }
-    return None;
+    None
 }
 
 #[cfg(test)]

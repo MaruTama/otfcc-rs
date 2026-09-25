@@ -72,7 +72,7 @@ pub fn push_stopwatch(sofar: &mut timespec) -> Vec<u8> {
         .iter()
         .position(|&b| b == 0)
         .unwrap_or(secs_bytes.len());
-    return crate::bytesbuild!(b"Step time = ", &secs_bytes[..nul_pos], b"s.\n",);
+    crate::bytesbuild!(b"Step time = ", &secs_bytes[..nul_pos], b"s.\n",)
 }
 
 #[cfg(test)]

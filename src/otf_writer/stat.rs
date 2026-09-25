@@ -230,7 +230,7 @@ pub fn stat_single_glyph(
     stat.n_composite_points = n_composite_points;
     stat.n_composite_contours = n_composite_contours;
     stated[j as usize] = StatStatus::Completed;
-    return stat;
+    stat
 }
 pub fn stat_glyf(font: &mut Font, options: &Options) {
     // Only ever called (from `otfcc_stat_font`) under a `.head.is_some()`/

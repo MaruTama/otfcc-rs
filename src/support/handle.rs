@@ -56,7 +56,7 @@ pub(crate) fn handle_from_index(id: GlyphId) -> Handle {
         index: id,
         name: Vec::new(),
     };
-    return h;
+    h
 }
 /// NUL-truncating comparison for two `Vec<u8>`-shaped names (e.g. comparing
 /// a `Handle.name` against a `Lookup.name`, both moved off `sds`) --
@@ -91,7 +91,7 @@ pub(crate) fn handle_from_name(s: Option<Vec<u8>>) -> Handle {
         h.state = HandleState::Name;
         h.name = name;
     }
-    return h;
+    h
 }
 pub type FdHandle = Handle;
 
