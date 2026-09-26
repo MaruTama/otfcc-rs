@@ -18176,3 +18176,189 @@ counter suggests," not more.
     this stage changing only how `otfcc_parse_glyf` borrows its input
     tree (an ordinary safe reborrow in place of a raw-pointer cast), not
     what inputs it accepts, how it walks them, or any bound it checks.
+
+- **Stage M-33: `table::otl::parse::otfcc_parse_otl` takes `&mut
+  ParsedValue`, its internal access reordered to a sequential
+  shared/shared/mutable/shared pattern, and drops `unsafe fn`.** The third
+  of the four Bucket B stages, and the one the plan itself flagged as
+  highest-risk: OTL is the subsystem behind this migration's own most
+  recent fuzz-OOM finding (the `gpos_pair.rs` zero-stride amplification
+  bug), and this function is the single most structurally complex one of
+  the three (the `PendingLookupId`/`PendingFeatureId` alias-remap
+  machinery its own doc comments already describe at length). Built on a
+  branch on top of the M-32 branch (`git checkout -b ... origin/<M-32
+  branch>`, not `master` -- `get_typed_mut` and `otfcc_parse_glyf`'s own
+  conversion needed to already exist, even though `otfcc_parse_otl` is a
+  different function; neither M-31 nor M-32 had reached `master` yet at
+  the time this stage started).
+  - **Re-tracing the access order from scratch, per this migration's own
+    "don't trust a stale analysis" discipline.** Read `otfcc_parse_otl` in
+    full -- every line, not a skim -- rather than taking the plan's own
+    trace on faith, and confirmed every one of its claims against the
+    actual code: the function resolves five children of one `tag` object
+    (`table` itself, then `languages`/`features`/`lookups` off it, plus
+    `lookupOrder`), all via raw-pointer casts out of a shared `root:
+    &ParsedValue`, each re-derived through a fresh `table.as_ref()` rather
+    than a `&ParsedValue` held across the function. The real read/write
+    order the body actually executes in, confirmed line by line: `lookups`
+    is read once (`figure_out_lookups_from_json`, building `lh`, a local
+    owned `PendingLookups` -- no reference into the `"lookups"` subtree
+    survives past that one call); `lookupOrder` is then read once
+    (mutating only `lh.entries`, a local, never the JSON tree itself);
+    `features` is *then* mutated in place, for the first time, inside
+    `figure_out_features_from_json` (`feature_merger_activate`, gated on
+    `options.merge_features`, needs `&mut ParsedValue`); `languages` is
+    read only after that call returns (`figure_out_languages_from_json`).
+    No branch of the function revisits an earlier child once a later one
+    has been touched: the two early-exit branches (`table` missing
+    entirely; any of `languages`/`features`/`lookups` missing) both bail
+    out *before* any of the four accesses happen, and the "table came out
+    empty" branch (`lh.entries.is_empty() || fh.entries.is_empty() ||
+    sh.is_empty()`) is checked only *after* all four accesses have already
+    completed in this same call -- there is no loop, no recursion, and no
+    path that reads `features` a second time after `figure_out_features_
+    from_json` returns, or reads `languages` before that mutation has
+    finished. The plan's own trace held up in full; nothing in this
+    re-verification found a hole in it.
+  - **The fix, as the plan proposed.** `otfcc_parse_otl`'s signature is now
+    `root: &mut ParsedValue` (from `root: &ParsedValue`); `table: &mut
+    ParsedValue` resolves via `root.get_typed_mut(tag, JsonType::Object)?`
+    once, up front (the `?` doing the same "no such table, return `None`"
+    job the old `table.is_null()` check did, before any `otl_box` is even
+    allocated). The four real accesses below it are each their own
+    single-expression reborrow of `table`, retiring at the end of their
+    own statement, in the confirmed order: `table.get_typed(b"lookups",
+    ...)` (shared) into `figure_out_lookups_from_json`, then
+    `table.get_typed(b"lookupOrder", ...)` (shared) for the `lookupOrder`
+    loop, then `table.get_typed_mut(b"features", ...)` (mutable) into
+    `figure_out_features_from_json`, then `table.get_typed(b"languages",
+    ...)` (shared) into `figure_out_languages_from_json` -- the same order
+    the raw-pointer version already executed in, just as ordinary
+    sequential reborrows of one `&mut` instead of four raw pointers
+    standing in for the same discipline by hand. One wrinkle the plan's
+    own prose glossed over: the raw-pointer version resolved all three of
+    `languages`/`features`/`lookups` (as pointers) *before* checking
+    whether all three were non-null, and only then did any real work --
+    skipping `figure_out_lookups_from_json` (and its own "invalid lookup"
+    warning logging) entirely on a table missing, say, `"languages"`. A
+    literal read-in-declared-order translation would have called
+    `figure_out_lookups_from_json` before ever checking whether
+    `"languages"`/`"features"` exist, changing what gets logged on an
+    incomplete table. Fixed by keeping that gating a separate, explicit,
+    side-effect-free presence check (`lookups_present`/`features_present`/
+    `languages_present`, three plain `.get_typed(...).is_some()` calls)
+    made *before* the four real accesses, exactly reproducing the old
+    all-or-nothing skip, with the real accesses below re-resolving each of
+    the three again from scratch once gated in -- `get_typed` has no side
+    effects of its own, so resolving a child twice (once to check
+    presence, once to use it) changes nothing observable.
+  - **The `otl: *mut OtlTable` local, the plan's own "easier, unrelated
+    fix."** The old code allocated `otl_box: Option<Box<OtlTable>>` and
+    then cached a raw pointer into it (`otl = otl_box.as_mut().unwrap()
+    .as_mut() as *mut OtlTable`) once, up front, dereferencing `(*otl)`
+    at three later push sites (`.lookups.push`, `.features.push`,
+    `.languages.push`). Since `table` existing is now checked with a `?`
+    before `otl_box` is even created, there is no longer a third outcome
+    once `table` is known to exist (either the table builds successfully
+    and returns `Some(otl_box)`, or it's logged invalid/incomplete at the
+    tail) -- so `otl_box` itself no longer needs to be an `Option` of its
+    own the way the raw-pointer-cached local did; it is now a plain owned
+    `Box<OtlTable>`, and the three push sites use `otl_box.lookups.push`/
+    `otl_box.features.push`/`otl_box.languages.push` directly. This goes a
+    step past what the plan itself proposed (re-deriving `otl_box.as_mut()
+    .unwrap()` fresh at each site rather than caching it once) -- once
+    `otl_box` is a plain `Box` rather than an `Option<Box<_>>` a raw
+    pointer used to stand in for, there is nothing a fresh reborrow at
+    each site would buy beyond what a plain field access already gives for
+    free, so the simpler form was used instead.
+  - **The call site (`json_reader.rs::read_json`), matching M-32's own
+    precedent exactly.** `read_json` itself keeps `root: &ParsedValue` and
+    `unsafe fn` (M-34's job, once neither callee needs anything a shared
+    reference can't give). Its two `otfcc_parse_otl` calls (`"GSUB"`, then
+    `"GPOS"`) each need their own fresh `&mut ParsedValue` reborrow of
+    `root`, the same `root as *const ParsedValue as *mut ParsedValue`
+    then `.as_mut().unwrap()` shape `otfcc_parse_glyf`'s call already
+    uses one call above -- `root_mut` from that earlier reborrow can't be
+    reused for either of these two calls (a `&mut` isn't `Copy`, and it
+    was already consumed by the `otfcc_parse_glyf` call), so each of the
+    two writes out its own inline reborrow instead of introducing a second
+    named local. Nothing else reads or writes through `root` while either
+    call runs (`otfcc_parse_gdef(root, options)` right after both is the
+    next use, back to the original shared `root`), so this is exactly as
+    sound as the one reborrow M-32 already established.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean. `cargo test --lib --
+    --test-threads=1`: 425 passed, 1 failed --
+    `otl_feature_ref_amplification_font_parses_promptly` at ~10.2-10.3s
+    against its 10s budget, re-run in isolation twice more (10.27s,
+    10.29s) to confirm it is the same sandbox-CPU-timing flake on record
+    since M-10, not a regression this stage introduced (this test reads a
+    binary font and never goes anywhere near `otfcc_parse_otl`'s own
+    JSON-build-side code path, so a regression here would be a strange
+    place for this stage to cause one regardless). `cargo test --test
+    golden --test abi --test dll_abi --test log_output --test cycles --
+    --test-threads=1`: all 9 tests across the 5 files passing byte-for-
+    byte, including `synthetic_dedup_and_table_payloads_match_golden` (all
+    five `*-dedup-input.json` OTL double-mapping-warning fixtures --
+    `gsub-multi`, `gpos-single`, `gpos-cursive`, `gdef-ligcaret`,
+    `gsub-single`, `gsub-reverse`, `mark-consolidate` -- generating and
+    matching their golden warnings) and `unknown_lookup_dump_matches_
+    golden` (a GSUB/GPOS round trip: 51 GSUB lookups, 4 GPOS lookups
+    forced to format 10). `(cd fuzz && cargo check)`: clean.
+    `survey-unsafe.sh`: `unsafe fn` 6 -> **5** (this stage's whole point),
+    `unsafe blocks` 39 -> 31 (8 fewer: every `unsafe {}` wrapper this
+    function's raw-pointer reborrows needed is gone, offset by the two new
+    ones `read_json`'s own GSUB/GPOS reborrows need, still `unsafe fn`
+    itself so no explicit block is required around them under this file's
+    `#![allow(unsafe_op_in_unsafe_fn)]`), raw pointer types 180 -> 172 (-8:
+    the five `*const`/`*mut ParsedValue` locals plus the `*mut OtlTable`
+    local this function's body used to declare are all gone, only
+    partially offset by the two new raw-pointer casts `read_json`'s call
+    site now needs), `is_null()` 20 -> 19 (-1: the old three-way `!(...||
+    ...||...)` null check collapsed into three `.is_some()` calls, net one
+    fewer since `table.is_null()` itself became the `?` operator instead),
+    `while loops` 227 -> 228 (the word "while" appearing once in this
+    stage's own new prose comment in `read_json`'s doc comment -- the
+    same incidental text-counter bump M-29's and M-32's own log entries
+    already flagged as a false signal, not a real loop); `.offset(`
+    unchanged at 22 (this function never used `.offset(` to begin with).
+  - **Fuzzing, given this stage's own flagged risk level.** Both real time
+    budgets, not `-runs=0`: `cargo +nightly-2026-08-17 fuzz run json_build
+    -- -max_total_time=180` (`fuzz/rust-toolchain.toml`'s pinned nightly),
+    seeded from the corpus M-32's own run already grew (1449 entries) plus
+    the same OTL-bearing `tests/payload/*.json` fixtures M-32 used -- ran
+    the full 180-second budget end to end, 5,292,810 executions, corpus
+    growing to 1762 entries, 0 crashes, 0 timeouts, 0 OOMs,
+    `fuzz/artifacts/json_build/` empty afterward. `cargo +nightly-2026-08-17
+    fuzz run otf_dump -- -max_total_time=180`, seeded fresh (`fuzz/
+    corpus/otf_dump/` did not exist yet -- populated with every `.ttf`/
+    `.otf` under `tests/payload/`, per `fuzz/README.md`'s own seeding
+    recipe): ran the full 180-second budget, 457 executions (~2.5 exec/s
+    -- this target's own doc comment already notes its read+consolidate+
+    dump pipeline is far more expensive per input than `json_build`'s),
+    corpus growing to 153 entries, 0 crashes. One `slow-unit-*` artifact
+    (libFuzzer's own >1s-per-input report threshold, not a crash) landed
+    in `fuzz/artifacts/otf_dump/` from a large mutated input; run directly
+    against the built binary afterward, it completed cleanly in 8.5s --
+    consistent with the pipeline's own known cost on large fonts, not a
+    hang or a new finding. (`otf_dump` itself never calls `otfcc_parse_
+    otl` at all -- it drives the opposite, binary-to-JSON direction, not
+    the JSON-build direction this stage's own change touches -- so this
+    run was pure regression-safety thoroughness per this stage's own
+    flagged risk level, not expected to be able to find anything in the
+    changed code specifically.) Re-ran every file in `tests/fuzz-corpus/
+    known-issues/*.bin` (22 files) directly against all three built
+    target binaries (`otf_parse`, `otf_dump`, `json_build`): all exited 0
+    except `otf-dump-otl-coverage-consolidate-amplification-hang.bin`,
+    which this repo's own `otf_reader.rs` regression test already
+    documents as legitimately slow under ASan instrumentation (its own
+    comment: "This build's ASan-instrumented `cargo fuzz` counterpart took
+    34s") -- re-run alone with a 90-second timeout, it completed in 27.5s,
+    exit 0, confirming this is the documented bounded-but-slow cost, not a
+    hang or a regression.
+  - **This closes Bucket B's third of four stages.** `otfcc_parse_glyf`
+    (M-32) and `otfcc_parse_otl` (this stage) are both plain safe `pub
+    fn`s now; only `json_reader::read_json` itself is left `unsafe fn` in
+    the trio, and only because it still reborrows a shared `root` into
+    `&mut` for both calls rather than being handed `&mut ParsedValue`
+    itself -- exactly the state M-34 starts from.
