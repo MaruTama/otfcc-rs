@@ -18580,3 +18580,117 @@ counter suggests," not more.
     raw-pointer-typed variable (`Box<Options>`/`Box<Glyph>`/
     `&SvgAssignment`, all already-owned/borrowed types), and this script
     doesn't track `explicit_auto_deref` at all, only clippy does.
+
+- **Stage M-37: `clippy::explicit_auto_deref` fixed for `libcff/
+  cff_parser.rs`'s 359 sites -- the CFF Type 2 CharString interpreter --
+  closing out the lint entirely; the allow-list entry removed from
+  `Cargo.toml`.** The third and last of three planned stages (M-35 through
+  M-37) that together clear the `explicit_auto_deref` allow-list entry.
+  Branched directly off M-36's own branch (`claude/amazing-bell-wb1fyf-25`,
+  PR #504, stacked on #503, neither merged yet), since all three stages
+  touch the same lint machinery. Flagged by the plan (and by M-36's own
+  log entry) as the highest-risk of the three, given this exact file's own
+  fuzz-found bug history -- the unguarded `callsubr`/`callgsubr` recursion
+  and the four unchecked-subtraction operand-count operators fixed
+  earlier (see "Next steps" above) -- so this stage got a full hand review
+  of every hunk plus a dedicated fuzz-run pass, not just the standard
+  build/clippy/test suite the lower-risk M-35/M-36 stages relied on.
+  - **Scope re-verified, not trusted from the plan's or M-36's own count.**
+    Stripped `Cargo.toml`'s `[lints.clippy]` table entirely and relaxed
+    `[lints.rust] warnings` to `"warn"` (reverted immediately after each
+    measurement, same technique as M-35/M-36), then `cargo clippy
+    --all-targets --message-format=json`, deduped by file+line: **359**
+    sites, all in `libcff/cff_parser.rs`, exactly matching M-36's own
+    prediction with zero drift.
+  - **Read the live code first, not just the diff shape.** Before
+    applying any fix, read `cff_parse_outline` (the file's one interpreter
+    function, ~2,600 of the file's 3,160 lines) start to finish, plus its
+    three small helpers. Every one of the 359 sites turned out to be the
+    same single variable, `stack: &mut CffStack` (the operand-stack/hint-
+    count state `cff_parse_outline` threads through its own recursive
+    calls) -- `(*stack).field` / `(*stack).method(...)` / indexing through
+    `(&mut (*stack).stack)[..]`, never a raw pointer despite the c2rust-era
+    parenthesized-deref look; grepping every other `(*ident)` occurrence in
+    the file found only two (`(*total_calls)`, both `*total_calls =
+    (*total_calls).wrapping_add(1)`) and neither is an `explicit_auto_deref`
+    site (`u32::wrapping_add` takes `self` by value, so clippy doesn't
+    flag it the way it flags a method call that resolves through
+    autoderef) -- left untouched, exactly as `cargo clippy --fix` itself
+    left them.
+  - **Applied via the same scoped-lint technique as M-35/M-36**: `cargo
+    clippy --fix --all-targets --allow-dirty -- -A clippy::all -W
+    clippy::explicit_auto_deref`, with the allow-list entry removed and
+    `warnings` relaxed so `--fix` didn't stop at the first target. This
+    time the fix landed in exactly one file (`git status` showed only
+    `libcff/cff_parser.rs` touched) -- M-35 and M-36 between them had
+    already cleared every other site in the crate, so there was no other
+    file to `git checkout --` away afterward.
+  - **Per-hunk review of all 359 sites, not a sample, verified
+    programmatically as well as by eye.** Read every hunk by hand across
+    the file (including each of the four operand-count-checked operators'
+    -- `rcurveline`/`rlinecurve`/`vhcurveto`/`hvcurveto` -- bodies, the
+    `callsubr`/`callgsubr` recursion sites, and the three operand-stack
+    push sites guarded by a capacity check) to confirm each is the plain
+    `(*stack).x` -> `stack.x` shape with the guard/check logic itself
+    completely unchanged either side of the diff. Then confirmed this
+    mechanically for all 359 in one pass: for every removed line in the
+    diff, substituting `stack` for every `(*stack)` (and doing nothing
+    else) reproduced the corresponding added line exactly, character for
+    character, with zero mismatches -- catching, for free, anything a
+    manual skim might miss (a changed operator, a dropped parenthesis, a
+    reordered argument). No hunk stores a reborrow in a `let` binding for
+    later reuse, none changes which value a `match`/`if let` binds, none
+    touches the recursion-depth (`depth > MAX_SUBR_CALL_DEPTH`) or
+    total-call-budget (`*total_calls > MAX_TOTAL_SUBR_CALLS`) guards
+    (neither reads through `stack` at all), and none touches the operand-
+    stack bounds checks (`(stack.index as usize) < stack.stack.len()`, all
+    three push sites) or the four curve operators' own `stack.index < N`
+    minimum-operand-count guards -- every one of those conditions is
+    read/compared identically before and after, only the redundant `*`
+    removed from around `stack`. Zero semantic change in every hunk,
+    confirmed individually and cross-checked mechanically.
+  - **`Cargo.toml`'s entry removed entirely, not just corrected**: this is
+    the last of the three stages, so with all 359 sites fixed here (on top
+    of M-35's 103 and M-36's 13, 475 total), `explicit_auto_deref` has
+    nothing left to allow. Re-measured after the fix landed, with the same
+    strip-and-relax technique: **0** sites crate-wide. The allow-list line
+    itself removed from `Cargo.toml` (replaced with a short comment
+    recording that all three stages landed and the lint needs no allow
+    any more), rather than corrected to "0" -- matching this migration's
+    own convention of deleting a fully-cleared entry (e.g. `len_zero`)
+    instead of leaving a zero-count line behind.
+  - **Verification, deliberately heavier than M-35/M-36 given this file's
+    own history**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean (entry removed, confirms no
+    `explicit_auto_deref` warning anywhere in the crate any more). `cargo
+    test -- --test-threads=1`: 426 passed, 0 failed this run (the
+    pre-existing sandbox-CPU-timing flakes on record since M-10 did not
+    trigger). `cargo test --test golden --test abi --test dll_abi --test
+    log_output --test cycles -- --test-threads=1`: all 9 tests across the
+    5 files passing byte-for-byte, including `krname_cff_subroutinize_o2_
+    matches_golden` (the `KRName-Regular` CFF golden fixture this
+    migration's own history flags as the relevant CFF payload check).
+    `(cd fuzz && cargo check)` clean. `survey-unsafe.sh`: no movement at
+    all (165/30/4/22/19/226 for raw pointer types/unsafe blocks/unsafe
+    fn/`.offset(`/`is_null()`/while loops, unchanged from the M-36
+    baseline) -- expected, since `stack: &mut CffStack` was never a raw
+    pointer to begin with. Given this stage's flagged risk level, both
+    required fuzz targets were run for a real time budget rather than
+    `-runs=0`: `cargo +nightly-2026-08-17 fuzz run otf_parse --
+    -max_total_time=180` (10,353,239 executions in 181s, 0 crashes/
+    timeouts/OOMs) and `cargo +nightly-2026-08-17 fuzz run otf_dump --
+    -max_total_time=180` (1,419,358 executions in 181s, 0 crashes/
+    timeouts/OOMs, one recorded slow-unit artifact at ~26s -- the same
+    pre-existing slow-input class M-35's own fuzz history already has on
+    record, not a new one). All 21 `tests/fuzz-corpus/known-issues/*.bin`
+    files (22 with the directory's own listing file) re-run directly
+    against the rebuilt binaries -- `cargo +nightly-2026-08-17 fuzz run
+    otf_parse tests/fuzz-corpus/known-issues/ -- -runs=0` and the matching
+    `otf_dump` invocation, both 0 crashes -- confirming none of this
+    migration's own previously-fixed CFF (and non-CFF) findings regressed.
+  - **Nothing left alone.** Every one of the 359 sites is the same
+    mechanical `stack: &mut CffStack` shape; none needed hand-fixing or
+    was skipped for requiring judgment. This closes out `clippy::
+    explicit_auto_deref` entirely: M-35 (103 sites) + M-36 (13 sites) +
+    M-37 (359 sites) = 475, matching the very first fresh measurement this
+    three-stage plan started from.
