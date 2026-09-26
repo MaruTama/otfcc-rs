@@ -42,8 +42,6 @@ pub type Scale = ::core::ffi::c_double;
 /// Length.
 pub type Length = ::core::ffi::c_double;
 
-/// A cursor into the raw bytes of a font file.
-pub type FontFilePointer = *mut u8;
 pub const F16DOT16_PRECISION: i32 = 16_i32;
 pub const F16DOT16_K: i32 =
     1_i32 << (F16DOT16_PRECISION - 1_i32);

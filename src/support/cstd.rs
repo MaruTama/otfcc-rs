@@ -5,5 +5,4 @@
 // used to sit at the bottom of `support.rs` itself before this split.
 pub mod binio;
 pub mod ctype_compat;
-pub mod stdio;
 pub mod strtol;
