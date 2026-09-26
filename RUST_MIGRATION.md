@@ -18035,3 +18035,56 @@ counter suggests," not more.
     `.offset(`/`is_null()`/`while loops` all unchanged at 7/39/22/21/226
     (none of the six deletions was itself `unsafe fn`, an `unsafe` block,
     or offset/is_null-adjacent).
+- **Stage M-31: `ParsedValue::get_typed_mut` added.** The first of four
+  planned stages (M-31 through M-34) laid out in "Stage 7-4 plan" above
+  that together make the JSON-parse `unsafe fn` trio
+  (`json_reader::read_json`, `table::glyf::otfcc_parse_glyf`,
+  `table::otl::parse::otfcc_parse_otl`) safe. That plan's own staging
+  section calls for this method first and calls it "purely additive
+  API; zero risk, since nothing calls it yet" -- exactly what this
+  stage does, nothing more: `table::glyf::otfcc_parse_glyf`
+  (M-32) and `table::otl::parse::otfcc_parse_otl` (M-33) are what will
+  actually call it, once each takes `&mut ParsedValue` itself.
+  `pub fn get_typed_mut(&mut self, key: &[u8], kind: JsonType) ->
+  Option<&mut ParsedValue>` (`src/support/parsed_json.rs`) mirrors
+  `get_typed`'s own signature and first-match-only semantics exactly
+  (same lookup, same "the first matching key wins, a later duplicate
+  with the right type is never reached" contract), just returning a
+  mutable reference to the found child instead of a shared one --
+  filling the same "`set_field`/`take_field` already take `&mut self`,
+  this is filling a gap, not inventing a pattern" gap the plan
+  identified, not a new design.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean.
+    `cargo clippy --all-targets -- -D warnings` clean -- in particular,
+    no `dead_code` warning on the new `pub fn`, confirmed rather than
+    assumed: a `pub` method on a `pub` type is part of the crate's own
+    API surface regardless of internal callers, the same reason
+    `get_typed`'s own siblings (`get_bytes_owned`, `flags`, etc.) never
+    trip that lint either even where an internal caller happens to be
+    thin. `cargo test -- --test-threads=1`: 425 passed, 1 failed --
+    `otl_feature_ref_amplification_font_parses_promptly`, the same
+    sandbox-CPU-timing flake on record since M-10 (unrelated -- this
+    stage adds one pure-Rust method and its own two unit tests, no
+    parsing-path or timing-sensitive code touched);
+    `otl_coverage_and_consolidate_log_amplification_font_dumps_promptly`
+    (this sandbox's other known flake) passed this run. The two new
+    tests (`safe_api_get_typed_mut_does_not_search_past_a_type_mismatch`,
+    mirroring `get_typed`'s own type-mismatch test; `safe_api_get_typed_
+    mut_mutation_is_observable_afterward`, resolving a nested object via
+    `get_typed_mut` and then calling `set_field`/`take_field` through
+    the returned `&mut ParsedValue`, confirmed afterward by reading the
+    same fields back through plain `get_typed`) both pass. Golden
+    byte-exact suite: `cargo test --test golden --test abi --test
+    dll_abi --test log_output --test cycles -- --test-threads=1`, all 9
+    tests across the 5 files passing (expected -- no executable path any
+    of them exercises changed). `(cd fuzz && cargo check)`: clean.
+    `survey-unsafe.sh`: every counter unchanged at this stage's own
+    7/39/191/22/21/226 (`unsafe fn`/`unsafe blocks`/raw pointer types/
+    `.offset(`/`is_null()`/`while loops`) -- expected, since this stage
+    adds a plain safe method with no raw pointer or `unsafe` of its own;
+    a fresh baseline check (stashing the change and re-running the
+    script) found only `Option<` usage move 809 -> 810, exactly the new
+    method's own `Option<&mut ParsedValue>` return type, confirming
+    nothing else shifted underneath this stage. Nothing outside
+    `src/support/parsed_json.rs` was touched, and nothing in the crate
+    calls `get_typed_mut` yet -- M-32 is next.
