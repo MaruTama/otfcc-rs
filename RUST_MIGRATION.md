@@ -17549,6 +17549,53 @@ on the other platform before a commit is trusted.
     documentation/lint-table correction, not a code change, so the `.offset(`
     counter's own naive-text-grep limitation -- already on record above --
     means it still counts the same comment mentions it always did).
+- **`libcff/cff_opmean.rs`'s `op_cff_name`/`op_cs2_name` deleted -- two
+  wholly dead functions whose ~100 combined match arms alone accounted for
+  305 of the crate's 496 `survey-unsafe.sh` raw-pointer-type sites (61%),
+  the single largest concentration in the tree by a wide margin.** Found
+  while answering a general "is the Rust migration complete" question:
+  breaking `survey-unsafe.sh`'s raw-pointer-type count down by file (`grep
+  -rEon '\*(mut|const) [A-Za-z_:<>]+' src/ | ... | sort | uniq -c`) showed
+  this one file dwarfing every other, worth checking before assuming the
+  remaining 496 sites were evenly spread genuine parsing code. Both
+  functions were already marked dead in their own doc comments (`op_cff_
+  name`: "Dead in this crate (nothing calls it)"), confirmed rather than
+  trusted: `grep -rn` for both names across `src/`, `tests/`, `benches/`,
+  and `fuzz/` found zero call sites anywhere outside their own definitions
+  -- only `cff_get_standard_arity` (returning a plain `u8`, kept) is
+  actually used, at `libcff/charstring_il.rs:106`/`:456`. Both are `pub fn`
+  (not `extern "C"`), so neither is part of the ABI surface `tests/abi.rs`
+  pins -- confirmed by an explicit `cargo test --test abi` re-run after
+  deleting them, unchanged. Matches this migration's own established
+  precedent for zero-caller `pub` functions (`cff_dict_free`/`cff_index_
+  free`, the `vq_create_region`/`vq_delete_region`/`vq_copy_region` trio,
+  `CCharRef`/`CCharRef::from_ptr`, all deleted earlier for the same reason)
+  -- deleted outright rather than converted to a safe return type, since
+  dead code has no use for either treatment.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean, `fuzz/`'s own `cargo check`
+    clean. `cargo test -- --test-threads=1`: 423 passed, 1 pre-existing
+    timing-threshold flake on record since M-10 (this run happened not to
+    also trip the other one; both are sandbox-CPU timing sensitivity, not
+    a regression -- unrelated to a change that deletes only unreachable
+    code). Golden/abi/dll_abi/log_output/cycles integration suites
+    explicitly re-run and passing byte-for-byte, `tests/abi.rs` in
+    particular confirming the cdylib's exported-symbol surface is
+    unchanged. `survey-unsafe.sh`: raw pointer types **496 -> 191** (-305,
+    exactly the deleted match arms' own count); `unsafe fn`/`unsafe
+    blocks`/`.offset(`/`is_null()`/`while loops` all unchanged at
+    8/48/22/21/226 (expected -- neither function was itself `unsafe`, an
+    `unsafe fn`, or `.offset()`/`is_null()`-adjacent; they were plain
+    `pub fn`s returning `*mut c_char` cast from `'static` byte-string
+    literals). A fresh clippy re-measurement (same all-allows-removed
+    technique as the lint-triage/`ptr_offset_with_cast` audits above) found
+    `explicit_auto_deref` unchanged at 476 (these match arms' `as` casts
+    aren't that lint's shape) but `needless_return` dropping 301 -> 200 as
+    a side effect (each deleted match arm was its own `return expr;`) --
+    left `Cargo.toml`'s `needless_return` entry itself untouched, per this
+    session's standing instruction not to touch that lint, matching the
+    precedent already on record for incidental count drops from unrelated
+    work.
 - **Stage M-30: `otf_reader::read_otf` is no longer `unsafe fn`.** Picked
   up from re-investigating the 8 remaining `unsafe fn`s from a fresh
   branch (this migration's own "don't trust a stale count, re-measure"
@@ -17631,8 +17678,11 @@ on the other platform before a commit is trusted.
     `benches/support/mod.rs::build_to_otf`, a separate function in the
     same file, keeps its own `unsafe { ... }` block untouched, since it
     still calls the still-`unsafe fn` `read_json`), raw pointer types
-    unchanged at 496 (expected:
-    `read_otf`'s parameters were already plain references, so no
-    parameter type moved -- this stage removed a leftover keyword, not a
-    raw pointer), `.offset(`/`is_null()`/`while loops` unchanged at
-    22/21/226.
+    unchanged at this stage's own 496 baseline (expected: `read_otf`'s
+    parameters were already plain references, so no parameter type moved
+    -- this stage removed a leftover keyword, not a raw pointer; that
+    baseline reads 191 today only because the `cff_opmean.rs` dead-code
+    entry above it landed first in `master` and is now merged ahead of
+    this one -- see that entry's own -305 for where the drop came from,
+    unrelated to this stage), `.offset(`/`is_null()`/`while loops`
+    unchanged at 22/21/226.
