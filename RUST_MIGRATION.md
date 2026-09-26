@@ -17596,3 +17596,93 @@ on the other platform before a commit is trusted.
     session's standing instruction not to touch that lint, matching the
     precedent already on record for incidental count drops from unrelated
     work.
+- **Stage M-30: `otf_reader::read_otf` is no longer `unsafe fn`.** Picked
+  up from re-investigating the 8 remaining `unsafe fn`s from a fresh
+  branch (this migration's own "don't trust a stale count, re-measure"
+  discipline applies to the unsafe-fn roster too, not just the raw-pointer
+  counter). `get_point_coordinates`/`consolidate_anchor_ref` are a
+  genuinely pointer-heavy mutually-recursive glyf walk (unchanged, and
+  correctly so -- M-26's sweep already confirmed there is no safe
+  sub-region to split out of that pair, and this stage's own read of both
+  bodies agreed); `support/buffer.rs`'s `from_raw` and `ffi/dll.rs`'s
+  test-only `build` each carry a genuine ownership-transfer contract
+  (`Box::from_raw`, an `extern "C"` FFI boundary) that has no safe
+  equivalent; `json_reader.rs`'s `read_json`, `table/glyf.rs`'s
+  `otfcc_parse_glyf` and `table/otl/parse.rs`'s `otfcc_parse_otl` all
+  still call into each other's `unsafe fn`s along the JSON-to-binary
+  build path and stay as they are. `read_otf` was the one exception: its
+  own doc comment already said (added back in an earlier stage, not this
+  one) that it "has no caller-side contract of its own" and "stays
+  `unsafe fn` as a holdover" -- a claim this stage double-checked rather
+  than took on faith, since M-20's own log entry (elsewhere in this file)
+  separately claims `read_otf` "stay[s] `unsafe fn` for the ... already-
+  documented `otfcc_parse_glyf`/`otfcc_parse_otl` reasons", which sounded
+  like it might mean `read_otf` itself calls into that unsafe pair.
+  - **The check.** It doesn't. `otfcc_parse_glyf`/`otfcc_parse_otl` are the
+    JSON-to-binary *build* direction, reachable only from
+    `json_reader.rs::read_json` (confirmed by `grep -n
+    "otfcc_parse_glyf\|otfcc_parse_otl" src/json_reader.rs
+    src/otf_reader.rs`: both hits are in `json_reader.rs`, none in
+    `otf_reader.rs`). `read_otf` is the binary-to-struct *read* direction
+    and calls a completely different, already-safe family
+    (`otfcc_read_glyf`, `otfcc_read_otl`, and the two dozen other
+    `otfcc_read_*` table readers it calls in sequence) -- every one of
+    them checked directly (`grep -rn "fn otfcc_read_<name>"` for all 27
+    call targets in the function body) confirmed a plain `pub fn`, none
+    `unsafe fn`. The function's own body (re-read in full) has no
+    `unsafe {}` block and no raw pointer of its own either -- M-20's
+    "already-documented ... reasons" note reads, on this closer look, as
+    a cross-reference that was accurate about `read_json` but overstated
+    for `read_otf`, which had simply never been revisited since. Every
+    one of the 8 call sites across the crate that invoke `read_otf`
+    (`otf_reader.rs`'s own 8 regression tests, `src/bin/otfccdump.rs`,
+    `benches/support/mod.rs::dump_to_json`, and both
+    `fuzz/fuzz_targets/{otf_parse,otf_dump}.rs`) was read in full too, to
+    confirm each surrounding `unsafe { ... }` block held no other
+    genuinely unsafe operation once `read_otf` itself no longer needed
+    one -- all 8 were purely `read_otf`-shaped (an already-safe
+    `otfcc_read_sfnt_from_reader`/`otfcc_consolidate_font`/
+    `serialize_to_json`/`parse_json` call alongside it, nothing raw-
+    pointer-shaped), so none needed to keep any unsafety of their own.
+  - **The fix.** Dropped `unsafe` from `read_otf`'s signature and replaced
+    its `# Safety` doc comment (which asserted there was no real
+    contract) with a plain doc note explaining why the keyword is gone
+    and pointing at the verification above; removed the now-pointless
+    `unsafe { ... }` wrapper (dedenting the body) at all 8 call sites,
+    including the 8 `#[test]` fns in `otf_reader.rs` itself, and deleted
+    the stale "`read_otf` is `unsafe fn` only because its body drives the
+    CFF builder core (raw-pointer tables, excluded from this migration)"
+    comment at its `otfccdump.rs` call site -- also inaccurate on this
+    same evidence, since `table/cff.rs`'s CFF builder core became a plain
+    safe `pub fn` back in Stage M-14, well before this stage.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean (no `unused_unsafe`
+    anywhere, confirming every removed wrapper really had become dead).
+    `cargo test -- --test-threads=1`: 423 passed, 1 failed --
+    `otl_feature_ref_amplification_font_parses_promptly`, the same
+    sandbox-CPU-timing flake on record since M-10 (re-ran in isolation,
+    still fails the same way at ~10.3s against its 10s budget, confirming
+    it is the known flake and not a regression this stage introduced);
+    `otl_coverage_and_consolidate_log_amplification_font_dumps_promptly`
+    (this sandbox's other known flake) passed this run. Golden byte-exact
+    suite: `cargo test --test golden --test abi --test dll_abi --test
+    log_output --test cycles -- --test-threads=1`, all 9 tests across the
+    5 files passing. `(cd fuzz && cargo check)`: clean. `survey-unsafe.sh`:
+    `unsafe fn` 8 -> 7, `unsafe blocks` 48 -> 39 (9 now-dead wrappers
+    removed: the 8 `#[test]` fns and `otfccdump.rs`'s one call site in
+    `src/`, plus `benches/support/mod.rs::dump_to_json` and both
+    `fuzz/fuzz_targets/{otf_parse,otf_dump}.rs`, which the script doesn't
+    count since it only scans `src/` -- each of those three held no other
+    unsafe operation once `read_otf`'s own call stopped needing one, so
+    the whole `unsafe { ... }` wrapper came out rather than staying empty;
+    `benches/support/mod.rs::build_to_otf`, a separate function in the
+    same file, keeps its own `unsafe { ... }` block untouched, since it
+    still calls the still-`unsafe fn` `read_json`), raw pointer types
+    unchanged at this stage's own 496 baseline (expected: `read_otf`'s
+    parameters were already plain references, so no parameter type moved
+    -- this stage removed a leftover keyword, not a raw pointer; that
+    baseline reads 191 today only because the `cff_opmean.rs` dead-code
+    entry above it landed first in `master` and is now merged ahead of
+    this one -- see that entry's own -305 for where the drop came from,
+    unrelated to this stage), `.offset(`/`is_null()`/`while loops`
+    unchanged at 22/21/226.

@@ -65,20 +65,18 @@ pub fn quiet_options_o2() -> Box<Options> {
 /// The dump pipeline (`otfccdump.rs`'s own steps, in-process): SFNT bytes
 /// in, pretty-printed JSON bytes out.
 pub fn dump_to_json(sfnt_bytes: &[u8], options: &Options) -> Vec<u8> {
-    unsafe {
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes))
-            .expect("otfcc_read_sfnt_from_reader returned None");
+    let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes))
+        .expect("otfcc_read_sfnt_from_reader returned None");
 
-        let mut font = read_otf(&sfnt, 0, options).expect("read_otf returned None");
+    let mut font = read_otf(&sfnt, 0, options).expect("read_otf returned None");
 
-        otfcc_consolidate_font(&mut font, options);
+    otfcc_consolidate_font(&mut font, options);
 
-        let root = serialize_to_json(&mut font, options);
-        drop(font);
+    let root = serialize_to_json(&mut font, options);
+    drop(font);
 
-        let json_options = JsonSerializeOpts { mode: JSON_SERIALIZE_MODE_PACKED, opts: 0, indent_size: 4 };
-        json_serialize_ex(&root, json_options)
-    }
+    let json_options = JsonSerializeOpts { mode: JSON_SERIALIZE_MODE_PACKED, opts: 0, indent_size: 4 };
+    json_serialize_ex(&root, json_options)
 }
 
 /// The build pipeline (`otfccbuild.rs`'s own steps, in-process): JSON bytes

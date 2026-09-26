@@ -39,35 +39,33 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-    unsafe {
-        let Some(sfnt) = otfcc_read_sfnt_from_reader(&mut Cursor::new(data)) else {
-            return;
-        };
-        if sfnt.count == 0 {
-            return;
-        }
+    let Some(sfnt) = otfcc_read_sfnt_from_reader(&mut Cursor::new(data)) else {
+        return;
+    };
+    if sfnt.count == 0 {
+        return;
+    }
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+    let mut options: Box<Options> = Box::default();
+    options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-        // Subfont index 0 always exists once `count > 0` -- see otf_parse's
-        // own comment on why this target does not also fuzz the TTC index.
-        let font = read_otf(&sfnt, 0, &options);
+    // Subfont index 0 always exists once `count > 0` -- see otf_parse's
+    // own comment on why this target does not also fuzz the TTC index.
+    let font = read_otf(&sfnt, 0, &options);
 
-        if let Some(mut font) = font {
-            otfcc_consolidate_font(&mut font, &options);
-            // `serialize_to_json` used to return `*mut c_void` (the
-            // type-erased `FontSerializer` trait boundary). Reclaiming that
-            // untyped pointer with `Box::from_raw` built a `Box<c_void>`,
-            // whose drop glue does nothing and never ran `BuiltValue`'s own
-            // recursive `Object`/`Array` teardown -- every dump leaked its
-            // entire JSON tree (LeakSanitizer-confirmed, ~2.7KB direct plus
-            // everything reachable from it, megabytes on a real font). The
-            // fix back then was to remember to cast back to
-            // `*mut BuiltValue` first. The erasure itself is gone now, so
-            // the owned `BuiltValue` simply drops correctly here and that
-            // whole class of mistake is unrepresentable.
-            drop(serialize_to_json(&mut font, &options));
-        }
+    if let Some(mut font) = font {
+        otfcc_consolidate_font(&mut font, &options);
+        // `serialize_to_json` used to return `*mut c_void` (the
+        // type-erased `FontSerializer` trait boundary). Reclaiming that
+        // untyped pointer with `Box::from_raw` built a `Box<c_void>`,
+        // whose drop glue does nothing and never ran `BuiltValue`'s own
+        // recursive `Object`/`Array` teardown -- every dump leaked its
+        // entire JSON tree (LeakSanitizer-confirmed, ~2.7KB direct plus
+        // everything reachable from it, megabytes on a real font). The
+        // fix back then was to remember to cast back to
+        // `*mut BuiltValue` first. The erasure itself is gone now, so
+        // the owned `BuiltValue` simply drops correctly here and that
+        // whole class of mistake is unrepresentable.
+        drop(serialize_to_json(&mut font, &options));
     }
 });
