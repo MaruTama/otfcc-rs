@@ -734,202 +734,219 @@ fn figure_out_languages_from_json(
     }
     return sh;
 }
-/// # Safety
-/// While this call runs, no other reference may read or write the `tag`
-/// object reachable from `root` (or anything above it in the tree). The
-/// body resolves `table`/`languages`/`features`/`lookups`/`lookup_order`
-/// as raw pointers re-derived fresh at each point of use rather than one
-/// `&ParsedValue` held across the function, because `features` is later
-/// mutated in place (via `feature_merger_activate`); that resolve-fresh
-/// discipline only avoids a *held* aliasing reference of its own making --
-/// it does nothing to protect against a caller-supplied reference into
-/// the same subtree that outlives it.
-pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
-    let otl: *mut OtlTable;
-    let mut otl_box: Option<Box<OtlTable>> = None;
-    // `table`/`languages`/`features`/`lookups`/`lookup_order` all stay raw
-    // pointers here, each resolved via its own fresh, single-expression
-    // `.as_ref()` reborrow rather than one `&ParsedValue` binding held
-    // across the whole function -- `features` gets mutated in place
-    // inside `figure_out_features_from_json` (via `feature_merger_
-    // activate`), and a persisted shared reference to any ancestor of
-    // that subtree (`table`, ultimately `root`) would still be "live" at
-    // that point under Rust's aliasing rules even if never read again.
-    // Resolving fresh each time, the same principle `feature_merger_
-    // activate` itself uses internally, sidesteps that entirely: every
-    // reborrow here is a temporary that retires at the end of its own
-    // statement, long before the mutation happens.
-    let table: *const ParsedValue = root
-        .get_typed(tag, JsonType::Object)
-        .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
-    if !table.is_null() {
-        otl_box = Some(Box::new(OtlTable {
-            lookups: Vec::new(),
-            features: Vec::new(),
-            languages: Vec::new(),
-        }));
-        otl = otl_box.as_mut().unwrap().as_mut() as *mut OtlTable;
-        let languages: *const ParsedValue = unsafe { table.as_ref() }
-            .and_then(|t| t.get_typed(b"languages", JsonType::Object))
-            .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
-        let features: *mut ParsedValue = unsafe { table.as_ref() }
-            .and_then(|t| t.get_typed(b"features", JsonType::Object))
-            .map_or(::core::ptr::null_mut(), |v| {
-                v as *const ParsedValue as *mut ParsedValue
-            });
-        let lookups: *const ParsedValue = unsafe { table.as_ref() }
-            .and_then(|t| t.get_typed(b"lookups", JsonType::Object))
-            .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
-        if !(languages.is_null() || features.is_null() || lookups.is_null()) {
-            logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
-            // No longer a `___loggedstep_v`/`current_block`-flagged `loop`
-            // simulating "run this block once, then jump past the
-            // `logger_finish`+early-return on failure" -- the block below
-            // always runs exactly once; the only branch is whether the
-            // parsed table came out non-empty. On success, `logger_finish`
-            // + `return otl_box` immediately; on failure, `logger_dedent`
-            // and fall through to the shared "log a warning, return None"
-            // tail below instead.
-            let mut lh: PendingLookups =
-                figure_out_lookups_from_json(unsafe { lookups.as_ref() }, options);
-            let lookup_order: *const ParsedValue = unsafe { table.as_ref() }
-                .and_then(|t| t.get_typed(b"lookupOrder", JsonType::Array))
-                .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
-            if let Some(items) = unsafe { lookup_order.as_ref() }.and_then(ParsedValue::as_array)
-            {
-                for (j, ln) in items.iter().enumerate() {
-                    if let Some(ln_bytes) = ln.as_str_bytes() {
-                        let ln_owned = ln_bytes.to_vec();
-                        if let Some(item) = lh.entries.iter_mut().rev().find(|e| e.name == ln_owned)
-                        {
-                            item.order_type = LookupOrderType::Force;
-                            item.order_val = j as u16;
-                        }
+/// Resolves `table` (the `tag` child, e.g. `"GSUB"`/`"GPOS"`) via
+/// `get_typed_mut` and, from it, `lookups`/`lookupOrder`/`features`/
+/// `languages` as ordinary sequential reborrows instead of the raw
+/// pointers re-derived fresh at each point of use this function used to
+/// need (see RUST_MIGRATION.md's "Stage 7-4 plan", Bucket B, for the
+/// access-order trace this rewrite follows). `lookups` (shared) and
+/// `lookupOrder` (shared) are fully consumed -- into `lh`, a local,
+/// owned `PendingLookups` -- before `features` is ever touched; `features`
+/// is then mutated in place (`figure_out_features_from_json` ->
+/// `feature_merger_activate`, which needs `&mut ParsedValue`); `languages`
+/// (shared) is resolved only after that mutation has finished. Each
+/// `get_typed`/`get_typed_mut` call below is its own single-expression
+/// reborrow of `table` that retires at the end of its own statement, long
+/// before the next one begins -- the same discipline Stage M-32 used for
+/// `otfcc_parse_glyf`'s single `"glyf"` child, sequenced here across four
+/// sibling children of one `table` instead of one child alone. The
+/// presence check just below (`lookups_present`/`features_present`/
+/// `languages_present`) is a separate, side-effect-free set of `get_typed`
+/// calls made *before* any of the four real accesses, to preserve the
+/// original code's own all-or-nothing gating: skip all real parsing
+/// (including `lookups`'s own "invalid lookup" warning logging) unless
+/// all three are present, exactly as the raw-pointer version's `if
+/// !(languages.is_null() || features.is_null() || lookups.is_null())`
+/// checked before doing any work -- even though the "real" pass below
+/// re-resolves each of the three again from scratch.
+pub fn otfcc_parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
+    let table = root.get_typed_mut(tag, JsonType::Object)?;
+    // `table` existing (the `?` above already returned `None` otherwise) is
+    // the same "this font has a `tag` table at all" gate the raw-pointer
+    // version's own `otl_box = Some(...)`/`if otl_box.is_some()` pairing
+    // used: once we're here, either the table below builds successfully
+    // (returned early, `Some(otl_box)`) or it's logged as invalid/
+    // incomplete at the tail -- there is no third outcome once `table`
+    // itself is known to exist, so `otl_box` no longer needs to be an
+    // `Option` of its own the way the old raw-pointer local did.
+    let mut otl_box: Box<OtlTable> = Box::new(OtlTable {
+        lookups: Vec::new(),
+        features: Vec::new(),
+        languages: Vec::new(),
+    });
+    let languages_present = table.get_typed(b"languages", JsonType::Object).is_some();
+    let features_present = table.get_typed(b"features", JsonType::Object).is_some();
+    let lookups_present = table.get_typed(b"lookups", JsonType::Object).is_some();
+    if languages_present && features_present && lookups_present {
+        logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
+        // No longer a `___loggedstep_v`/`current_block`-flagged `loop`
+        // simulating "run this block once, then jump past the
+        // `logger_finish`+early-return on failure" -- the block below
+        // always runs exactly once; the only branch is whether the
+        // parsed table came out non-empty. On success, `logger_finish`
+        // + `return Some(otl_box)` immediately; on failure, `logger_dedent`
+        // and fall through to the shared "log a warning, return None"
+        // tail below instead.
+        let mut lh: PendingLookups = figure_out_lookups_from_json(
+            table.get_typed(b"lookups", JsonType::Object),
+            options,
+        );
+        if let Some(items) = table
+            .get_typed(b"lookupOrder", JsonType::Array)
+            .and_then(ParsedValue::as_array)
+        {
+            for (j, ln) in items.iter().enumerate() {
+                if let Some(ln_bytes) = ln.as_str_bytes() {
+                    let ln_owned = ln_bytes.to_vec();
+                    if let Some(item) = lh.entries.iter_mut().rev().find(|e| e.name == ln_owned)
+                    {
+                        item.order_type = LookupOrderType::Force;
+                        item.order_val = j as u16;
                     }
                 }
-            }
-            let mut fh: PendingFeatures =
-                figure_out_features_from_json(unsafe { &mut *features }, &lh, tag, options);
-            let sh: std::collections::BTreeMap<Vec<u8>, PendingLanguage> =
-                figure_out_languages_from_json(unsafe { languages.as_ref() }, &fh, tag, options);
-            if lh.entries.is_empty() || fh.entries.is_empty() || sh.is_empty() {
-                logger_dedent(&mut options.logger.borrow_mut());
-            } else {
-                // `lh.entries` is an owned `Vec` now, not a chain of
-                // uthash nodes reached via a raw pointer, so there is no
-                // manual HASH_ITER+HASH_DEL+free walk here -- sorting
-                // by (order_type, order_val) (what `HASH_SORT` with
-                // `by_lookup_order` did, deferred from where that call
-                // used to sit, right after the lookupOrder loop above,
-                // since nothing in between needed `lh.entries` in sorted
-                // order, only by-name lookup) and then draining it are
-                // both just `Vec` operations, and the `Vec` itself drops
-                // for free once this scope ends.
-                lh.entries.sort_by(|a, b| {
-                    a.order_type
-                        .cmp(&b.order_type)
-                        .then(a.order_val.cmp(&b.order_val))
-                });
-                // Every `PendingLookupId` a `Feature`/`LanguageSystem`
-                // holds was minted *before* this sort, so it no longer
-                // matches the position its owning `Lookup` will actually
-                // land at in `OtlTable.lookups` -- this remap is exactly
-                // what the old pointer-identity design got for free (a
-                // `Box`'s heap address doesn't move when the `Box` itself
-                // is later moved into a `Vec`), spelled out explicitly
-                // for indices. `entry.alias`'s doc comment's double-free
-                // history is why only a non-alias entry ever takes its
-                // `PendingLookupId`'s slot: two entries sharing an id and
-                // both trying to `.take()` it would make the second
-                // `.take()` see `None` and panic, not double-free.
-                let mut lookup_remap: Vec<Option<LookupIdx>> = vec![None; lh.lookups.len()];
-                for entry in lh.entries.into_iter() {
-                    if !entry.alias {
-                        let taken = lh.lookups[entry.lookup_id.0 as usize]
-                            .take()
-                            .expect("non-alias LookupEntry's pending lookup should not have been taken yet");
-                        let idx = LookupIdx((*otl).lookups.len() as u32);
-                        (*otl).lookups.push(Some(taken));
-                        lookup_remap[entry.lookup_id.0 as usize] = Some(idx);
-                    }
-                }
-                // Same shape as `lh.entries` above: `by_feature_name`
-                // sorted by `name` (which happened to equal the would-be
-                // dedup key, unlike `lh`'s order_type/order_val), so the
-                // sort is `.name`'s byte-wise `Ord` -- matching `strcmp`
-                // on NUL-free byte sequences, the same equivalence this
-                // migration relies on for every `Vec<u8>`-keyed sort (see
-                // `ClassNameHash`). Each finalized `Feature`'s `.lookups`
-                // is rewritten through `lookup_remap` in the same pass
-                // that finalizes it, since a `PendingFeature`'s
-                // `PendingLookupId`s are only meaningful before this
-                // point.
-                fh.entries.sort_by(|a, b| a.name.cmp(&b.name));
-                let mut feature_remap: Vec<Option<FeatureIdx>> = vec![None; fh.features.len()];
-                for entry in fh.entries.into_iter() {
-                    if !entry.alias {
-                        let pending = fh.features[entry.feature_id.0 as usize]
-                            .take()
-                            .expect("non-alias FeatureEntry's pending feature should not have been taken yet");
-                        let remapped_lookups: LookupRefList = pending
-                            .lookups
-                            .iter()
-                            .map(|pending_id| {
-                                lookup_remap[pending_id.0 as usize]
-                                    .expect("every PendingLookupId a feature references should have been remapped")
-                            })
-                            .collect();
-                        let idx = FeatureIdx((*otl).features.len() as u32);
-                        (*otl).features.push(Some(Box::new(Feature {
-                            name: pending.name,
-                            lookups: remapped_lookups,
-                        })));
-                        feature_remap[entry.feature_id.0 as usize] = Some(idx);
-                    }
-                }
-                // `LanguageHash` has no alias mechanism at all (see
-                // `figure_out_languages_from_json`'s own comment), so
-                // every entry here really is unique and really does get
-                // pushed -- each `PendingLanguage`'s `PendingFeatureId`s
-                // are remapped through `feature_remap` the same way
-                // `Feature.lookups` was above.
-                for (_, language) in sh.into_iter() {
-                    let required_feature = language.required_feature.map(|pending_id| {
-                        feature_remap[pending_id.0 as usize]
-                            .expect("every PendingFeatureId a language references should have been remapped")
-                    });
-                    let features: FeatureRefList = language
-                        .features
-                        .iter()
-                        .map(|pending_id| {
-                            feature_remap[pending_id.0 as usize]
-                                .expect("every PendingFeatureId a language references should have been remapped")
-                        })
-                        .collect();
-                    let mut language_box: Box<LanguageSystem> = new_language();
-                    language_box.name = language.name;
-                    language_box.required_feature = required_feature;
-                    language_box.features = features;
-                    (*otl).languages.push(language_box);
-                }
-                logger_finish(&mut options.logger.borrow_mut());
-                return otl_box;
             }
         }
-    }
-    if otl_box.is_some() {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",
-                tag,
-                b".\n",
-            ),
+        let mut fh: PendingFeatures = figure_out_features_from_json(
+            // `features_present` above already confirmed this is `Some`.
+            table
+                .get_typed_mut(b"features", JsonType::Object)
+                .expect("features_present confirmed this child exists and is an object"),
+            &lh,
+            tag,
+            options,
         );
+        let sh: std::collections::BTreeMap<Vec<u8>, PendingLanguage> =
+            figure_out_languages_from_json(
+                table.get_typed(b"languages", JsonType::Object),
+                &fh,
+                tag,
+                options,
+            );
+        if lh.entries.is_empty() || fh.entries.is_empty() || sh.is_empty() {
+            logger_dedent(&mut options.logger.borrow_mut());
+        } else {
+            // `lh.entries` is an owned `Vec` now, not a chain of
+            // uthash nodes reached via a raw pointer, so there is no
+            // manual HASH_ITER+HASH_DEL+free walk here -- sorting
+            // by (order_type, order_val) (what `HASH_SORT` with
+            // `by_lookup_order` did, deferred from where that call
+            // used to sit, right after the lookupOrder loop above,
+            // since nothing in between needed `lh.entries` in sorted
+            // order, only by-name lookup) and then draining it are
+            // both just `Vec` operations, and the `Vec` itself drops
+            // for free once this scope ends.
+            lh.entries.sort_by(|a, b| {
+                a.order_type
+                    .cmp(&b.order_type)
+                    .then(a.order_val.cmp(&b.order_val))
+            });
+            // Every `PendingLookupId` a `Feature`/`LanguageSystem`
+            // holds was minted *before* this sort, so it no longer
+            // matches the position its owning `Lookup` will actually
+            // land at in `OtlTable.lookups` -- this remap is exactly
+            // what the old pointer-identity design got for free (a
+            // `Box`'s heap address doesn't move when the `Box` itself
+            // is later moved into a `Vec`), spelled out explicitly
+            // for indices. `entry.alias`'s doc comment's double-free
+            // history is why only a non-alias entry ever takes its
+            // `PendingLookupId`'s slot: two entries sharing an id and
+            // both trying to `.take()` it would make the second
+            // `.take()` see `None` and panic, not double-free.
+            let mut lookup_remap: Vec<Option<LookupIdx>> = vec![None; lh.lookups.len()];
+            for entry in lh.entries.into_iter() {
+                if !entry.alias {
+                    let taken = lh.lookups[entry.lookup_id.0 as usize]
+                        .take()
+                        .expect("non-alias LookupEntry's pending lookup should not have been taken yet");
+                    // `otl_box` is accessed directly here (and at the
+                    // `features`/`languages` push sites below) rather
+                    // than through a cached `otl: *mut OtlTable` local
+                    // re-derived at each site, the way the pre-M-33
+                    // code did: `otl_box` is now a plain owned
+                    // `Box<OtlTable>`, not reached through any
+                    // aliasing concern of its own, so there is nothing
+                    // a cached pointer (or a fresh reborrow standing
+                    // in for one) would buy here beyond what a plain
+                    // field access already gives for free.
+                    let idx = LookupIdx(otl_box.lookups.len() as u32);
+                    otl_box.lookups.push(Some(taken));
+                    lookup_remap[entry.lookup_id.0 as usize] = Some(idx);
+                }
+            }
+            // Same shape as `lh.entries` above: `by_feature_name`
+            // sorted by `name` (which happened to equal the would-be
+            // dedup key, unlike `lh`'s order_type/order_val), so the
+            // sort is `.name`'s byte-wise `Ord` -- matching `strcmp`
+            // on NUL-free byte sequences, the same equivalence this
+            // migration relies on for every `Vec<u8>`-keyed sort (see
+            // `ClassNameHash`). Each finalized `Feature`'s `.lookups`
+            // is rewritten through `lookup_remap` in the same pass
+            // that finalizes it, since a `PendingFeature`'s
+            // `PendingLookupId`s are only meaningful before this
+            // point.
+            fh.entries.sort_by(|a, b| a.name.cmp(&b.name));
+            let mut feature_remap: Vec<Option<FeatureIdx>> = vec![None; fh.features.len()];
+            for entry in fh.entries.into_iter() {
+                if !entry.alias {
+                    let pending = fh.features[entry.feature_id.0 as usize]
+                        .take()
+                        .expect("non-alias FeatureEntry's pending feature should not have been taken yet");
+                    let remapped_lookups: LookupRefList = pending
+                        .lookups
+                        .iter()
+                        .map(|pending_id| {
+                            lookup_remap[pending_id.0 as usize]
+                                .expect("every PendingLookupId a feature references should have been remapped")
+                        })
+                        .collect();
+                    let idx = FeatureIdx(otl_box.features.len() as u32);
+                    otl_box.features.push(Some(Box::new(Feature {
+                        name: pending.name,
+                        lookups: remapped_lookups,
+                    })));
+                    feature_remap[entry.feature_id.0 as usize] = Some(idx);
+                }
+            }
+            // `LanguageHash` has no alias mechanism at all (see
+            // `figure_out_languages_from_json`'s own comment), so
+            // every entry here really is unique and really does get
+            // pushed -- each `PendingLanguage`'s `PendingFeatureId`s
+            // are remapped through `feature_remap` the same way
+            // `Feature.lookups` was above.
+            for (_, language) in sh.into_iter() {
+                let required_feature = language.required_feature.map(|pending_id| {
+                    feature_remap[pending_id.0 as usize]
+                        .expect("every PendingFeatureId a language references should have been remapped")
+                });
+                let features: FeatureRefList = language
+                    .features
+                    .iter()
+                    .map(|pending_id| {
+                        feature_remap[pending_id.0 as usize]
+                            .expect("every PendingFeatureId a language references should have been remapped")
+                    })
+                    .collect();
+                let mut language_box: Box<LanguageSystem> = new_language();
+                language_box.name = language.name;
+                language_box.required_feature = required_feature;
+                language_box.features = features;
+                otl_box.languages.push(language_box);
+            }
+            logger_finish(&mut options.logger.borrow_mut());
+            return Some(otl_box);
+        }
     }
-    return None;
+    logger_log_sds(
+        &mut options.logger.borrow_mut(),
+        LOG_VL_IMPORTANT,
+        LoggerType::Warning,
+        crate::bytesbuild!(
+            b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",
+            tag,
+            b".\n",
+        ),
+    );
+    None
 }
 
 #[cfg(test)]
