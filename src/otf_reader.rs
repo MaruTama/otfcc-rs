@@ -67,6 +67,15 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
 /// over it and exactly one call site per implementor, so the erasure bought
 /// nothing and cost every caller a pair of casts. Both inputs are plain
 /// references now and the cast pairs are gone.
+///
+/// # Safety
+/// `read_otf` has no caller-side contract of its own: `sfnt` and `options`
+/// are plain shared references, `index` is bounds-checked against
+/// `sfnt.count` before use, and every table reader it calls (including the
+/// CFF/glyf builder core) takes and returns owned or safely-referenced
+/// values. It stays `unsafe fn` as a holdover from when it drove raw-
+/// pointer table builders directly; callers need not uphold anything
+/// beyond passing valid references.
 pub unsafe fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Option<Box<Font>> {
     if sfnt.count.wrapping_sub(1_u32) < index {
         return None;

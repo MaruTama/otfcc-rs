@@ -17026,3 +17026,113 @@ on the other platform before a commit is trusted.
     `unsafe blocks`/raw pointer types 8/48/498, `.offset(` 22,
     `is_null()` 21, `while loops` 226, matching the prior stage's own
     figures).
+
+- **`clippy::missing_safety_doc` fixed (10 real sites), dropped from the
+  allow-list entirely.** Cargo.toml's own entry was badly stale for the
+  reason its comment already named: it was written when the crate still
+  had 961 `pub unsafe fn`s and most were expected to be deleted outright by
+  the parse-boundary-safety/ownership/Result-error stages rather than
+  documented in place. Those stages (the sequence of "Stage M-*"
+  unsafe-removal work already on record in this file) have since run their
+  course -- `survey-unsafe.sh` now counts only 8 `unsafe fn` in the whole
+  crate -- so the premise that deferred this lint no longer holds. A full
+  `cargo clippy --all-targets --message-format=json` run with the entry
+  temporarily removed (and, to reach every target rather than stopping at
+  the first one, `[lints.rust] warnings` moved from `"deny"` to `"warn"`
+  for the measurement only, the same trick `explicit_auto_deref`'s fix
+  used) found 10 sites, not the 924 the stale comment carried forward --
+  re-derived directly rather than trusted, per this migration's standing
+  practice, since a prior guess at "20" for this same lint turned out to
+  be an overestimate too. The gap between 8 `unsafe fn` and 10 flagged
+  sites is `ffi/dll.rs`'s four `pub unsafe extern "C" fn`s: `extern "C"`
+  functions are `unsafe extern` in this crate's source text, not the bare
+  `unsafe fn` `survey-unsafe.sh`'s grep matches, but clippy still requires
+  a `# Safety` section on each one; one of the 8 (`support::buffer::
+  Buffer::from_raw`) already carried one from an earlier stage, and the
+  crate's one private `unsafe fn` test helper isn't `pub`, so it was never
+  in scope for this lint either -- 6 of the 8, plus all 4 of `ffi/dll.rs`'s
+  extern functions, is exactly the 10 measured.
+  - **The genuine FFI/ABI boundary** (`ffi/dll.rs`'s `otfccbuild_json_otf`,
+    `otfcc_get_buf_len`, `otfcc_get_buf_data`, `otfccbuild_free_otfbuf`):
+    documented the real C-caller contract each one has -- `injson`/`inlen`
+    must describe a valid, unaliased readable byte range for
+    `otfccbuild_json_otf`; `buf` must be a live, not-yet-freed `Buffer`
+    obtained from it for the other three; `otfcc_get_buf_data`'s returned
+    pointer aliases `buf`'s own storage and dies with it;
+    `otfccbuild_free_otfbuf` hands `buf` to `Buffer::from_raw` (whose own
+    `# Safety` section already covers double-free), so calling it twice or
+    using `buf` afterward is a use-after-free.
+  - **The deliberate aliasing/cycle-detection design**
+    (`consolidate.rs`'s `get_point_coordinates`/`consolidate_anchor_ref`):
+    re-verified against the current code rather than an old label -- both
+    still dereference a `*mut GlyfTable` and `*mut ComponentReference`
+    pointers with no bounds or null checks, and both re-derive fresh raw
+    pointers into the same table on every recursive step specifically so
+    no *held* safe reference into it ever coexists with the mutation (the
+    `MAX_COMPONENT_REFERENCE_DEPTH` cutoff bounds the recursion, not the
+    aliasing). Documented that contract: `table` must be live, every
+    `ComponentReference::glyph.index` reachable through it (transitively,
+    through nested references) must be a valid populated index, and no
+    other live reference into `*table` may exist for the call's duration.
+  - **The established in-place-JSON-tree-mutation pattern**
+    (`json_reader::read_json`, `table/glyf.rs`'s `otfcc_parse_glyf`,
+    `table/otl/parse.rs`'s `otfcc_parse_otl`, and `otf_reader::read_otf`):
+    re-read each body rather than trusting the bucket label, and it split
+    into two different shapes that happen to share this one description.
+    `otfcc_parse_glyf` and `otfcc_parse_otl` are the actual raw-pointer
+    casters -- each takes a `&ParsedValue` and casts a sub-node reached
+    through it to a raw pointer, then reborrows that pointer mutably later
+    in the same call to null out fields it has already consumed
+    (`take_field`); their own internal sequencing (finish every read of a
+    slot before its `take_field`) only protects against an aliasing
+    violation of their own making, so their `# Safety` sections say a
+    caller must not hold any other live reference into the same subtree
+    across the call. `read_json` and `read_otf`, by contrast, turned out
+    to have no caller-side contract of their own on inspection -- both
+    take plain shared references and are `unsafe fn` only transitively,
+    because their bodies call the functions above (`read_json`) or once
+    called raw-pointer table builders that have since been made safe
+    (`read_otf`, confirmed by reading `otfcc_read_cff_and_glyf_tables` in
+    `table/cff.rs`, no longer `unsafe fn` since Stage M-14) -- both bin
+    entry points (`otfccbuild.rs`/`otfccdump.rs`) already carried comments
+    saying exactly this at their own call sites, which the new doc
+    comments now state at the definition instead of leaving it only at two
+    of several call sites.
+  - **Scope, not an essay.** Every one of the 10 got a `/// # Safety`
+    section (added to `Buffer::from_raw`'s own two existing lines
+    unchanged, since it already had one) sized to match it: one or two
+    sentences to a short paragraph, in the same terse voice as that
+    existing example, stating the actual precondition rather than
+    generic boilerplate -- no signature, body or behavior was touched,
+    this is a pure documentation change.
+  - **Allow-list entry removed, not just recounted.** Unlike
+    `explicit_auto_deref`'s partial fix (which updated the stale count
+    because a genuinely out-of-scope subset remained), every flagged site
+    here got a real `# Safety` section, so the entry is gone from
+    `Cargo.toml` entirely rather than left with an updated number.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean with the allow-list entry
+    gone (confirmed via the same message-format=json sweep, 0 remaining
+    `missing_safety_doc` sites), `cargo test -- --test-threads=1` (421
+    passed, 2 pre-existing timing-threshold flakes on record since M-10 --
+    `otl_feature_ref_amplification_font_parses_promptly` and, this run,
+    its sibling `otl_coverage_and_consolidate_log_amplification_font_
+    dumps_promptly`, both sandbox-CPU timing sensitivity, not a regression
+    from a doc-only change). `cargo doc --no-deps`: fails identically
+    before and after this change (`bytesbuild!`/`preserialize`/
+    `write_buffer` unresolved intra-doc links and one private-item link in
+    `support/fmt.rs`/`support/ttinstr.rs`/elsewhere, confirmed pre-existing
+    by running the identical command against a clean checkout of this PR's
+    base commit in a scratch worktree) -- this PR's own new doc comments
+    introduce zero additional rustdoc errors or warnings, verified by
+    diffing the two runs' error sets byte-for-byte. No golden/behavioral
+    re-verification: this change touches only doc comments, no executable
+    code, so build+clippy+test+doc is proportionate, not a shortcut.
+    `survey-unsafe.sh`: `unsafe fn`/`unsafe blocks`/raw pointer types
+    unchanged at 8/48/498 (expected -- nothing is deleted, only
+    documented); `while loops` briefly read 227 after an early draft of
+    one doc comment used the word "while" mid-sentence and tripped the
+    script's plain-text `\bwhile ` counter -- reworded to "during this
+    call" and reconfirmed back at 226, a reminder that this script's
+    counters are naive text greps, not syntax-aware, so prose near
+    `unsafe fn`s can shift them without touching any code.
