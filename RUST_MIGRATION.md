@@ -17505,3 +17505,47 @@ on the other platform before a commit is trusted.
     measured against, since the concurrently-merged lint-triage PR
     above dropped it by 2 first; this fix itself adds no `unsafe` code
     and no genuine loop, only a new `const` and an early-return check).
+
+- **`[lints.clippy]` allow-list audit: `ptr_offset_with_cast` was stale at
+  zero real sites, not the documented 105 -- removed rather than left as
+  dead weight.** Prompted by a general "is the Rust migration complete"
+  question, which surfaced this table as the place stale-count claims would
+  most likely hide. A fresh `cargo clippy --all-targets --message-format=
+  json` run (same technique as the prior lint-triage stage: the whole
+  `[lints.clippy]` table and `[lints.rust] warnings` temporarily removed/
+  relaxed, deduped by file+line) found `clippy::ptr_offset_with_cast` firing
+  **zero** times -- confirmed against the actual source, not just the lint
+  count: every remaining `\.offset(` text match in `src/` (`grep -rn`) is
+  inside a comment describing the *original* C code's pointer arithmetic
+  (e.g. `cff_parser.rs`'s "the original built that pointer as `raw_data.
+  offset(...)`" notes explaining why a bounds-checked read replaced it), not
+  a single one is a real call. This entry predates Stage 7-1's own
+  `FontReader` work entirely -- some earlier, unlogged pass already
+  converted every raw-pointer-offset site this lint would have flagged,
+  and the `Cargo.toml` comment (and this migration's own "complete?"
+  answers) never caught up. Removed the entry outright rather than just
+  correcting its count, since a lint with zero real sites has nothing left
+  to defer.
+  - **`explicit_auto_deref`'s count corrected too, while re-measuring the
+    rest of the table for the same possible staleness**: same fresh-clippy
+    technique found 476 unique sites, not the documented 569 (`too_many_
+    arguments` and `type_complexity` both reconfirmed exactly at their
+    documented 4/3, so left untouched). The gap is consistent with this
+    migration's own intervening raw-pointer-reduction work (the CFF `Vec<u8>`
+    ownership change, the `VqRegion` `Rc` redesign, and others logged above)
+    having each incidentally shrunk the raw-pointer surface this lint fires
+    on, as a side effect of work scoped for other reasons -- not a reason to
+    remove the entry, since 476 c2rust-shaped sites is still squarely
+    Stage 7-4 scope, just a reason to keep its count honest.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean with `ptr_offset_with_cast`
+    no longer in the allow-list at all (confirming its removal doesn't
+    reintroduce the warning it used to suppress), `cargo test --
+    --test-threads=1`: 422 passed, the same 2 pre-existing timing-threshold
+    flakes on record since M-10 (unrelated -- this change touches only
+    `Cargo.toml` comments/entries, no executable code). Golden/abi/dll_abi/
+    log_output integration suites re-run and passing byte-for-byte.
+    `survey-unsafe.sh` unchanged at 8/48/496/22/21/226 (expected: this is a
+    documentation/lint-table correction, not a code change, so the `.offset(`
+    counter's own naive-text-grep limitation -- already on record above --
+    means it still counts the same comment mentions it always did).
