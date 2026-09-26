@@ -42,13 +42,10 @@ warnings = "deny"
 # `cargo clippy --release --all-targets` reported the day this table was
 # added; re-run it to see what's left before removing an entry.
 #
-# Stage 7-1 (FontReader / parse-boundary safety) removes `.offset()` outright:
-ptr_offset_with_cast = "allow" # 105 -- `ptr.offset(x as isize)`
-
 # Stage 7-4 (C-ism mechanical cleanup) removes these as a direct consequence
 # of further mechanical passes over c2rust's transpile shape:
 needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
-explicit_auto_deref = "allow" # 569 -- c2rust's `&raw` / deref-cast idiom (raw-pointer sites only; the RefCell/RefMut reborrow subset was fixed separately, see RUST_MIGRATION.md)
+explicit_auto_deref = "allow" # 476 -- c2rust's `&raw` / deref-cast idiom (raw-pointer sites only; the RefCell/RefMut reborrow subset was fixed separately, see RUST_MIGRATION.md)
 
 # Real design work, not a mechanical lint fix -- `too_many_arguments` would
 # need restructuring a function's parameter list (e.g. into a struct) and
