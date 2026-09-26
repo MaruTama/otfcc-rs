@@ -50,13 +50,6 @@ ptr_offset_with_cast = "allow" # 105 -- `ptr.offset(x as isize)`
 needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
 explicit_auto_deref = "allow" # 569 -- c2rust's `&raw` / deref-cast idiom (raw-pointer sites only; the RefCell/RefMut reborrow subset was fixed separately, see RUST_MIGRATION.md)
 
-# Stage 7-1/7-2/7-3 (parse-boundary safety, Options/Logger ownership,
-# Result-typed errors) delete most of the crate's 961 `unsafe fn`s outright
-# rather than document their contracts in place, so writing `# Safety` docs
-# for functions on their way out is wasted work; revisit once those stages
-# have run and this count has actually dropped:
-missing_safety_doc = "allow" # 924 -- `pub unsafe fn` without a `# Safety` doc section
-
 # Real design work, not a mechanical lint fix -- `too_many_arguments` would
 # need restructuring a function's parameter list (e.g. into a struct) and
 # `type_complexity` would need introducing named type aliases; both are API

@@ -11,6 +11,13 @@ use crate::support::options::otfcc_options_optimize_to;
 use crate::support::parsed_json::parse_json;
 use std::cell::RefCell;
 
+/// # Safety
+/// `injson` must be non-null and point to at least `inlen` readable bytes
+/// (they need not be NUL-terminated -- `inlen` alone bounds the slice this
+/// builds from them) for the duration of this call; the memory it points
+/// to must not be mutated concurrently. The returned pointer, when
+/// non-null, is an owned `Buffer` the caller must eventually pass to
+/// [`otfccbuild_free_otfbuf`] exactly once to avoid leaking it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_json_otf(
     inlen: u32,
@@ -44,14 +51,30 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     drop(font);
     return otf;
 }
+/// # Safety
+/// `buf` must be non-null and point to a live `Buffer` obtained from
+/// [`otfccbuild_json_otf`] and not yet freed.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_len(buf: *mut Buffer) -> usize {
     return (*buf).data.len();
 }
+/// # Safety
+/// Same contract as [`otfcc_get_buf_len`]: `buf` must be non-null and
+/// point to a live, not-yet-freed `Buffer`. The returned pointer aliases
+/// `buf`'s own data and is only valid as long as `buf` itself is (and
+/// only until the next call that could reallocate its data), so it must
+/// not be used after `buf` is freed via [`otfccbuild_free_otfbuf`].
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
     return (*buf).data.as_mut_ptr();
 }
+/// # Safety
+/// `buf` must either be null or point to a live `Buffer` obtained from
+/// [`otfccbuild_json_otf`] and not already freed -- this hands it to
+/// [`Buffer::from_raw`], which carries the same requirement. Calling this
+/// twice on the same pointer, or using `buf` (or any pointer previously
+/// returned by [`otfcc_get_buf_data`] for it) afterward, is a
+/// use-after-free.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_free_otfbuf(buf: *mut Buffer) {
     drop(Buffer::from_raw(buf));

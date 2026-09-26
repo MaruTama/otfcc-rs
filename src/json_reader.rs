@@ -200,6 +200,15 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
 /// is gone. The subfont index the erased signature forced this side to
 /// accept was never read -- a JSON tree describes exactly one font --
 /// so it is dropped rather than kept as a silently-ignored parameter.
+///
+/// # Safety
+/// `read_json` has no caller-side contract of its own -- `root` and
+/// `options` are plain shared references. It is `unsafe fn` only because
+/// its body calls `otfcc_parse_glyf`/`otfcc_parse_otl`, which mutate parts
+/// of `root`'s tree in place through a raw pointer derived from that same
+/// shared reference; see their own `# Safety` sections for what that
+/// requires. As long as `root` is not read through any other reference
+/// during this call, there is nothing extra for a caller to uphold.
 pub unsafe fn read_json(root: &ParsedValue, options: &Options) -> Option<Box<Font>> {
     let mut font: Box<Font> = Box::default();
     font.subtype = otfcc_decide_font_subtype_from_json(root);
