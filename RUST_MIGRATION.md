@@ -18176,3 +18176,58 @@ counter suggests," not more.
     this stage changing only how `otfcc_parse_glyf` borrows its input
     tree (an ordinary safe reborrow in place of a raw-pointer cast), not
     what inputs it accepts, how it walks them, or any bound it checks.
+
+- **Correction to the Stage M-32 entry above: the `read_json` reborrow it
+  introduced was never sound, and Miri caught it on this PR's own next CI
+  run (`error: Undefined Behavior: trying to retag from <..> for Unique
+  permission ... but that tag only grants SharedReadOnly permission`).**
+  The entry above's own reasoning -- "nothing else reads `root` through
+  any other reference during this call" -- is not the right test for
+  whether `root as *const ParsedValue as *mut ParsedValue` then
+  reborrowed as `&mut` is sound. It categorically is not, regardless of
+  aliasing elsewhere: under Stacked Borrows, a `&T`-typed reference's own
+  retag caps every pointer derived from it at `SharedReadOnly` permission
+  for that borrow's entire lifetime the moment the reference is created,
+  independent of what else does or doesn't touch the same memory later.
+  Reproduced the exact CI failure locally first (`cargo +nightly-2026-08-17
+  miri test --lib -- ffi::dll::tests::minimal_json_builds_and_frees_
+  cleanly`, same error, same location), per this migration's own
+  "reproduce before you believe a report" discipline, before changing
+  anything.
+  - **The fix**: `read_json` itself now takes `root: &mut ParsedValue`
+    instead of `&ParsedValue` (this stage's own scope note above, that
+    `read_json` "keeps `root: &ParsedValue` ... until M-34," turned out to
+    be the wrong call to make -- the interim shared-reference state this
+    stage chose was unsound, not just temporarily incomplete). All three
+    of `read_json`'s real call sites (`ffi/dll.rs`, `bin/otfccbuild.rs`,
+    `benches/support/mod.rs`) already own their `ParsedValue` as a mutable
+    local never read again afterward, so each needed only `&json_root` ->
+    `&mut json_root` (plus `let json_root` -> `let mut json_root` where
+    not already `mut`). The `otfcc_parse_glyf` call in `read_json`'s own
+    body is now a plain, ordinary, compiler-inserted reborrow -- no cast,
+    no raw pointer. `read_json` itself stays `unsafe fn` in this PR's own
+    scope (it still calls the not-yet-safe `otfcc_parse_otl`), exactly as
+    this stage originally intended, just soundly instead of via UB.
+  - **Verification.** Reproduced the Miri failure first, confirmed it gone
+    after the fix (`cargo +nightly-2026-08-17 miri test --lib --
+    ffi::dll::tests` -- all 3 `ffi::dll` tests pass). `cargo build --lib`/
+    `--all-targets` clean, `cargo clippy --all-targets -- -D warnings`
+    clean, `cargo test -- --test-threads=1`: 424 passed, the same 2
+    pre-existing timing-threshold flakes on record since M-10 (unrelated).
+    Golden/abi/dll_abi/log_output/cycles integration suites re-run and
+    passing byte-for-byte. `(cd fuzz && cargo check)` clean.
+    `survey-unsafe.sh`: raw pointer types 180 -> **177** (the removed cast
+    expression and its doc-comment mentions), `unsafe fn`/`unsafe blocks`/
+    `is_null()`/`.offset(`/`while loops` unchanged at 6/39/20/22/226
+    (`read_json` still needs `unsafe fn` for `otfcc_parse_otl`, unrelated
+    to this fix).
+  - **A process note**: this stage's own verification checklist ran build,
+    clippy, test, golden, and fuzz, but not Miri -- the one check that
+    would have caught this locally before push. CI's own Miri job ran it
+    and did catch it (it is `continue-on-error: true`, advisory, so it did
+    not block this PR, but the finding itself is real). Every future stage
+    in this migration that touches a raw-pointer/reference-cast pattern
+    should run `cargo +nightly-2026-08-17 miri test --lib` (or the
+    relevant module filter) locally as a standing verification step, not
+    an optional extra -- this is the second time in this same four-stage
+    sequence a locally-green checklist missed a real bug Miri alone found.
