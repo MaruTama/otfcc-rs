@@ -456,7 +456,6 @@ pub(crate) fn subtable_at(list: &SubtableList, idx: usize) -> &Subtable {
         .as_deref()
         .expect("subtable slot should not be empty at this point")
 }
-pub type LookupPtr = *mut Lookup;
 /// A stable slot index into `OtlTable.lookups`, replacing the old borrowed
 /// `*const Lookup` cross-reference (`LookupRef`). Every construction site
 /// (both the binary-read and the JSON-parse path) already knows the exact
@@ -502,7 +501,6 @@ pub struct Feature {
 /// enough. `name` (a `Vec<u8>` since the `sds` sweep reached this field) now
 /// also tears down for free, so `Feature` needs no manual `Drop` impl at all
 /// anymore.
-pub type FeaturePtr = *mut Feature;
 /// Same shape as `LookupIdx`, indexing `OtlTable.features`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FeatureIdx(pub u32);

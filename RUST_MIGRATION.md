@@ -17686,3 +17686,43 @@ on the other platform before a commit is trusted.
     this one -- see that entry's own -305 for where the drop came from,
     unrelated to this stage), `.offset(`/`is_null()`/`while loops`
     unchanged at 22/21/226.
+
+- **Stage 7-4 plan, Bucket A: six more dead-code deletions (11 raw-pointer
+  text sites), same shape as `cff_opmean.rs` at a smaller scale.** Found by
+  the "Stage 7-4 plan" investigation above (once it's merged; done here
+  from a branch that predates that PR landing, so this entry lands first
+  chronologically and that plan's own text will need updating to mark
+  Bucket A as landed once it merges). Re-confirmed each independently,
+  not trusted from the plan alone: `grep -rn` for every symbol name across
+  `src/`, `tests/`, `benches/`, and `fuzz/` found zero real callers outside
+  each item's own definition.
+  - **Five zero-caller type aliases deleted**: `support::NULL` (`*mut
+    c_void`, `support.rs`), `support::primitives::FontFilePointer` (`*mut
+    u8`), `table::otl::LookupPtr`/`FeaturePtr` (`*mut Lookup`/`*mut
+    Feature`), `table::glyf::GlyphPtr` (`*mut Glyph`) -- every one c2rust-era
+    vocabulary whose real replacement (an owned `Box`/index/`&T`) already
+    shipped in an earlier stage, leaving the alias itself as inert leftover
+    naming nothing still spells. `GlyphPtr` in particular had zero
+    references anywhere, not even in a comment.
+  - **`support::cstd::stdio` module deleted whole** (`support/cstd/
+    stdio.rs`, 42 lines: a `pub use libc::FILE` and `stderr`/`stdin`/
+    `stdout` as `unsafe extern "C" { pub static mut _: *mut FILE }`,
+    duplicated once per `#[cfg(target_os = "macos")]` branch) -- zero
+    references anywhere in the tree; every real stdio access already goes
+    through `std::io::{stdin, stdout, stderr}` directly
+    (`bin/otfccdump.rs`, `bin/otfccbuild.rs`, `logger.rs`). Removed its
+    `pub mod stdio;` line from `support/cstd.rs` alongside the file
+    deletion.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean, `(cd fuzz && cargo check)`
+    clean. `cargo test -- --test-threads=1`: 422 passed, the same 2
+    pre-existing timing-threshold flakes on record since M-10 (unrelated
+    -- this change deletes only unreachable code). Golden/abi/dll_abi/
+    log_output/cycles integration suites re-run and passing byte-for-byte.
+    `survey-unsafe.sh`: raw pointer types 191 -> **180** (-11: 5 deleted
+    type aliases + `stdio.rs`'s 6 `*mut FILE` text occurrences across both
+    `#[cfg]` branches), `files with allow(unsafe_op_in_unsafe_fn)` 144 ->
+    143 (one fewer file in the crate); `unsafe fn`/`unsafe blocks`/
+    `.offset(`/`is_null()`/`while loops` all unchanged at 7/39/22/21/226
+    (none of the six deletions was itself `unsafe fn`, an `unsafe` block,
+    or offset/is_null-adjacent).

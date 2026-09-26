@@ -134,7 +134,6 @@ pub struct Glyph {
 /// (`instructions` included) is a real deep-copying Rust owner, so cloning
 /// a `Glyph` wholesale no longer aliases a raw pointer between the
 /// original and the copy the way the old `*mut u8` did.
-pub type GlyphPtr = *mut Glyph;
 /// The font's glyph table: an array of owned glyphs, indexed by GID. Unlike
 /// the other three containers in this "owned pointer array" group
 /// (`LangSystemList`/`FeatureList`/`LookupList`, all `Vec<Box<T>>`), a slot
