@@ -18432,3 +18432,73 @@ counter suggests," not more.
     future stage in this sequence's own verification list should include
     `cargo +nightly-2026-08-17 miri test --lib` (or the relevant module
     filter) as a standing requirement, not an optional extra.
+
+- **Stage M-35: `clippy::explicit_auto_deref`'s raw-pointer-idiom subset
+  fixed for `otf_writer.rs`, `json_writer.rs`, and `font/caryll_font.rs`
+  (103 sites); the CFF interpreter and a small tail deliberately left for
+  later stages.** The first of three planned stages (M-35 through M-37,
+  see "Stage 7-5 plan" -- not yet merged to `master` as of this stage, read
+  from `origin/claude/amazing-bell-wb1fyf-23`) that together clear the
+  remaining 475-site `explicit_auto_deref` allow-list entry: the raw-pointer
+  half of the exact same c2rust idiom (`(*ptr).field` / `(*ptr).method(...)`)
+  whose `RefCell`/`RefMut` reborrow half was already fixed separately
+  (above). This stage covers the plan's own lowest-risk grouping -- the
+  top-level dump/build orchestration code, not the CFF charstring
+  interpreter its own fuzz history flags for extra care (deferred to M-37).
+  - **Scope re-verified, not trusted from the plan's count.** Stripped
+    `Cargo.toml`'s `[lints.clippy]` table entirely and relaxed
+    `[lints.rust] warnings` to `"warn"` (reverted immediately after each
+    measurement, same as every prior stage using this technique), then
+    `cargo clippy --all-targets --message-format=json`, deduped by
+    file+line: **475** sites crate-wide (matching the plan's own re-measure
+    exactly), of which **103** fall in the three target files -- `otf_writer.rs`
+    43, `json_writer.rs` 31, `font/caryll_font.rs` 29 -- also matching the
+    plan's own count one-for-one.
+  - **Applied via `cargo clippy --fix --all-targets --allow-dirty -- -A
+    clippy::all -W clippy::explicit_auto_deref`** (same scoped-lint
+    technique as the `RefCell`/`RefMut` fix and `len_zero`/`needless_return`
+    before it), with the allow-list entry removed and `warnings` relaxed so
+    `--fix` didn't stop at the first target. This produced fixes crate-wide
+    (`libcff/cff_parser.rs`, `ffi/dll.rs`, and the M-36 tail files all got
+    touched too, since `--fix` isn't scopable to a file subset on its own);
+    every file outside the three in scope for this stage was reverted with
+    `git checkout --` immediately after, untouched otherwise.
+  - **Per-hunk review, not a sample.** All 103 hunks read by hand across
+    the three files: every single one is the exact same one-line
+    transformation, `(*font).field` -> `font.field` or `(*font).method(...)`
+    -> `font.method(...)`, on `font: &mut Font` (all three files) -- no
+    hunk stores a reborrow in a `let` binding for later reuse, none touches
+    a `Copy`-vs-move distinction (every site is a field read/write or an
+    inline method call, never a value moved out through the deref), and
+    none changes evaluation order (multi-deref lines like
+    `json_writer.rs`'s `if let (Some(head), Some(maxp)) = ((*font).head...,
+    (*font).maxp...)` keep the same two-argument tuple, same left-to-right
+    evaluation, just without the redundant `*`). Zero semantic change in
+    every hunk, confirmed individually rather than assumed from the shape.
+  - **`Cargo.toml`'s entry corrected, not removed**: this stage alone
+    covers 103 of the 475 sites, so `explicit_auto_deref` stays in the
+    allow-list (M-36's 13-site tail and M-37's 359-site CFF interpreter
+    remain). Re-measured after the fix landed, with the same strip-and-
+    relax technique: **372** sites crate-wide (475 - 103, matching the
+    hunk count exactly) and 0 remaining in the three target files. The
+    count comment moved from the stale "476" to "372", with a note on
+    which stage fixed which subset, matching this entry's own and the
+    `RefCell`/`RefMut` entry's established convention.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean (with the corrected count),
+    `cargo test -- --test-threads=1` (425 passed, 1 pre-existing
+    timing-threshold flake on record since M-10 --
+    `otl_feature_ref_amplification_font_parses_promptly` -- unrelated; its
+    sibling flake `otl_coverage_and_consolidate_log_amplification_font_
+    dumps_promptly` did not trigger this run but is the same known class).
+    `cargo test --test golden --test abi --test dll_abi --test log_output
+    --test cycles -- --test-threads=1`: all 9 tests across the 5 files
+    passing byte-for-byte -- the most important check for this stage,
+    since `otf_writer.rs`/`json_writer.rs` sit directly in the dump/build
+    entry points every golden fixture exercises. `(cd fuzz && cargo
+    check)` clean. `survey-unsafe.sh`: no movement at all (165/30/4/22/19/
+    226 for raw pointer types/unsafe blocks/unsafe fn/`.offset(`/
+    `is_null()`/while loops, all unchanged from baseline) -- expected,
+    since `font: &mut Font` in all three files was never a raw pointer to
+    begin with, and this script doesn't track `explicit_auto_deref` at
+    all, only clippy does.
