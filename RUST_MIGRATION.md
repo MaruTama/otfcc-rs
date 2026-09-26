@@ -917,6 +917,315 @@ line compiles perfectly on macOS and leaves the names undefined on Linux —
 which is also why `cargo fix`'s unused-import removals have to be re-checked
 on the other platform before a commit is trusted.
 
+## Stage 7-4 plan: remaining ownership-model work
+
+*(This section is prospective, not retrospective, unlike every dated entry in
+"Next steps" below it. Nothing in it has been implemented, built, tested or
+fuzzed -- it is a design plan for future stages, written after re-reading
+every remaining `unsafe fn` body and every raw-pointer site in the files
+`survey-unsafe.sh`'s file-by-file breakdown flags as concentrated, from a
+fresh branch off `master`, on the "don't trust a stale count, re-measure"
+discipline the M-* stages already established. Verification for *this*
+section is correspondingly light: `cargo build --lib`/`--all-targets` and
+`cargo clippy --all-targets -- -D warnings` both confirmed clean, and no file
+under `src/`, `tests/`, `benches/`, or `fuzz/` was touched -- there is no
+executable-code change here to run the golden/fuzz/Miri suites against.)*
+
+### The headline finding: most of the 191 counted raw-pointer sites are dead text, not live code
+
+`survey-unsafe.sh`'s raw-pointer-type counter (`grep -rho -E '\*(mut|const) '`)
+counts every literal `*mut`/`*const ` text occurrence in `src/`, comments
+included -- a limitation the script's own header already flags for the
+`.offset(`/`while` counters, and one M-29's own log entry hit in passing
+(a doc comment's incidental use of the word "while" moved that counter by
+one). Re-running the same grep with every comment line (`^\s*//` and
+everything after an inline `//`) stripped first found that the same blind
+spot applies at real scale to the raw-pointer counter: of the 191 counted
+`*mut`/`*const ` occurrences, only **62 (across 58 source lines) are in live
+code**; the other **129 are inside comments** narrating a conversion that
+already happened -- `table/cff.rs`'s all 15, `table/glyf/read.rs`'s all 6,
+`table/fvar.rs`'s all 5, `table/otl/build.rs`'s all 4, `libcff/cff_index.rs`'s
+all 3, `bk/bkblock.rs`'s all 3, and most of `table/otl.rs`'s 17 and
+`libcff/subr.rs`'s 7, are exactly this shape: `// Was *mut Foo, now Box<Foo>`
+-style history, not a residual pointer left to convert. The file-by-file
+concentration list this investigation started from (`consolidate.rs` ~20,
+`table/otl.rs` ~17, `table/otl/parse.rs` ~16, `table/cff.rs` ~15, `ffi/dll.rs`
+~10, `table/glyf.rs` ~9, `libcff/subr.rs` ~7, `table/glyf/read.rs` ~6,
+`support/cstd/stdio.rs` ~6) is real as far as raw *text*, but reading each
+file in full (not just grepping it) shows the live-code picture is much
+smaller and much more concentrated than the raw count suggests: essentially
+all of it is in `consolidate.rs` (14 live sites) and `table/otl/parse.rs` +
+`table/glyf.rs`'s `otfcc_parse_otl`/`otfcc_parse_glyf` (14 live sites
+combined), with `ffi/dll.rs` (9, the genuine ABI boundary) a distant third.
+Everything else -- `table/cff.rs`, `table/glyf/read.rs`, `table/fvar.rs`,
+`table/otl/build.rs`, `libcff/cff_index.rs`, `bk/bkblock.rs` -- has already
+been converted by an earlier stage and just hasn't had its historical
+comments pruned; that pruning is not proposed as a stage of its own here
+(it is comment-only cosmetic churn across a dozen files, not ownership
+design), but a future documentation-hygiene pass could do it in one PR
+without touching any type or signature.
+
+### The 62 live sites, sorted into three buckets
+
+**Bucket A -- dead code, delete outright (7 sites, zero design work, zero
+behavior change).** Re-grepping every remaining raw-pointer-typed `pub type`
+alias and `pub const` for real callers (not just its own definition) found
+five that have none anywhere in `src/`, `tests/`, `benches/`, or `fuzz/`:
+`support::NULL` (`*mut c_void`, `support.rs:21`), `support::primitives::
+FontFilePointer` (`*mut u8`, `support/primitives.rs:46`), `table::otl::
+LookupPtr`/`FeaturePtr` (`*mut Lookup`/`*mut Feature`, `table/otl.rs:459,505`),
+and `table::glyf::GlyphPtr` (`*mut Glyph`, `table/glyf.rs:137`) -- every one a
+c2rust-era type alias whose real replacement (an owned `Box`/index/`&T`) has
+already shipped in an earlier stage, leaving the raw-pointer alias itself as
+inert leftover vocabulary nothing still spells. Separately, the entire
+`support::cstd::stdio` module (`support/cstd/stdio.rs`, 40 lines: a `pub use
+libc::FILE`, and `stderr`/`stdin`/`stdout` as `unsafe extern "C" { pub static
+mut _: *mut FILE }`, duplicated once per `#[cfg(target_os = "macos")]`
+branch, 6 of the 62 live sites) has no live caller either -- every actual
+stdio access in the crate already goes through `std::io::{stdin, stdout,
+stderr}` directly (confirmed: `bin/otfccdump.rs`, `bin/otfccbuild.rs`,
+`logger.rs` all call the `std::io` functions, never this module's globals;
+`grep -rn "stdio::" src tests benches fuzz` outside the module's own two
+files returns nothing). This is exactly the `libcff/cff_opmean.rs` precedent
+(two dead functions deleted outright, 305 raw-pointer sites gone in one PR)
+at a smaller scale, six times over. A stage doing all six deletions in one
+PR (they share nothing but "already dead") would drop 13 of the 62 live
+sites at effectively zero risk -- the only verification such a stage needs
+beyond a clean build/clippy/test is the same "grep for zero remaining
+callers, then re-grep after deleting to confirm zero broke" this migration
+already used for `cff_opmean.rs`.
+
+**Bucket B -- the JSON-parse `unsafe fn` trio, genuinely fixable with a
+concrete, already-precedented design (35 sites: 14 in `table/otl/parse.rs` +
+`table/glyf.rs`'s `otfcc_parse_glyf`, plus the 2 in `json_reader.rs::
+read_json`'s own signature area once the other two stop needing `unsafe`).**
+This is the substantive design work this investigation found. All three of
+`read_json`/`otfcc_parse_glyf`/`otfcc_parse_otl` exist to do one thing: walk
+a `&ParsedValue` tree built by `parse_json` and, along the way, null out
+(`take_field`) each JSON sub-node once it has been fully consumed -- a
+memory-saving pass over a tree that is about to be dropped anyway, not a
+correctness requirement (nothing reads a taken-out field afterward). Because
+the three top-level entry points only ever received a **shared** reference
+(`root: &ParsedValue`), that in-place mutation had no safe way in: each
+function casts a sub-node reached through `root` to a raw pointer with an
+explicit `as *mut`, then reborrows it mutably later in the same call
+(`table.as_mut()`, `&mut *features`) to call `take_field`/hand off a `&mut`
+-- exactly the shape their own `# Safety` doc comments describe, and the
+shape M-26's sweep confirmed is genuine (no leftover pattern, an actual
+aliasing workaround).
+  - **The fix all three point at is the same one: stop handing them a shared
+    reference.** Tracing every call site of `read_json` (`ffi/dll.rs`,
+    `bin/otfccbuild.rs`, `benches/support/mod.rs` -- three total, `tests/
+    cycles.rs`'s own same-named local helper is unrelated) found that every
+    one of them already owns the `ParsedValue` it passes in as a plain local
+    (`json_root: Option<ParsedValue>`/`ParsedValue`) that is never read again
+    afterward except to `drop()` it -- `ffi/dll.rs:42`'s `read_json(&json_root,
+    &options)` is immediately followed by `drop(json_root)`;
+    `bin/otfccbuild.rs:362`'s `json_root.as_ref().unwrap()` is followed by
+    `drop(json_root.take())` at line 376 with nothing reading `json_root` in
+    between. Every one of these three call sites can pass `&mut json_root`
+    instead of `&json_root` with no change to what the caller itself does
+    with the value afterward. That is the whole unlock: once the entry point
+    takes `&mut ParsedValue`, the in-place mutation `otfcc_parse_glyf`/
+    `otfcc_parse_otl` already do can reach it through an ordinary, safe,
+    sequential reborrow -- get a child by shared reference, finish reading
+    it, let that borrow end, *then* get a (possibly different) child by
+    mutable reference -- instead of a raw pointer standing in for "I know
+    this is safe because my own internal ordering never overlaps the two."
+    NLL already allows exactly this sequencing from one `&mut` root as long
+    as no two reborrows are live at once, which is precisely the discipline
+    both functions' own doc comments say they already follow by hand.
+  - **`otfcc_parse_glyf` is the simpler of the two, and does not even need
+    the reordering.** Its loop already finishes reading glyph `j` (an
+    immutable borrow of the `"glyf"` object's fields, scoped to the
+    `otfcc_glyf_parse_glyph` call) before calling `take_field(j)` on it, one
+    `j` at a time -- the exact shape a `&mut ParsedValue` handles for free.
+    Concretely: change `glyph_order`/`options` unchanged, add `ParsedValue::
+    get_typed_mut(&mut self, key, kind) -> Option<&mut ParsedValue>` (a
+    `&mut`-returning twin of the existing `get_typed`, the one new API
+    surface this needs -- `set_field`/`take_field` already exist and already
+    take `&mut self`, so this is filling a gap, not inventing a pattern),
+    change `otfcc_parse_glyf`'s signature to `root: &mut ParsedValue`, resolve
+    `table: &mut ParsedValue` via `root.get_typed_mut(b"glyf", Object)?` once,
+    and inside the loop call `table.as_object()` (shared, ends immediately)
+    then `table.take_field(j)` (mutable) exactly as today, just with no raw
+    pointer standing between them. Drops `unsafe` from the signature entirely
+    -- one plain safe `pub fn`.
+  - **`otfcc_parse_otl` needs the reordering, but the reordering is
+    mechanical, not a redesign.** Its five raw-pointer bindings
+    (`table`/`languages`/`features`/`lookups`/`lookup_order`) are all
+    resolved from the same `tag` object; tracing the actual read/write
+    order (as M-26's sweep also did) shows `lookups` and `lookup_order` are
+    read-only and fully consumed (into `PendingLookups`/an in-place sort of
+    its `.entries`) *before* `features` is ever touched; `features` is then
+    mutated in place (`figure_out_features_from_json` calls
+    `feature_merger_activate`, which needs `&mut ParsedValue`); `languages`
+    is read-only and is resolved *after* that mutation finishes. That is
+    already a **sequential**, non-overlapping access pattern in the existing
+    code -- the raw pointers exist only because the function had no `&mut`
+    to sequence through, not because the accesses actually overlap. With
+    `root: &mut ParsedValue`, `table: &mut ParsedValue` (via
+    `get_typed_mut`), the rewrite is: `table.get_typed(b"lookups", Object)`
+    (shared, build `lh`, drop the borrow) -> `table.get_typed(b"lookupOrder",
+    Array)` (shared, apply, drop) -> `table.get_typed_mut(b"features",
+    Object)` (mutable, build `fh`, drop) -> `table.get_typed(b"languages",
+    Object)` (shared, build `sh`, drop) -- four sequential reborrows of one
+    `&mut ParsedValue`, none held past its own statement, matching the
+    order the current raw-pointer code already executes in. The `otl: *mut
+    OtlTable` local (a cached raw pointer into `otl_box` used for
+    `(*otl).lookups.push(...)` three times) is separate from the JSON-side
+    pointers and has an easier fix: read `otl_box.as_mut().unwrap()` fresh
+    at each of those three sites instead of caching a pointer to it once --
+    `otl_box` is a plain local `Option<Box<OtlTable>>`, not reached through
+    any aliasing concern at all, so this part is pure mechanical cleanup.
+    Drops `unsafe` from the signature entirely.
+  - **`read_json` becomes safe for free, last.** Once neither
+    `otfcc_parse_glyf` nor `otfcc_parse_otl` needs `unsafe fn` any more,
+    `read_json`'s own signature (`root: &ParsedValue` today) can become
+    `root: &mut ParsedValue`, its body's calls to both need no `unsafe {}`
+    wrapper, and the function itself drops `unsafe fn` -- exactly the
+    reasoning M-30 already applied to `otf_reader::read_otf` (an `unsafe fn`
+    that turned out to have no contract of its own once every function in
+    its call graph was safe). Its three call sites each change one `&` to
+    `&mut` at the call, with no other change (confirmed above that none of
+    the three reads its `json_root` again afterward).
+  - **This closes the "established in-place-JSON-tree-mutation pattern"
+    bucket M-30's own audit named and left as future work** (`json_reader::
+    read_json`, `table/glyf.rs`'s `otfcc_parse_glyf`, `table/otl/parse.rs`'s
+    `otfcc_parse_otl` -- M-30's own entry explicitly grouped these three and
+    stopped there, converting only `read_otf` that stage). Once this trio
+    lands, the crate's remaining `unsafe fn` count drops from 7 to **4**:
+    `get_point_coordinates`/`consolidate_anchor_ref` (Bucket C, below),
+    `support::buffer::Buffer::from_raw`, and `ffi::dll`'s test-only `build`
+    helper -- the two genuine ownership-transfer/FFI cases M-30's own audit
+    already confirmed have no safe equivalent.
+  - **Staging.** Proposed as four stages, each independently landable and
+    each verifiable without depending on a later one having already merged:
+    - **Stage M-31: `ParsedValue::get_typed_mut` added, unit-tested
+      directly (mirroring `get_typed`'s own test shape), no other file
+      touched.** Purely additive API; zero risk, since nothing calls it yet.
+    - **Stage M-32: `table::glyf::otfcc_parse_glyf` takes `&mut ParsedValue`
+      and drops `unsafe fn`.** Touches `table/glyf.rs` and its one caller
+      (`json_reader.rs`, still itself `unsafe fn` until M-34). Verification:
+      the `glyf`/`gvar` golden fixtures (`fixed_payloads_match_golden`,
+      already exercising a variable-font `glyf` table per M-28's own note)
+      plus the `json_build` fuzz target (drives `otfccbuild_json_otf` ->
+      `read_json` -> `otfcc_parse_glyf` directly) are the most relevant
+      checks; this is JSON-to-binary glyph parsing, the crate's own
+      glyf-family SIGSEGV/fuzz-OOM history (`MAX_COMPONENT_REFERENCE_DEPTH`,
+      the anchor-cycle guard) makes it worth a full `cargo +nightly fuzz run
+      json_build` pass, not just the unit suite, before landing.
+    - **Stage M-33: `table::otl::parse::otfcc_parse_otl` takes `&mut
+      ParsedValue`, its internal access reordered to the sequential
+      shared/mutable/shared/shared pattern above, and drops `unsafe fn`.**
+      The highest-risk stage of the four: OTL is the subsystem with this
+      migration's own most recent fuzz-OOM finding (the `gpos_pair.rs`
+      zero-stride amplification bug, fixed just above in "Next steps"), and
+      `otfcc_parse_otl` itself is the single most structurally complex
+      function among the three (the lookup/feature/language alias-remap
+      machinery `PendingLookupId`/`PendingFeatureId` already document at
+      length). The reordering itself is mechanical once traced, but tracing
+      it correctly -- confirming no code path reads `languages` before
+      `features` finishes mutating, in every branch, not just the common
+      one -- needs a careful, full re-read of the function before touching
+      it, the same way this investigation did to write the plan above.
+      Verification: the OTL golden fixtures (the five `*-dedup-input.json`
+      double-mapping-warning fixtures `map_entry`'s fix above already
+      relies on, plus any GSUB/GPOS golden JSON round-trip), and both
+      `json_build` and the `otf_dump`/`otf_parse` fuzz targets that reach
+      OTL parsing, run for a real time budget given this subsystem's
+      history, not just `-runs=0` over the known-issues corpus.
+    - **Stage M-34: `json_reader::read_json` takes `&mut ParsedValue` and
+      drops `unsafe fn`; its three call sites (`ffi/dll.rs`, `bin/
+      otfccbuild.rs`, `benches/support/mod.rs`) each change one `&` to
+      `&mut`.** Depends on M-32 and M-33 both having landed (otherwise
+      `read_json`'s body still calls two `unsafe fn`s and gains nothing).
+      Low risk in isolation -- a signature change and three call-site edits,
+      no logic touched -- but should re-run the full golden/ABI/dll_abi/
+      cycles suite since this is the crate's single JSON-entry function.
+
+**Bucket C -- confirmed still genuinely unfixable (20 sites: `consolidate.rs`
+14, plus `ffi/dll.rs`'s 9 minus the two counted in Bucket B's final tally,
+plus `support/buffer.rs`'s 2, `support/cli/stopwatch.rs`'s 1, and the two
+test-oracle files below).** Re-verified each against the current code rather
+than cited from an old stage's conclusion:
+  - **`consolidate.rs`'s `get_point_coordinates`/`consolidate_anchor_ref`
+    pair, plus `consolidate_glyf`'s own bridging `unsafe {}` block around
+    them (14 live sites total).** Read both bodies in full this round (not
+    just the doc comments). `GlyfTable` (`Vec<Option<Box<Glyph>>>`) is
+    already an index-addressable arena -- the natural next question for any
+    "raw pointer into a container" case is whether an index-based redesign
+    replaces the pointer. It does not help here: the two functions mutate
+    `ComponentReference.is_anchored`/read glyph contours while *recursing*
+    over a reference graph that can revisit the same glyph twice on
+    different call paths (that is exactly what the `MAX_COMPONENT_
+    REFERENCE_DEPTH`/`RefAnchorStatus::AnchorConsolidating*` cycle guards
+    exist to bound, not prevent -- a self-referencing composite glyph is a
+    real, fuzz-found input this pair must handle, not an edge case to
+    design away). A "take the glyph out of the arena, recurse, put it back"
+    pattern -- the standard safe-Rust technique for mutating one node of a
+    graph while visiting others -- would make a self-referencing glyph see
+    itself as *absent* mid-recursion, changing what "found circular
+    reference" actually detects and possibly changing which points resolve
+    successfully; the existing state-machine guard is precisely there so a
+    real cycle is detected and logged, not one manufactured by the safety
+    technique itself. No sub-region of either function's body is
+    pointer-free (both dereference `table`/`gr`/`rr`/`stated`/`x`/`y`
+    throughout, with no bounds or null checks of their own, exactly as their
+    `# Safety` comments state), so there is no partial extraction that
+    would shrink the unsafe surface without changing behavior. This matches
+    M-26's and M-30's own conclusions exactly; re-deriving it here (rather
+    than citing it) found nothing that changes it.
+  - **`ffi/dll.rs`'s four `pub unsafe extern "C" fn`s plus its test-only
+    `build` helper.** The crate's one real ABI boundary, `tests/dll_abi.rs`/
+    `tests/abi.rs`'s own pin. A C caller hands these functions a raw
+    `(pointer, length)` pair and gets a raw `Buffer*` back; there is no safe
+    signature for an `extern "C"` function a C compiler links against by
+    symbol name -- the whole reason this crate's own stated ABI surface is
+    "four functions, no more," not "four safe functions." `build` (the
+    `#[cfg(test)]`-only helper matching this same shape for the crate's own
+    unit tests) exists purely to drive the same boundary from Rust test
+    code without a real C caller, so it inherits the same shape on purpose.
+  - **`support/buffer.rs`'s `into_raw`/`from_raw`.** The `Buffer` ownership-
+    transfer shell for exactly the ABI boundary above: `into_raw` hands a
+    `Buffer` to a C caller as a `*mut Buffer` (`ffi/dll.rs`'s
+    `otfccbuild_json_otf`'s return value), and `from_raw` is the other half
+    (`otfccbuild_free_otfbuf`'s `# Safety` contract, and `Drop`-order
+    double-free prevention `from_raw`'s own doc comment already states).
+    Genuinely tied to the same wall as `ffi/dll.rs`, not a leftover shape.
+  - **`support/cli/stopwatch.rs`'s `%g` formatting via `libc::snprintf`.**
+    Already explicitly flagged in its own comment as "a separate,
+    deliberately deferred question" (Rust has no `%g` format specifier, and
+    this crate's own standing rule is byte-exact output, so a hand-rolled
+    reimplementation risks a subtly different rounding/exponent-threshold
+    choice than glibc's `%g` makes for some input this crate's own test
+    suite doesn't happen to cover) -- re-confirmed still true, not
+    reconsidered fresh, since the comment's own reasoning has nothing new to
+    weigh against it.
+  - **`support/fmt.rs`'s and `support/parsed_json.rs`'s test-only
+    `libc::snprintf`/`libc::strcmp` oracle calls.** Both are `#[cfg(test)]`
+    code whose entire purpose is comparing this crate's own from-scratch
+    reimplementation against the real C library's behavior byte-for-byte --
+    calling libc *is* the point of these two tests, not a raw-pointer
+    leftover to convert away.
+
+### What this means for the crate's overall completion picture
+
+Of the crate's 191 raw-pointer-type text occurrences, 129 need nothing (already-converted code, stale comments only); of the 62 that are live code, 7
+are dead-code deletions (Bucket A, zero design work), 35 have a concrete,
+already-precedented design and a four-stage path to landing it (Bucket B),
+and 20 are genuine, re-confirmed structural walls -- two real FFI boundaries
+(the crate's own ABI, and one deliberately-deferred libc formatting call)
+plus one real cyclic-graph-mutation shape with no safe redesign that
+preserves its own cycle-detection semantics. Put differently: essentially
+*all* of the crate's remaining live raw-pointer surface is either already
+slated for one of the seven stages above, or has a specific, named reason it
+cannot move further without changing behavior this migration has chosen not
+to change. There is no large, unexamined remainder being deferred by
+omission here -- the 191/58 gap itself was the one surprise this
+investigation turned up, and it cuts toward "less work left than the raw
+counter suggests," not more.
+
 ## Next steps
 
 - **`support/ttinstr.rs`: a truncated `NPUSHW`/`PUSHW[n]` operand left its
@@ -17686,6 +17995,46 @@ on the other platform before a commit is trusted.
     this one -- see that entry's own -305 for where the drop came from,
     unrelated to this stage), `.offset(`/`is_null()`/`while loops`
     unchanged at 22/21/226.
+
+- **Stage 7-4 plan, Bucket A: six more dead-code deletions (11 raw-pointer
+  text sites), same shape as `cff_opmean.rs` at a smaller scale.** Found by
+  the "Stage 7-4 plan" investigation above (once it's merged; done here
+  from a branch that predates that PR landing, so this entry lands first
+  chronologically and that plan's own text will need updating to mark
+  Bucket A as landed once it merges). Re-confirmed each independently,
+  not trusted from the plan alone: `grep -rn` for every symbol name across
+  `src/`, `tests/`, `benches/`, and `fuzz/` found zero real callers outside
+  each item's own definition.
+  - **Five zero-caller type aliases deleted**: `support::NULL` (`*mut
+    c_void`, `support.rs`), `support::primitives::FontFilePointer` (`*mut
+    u8`), `table::otl::LookupPtr`/`FeaturePtr` (`*mut Lookup`/`*mut
+    Feature`), `table::glyf::GlyphPtr` (`*mut Glyph`) -- every one c2rust-era
+    vocabulary whose real replacement (an owned `Box`/index/`&T`) already
+    shipped in an earlier stage, leaving the alias itself as inert leftover
+    naming nothing still spells. `GlyphPtr` in particular had zero
+    references anywhere, not even in a comment.
+  - **`support::cstd::stdio` module deleted whole** (`support/cstd/
+    stdio.rs`, 42 lines: a `pub use libc::FILE` and `stderr`/`stdin`/
+    `stdout` as `unsafe extern "C" { pub static mut _: *mut FILE }`,
+    duplicated once per `#[cfg(target_os = "macos")]` branch) -- zero
+    references anywhere in the tree; every real stdio access already goes
+    through `std::io::{stdin, stdout, stderr}` directly
+    (`bin/otfccdump.rs`, `bin/otfccbuild.rs`, `logger.rs`). Removed its
+    `pub mod stdio;` line from `support/cstd.rs` alongside the file
+    deletion.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean, `(cd fuzz && cargo check)`
+    clean. `cargo test -- --test-threads=1`: 422 passed, the same 2
+    pre-existing timing-threshold flakes on record since M-10 (unrelated
+    -- this change deletes only unreachable code). Golden/abi/dll_abi/
+    log_output/cycles integration suites re-run and passing byte-for-byte.
+    `survey-unsafe.sh`: raw pointer types 191 -> **180** (-11: 5 deleted
+    type aliases + `stdio.rs`'s 6 `*mut FILE` text occurrences across both
+    `#[cfg]` branches), `files with allow(unsafe_op_in_unsafe_fn)` 144 ->
+    143 (one fewer file in the crate); `unsafe fn`/`unsafe blocks`/
+    `.offset(`/`is_null()`/`while loops` all unchanged at 7/39/22/21/226
+    (none of the six deletions was itself `unsafe fn`, an `unsafe` block,
+    or offset/is_null-adjacent).
 - **Stage M-31: `ParsedValue::get_typed_mut` added.** The first of four
   planned stages (M-31 through M-34) laid out in "Stage 7-4 plan" above
   that together make the JSON-parse `unsafe fn` trio
