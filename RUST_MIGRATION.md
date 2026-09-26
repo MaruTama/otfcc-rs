@@ -18362,3 +18362,73 @@ counter suggests," not more.
     the trio, and only because it still reborrows a shared `root` into
     `&mut` for both calls rather than being handed `&mut ParsedValue`
     itself -- exactly the state M-34 starts from.
+
+- **Stage M-34, and a real bug M-32/M-33 both introduced: the shared-root
+  reborrow pattern those two stages used for `otfcc_parse_glyf`/
+  `otfcc_parse_otl`'s calls was never sound, and Miri caught it on the very
+  next CI run for PR #499 (`error: Undefined Behavior: trying to retag from
+  <..> for Unique permission ... but that tag only grants SharedReadOnly
+  permission`).** Both stages kept `read_json`'s own signature at
+  `root: &ParsedValue` and reborrowed it into a `&mut ParsedValue` at each
+  call site that needed one, via an explicit `as *mut` cast, on the
+  reasoning (stated in both stages' own doc comments) that "nothing else
+  reads `root` during this call" made the aliasing safe. **That reasoning
+  is categorically wrong, not just risky**: under Stacked Borrows, a
+  `&T`-typed reference's own retag caps every pointer derived from it at
+  `SharedReadOnly` permission for that borrow's entire lifetime, regardless
+  of what else does or doesn't read through it elsewhere -- there is no
+  "nothing else touches it" escape hatch, because the violation is in the
+  cast itself, not in a race with some other access. Confirmed by
+  reproducing the exact CI failure locally (`cargo +nightly-2026-08-17 miri
+  test --lib -- ffi::dll::tests::minimal_json_builds_and_frees_cleanly`,
+  same error, same location) before touching anything, per this migration's
+  own "reproduce before you believe a report" discipline.
+  - **The fix, which happens to be exactly Stage M-34's planned change**:
+    `read_json` itself now takes `root: &mut ParsedValue` instead of
+    `&ParsedValue`. Every one of its three real call sites (`ffi/dll.rs`'s
+    `otfccbuild_json_otf`, `bin/otfccbuild.rs`, `benches/support::mod`'s
+    `build_to_otf`) already owned its `ParsedValue` as a mutable local that
+    is never read again afterward -- confirmed independently, not just
+    trusted from the Stage 7-4 plan's own earlier trace of the same three
+    sites -- so each needed only `&json_root` -> `&mut json_root` (plus
+    `let json_root` -> `let mut json_root` where it wasn't already `mut`).
+    With `root` genuinely `&mut ParsedValue`, every call inside `read_json`
+    to `otfcc_parse_glyf`/`otfcc_parse_otl` (both `&mut ParsedValue`
+    themselves, M-32/M-33) becomes a plain, ordinary, compiler-inserted
+    reborrow -- no cast, no raw pointer, nothing left to justify. `read_json`
+    itself drops `unsafe fn` too, since nothing in its body needs `unsafe`
+    any more: this one fix closes all four planned stages (M-31 through
+    M-34) and the entire JSON-parse `unsafe fn` trio in a single change,
+    since the trio's only remaining `unsafe fn` turned out to need nothing
+    beyond what fixing the bug already required.
+  - **Verification.** Reproduced the exact Miri failure first, then
+    confirmed it gone: `cargo +nightly-2026-08-17 miri test --lib --
+    ffi::dll::tests::minimal_json_builds_and_frees_cleanly` passes, and the
+    full CI-matching Miri invocation (all 17 module filters from `rust.yml`,
+    199 tests) passes clean. `cargo build --lib`/`--all-targets` clean.
+    `cargo clippy --all-targets -- -D warnings` clean. `cargo test --
+    --test-threads=1`: 424 passed, the same 2 pre-existing timing-threshold
+    flakes on record since M-10 (unrelated). Golden/abi/dll_abi/log_output/
+    cycles integration suites re-run and passing byte-for-byte. `(cd fuzz &&
+    cargo check)` clean. `cargo +nightly-2026-08-17 fuzz run json_build --
+    -max_total_time=150` (full budget, not `-runs=0`): 1,531,057 executions
+    in 151s, 0 crashes. All 22 `tests/fuzz-corpus/known-issues/*.bin`
+    regression files re-run directly against their matching target, all
+    clean. `survey-unsafe.sh`: `unsafe fn` 5 -> **4**, `unsafe blocks` 39 ->
+    30 (the three cast-and-reborrow sites plus their surrounding `unsafe {}`
+    wrappers in `read_json` and `benches/support/mod.rs::build_to_otf`, none
+    of which needed `unsafe` for any other reason), raw pointer types 180 ->
+    **165** (the three `as *mut ParsedValue` cast expressions and the doc
+    comments describing them), `is_null()`/`.offset(`/`while loops`
+    unchanged at 19/22/226.
+  - **A process note, since this is the second time in this same four-stage
+    sequence that a locally-passing verification suite missed a real bug
+    Miri alone caught**: M-32's own task instructions didn't ask its agent
+    to run Miri at all (only build/clippy/test/golden/fuzz), and M-33's
+    didn't either -- both stages' own "full verification" checklists had a
+    gap this migration's own established discipline (CI runs Miri on every
+    PR specifically to catch exactly this class of bug) should have closed
+    locally before push, not left for CI to catch after the fact. Every
+    future stage in this sequence's own verification list should include
+    `cargo +nightly-2026-08-17 miri test --lib` (or the relevant module
+    filter) as a standing requirement, not an optional extra.

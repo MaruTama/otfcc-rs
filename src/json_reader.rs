@@ -201,34 +201,33 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
 /// accept was never read -- a JSON tree describes exactly one font --
 /// so it is dropped rather than kept as a silently-ignored parameter.
 ///
-/// # Safety
-/// `read_json` has no caller-side contract of its own -- `root` and
-/// `options` are plain shared references. It is `unsafe fn` only because
-/// its body reborrows that shared `root` into a `&mut ParsedValue` (via an
-/// explicit `as *mut` cast) for its `otfcc_parse_glyf`/`otfcc_parse_otl`
-/// calls, both of which now take `&mut ParsedValue` (Stage M-32, M-33) --
-/// see each reborrow's own comment below for why the cast lives here now
-/// rather than inside either callee. As long as `root` is not read through
-/// any other reference during either call, there is nothing extra for a
-/// caller to uphold; becoming a plain safe `pub fn` itself is M-34's job,
-/// once no callee needs `&mut` from a `&ParsedValue` caller.
-pub unsafe fn read_json(root: &ParsedValue, options: &Options) -> Option<Box<Font>> {
+/// `root` is `&mut ParsedValue`, not `&ParsedValue`. An earlier revision of
+/// this function kept `root: &ParsedValue` (`read_json` was `unsafe fn`)
+/// and reborrowed it into a `&mut ParsedValue` at each of the three call
+/// sites that needed one (`otfcc_parse_glyf`, then `otfcc_parse_otl` twice
+/// for GSUB/GPOS) via an explicit `as *mut` cast, on the reasoning that
+/// "nothing else reads `root` during this call" was enough to make it
+/// sound. **That reasoning is wrong, and Miri caught it on the very next
+/// CI run**: a `&T`-typed reference's own tag caps every pointer derived
+/// from it at `SharedReadOnly` for that borrow's whole lifetime under
+/// Stacked Borrows, independent of what else does or doesn't read through
+/// it -- casting it to `*mut` and dereferencing mutably is undefined
+/// behavior unconditionally, not something "nothing else aliases it" can
+/// excuse away. Every one of this function's three real call sites already
+/// owns its `ParsedValue` as a mutable local that is never read again
+/// afterward (`ffi/dll.rs`, `bin/otfccbuild.rs`, `benches/support/mod.rs`),
+/// so taking `&mut ParsedValue` here costs nothing at any of them, and
+/// every call this function makes to `otfcc_parse_glyf`/`otfcc_parse_otl`
+/// (both `&mut ParsedValue` themselves, Stage M-32/M-33) is now a plain,
+/// ordinary, sound reborrow -- no raw pointer and no `unsafe` anywhere in
+/// this function, closing the JSON-parse `unsafe fn` trio this migration's
+/// "Stage 7-4 plan" set out to make safe (M-31 through this, its own
+/// planned M-34).
+pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>> {
     let mut font: Box<Font> = Box::default();
     font.subtype = otfcc_decide_font_subtype_from_json(root);
     font.glyph_order = parse_glyph_order(root, options);
-    // `otfcc_parse_glyf` (Stage M-32) takes `&mut ParsedValue` now that it
-    // resolves its own "glyf" child via `get_typed_mut` instead of an
-    // internal raw-pointer cast; `read_json` itself still only has a shared
-    // `root` (that is M-34's change, once `otfcc_parse_otl` is safe too), so
-    // the cast that used to live inside `otfcc_parse_glyf` moves one call
-    // frame up, into this function's own already-`unsafe fn` body, for just
-    // this one call. Nothing else reads or writes through `root` while this
-    // call runs (the next statement below is the very next use of `root`),
-    // so the aliasing this function's own `# Safety` section already
-    // requires the caller uphold is exactly what this reborrow needs too.
-    let root_ptr: *mut ParsedValue = root as *const ParsedValue as *mut ParsedValue;
-    let root_mut: &mut ParsedValue = root_ptr.as_mut().unwrap();
-    font.glyf = otfcc_parse_glyf(root_mut, font.glyph_order.as_deref(), options);
+    font.glyf = otfcc_parse_glyf(root, font.glyph_order.as_deref(), options);
     font.cff = otfcc_parse_cff(root, options);
     font.head = otfcc_parse_head(root, options);
     font.hhea = otfcc_parse_hhea(root, options);
@@ -260,26 +259,12 @@ pub unsafe fn read_json(root: &ParsedValue, options: &Options) -> Option<Box<Fon
     font.vhea = otfcc_parse_vhea(root, options);
     if font.glyf.is_some() {
         // `otfcc_parse_otl` (Stage M-33) takes `&mut ParsedValue` now too,
-        // for the same reason `otfcc_parse_glyf` above does -- it resolves
-        // `table`'s `lookups`/`lookupOrder`/`features`/`languages` children
-        // via `get_typed`/`get_typed_mut` reborrows instead of an internal
-        // raw-pointer cast. Two calls happen here (GSUB, then GPOS), each
-        // needing its own `&mut` reborrow of `root` -- a `&mut` isn't
-        // `Copy`, so `root_mut` above can't just be passed twice, and it
-        // has already been consumed by the `otfcc_parse_glyf` call anyway.
-        // Nothing else reads or writes through `root` while either call
-        // runs, so a fresh single-expression reborrow for each is exactly
-        // as sound as the one `otfcc_parse_glyf` already took above.
-        font.gsub = otfcc_parse_otl(
-            (root as *const ParsedValue as *mut ParsedValue).as_mut().unwrap(),
-            options,
-            b"GSUB",
-        );
-        font.gpos = otfcc_parse_otl(
-            (root as *const ParsedValue as *mut ParsedValue).as_mut().unwrap(),
-            options,
-            b"GPOS",
-        );
+        // for the same reason `otfcc_parse_glyf` above does. `root` is
+        // already `&mut ParsedValue` here (this function's own signature,
+        // above), so each call is a plain, ordinary, compiler-inserted
+        // reborrow of `root` -- no cast, no raw pointer, nothing to justify.
+        font.gsub = otfcc_parse_otl(root, options, b"GSUB");
+        font.gpos = otfcc_parse_otl(root, options, b"GPOS");
         font.gdef = otfcc_parse_gdef(root, options);
     }
     font.base = otfcc_parse_base(root, options);

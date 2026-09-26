@@ -355,11 +355,9 @@ fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        // `read_json` is `unsafe fn` only because its body calls the
-        // in-place JSON-tree parsers and the CFF builder core (both
-        // excluded from this migration); its arguments are plain shared
-        // references, so there is no caller-side contract to uphold here.
-        font = unsafe { read_json(json_root.as_ref().unwrap(), &*options) };
+        // `read_json` is a plain safe `pub fn` as of Stage M-34 -- see its
+        // own doc comment for why it now takes `&mut ParsedValue`.
+        font = read_json(json_root.as_mut().unwrap(), &*options);
         if font.is_none() {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),

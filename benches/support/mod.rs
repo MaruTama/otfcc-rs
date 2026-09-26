@@ -82,16 +82,14 @@ pub fn dump_to_json(sfnt_bytes: &[u8], options: &Options) -> Vec<u8> {
 /// The build pipeline (`otfccbuild.rs`'s own steps, in-process): JSON bytes
 /// in, built OTF/TTF bytes out.
 pub fn build_to_otf(json_bytes: &[u8], options: &Options) -> Vec<u8> {
-    unsafe {
-        let json_root = parse_json(json_bytes).expect("parse_json returned None");
+    let mut json_root = parse_json(json_bytes).expect("parse_json returned None");
 
-        let mut font = read_json(&json_root, options).expect("read_json returned None");
+    let mut font = read_json(&mut json_root, options).expect("read_json returned None");
 
-        otfcc_consolidate_font(&mut font, options);
+    otfcc_consolidate_font(&mut font, options);
 
-        let otf = serialize_to_otf(&mut font, options);
-        drop(font);
+    let otf = serialize_to_otf(&mut font, options);
+    drop(font);
 
-        otf.data
-    }
+    otf.data
 }
