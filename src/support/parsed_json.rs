@@ -179,6 +179,33 @@ impl ParsedValue {
         if v.kind() == kind { Some(v) } else { None }
     }
 
+    /// [`get_typed`](Self::get_typed), but returns a mutable reference to
+    /// the found child instead of a shared one -- for the Stage 7-4
+    /// JSON-parse-side `unsafe fn` trio (`json_reader::read_json`,
+    /// `table::glyf::otfcc_parse_glyf`, `table::otl::parse::
+    /// otfcc_parse_otl`; see `RUST_MIGRATION.md`'s "Stage 7-4 plan"
+    /// section), which each need to resolve a named child and then mutate
+    /// it in place (`set_field`/`take_field` on it, or recurse into it
+    /// mutably) instead of just reading it. Same first-match-only
+    /// semantics as `get_typed`: a later duplicate key is never reached
+    /// even if it would satisfy the type asked for. `None` under the same
+    /// conditions `get_typed` returns `None` for (no such member, or the
+    /// first match has the wrong type). Stage M-31 adds this method alone
+    /// -- nothing in the crate calls it yet; M-32/M-33 are what actually
+    /// use it, once `otfcc_parse_glyf`/`otfcc_parse_otl` take `&mut
+    /// ParsedValue` themselves.
+    pub fn get_typed_mut(&mut self, key: &[u8], kind: JsonType) -> Option<&mut ParsedValue> {
+        let fields = match self {
+            ParsedValue::Object(fields) => fields,
+            _ => return None,
+        };
+        let v = &mut fields
+            .iter_mut()
+            .find(|(k, _)| &k[..k.len() - 1] == key)?
+            .1;
+        if v.kind() == kind { Some(v) } else { None }
+    }
+
     /// A member's boolean value; `false` when absent or not a boolean.
     /// First-match-only, like [`get_typed`](Self::get_typed) (not
     /// [`get_num_or`](Self::get_num_or)'s "keep looking" behavior) --
@@ -1028,6 +1055,57 @@ mod tests {
             obj.get_typed(b"k", JsonType::Boolean),
             Some(&ParsedValue::Bool(true))
         );
+    }
+
+    #[test]
+    fn safe_api_get_typed_mut_does_not_search_past_a_type_mismatch() {
+        // Same first-match-only semantics as `get_typed` itself (see that
+        // test above), just through the mutable twin.
+        let mut obj = ParsedValue::Object(vec![
+            (b"k\0".to_vec(), ParsedValue::Bool(true)),
+            (b"k\0".to_vec(), ParsedValue::Int(42)),
+        ]);
+        assert_eq!(obj.get_typed_mut(b"k", JsonType::Integer), None);
+        assert_eq!(
+            obj.get_typed_mut(b"k", JsonType::Boolean),
+            Some(&mut ParsedValue::Bool(true))
+        );
+        assert_eq!(obj.get_typed_mut(b"missing", JsonType::Boolean), None);
+        let mut not_an_object = ParsedValue::Int(0);
+        assert_eq!(not_an_object.get_typed_mut(b"k", JsonType::Integer), None);
+    }
+
+    #[test]
+    fn safe_api_get_typed_mut_mutation_is_observable_afterward() {
+        // The whole point of `get_typed_mut` over `get_typed`: the caller
+        // can mutate the found child in place through the returned
+        // `&mut ParsedValue`, and that mutation sticks -- confirmed here by
+        // reading it back through plain `get_typed` afterward, and by
+        // `take_field`-ing a leaf reached the same way (the exact "resolve
+        // a table, then take_field one of its members" shape M-32/M-33
+        // will use).
+        let mut obj = ParsedValue::Object(vec![
+            (b"glyf\0".to_vec(), ParsedValue::Object(vec![
+                (b"a\0".to_vec(), ParsedValue::Int(1)),
+                (b"b\0".to_vec(), ParsedValue::Int(2)),
+            ])),
+        ]);
+
+        let table = obj
+            .get_typed_mut(b"glyf", JsonType::Object)
+            .expect("glyf should resolve as an object");
+        table.set_field(0, ParsedValue::Bool(true));
+        let taken = table.take_field(1);
+        assert_eq!(taken, ParsedValue::Int(2));
+
+        // Read back through the shared-reference accessor to confirm the
+        // mutation is visible outside the `&mut` borrow, not just within
+        // it.
+        let table = obj
+            .get_typed(b"glyf", JsonType::Object)
+            .expect("glyf should still resolve as an object");
+        assert_eq!(table.get(b"a"), Some(&ParsedValue::Bool(true)));
+        assert_eq!(table.get(b"b"), Some(&ParsedValue::Null));
     }
 
     #[test]
