@@ -176,8 +176,7 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &O
     };
     logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let entries: &Vec<TsiEntry> = tsi;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut _tsi = BuiltValue::new_object(2);
         let mut _glyphs = BuiltValue::new_object(entries.len());
         for entry in entries.iter() {
@@ -200,7 +199,6 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &O
         _tsi.push_field(b"glyphs", _glyphs);
         _tsi.push_field(b"extra", _extra);
         root.push_field(tag, _tsi);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }

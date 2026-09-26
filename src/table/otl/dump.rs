@@ -144,15 +144,13 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
         return;
     }
     logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut otl = BuiltValue::new_object(3);
         logger_start_sds(
             &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"Languages"),
         );
-        let mut ___loggedstep_v_0: bool = true;
-        while ___loggedstep_v_0 {
+        {
             let mut languages = BuiltValue::new_object(table.languages.len());
             for lang in table.languages.iter() {
                 let mut _lang = BuiltValue::new_object(5);
@@ -182,15 +180,13 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
                 languages.push_field_bytes_key(&lang.name, _lang);
             }
             otl.push_field(b"languages", languages);
-            ___loggedstep_v_0 = false;
             logger_finish(&mut options.logger.borrow_mut());
         }
         logger_start_sds(
             &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"Features"),
         );
-        let mut ___loggedstep_v_1: bool = true;
-        while ___loggedstep_v_1 {
+        {
             // `.filter_map` skips holes -- a `None` slot consolidation
             // punched has nothing to dump.
             let live_features: Vec<&Feature> =
@@ -209,15 +205,13 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
                 features_0.push_field_bytes_key(&feature.name, _feature.preserialize());
             }
             otl.push_field(b"features", features_0);
-            ___loggedstep_v_1 = false;
             logger_finish(&mut options.logger.borrow_mut());
         }
         logger_start_sds(
             &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"Lookups"),
         );
-        let mut ___loggedstep_v_2: bool = true;
-        while ___loggedstep_v_2 {
+        {
             // `.filter` skips holes, same as the features loop above.
             let live_lookups: Vec<&Lookup> = table.lookups.iter().filter_map(Option::as_deref).collect();
             let mut lookups = BuiltValue::new_object(live_lookups.len());
@@ -229,11 +223,9 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
             }
             otl.push_field(b"lookups", lookups);
             otl.push_field(b"lookupOrder", lookup_order);
-            ___loggedstep_v_2 = false;
             logger_finish(&mut options.logger.borrow_mut());
         }
         root.push_field(tag, otl);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }

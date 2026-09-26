@@ -18694,3 +18694,89 @@ counter suggests," not more.
     explicit_auto_deref` entirely: M-35 (103 sites) + M-36 (13 sites) +
     M-37 (359 sites) = 475, matching the very first fresh measurement this
     three-stage plan started from.
+- **Stage M-38: deleted all 32 `___loggedstep_v*` run-once macro-emulation
+  wrappers, unwrapping each into a plain scoped block.** The first of five
+  planned stages (M-38 through M-42, see "Stage 7-5 plan" -- not yet merged
+  to `master` as of this stage, read from
+  `origin/claude/amazing-bell-wb1fyf-23`) that together clean up c2rust's
+  mechanical `while`-loop translation shape, and the safest of the five:
+  this bucket is c2rust's translation of this crate's C-side `LOGGED_STEP`
+  -style macro (`logger_start_sds(...); { body }; logger_finish(...)`) as
+  `let mut ___loggedstep_v: bool = true; while ___loggedstep_v { body;
+  ___loggedstep_v = false; logger_finish(...); }` -- a `while` that always
+  runs its body exactly once and was never really a loop at all.
+  - **Scope re-verified, not trusted from the plan's own count.**
+    `grep -rn "___loggedstep_v" src/` found **32** sites across 12 files --
+    one more than the plan's own estimate of 31, all in the "one or two
+    each" tail files it named but didn't total precisely:
+    `bin/otfccbuild.rs` 8, `bin/otfccdump.rs` 7, `table/otl/dump.rs` 4,
+    `consolidate.rs` 3, `table/base.rs` 2, `table/svg.rs` 2, and one each in
+    `table/cvt.rs`, `table/cpal.rs`, `table/_tsi.rs`, `table/otl/build.rs`,
+    `table/otl/parse.rs`, `table/name.rs`. Every one of the 32 read in full
+    (not sampled) before touching it, independently confirming the plan's
+    own "zero `break`" claim rather than trusting it: the bool is declared
+    `true`, never reassigned to `true` anywhere in its body, reassigned to
+    `false` exactly once as the body's own last statement (before
+    `logger_finish`), and no site contains a `break` or `continue` --
+    several bodies (`bin/otfccdump.rs`'s and `bin/otfccbuild.rs`'s in
+    particular) do contain an early `return EXIT_FAILURE;`/`return
+    EXIT_FAILURE;`-shaped exit, correctly flagged and confirmed harmless
+    per the task's own reasoning: a `return` inside a `while` that always
+    runs once behaves identically inside a bare block. All 32 matched the
+    shape exactly; none was left unconverted.
+  - **The fix**: deleted each `let mut ___loggedstep_v_N: bool = true;`
+    declaration, replaced its paired `while ___loggedstep_v_N {` with a
+    bare `{`, and deleted the paired `___loggedstep_v_N = false;` line
+    inside the body -- applied programmatically across all 32 sites (the
+    substitution is identical everywhere, so scripting it and then
+    reviewing the diff by hand is less error-prone than 32 manual edits),
+    then every resulting hunk read by hand to confirm each is exactly this
+    one substitution and nothing else.
+  - **Braces kept, not removed.** `cargo clippy --all-targets -- -D
+    warnings` raised no `unused_braces`/redundant-block complaint against
+    any of the 32 plain blocks after the fix, so per the task's own
+    instruction to follow clippy's own call, every block kept its braces
+    rather than being inlined further -- several genuinely need the scope
+    for their own local `let` bindings, and clippy raised nothing asking
+    for the rest to be flattened either.
+  - **One real fix beyond the substitution itself, `table/otl/
+    build.rs::otfcc_build_otl`.** Unwrapping its `while` turned `let mut
+    buf: Option<Buffer> = None;` (initialized before the loop, assigned
+    once inside it, read after) into a genuinely dead initial assignment
+    once the loop's conditional-execution shape was gone -- `cargo build
+    --lib` caught this immediately as `error: value assigned to \`buf\` is
+    never read` (`-D unused-assignments`), not a silent behavior change.
+    Fixed by declaring `let buf: Option<Buffer>;` with no initial value and
+    letting the block's own unconditional `buf = Some(...)` be its one and
+    only assignment -- the same value ends up in `buf` either way, just
+    without carrying a `None` no code path can still observe. No other of
+    the 32 sites hit this same shape (grepped for the same "declared before,
+    assigned once inside, read after" pattern in the other 31 bodies;
+    every other case either has no separate pre-declared local at all, or
+    the local is read for the first time only after the block).
+  - **A stale comment, also fixed.** `bin/otfccdump.rs`'s own comment on
+    `root: Option<BuiltValue>` referred to "the goto-emulating `while
+    ___loggedstep_v` block below" by name; reworded to "the plain block
+    below" now that the wrapper it named is gone. (`table/otl/parse.rs`'s
+    own comment mentioning `___loggedstep_v` was left alone -- it already
+    reads "No longer a `___loggedstep_v`/`current_block`-flagged `loop`",
+    describing history, not the current wrapper.)
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean. `cargo test --
+    --test-threads=1`: 426 passed, 0 failed (the pre-existing
+    sandbox-CPU-timing flakes on record since M-10 did not trigger this
+    run). `cargo test --test golden --test abi --test dll_abi --test
+    log_output --test cycles -- --test-threads=1`: all 9 tests across the 5
+    files passing byte-for-byte -- expected, since this is pure
+    control-flow simplification with identical runtime behavior, and
+    confirmed rather than assumed. `(cd fuzz && cargo check)` clean.
+    `survey-unsafe.sh`'s `while loops` counter: 226 -> **193**, a drop of
+    33 rather than the 32 sites actually converted -- the extra one is the
+    stale-comment fix above, whose old wording contained the literal text
+    "while ___loggedstep_v" and so counted toward this script's own
+    text-based `\bwhile ` counter (the same class of drift this script's
+    header already flags, and the same thing M-29's own log entry hit in
+    the other direction). Every other counter (`unsafe fn`/`unsafe
+    blocks`/raw pointer types/`.offset(`/`is_null()`) unchanged at
+    4/30/165/22/19, exactly as expected for a stage that touches no
+    `unsafe` code and no pointer.

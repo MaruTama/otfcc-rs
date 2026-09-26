@@ -110,8 +110,7 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &O
         crate::bytesbuild!(b"SVG "),
     );
     let entries: &Vec<SvgAssignment> = svg;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut _svg = BuiltValue::new_array(entries.len());
         for a in entries.iter() {
             let mut _a = BuiltValue::new_object(4);
@@ -128,7 +127,6 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &O
             _svg.push_item(_a);
         }
         root.push_field(b"SVG_", _svg);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }
@@ -139,8 +137,7 @@ pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"SVG "),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         if let Some(items) = svg_val.as_array() {
             for a in items {
                 if a.as_object().is_some() {
@@ -160,7 +157,6 @@ pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable
                 }
             }
         }
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     return Some(svg);

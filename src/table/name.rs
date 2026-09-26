@@ -137,8 +137,7 @@ pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue, options:
         crate::bytesbuild!(b"name"),
     );
     let records: &Vec<NameRecord> = name;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut _name = BuiltValue::new_array(records.len());
         for r in records.iter() {
             let mut record = BuiltValue::new_object(5);
@@ -150,7 +149,6 @@ pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue, options:
             _name.push_item(record);
         }
         root.push_field(b"name", _name);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }

@@ -222,8 +222,7 @@ pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue, options
         crate::bytesbuild!(b"CPAL"),
     );
     let palettes: &Vec<CpalPalette> = &table.palettes;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut _t = BuiltValue::new_object(2);
         _t.push_field(b"version", BuiltValue::Int(table.version as i64));
         let mut _a = BuiltValue::new_array(palettes.len());
@@ -232,7 +231,6 @@ pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue, options
         }
         _t.push_field(b"palettes", _a);
         root.push_field(b"CPAL", _t);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }

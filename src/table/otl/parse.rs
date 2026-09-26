@@ -357,15 +357,13 @@ fn _declare_lookup_parser(
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(lookup_name),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         for _subtable in subtable_items {
             if _subtable.as_object().is_some() {
                 let st = parser.expect("non-null function pointer")(Some(_subtable), options);
                 lookup.subtables.push(st.map(Box::new));
             }
         }
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     if lookup.subtables.is_empty() {
