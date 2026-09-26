@@ -17354,3 +17354,154 @@ on the other platform before a commit is trusted.
     `missing_safety_doc`, `too_many_arguments`, and `type_complexity` --
     every other entry either removed (already zero or fixed here) or,
     for the last two, corrected in place.
+
+- **`table/otl/subtables/gpos_pair.rs`'s `otl_read_gpos_pair`: PairPos
+  Format 2's own byte-length guard has a `stride == 0` loophole -- a real,
+  previously-undocumented `otf_dump` out-of-memory, and (per this entry's
+  own verification below) the same class of bug CI's advisory `fuzz` job
+  had just found on `master` around commit `618ca27`/`72d4bba`.** That PR
+  itself only touched clippy-lint-driven control-flow-preserving rewrites
+  in `consolidate/otl/*` and elsewhere -- confirmed innocent rather than
+  just assumed so, by reading the diff directly: no hunk in it touches
+  parsing, size-budget, or allocation logic anywhere in the tree, and this
+  bug's root cause (below) predates that PR by a long stretch, needing no
+  bisection to place it well before commit `618ca27`.
+  - **Reproduction.** CI's own report gave a libFuzzer OOM (`used:
+    2275Mb; limit: 2048Mb`, largest bucket `1185406976 byte(s) (62%) in
+    1900 allocation(s)`, no symbols since that job's binary has no
+    debuginfo) found via seed `702610373` mutating from the `otf_dump`
+    seed corpus, but a first local attempt at that exact seed in a fresh
+    60s run did not reproduce it. Rather than chase that seed further,
+    this investigation re-ran `cargo fuzz run otf_dump` locally with
+    progressively longer budgets (a 300s run first, seeded with `-seed=
+    702610373` from a freshly-reseeded `fuzz/corpus/otf_dump/`, matching
+    `rust.yml`'s own seeding step) -- which found a *different*, CPU-bound
+    slow unit (497KB, ~14s wall-clock, RSS a few MB, clearly not this
+    OOM's shape) rather than the reported memory blowup, underscoring the
+    task's own warning that CI's exact mutation path is not reliably
+    reproducible locally bit-for-bit. Given that, and this migration's
+    standing history of GSUB/GPOS "individually-bounded, unbounded in
+    aggregate" bugs (`MAX_TOTAL_LOOKUPS_PER_TABLE`, `MAX_TOTAL_RULES_PER_
+    TABLE`, `MAX_TOTAL_FEATURE_REFS_PER_TABLE`, `MAX_APPLY_PER_RULE`/
+    `MAX_POSITIONS_PER_RULE`, `CLASS_ZERO_BUDGET`/`CLASS_COVERAGE_CALL_
+    BUDGET`, `COVERAGE_ENTRY_BUILD_BUDGET`'s own format-1 fix, all
+    documented above), this entry instead audited every OTL subtable
+    reader for a table/lookup/subtable-count budget that either doesn't
+    exist yet or is defeated by a degenerate field value -- and found
+    `gpos_pair.rs`'s Format 2 (class-pair-adjustment) reader's own guard
+    has exactly that shape. Verified directly, not guessed: a scratch
+    `#[test]` calling `otl_read_gpos_pair` on a 42-byte hand-built Format 2
+    subtable with `class1Count = class2Count = 3000` (and both value
+    formats 0) allocated in ~300ms with each returned row at its full
+    3000-entry capacity, confirming the amplification before any font-
+    level reproduction was attempted. From there, a full crafted `.ttf`
+    (`Molengo-Regular.ttf` with its `GPOS` table's directory entry
+    repointed at a freshly-appended, 88-byte malicious `GPOS` table --
+    checksums are computed at build time only, never validated on read,
+    so no recomputation was needed) with `class1Count = class2Count =
+    6000` reproduced the exact reported crash shape against a real ASan
+    `cargo fuzz build otf_dump` binary: `==ERROR: libFuzzer: out-of-memory
+    (used: 2237Mb; limit: 2048Mb)`, largest bucket `977856000 byte(s)
+    (49%) in 5093 allocation(s)` (192,000 bytes each, i.e. exactly
+    `class2_count * size_of::<PositionValue>()` -- `PositionValue`'s four
+    `Pos` (`c_double`) fields make it 32 bytes, not 16), symbolicated
+    straight to `gpos_pair.rs:285:32`, the `Vec::with_capacity(class2_
+    count)` row allocation inside the Format 2 matrix-building loop. The
+    reported crash's own bucket shape (~1900 allocations averaging
+    ~624KB) is consistent with the same bug at a different, more
+    asymmetric `class1_count`/`class2_count` split (e.g. ~1900 rows of
+    ~19,500 cells each is `19500 * 32 = 624,000` bytes per row) rather
+    than a different bug entirely.
+  - **The bug**: `read_coverage`'s own Format 1/Format 2 budget fix
+    (`COVERAGE_ENTRY_BUILD_BUDGET`, documented earlier in this section)
+    already established that a byte-length guard alone isn't enough once
+    a degenerate field can make the *per-entry* cost zero while the
+    *entry count* stays attacker-controlled -- `otl_read_gpos_pair`'s own
+    Format 2 guard has the identical gap, just one level further down.
+    `class1_count`/`class2_count` (each a raw `u16`, up to 65,535) are
+    checked via `total_cells = class1_count.checked_mul(class2_count)`
+    against `matrix.require_room(total_cells, stride)`, where `stride =
+    position_format_length(format1) + position_format_length(format2)`.
+    That's exactly the fix this same function already carries for the
+    *previous* bug found in it (`class1_count * class2_count * (len1+
+    len2)` overflowing `i32`) -- but `require_room(total_cells, 0)`
+    always needs `0` bytes and always succeeds, no matter how large
+    `total_cells` is, and `stride` is legitimately `0` whenever a PairPos
+    subtable's `valueFormat1`/`valueFormat2` are *both* 0 (a legal, if
+    useless-looking, "no value records at all" subtable). Once past that
+    guard, the two `Vec::with_capacity(class2_count as usize)` allocations
+    inside the `for j4 in 0..class1_count` loop (building `first_values`/
+    `second_values`, one full row per `class1_count` iteration) run
+    regardless of `stride`: `read_gpos_value` returns a zeroed
+    `PositionValue` without ever touching `data` when `format == 0`, so
+    the *reads* stay cheap, but the *allocations* backing every cell
+    still cost real heap memory. `class1_count = class2_count = u16::MAX`
+    gives `total_cells` of ~4.29 billion, each `PositionValue` 32 bytes,
+    doubled for the two parallel grids -- far past any fuzzing harness's
+    memory ceiling from a subtable needing barely more than its own
+    16-byte header plus a 6-byte Coverage and a 10-byte ClassDef to
+    satisfy every other check along the way.
+  - **The fix**: `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS` (2,000,000), checked
+    against `total_cells` immediately after the existing `checked_mul`
+    and before either `require_room` or either `Vec::with_capacity` call,
+    so a subtable that fails it is rejected (`break 'parse`, the same
+    "malformed subtable is dropped, not fatal" shape every sibling OTL
+    reader already uses) before paying for any allocation at all --
+    independent of `stride`, closing the gap `require_room` alone cannot.
+    The budget itself is sized directly off this repo's own font corpus,
+    not guessed: dumping every `tests/payload/*.ttf`/`*.otf` font and
+    walking every `gpos_pair` lookup's `first`/`second` class-def sizes
+    found `Cormorant-Medium.otf`'s own `lookup_kern_1` as the largest
+    real user, at `384 * 1560 = 599,040` cells (`WorkSans-Regular.otf`'s
+    two `gpos_pair` lookups top out at 42,720) -- 2,000,000 leaves more
+    than 3x headroom over that real-world maximum while keeping the
+    worst case (`u16::MAX` square, ~4.29 billion cells) firmly
+    unreachable regardless of what `stride` a malformed subtable claims.
+  - **New test**, `format2_zero_stride_class_counts_are_capped_not_
+    allocated_unbounded` (`table/otl/subtables/gpos_pair.rs`), mirrors
+    the file's own existing `format2_max_class_counts_are_rejected_not_
+    read_oob` test byte-for-byte except for `valueFormat1`/`valueFormat2`
+    both set to 0 (`NONE`) instead of 1 each, asserting `otl_read_gpos_
+    pair` still returns `None` for `class1Count = class2Count = u16::MAX`
+    even though the pre-existing test's own guard (`require_room` against
+    a nonzero `stride`) no longer fires here. Runs in effectively 0ms
+    under both a normal `cargo test` and Miri (a plain safe-Rust early
+    return, no loop or raw-pointer read to make slow under Miri's
+    interpreter, so no `#[cfg_attr(miri, ignore = ...)]` was needed,
+    unlike this migration's other amplification-budget tests that
+    actually have to run their capped loop to completion).
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-dump-gpos-pair-
+    zero-stride-class-amplification-oom.bin` (65KB -- `Molengo-Regular.
+    ttf` with its `GPOS` table directory entry repointed at a freshly
+    appended, 88-byte malicious replacement; the original `GPOS` table's
+    bytes are left as unreferenced dead space in the file rather than
+    removed, since nothing needs to shrink the file for the bug to
+    reproduce). Wired into `.github/workflows/rust.yml`'s fuzz job's
+    fixed-findings regression list, alongside the other resolved
+    findings.
+  - **Verification**: full pipeline green (`cargo build --lib`/`--all-
+    targets` clean, `cargo clippy --all-targets -- -D warnings` clean,
+    `cargo test -- --test-threads=1`: 422 passed, 2 pre-existing timing-
+    threshold flakes on record since M-10 -- `otl_feature_ref_
+    amplification_font_parses_promptly` and `otl_coverage_and_
+    consolidate_log_amplification_font_dumps_promptly`, both sandbox-CPU
+    timing sensitivity, not a regression from this change -- plus the new
+    `gpos_pair.rs` test passing under both a normal run and `cargo
+    +nightly-2026-08-17 miri test --lib gpos_pair`), golden/abi/dll_abi/
+    log_output/cycles integration suites explicitly re-run and passing
+    byte-for-byte (including `Cormorant-Medium.otf`'s own golden fixture,
+    the real font this fix's budget was calibrated against, confirming
+    the new cap doesn't reject or truncate its legitimate 599,040-cell
+    PairPos subtable). Every existing `tests/fuzz-corpus/known-issues/
+    *.bin` regression file (21 total, including this entry's own new one)
+    re-run directly against its matching `otf_dump`/`otf_parse`/
+    `json_build` release+ASan binary, all exiting 0 with no regressions.
+    The reconstructed crash input itself confirmed fixed directly: an
+    ASan `cargo fuzz build otf_dump` run against it dropped from
+    `==ERROR: libFuzzer: out-of-memory (used: 2237Mb; limit: 2048Mb)` to
+    a clean exit in 90ms. `survey-unsafe.sh`: `unsafe fn`/`unsafe
+    blocks`/raw pointer types/`while loops` all unchanged at
+    8/48/496/226 (496, not the 498 this entry's own investigation
+    measured against, since the concurrently-merged lint-triage PR
+    above dropped it by 2 first; this fix itself adds no `unsafe` code
+    and no genuine loop, only a new `const` and an early-return check).
