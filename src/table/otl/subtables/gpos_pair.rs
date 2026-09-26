@@ -55,6 +55,35 @@ pub struct IndividualGposPair {
 // so the product can reach 65535*65535*16 (~68.7 billion), far past
 // `i32::MAX`. Fixed with two chained `checked_mul`s on `usize` (count*count,
 // then that product against the per-cell stride via `require_room`).
+//
+// That byte-length guard has its own loophole, found by `cargo fuzz run
+// otf_dump` (a real, previously-undocumented OOM): `require_room(total_
+// cells, stride)` needs `total_cells * stride` bytes, but `stride` --
+// `position_format_length(format1) + position_format_length(format2)` --
+// is 0 whenever *both* value formats are 0 (a legal PairPos with no value
+// records at all, e.g. `valueFormat1 = valueFormat2 = 0`). `total_cells *
+// 0` is always `0`, so `require_room` passes no matter how large `total_
+// cells` is -- `class1_count`/`class2_count` up to `u16::MAX` each give a
+// `total_cells` of ~4.29 billion, and the two `Vec::with_capacity(class2_
+// count)` allocations below run once per row regardless of `stride`
+// (`read_gpos_value` returns a zeroed `PositionValue` without touching
+// `data` at all when `format == 0`, so the cells are cheap to build --
+// the *allocations* are what cost real memory, not the reads). A tiny
+// hand-crafted PairPos subtable (a 6-byte Coverage, one shared 10-byte
+// ClassDef, `class1Count = class2Count = 6000`) reproducibly OOMed
+// `otf_dump` at ~2.24GB RSS (`-rss_limit_mb=2048`), allocating almost 1GB
+// in exactly 5093 same-sized `Vec<PositionValue>` chunks at `gpos_pair.
+// rs:285` alone -- the same "individually bounds-checked, unbounded in
+// aggregate" shape this migration keeps finding, just on the *cell count*
+// itself rather than on the byte length the existing guard already
+// covers. `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS` (2,000,000) closes it: the
+// largest legitimate `class1_count * class2_count` product across this
+// repo's own font corpus is `Cormorant-Medium.otf`'s 384*1560 = 599,040
+// (`WorkSans-Regular.otf` uses at most 42,720), so 2,000,000 leaves more
+// than 3x headroom over that, still keeping the worst case (a `u16::MAX`-
+// square grid otherwise reaching 4.29 billion cells) firmly out of reach
+// regardless of `stride`.
+const MAX_TOTAL_GPOS_PAIR_CLASS_CELLS: usize = 2_000_000;
 pub fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
     let mut subtable = GposPairSubtable {
         first: None,
@@ -266,6 +295,15 @@ pub fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Opt
             else {
                 break 'parse;
             };
+            // See `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS`'s own doc comment:
+            // `require_room` below is a no-op when `stride` is 0 (both
+            // value formats absent), so `total_cells` needs its own,
+            // stride-independent cap -- checked first, before either
+            // `Vec::with_capacity(class2_count)` allocation below ever
+            // runs, so a rejected subtable never pays for one.
+            if total_cells > MAX_TOTAL_GPOS_PAIR_CLASS_CELLS {
+                break 'parse;
+            }
             let Ok(matrix) = FontReader::new(data).at(offset as usize + 16) else {
                 break 'parse;
             };
@@ -689,6 +727,46 @@ mod otl_read_gpos_pair_tests {
         data[2..4].copy_from_slice(&16u16.to_be_bytes()); // coverageOffset -> 16
         data[4..6].copy_from_slice(&1u16.to_be_bytes()); // valueFormat1
         data[6..8].copy_from_slice(&1u16.to_be_bytes()); // valueFormat2
+        data[8..10].copy_from_slice(&22u16.to_be_bytes()); // classDef1Offset -> 22
+        data[10..12].copy_from_slice(&32u16.to_be_bytes()); // classDef2Offset -> 32
+        data[12..14].copy_from_slice(&u16::MAX.to_be_bytes()); // class1Count
+        data[14..16].copy_from_slice(&u16::MAX.to_be_bytes()); // class2Count
+        // Coverage format 1 at byte 16: one glyph, id 10.
+        data[16..18].copy_from_slice(&1u16.to_be_bytes());
+        data[18..20].copy_from_slice(&1u16.to_be_bytes());
+        data[20..22].copy_from_slice(&10u16.to_be_bytes());
+        // ClassDef format 2 at byte 22: one range, glyph 10, class u16::MAX-1.
+        data[22..24].copy_from_slice(&2u16.to_be_bytes());
+        data[24..26].copy_from_slice(&1u16.to_be_bytes());
+        data[26..28].copy_from_slice(&10u16.to_be_bytes());
+        data[28..30].copy_from_slice(&10u16.to_be_bytes());
+        data[30..32].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
+        // ClassDef format 2 at byte 32: one range, glyph 20, class u16::MAX-1.
+        data[32..34].copy_from_slice(&2u16.to_be_bytes());
+        data[34..36].copy_from_slice(&1u16.to_be_bytes());
+        data[36..38].copy_from_slice(&20u16.to_be_bytes());
+        data[38..40].copy_from_slice(&20u16.to_be_bytes());
+        data[40..42].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
+        let result = otl_read_gpos_pair(&data, 0, 0);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn format2_zero_stride_class_counts_are_capped_not_allocated_unbounded() {
+        // See `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS`'s own doc comment: with
+        // both value formats 0, `stride` is 0 and the sibling test above
+        // (`format2_max_class_counts_are_rejected_not_read_oob`, whose
+        // byte layout this one otherwise mirrors) no longer reaches its
+        // guard -- `require_room(total_cells, 0)` always succeeds, no
+        // matter how huge `total_cells` is. Without this file's own
+        // stride-independent cap, `class1Count = class2Count = u16::MAX`
+        // here would try to allocate two ~4.29-billion-cell `Vec<Vec<
+        // PositionValue>>` grids from this same 42-byte buffer.
+        let mut data = [0u8; 42];
+        data[0..2].copy_from_slice(&2u16.to_be_bytes()); // format
+        data[2..4].copy_from_slice(&16u16.to_be_bytes()); // coverageOffset -> 16
+        data[4..6].copy_from_slice(&0u16.to_be_bytes()); // valueFormat1: NONE
+        data[6..8].copy_from_slice(&0u16.to_be_bytes()); // valueFormat2: NONE
         data[8..10].copy_from_slice(&22u16.to_be_bytes()); // classDef1Offset -> 22
         data[10..12].copy_from_slice(&32u16.to_be_bytes()); // classDef2Offset -> 32
         data[12..14].copy_from_slice(&u16::MAX.to_be_bytes()); // class1Count
