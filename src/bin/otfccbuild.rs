@@ -115,7 +115,7 @@ fn main_0(args: Vec<String>) -> i32 {
     let mut options: Box<Options> = Box::default();
     options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     logger_indent_sds(&mut options.logger.borrow_mut(), b"otfccbuild".to_vec());
-    otfcc_options_optimize_to(&mut *options, 1_u8);
+    otfcc_options_optimize_to(&mut options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     // `--keep-glyph-order` and `--dont-ignore-glyph-order` are documented as
@@ -357,7 +357,7 @@ fn main_0(args: Vec<String>) -> i32 {
     while ___loggedstep_v_3 {
         // `read_json` is a plain safe `pub fn` as of Stage M-34 -- see its
         // own doc comment for why it now takes `&mut ParsedValue`.
-        font = read_json(json_root.as_mut().unwrap(), &*options);
+        font = read_json(json_root.as_mut().unwrap(), &options);
         if font.is_none() {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),
@@ -387,7 +387,7 @@ fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        otfcc_consolidate_font(font.as_mut().unwrap(), &*options);
+        otfcc_consolidate_font(font.as_mut().unwrap(), &options);
         logger_log_sds(
             &mut options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -406,7 +406,7 @@ fn main_0(args: Vec<String>) -> i32 {
         // Owned now that `serialize_to_otf` returns the `Buffer` itself;
         // it drops at the end of this block, where an explicit
         // `Buffer::from_raw` used to be needed.
-        let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &*options);
+        let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &options);
         logger_start_sds(
             &mut options.logger.borrow_mut(),
             otfcc_rust::bytesbuild!(b"Write to file"),

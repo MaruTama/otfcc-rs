@@ -45,7 +45,7 @@ warnings = "deny"
 # Stage 7-4 (C-ism mechanical cleanup) removes these as a direct consequence
 # of further mechanical passes over c2rust's transpile shape:
 needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
-explicit_auto_deref = "allow" # 372 -- c2rust's `&raw` / deref-cast idiom (raw-pointer sites only; the RefCell/RefMut reborrow subset was fixed separately, and Stage M-35 fixed the otf_writer.rs/json_writer.rs/font/caryll_font.rs subset -- 103 sites -- see RUST_MIGRATION.md; the CFF interpreter (M-37, 359 sites) and a 13-site tail (M-36) remain)
+explicit_auto_deref = "allow" # 359 -- c2rust's `&raw` / deref-cast idiom (raw-pointer sites only; the RefCell/RefMut reborrow subset was fixed separately; Stage M-35 fixed the otf_writer.rs/json_writer.rs/font/caryll_font.rs subset -- 103 sites -- and Stage M-36 fixed the 13-site tail -- bin/otfccbuild.rs, table/glyf/read.rs, ffi/dll.rs, table/svg.rs, bin/otfccdump.rs -- see RUST_MIGRATION.md; only the CFF interpreter (M-37, libcff/cff_parser.rs, 359 sites) remains)
 
 # Real design work, not a mechanical lint fix -- `too_many_arguments` would
 # need restructuring a function's parameter list (e.g. into a struct) and

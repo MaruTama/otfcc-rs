@@ -192,8 +192,8 @@ pub fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
             bk_push(
                 &mut major,
                 vec![
-                    bk_int(BkCellType::B16, ((*a).start as i32) as u32),
-                    bk_int(BkCellType::B16, ((*a).end as i32) as u32),
+                    bk_int(BkCellType::B16, (a.start as i32) as u32),
+                    bk_int(BkCellType::B16, (a.end as i32) as u32),
                     bk_ptr(
                         BkCellType::P32,
                         bk_new_block_from_buffer_copy(Some(&doc_buf)),

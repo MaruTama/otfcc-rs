@@ -305,7 +305,7 @@ fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        otfcc_consolidate_font(font.as_mut().unwrap(), &*options);
+        otfcc_consolidate_font(font.as_mut().unwrap(), &options);
         logger_log_sds(
             &mut options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -330,7 +330,7 @@ fn main_0(args: Vec<String>) -> i32 {
         // already dead: the serializer's every exit built a real
         // `BuiltValue`, so the pointer it handed back was never null. With
         // an owned return there is no null to test for at all.
-        root = Some(serialize_to_json(font.as_mut().unwrap(), &*options));
+        root = Some(serialize_to_json(font.as_mut().unwrap(), &options));
         logger_log_sds(
             &mut options.logger.borrow_mut(),
             LOG_VL_PROGRESS,

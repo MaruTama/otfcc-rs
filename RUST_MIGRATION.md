@@ -18502,3 +18502,81 @@ counter suggests," not more.
     since `font: &mut Font` in all three files was never a raw pointer to
     begin with, and this script doesn't track `explicit_auto_deref` at
     all, only clippy does.
+
+- **Stage M-36: `clippy::explicit_auto_deref`'s raw-pointer-idiom subset
+  fixed for the 13-site tail -- `bin/otfccbuild.rs`, `table/glyf/read.rs`,
+  `ffi/dll.rs`, `table/svg.rs`, `bin/otfccdump.rs` -- leaving only the CFF
+  interpreter (M-37) in the allow-list.** The second of three planned
+  stages (M-35 through M-37, see "Stage 7-5 plan" -- not yet merged to
+  `master` as of this stage, read from
+  `origin/claude/amazing-bell-wb1fyf-23`) that together clear the
+  `explicit_auto_deref` allow-list entry. Branched directly off M-35's own
+  branch (`claude/amazing-bell-wb1fyf-24`, PR #503, not yet merged), since
+  the two stages touch the same lint machinery and this keeps history
+  clean rather than rebasing later.
+  - **Scope re-verified, not trusted from the plan's own count.** Stripped
+    `Cargo.toml`'s `[lints.clippy]` table entirely and relaxed
+    `[lints.rust] warnings` to `"warn"` (reverted immediately after each
+    measurement, same technique as M-35 and every prior stage using it),
+    then `cargo clippy --all-targets --message-format=json`, deduped by
+    file+line: **372** sites crate-wide (475 - M-35's 103, exactly as
+    M-35's own log entry predicted), of which **359** are
+    `libcff/cff_parser.rs` (M-37's own scope, untouched here) and the
+    remaining **13** are the tail the plan named -- `bin/otfccbuild.rs` 4,
+    `table/glyf/read.rs` 3, `ffi/dll.rs` 2, `table/svg.rs` 2,
+    `bin/otfccdump.rs` 2 -- matching the plan's file list and per-file
+    counts exactly, no drift.
+  - **Applied via the same scoped-lint technique as M-35**: `cargo clippy
+    --fix --all-targets --allow-dirty -- -A clippy::all -W
+    clippy::explicit_auto_deref`, with the allow-list entry removed and
+    `warnings` relaxed so `--fix` didn't stop at the first target. This
+    fixed the same 13 tail sites plus all 359 `libcff/cff_parser.rs` sites
+    (`--fix` isn't scopable to a file subset); `git checkout --
+    src/libcff/cff_parser.rs` reverted that file immediately after,
+    leaving it untouched for M-37 as instructed, with only the 5 tail
+    files left staged.
+  - **Per-hunk review, not a sample.** All 13 hunks read by hand across
+    the 5 files: every one is the same one-line transformation M-35
+    already established, just on different variables -- `&*options` ->
+    `&options` / `&mut *options` -> `&mut options` (`options: Box<Options>`,
+    8 sites: `bin/otfccbuild.rs` (4, one of them the `&mut` form),
+    `bin/otfccdump.rs` (2), `ffi/dll.rs` (2)), `(*g).field` -> `g.field`
+    (`g: Box<Glyph>`, 3 sites in `table/glyf/read.rs`), and `(*a).field`
+    -> `a.field` (`a: &SvgAssignment`, 2 sites in `table/svg.rs`). Every
+    site is a field read/write or an inline call argument, never a value
+    moved out through the deref, and no hunk changes evaluation order or
+    introduces a new `let` binding. Zero semantic change in every hunk,
+    confirmed individually.
+  - **`ffi/dll.rs`'s two sites, the ABI-boundary file this plan flagged by
+    name**: both are inside `otfccbuild_json_otf`'s body (`&*options` ->
+    `&options` twice, passed to `otfcc_consolidate_font`/`serialize_to_otf`)
+    -- internal-only deref simplifications, no change to the function's
+    own `pub unsafe extern "C" fn` signature, parameter types, return type,
+    or safety contract. `tests/abi.rs` and `tests/dll_abi.rs` re-run
+    explicitly (not just as part of the full suite) to confirm the
+    exported ABI surface and the built `otfccdll` output are unchanged --
+    both pass byte-for-byte, see verification below.
+  - **`Cargo.toml`'s entry corrected, not removed**: this stage covers 13
+    more of the 475 sites (116 of 475 total across M-35+M-36), so
+    `explicit_auto_deref` stays in the allow-list -- only M-37's
+    359-site `libcff/cff_parser.rs` remains. Re-measured after the fix
+    landed, with the same strip-and-relax technique: **359** sites
+    crate-wide, all in `libcff/cff_parser.rs`, 0 remaining anywhere else.
+    The count comment moved from "372" to "359", with a note on which
+    stage fixed which subset, matching M-35's own and the
+    `RefCell`/`RefMut` entry's established convention.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean (with the corrected count).
+    `cargo test -- --test-threads=1`: 426 passed, 0 failed this run (the
+    pre-existing sandbox-CPU-timing flakes on record since M-10 did not
+    trigger). `cargo test --test golden --test abi --test dll_abi --test
+    log_output --test cycles -- --test-threads=1`: all 9 tests across the
+    5 files passing byte-for-byte, `abi.rs`/`dll_abi.rs` included --
+    the specific check this stage's `ffi/dll.rs` sites called for.
+    `(cd fuzz && cargo check)` clean. `survey-unsafe.sh`: no movement at
+    all (165/30/4/22/19/226 for raw pointer types/unsafe blocks/unsafe
+    fn/`.offset(`/`is_null()`/while loops, all unchanged from the M-35
+    baseline) -- expected, since none of this stage's 13 sites were on a
+    raw-pointer-typed variable (`Box<Options>`/`Box<Glyph>`/
+    `&SvgAssignment`, all already-owned/borrowed types), and this script
+    doesn't track `explicit_auto_deref` at all, only clippy does.

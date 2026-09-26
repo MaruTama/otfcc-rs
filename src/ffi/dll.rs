@@ -43,11 +43,11 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         return ::core::ptr::null_mut::<Buffer>();
     };
     drop(json_root);
-    otfcc_consolidate_font(&mut font, &*options);
+    otfcc_consolidate_font(&mut font, &options);
     // This is the one genuine `extern "C"` boundary in the crate, so it is
     // also the one place that still needs to hand a `Buffer` back as a raw
     // pointer -- `serialize_to_otf` returns the `Buffer` itself now.
-    let otf: *mut Buffer = serialize_to_otf(&mut font, &*options).into_raw();
+    let otf: *mut Buffer = serialize_to_otf(&mut font, &options).into_raw();
     drop(font);
     return otf;
 }

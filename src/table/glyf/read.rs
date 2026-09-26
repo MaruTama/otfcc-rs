@@ -290,7 +290,7 @@ fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyp
         if flags.contains(ComponentFlags::WE_HAVE_INSTRUCTIONS) {
             glyph_has_instruction = true;
         }
-        (*g).references.push(ref_0);
+        g.references.push(ref_0);
         if !(flags.contains(ComponentFlags::MORE_COMPONENTS)) {
             break;
         }
@@ -298,9 +298,9 @@ fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyp
     if glyph_has_instruction {
         let instruction_length: u16 = r.u16().ok()?;
         let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
-        (*g).instructions = instruction_bytes.to_vec();
+        g.instructions = instruction_bytes.to_vec();
     } else {
-        (*g).instructions = Vec::new();
+        g.instructions = Vec::new();
     }
     Some(g)
 }
