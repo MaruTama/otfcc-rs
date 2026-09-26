@@ -62,7 +62,6 @@ for_kv_map = "allow" # 12 -- `for (_, v) in &map` instead of `.values()`
 # rather than document their contracts in place, so writing `# Safety` docs
 # for functions on their way out is wasted work; revisit once those stages
 # have run and this count has actually dropped:
-missing_safety_doc = "allow" # 924 -- `pub unsafe fn` without a `# Safety` doc section
 
 # Not yet triaged to a specific stage -- small enough (≤8 sites each) that a
 # future pass through the crate should look at each individually rather than

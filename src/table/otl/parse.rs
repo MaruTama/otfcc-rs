@@ -734,6 +734,16 @@ fn figure_out_languages_from_json(
     }
     return sh;
 }
+/// # Safety
+/// While this call runs, no other reference may read or write the `tag`
+/// object reachable from `root` (or anything above it in the tree). The
+/// body resolves `table`/`languages`/`features`/`lookups`/`lookup_order`
+/// as raw pointers re-derived fresh at each point of use rather than one
+/// `&ParsedValue` held across the function, because `features` is later
+/// mutated in place (via `feature_merger_activate`); that resolve-fresh
+/// discipline only avoids a *held* aliasing reference of its own making --
+/// it does nothing to protect against a caller-supplied reference into
+/// the same subtree that outlives it.
 pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
     let otl: *mut OtlTable;
     let mut otl_box: Option<Box<OtlTable>> = None;

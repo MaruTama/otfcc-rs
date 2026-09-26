@@ -735,6 +735,17 @@ fn otfcc_glyf_parse_glyph(
 // never handed -- the same "resolve fresh at point of use" shape Stage 11's
 // `otfcc_parse_otl`/`feature_merger_activate` established for this exact
 // kind of in-place JSON-tree mutation. `unsafe fn` stays for that reason.
+/// # Safety
+/// While this call runs, no other reference may read or write the `"glyf"`
+/// object reachable from `root` (or anything above it in the tree): the
+/// body casts a sub-node reached through the shared `root` reference to a
+/// raw pointer and later reborrows it mutably (`table.as_mut()`) to null
+/// out each glyph slot it has already consumed. Each iteration finishes
+/// its immutable read of slot `j` before the mutable `take_field(j)` that
+/// follows it, so the two never overlap -- but that ordering guarantee is
+/// this function's alone; a caller who keeps some other live reference
+/// into the same subtree across the call still invites the aliasing
+/// violation the internal sequencing works around.
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_glyf(
     root: &ParsedValue,

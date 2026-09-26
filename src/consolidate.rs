@@ -264,6 +264,17 @@ pub fn consolidate_glyph(
 // running out of budget only means "point not found" (mirrors the
 // existing cycle-detection return), never a wrong-but-silent answer.
 pub const MAX_COMPONENT_REFERENCE_DEPTH: u32 = 10;
+/// # Safety
+/// `table` must point to a live `GlyfTable`, and `gr`'s `glyph.index` (and
+/// every index reachable through its own and its references' nested
+/// `ComponentReference`s) must be a valid, populated index into it -- this
+/// walk indexes `table` and dereferences `gr`/`stated`/`x`/`y` with no
+/// bounds or null checks of its own. `gr`, `stated`, `x` and `y` must each
+/// be valid, non-null pointers to live values for the call's duration, and
+/// no other live reference into `*table` may exist concurrently: this
+/// function and `consolidate_anchor_ref` both re-derive fresh raw pointers
+/// into `table` on every recursive step rather than holding a safe
+/// reference across it.
 pub unsafe fn get_point_coordinates(
     table: *mut GlyfTable,
     gr: *mut ComponentReference,
@@ -342,6 +353,16 @@ pub unsafe fn get_point_coordinates(
     }
     return false;
 }
+/// # Safety
+/// Same contract as [`get_point_coordinates`]: `table` must point to a
+/// live `GlyfTable`, and `gr`/`rr` must be valid, non-null pointers to
+/// live `ComponentReference`s whose `glyph.index` (and every index
+/// reachable through nested references) is a valid, populated index into
+/// `table`. This function mutates `(*rr).is_anchored` and dereferences
+/// `table`, `gr` and `rr` without bounds or null checks, and recurses into
+/// itself and `get_point_coordinates` using further raw pointers derived
+/// from the same `table`, so no other live reference into it may exist
+/// for the call's duration.
 pub unsafe fn consolidate_anchor_ref(
     table: *mut GlyfTable,
     gr: *mut ComponentReference,
