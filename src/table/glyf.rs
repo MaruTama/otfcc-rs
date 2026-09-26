@@ -781,15 +781,14 @@ pub unsafe fn otfcc_parse_glyf(
         let (name_key, glyphdump) = &fields[j];
         let name_bytes = &name_key[..name_key.len() - 1];
         let order_idx = glyph_order.by_name.get(name_bytes).copied();
-        if glyphdump.as_object().is_some() {
-            if let Some(idx) = order_idx {
+        if glyphdump.as_object().is_some()
+            && let Some(idx) = order_idx {
                 let order_entry = &glyph_order.entries[idx];
                 if glyf_val[order_entry.gid as usize].is_none() {
                     glyf_val[order_entry.gid as usize] =
                         Some(otfcc_glyf_parse_glyph(glyphdump, order_entry, options));
                 }
             }
-        }
         if let Some(t) = table.as_mut() {
             t.take_field(j);
         }

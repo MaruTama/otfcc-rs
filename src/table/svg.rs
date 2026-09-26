@@ -174,7 +174,7 @@ pub fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     // `TABLE_I_SVG.copy` の代わりに各要素を `svg_assignment_dup` で明示的に
     // ディープコピー（`ColrTable`/`TsiTable` の前例どおり `.clone()` は不可）。
     let mut svg: SvgTable = _svg.iter().map(svg_assignment_dup).collect();
-    svg.sort_by(|a, b| a.start.cmp(&b.start));
+    svg.sort_by_key(|a| a.start);
     let mut major: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (svg.len()) as u32)]);
     let mut __caryll_index: usize = 0_usize;
     let mut keep: usize = 1_usize;

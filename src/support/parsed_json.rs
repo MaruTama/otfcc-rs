@@ -198,11 +198,10 @@ impl ParsedValue {
     pub fn get_num_or(&self, key: &[u8], fallback: f64) -> f64 {
         if let Some(fields) = self.as_object() {
             for (k, v) in fields {
-                if &k[..k.len() - 1] == key {
-                    if let Some(n) = v.as_num() {
+                if &k[..k.len() - 1] == key
+                    && let Some(n) = v.as_num() {
                         return n;
                     }
-                }
             }
         }
         fallback
@@ -258,11 +257,10 @@ impl ParsedValue {
     /// out of range -- matches the old `json_obj_set_val_at`'s contract
     /// exactly.
     pub fn set_field(&mut self, i: usize, value: ParsedValue) {
-        if let ParsedValue::Object(fields) = self {
-            if let Some((_, v)) = fields.get_mut(i) {
+        if let ParsedValue::Object(fields) = self
+            && let Some((_, v)) = fields.get_mut(i) {
                 *v = value;
             }
-        }
     }
 
     /// Overwrites the `i`th object member's value with `Null`, returning
@@ -273,11 +271,10 @@ impl ParsedValue {
     /// consumer would null a slot out at all). `Null` if this isn't an
     /// object or `i` is out of range.
     pub fn take_field(&mut self, i: usize) -> ParsedValue {
-        if let ParsedValue::Object(fields) = self {
-            if let Some((_, v)) = fields.get_mut(i) {
+        if let ParsedValue::Object(fields) = self
+            && let Some((_, v)) = fields.get_mut(i) {
                 return ::core::mem::replace(v, ParsedValue::Null);
             }
-        }
         ParsedValue::Null
     }
 
@@ -718,14 +715,14 @@ mod tests {
         unsafe {
             let key_ptr = key.as_ptr() as *const ::core::ffi::c_char;
             assert_eq!(
-                ::libc::strcmp(key_ptr, b"abc\0".as_ptr() as *const ::core::ffi::c_char),
+                ::libc::strcmp(key_ptr, c"abc".as_ptr()),
                 0
             );
             assert_eq!(::core::ffi::CStr::from_ptr(key_ptr).to_bytes(), b"abc");
 
             let str_ptr = val_bytes.as_ptr() as *const ::core::ffi::c_char;
             assert_eq!(
-                ::libc::strcmp(str_ptr, b"xyz\0".as_ptr() as *const ::core::ffi::c_char),
+                ::libc::strcmp(str_ptr, c"xyz".as_ptr()),
                 0
             );
             assert_eq!(::core::ffi::CStr::from_ptr(str_ptr).to_bytes(), b"xyz");

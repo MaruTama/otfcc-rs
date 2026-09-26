@@ -446,7 +446,7 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
             }
             pt += consumed;
             numberstack[npos as usize] = val as i16;
-            npos = npos + 1;
+            npos += 1;
         }
         while peek(text, pt) == b' ' || peek(text, pt) == b'\t' {
             pt += 1;
@@ -477,7 +477,7 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                 if push_size == 2_i32 {
                     instrs.push((numberstack[nread as usize] as i32 >> 8_i32) as u8);
                     instrs.push((numberstack[nread as usize] as i32 & 0xff_i32) as u8);
-                    nread = nread + 1;
+                    nread += 1;
                 } else if numberstack[0_i32 as usize] as i32 > 255_i32
                     || (numberstack[0_i32 as usize] as i32) < 0_i32
                 {
@@ -488,7 +488,7 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                     return None;
                 } else {
                     instrs.push(numberstack[nread as usize] as u8);
-                    nread = nread + 1;
+                    nread += 1;
                 }
                 push_left -= 1;
             }
@@ -517,7 +517,7 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                         }
                         while nread < i {
                             instrs.push(numberstack[nread as usize] as u8);
-                            nread = nread + 1;
+                            nread += 1;
                         }
                     } else {
                         while i < npos && ((numberstack[i as usize] as i32) < 0_i32 || numberstack[i as usize] as i32 > 255_i32) {
@@ -532,7 +532,7 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                         while nread < i {
                             instrs.push((numberstack[nread as usize] as i32 >> 8_i32) as u8);
                             instrs.push((numberstack[nread as usize] as i32 & 0xff_i32) as u8);
-                            nread = nread + 1;
+                            nread += 1;
                         }
                     }
                 }
@@ -551,8 +551,8 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                     }
                     i += 1;
                 }
-                if i == 256_i32 {
-                    if let Some(brack) = brack {
+                if i == 256_i32
+                    && let Some(brack) = brack {
                         i = 0_i32;
                         while i < 256_i32 {
                             if instr_name_has_prefix(&text[pt..=brack], FF_TTF_INSTRNAMES[i as usize]) {
@@ -579,7 +579,6 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                         }
                         i += val;
                     }
-                }
                 pt = end;
                 instrs.push(i as u8);
                 if i == TTF_NPUSHB as i32 || i == TTF_NPUSHW as i32 || i >= TTF_PUSHB as i32 && i <= TTF_PUSHW as i32 + 7_i32 {

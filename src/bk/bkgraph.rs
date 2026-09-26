@@ -214,11 +214,10 @@ fn compareblock(blocks: &[ArenaBlock], a: BlockId, b: BlockId) -> bool {
                     return false;
                 }
             }
-            BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32 => {
-                if ca.as_ptr() != cb.as_ptr() {
+            BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32
+                if ca.as_ptr() != cb.as_ptr() => {
                     return false;
                 }
-            }
             _ => {}
         }
     }

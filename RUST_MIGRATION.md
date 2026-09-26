@@ -17136,6 +17136,224 @@ on the other platform before a commit is trusted.
     call" and reconfirmed back at 226, a reminder that this script's
     counters are naive text greps, not syntax-aware, so prose near
     `unsafe fn`s can shift them without touching any code.
+- **Every remaining `[lints.clippy]` entry (besides `needless_return`,
+  `ptr_offset_with_cast`, and `explicit_auto_deref`'s deferred raw-pointer
+  subset, all left alone per standing scope) triaged and mostly resolved:
+  9 lints removed as already-zero, 9 bulk-fixed with per-hunk review, 5
+  reviewed and fixed per-site with real judgment, and 2 confirmed as
+  genuine design-deferred work with corrected counts.** Every count below
+  is a fresh `cargo clippy --all-targets --message-format=json` run with
+  the entire `[lints.clippy]` table (and `[lints.rust] warnings`,
+  temporarily `"warn"` so `--all-targets` doesn't stop at the first target)
+  removed, deduped by file+line -- none trusted from the table's own
+  stale comments, several of which turned out wrong in both directions.
+  - **Nine entries were already at zero and just deleted, no code
+    change**: `redundant_field_names` (documented 22, real 0),
+    `toplevel_ref_arg` (documented 34, real 0), `empty_line_after_doc_
+    comments` (documented 2, real 0), `items_after_test_module`
+    (documented 1, real 0), `manual_memcpy` (documented 2, real 0),
+    `manual_swap` (documented 2, real 0), `ptr_arg` (documented 4, real
+    0 -- every remaining `&Vec<T>`-shaped signature in the crate turned
+    out to be `&mut Vec<u8>` output-buffer parameters, which this lint
+    correctly leaves alone since they need `.push()`/resize, not the
+    slice-shaped `&Vec<T>` the lint actually targets), `single_match`
+    (documented 4, real 0), `useless_transmute` (documented 2, real 0),
+    and `vec_box` (documented 2, real 0 -- confirmed genuine, not a
+    false negative: `table/cff.rs`'s `CffTable::fd_array: Vec<Box<
+    CffTable>>` is self-referential, each FD is itself a full `CffTable`,
+    so clippy's own recursive-type check correctly declines to suggest
+    unboxing it). `len_zero` (already fixed and removed in a prior stage)
+    was independently re-verified still at zero, per the task's own
+    instruction not to trust that from memory either.
+  - **Nine mechanical lints bulk-fixed via `cargo clippy --fix --all-
+    targets -- -A clippy::all -W clippy::<name>`, scoped one lint at a
+    time (each entry's `allow` line removed first, so the crate-level
+    attribute wasn't shadowing the command-line `-W`), every resulting
+    hunk read by hand, not sampled** (all were small enough that "spot-
+    check 30-50%" would have meant reading nearly all of them anyway):
+    `for_kv_map` (documented 12, real 6 -- `for (_, v) in map.iter()` ->
+    `for v in map.values()`, `for (&k, _) in ...` -> `for &k in
+    map.keys()`), `assign_op_pattern` (documented 66, real 9 -- `x = x +
+    y` -> `x += y` and friends, one of them a bonus `unused_parens`
+    cleanup clippy's fix surfaced alongside it in `vendor/emyg_dtoa.rs`),
+    `collapsible_match` (documented 6, real 3 -- a `match` arm's own body-
+    `if` folded into a match guard, e.g. `21 => { if top != 0 { .. } }`
+    -> `21 if top != 0 => { .. }`, same fallthrough-to-`_` behavior when
+    the guard fails), `excessive_precision` (documented 4, real 2 -- extra
+    trailing digits on an `f64`/`f32` literal beyond what either type can
+    actually represent, dropped without changing the literal's parsed
+    bit pattern, e.g. `FLT_MAX`'s `3.40282347e+38f32` ->
+    `3.402_823_5e38_f32`), `implicit_saturating_sub` (documented 2, real
+    1), `manual_c_str_literals` (documented 4, real 2 -- both inside one
+    `#[cfg(test)]` fn in `support/parsed_json.rs`; `cargo clippy --fix`
+    didn't auto-apply these two despite flagging them, so fixed by hand:
+    `b"abc\0".as_ptr() as *const ::core::ffi::c_char` -> `c"abc".as_ptr()`,
+    which also drops the now-redundant cast -- `CStr::as_ptr()` already
+    returns `*const c_char`), `needless_late_init` (documented 2, real 4;
+    `cargo clippy --fix` only auto-applied 2 of the 4, the other 2 -- a
+    `let fd: u8;` in `table/cff.rs` and a `let name: Vec<u8>;` in
+    `otf_reader/unconsolidate.rs`, both a two-armed `if`/`else` assigning
+    the same later-declared variable in each arm -- fixed by hand the
+    same way clippy's own suggestion shows: fold the declaration into an
+    `if {..} else {..}` tail-expression), `unnecessary_map_or` (documented
+    2, real 1 -- `.map_or(false, |c| c.is_cid)` -> `.is_some_and(|c|
+    c.is_cid)`), and `unnecessary_sort_by` (documented 4, real 2 --
+    `.sort_by(|a, b| a.x.cmp(&b.x))` -> `.sort_by_key(|a| a.x)` in
+    `table/colr.rs` and `table/svg.rs`).
+  - **`precedence` (documented 24, real 3): every site read against its
+    actual intent before adding parens, per the task's own "flag a real
+    bug loudly" ask -- none found.** All three are the same shape, a
+    `+`/`-` operand mixed with a shift (`<<`/`>>`) with no parens: `1_i32
+    << F16DOT16_PRECISION - 1_i32` (`support/primitives.rs`, `F16DOT16_K`,
+    the fixed-point rounding constant `1 << (16-1)` = 0x8000, half of the
+    16-bit fraction), `(mask_byte as i32) << 8_i32 - bits as i32`
+    (`libcff/charstring_il.rs`, packing the last partial byte of a
+    hint/counter mask, shifting left by however many bits are still
+    unset), and `((*stack).stem as i32 + 7_i32 >> 3_i32) as u32`
+    (`libcff/cff_parser.rs`, the classic `(n + 7) >> 3` round-up-divide-
+    by-8 idiom sizing a hint mask's byte count). Rust's own precedence
+    table ranks `+`/`-` above `<<`/`>>`, identical to C's, so all three
+    already evaluated exactly as their C source intended -- **no booby
+    trap found**: this is the one place this stage's instructions asked
+    to call out a mismatch loudly if one turned up, and none did. Fixed
+    by adding the exact parens `cargo clippy`'s own suggestion showed
+    (`1_i32 << (F16DOT16_PRECISION - 1_i32)`, etc.), a no-op on the
+    compiled value, confirmed by clean `cargo build --lib` and every
+    downstream numeric test still passing.
+  - **`collapsible_if` (documented 64, real 34): every site's short-
+    circuit order re-checked, not just the lint's own claim that it's
+    safe.** All 34 were the same two shapes -- a bare `if a { if b { X }
+    }` (`a && b` preserves the exact same "evaluate `a`, only evaluate
+    `b` if `a` was true" order) or an `if let Some(x) = y { if b(x) { X }
+    }` (a stable-since-2024-edition let-chain, `if let Some(x) = y &&
+    b(x) { X }`, preserving the same "bind `x` first, only evaluate `b`
+    if the bind succeeded" order) -- confirmed by reading all 34 diffs,
+    not sampling: `cargo clippy --fix --all-targets -- -A clippy::all -W
+    clippy::collapsible_if`'s 13-file, 34-hunk output, every hunk the
+    same mechanical collapse, no hunk found with an `else` on either
+    level that could have changed which branch runs (this lint doesn't
+    fire on those shapes to begin with, but confirmed by reading rather
+    than trusting that). `table/cpal.rs` had three sites collapsing three
+    levels deep (`if a { if let Ok(x) = b { if c(x) { .. } } }` -> `if a
+    && let Ok(x) = b && c(x) { .. }`), each re-checked the same way: `a`
+    a plain bool, `b` a fallible read, `c` a bounds check on `x` -- same
+    left-to-right order either way.
+  - **`if_same_then_else` (documented 16, real 2, both on the same
+    3-branch `if`/`else if` chain in `vf/region.rs`'s
+    `weight_axis_region`): confirmed the "identical" arms are genuinely
+    identical in effect, not just superficially similar, before merging
+    by hand rather than trusting `cargo clippy --fix`.** All three of
+    `weight_axis_region`'s first three branches (`a > p || p > z`, then
+    a degenerate-region check, then `p == 0`) return the same
+    `1_i32 as Pos` -- and, read against the file's own
+    `vq_axis_span_is_one` two functions above (a pre-existing helper
+    computing `a > p || p > z || (a < 0 && z > 0 && p != 0) || p == 0` as
+    one combined boolean), this is the *same* condition already written
+    out elsewhere in this exact shape, not a coincidence clippy's cast-
+    aware matcher is being fooled by. Merged the three `if`/`else if`
+    arms into that one `||`-chained condition by hand (matching the
+    sibling function's own boolean exactly), preserving the identical
+    left-to-right short-circuit evaluation the original `if`/`else if`
+    chain already had -- these are pure, side-effect-free comparisons on
+    already-copied `Pos` locals, so there was no "which arm ran first"
+    behavior for the merge to disturb.
+  - **`map_entry` (documented 14, real 6): every site's shape checked
+    for a side effect between the `contains_key` check and the `insert`
+    that a single `.entry()` lookup would need to preserve -- none found,
+    all six are one of two shapes** (`if seen.contains_key(k) { log a
+    duplicate-mapping warning } else { compute a value, seen.insert(k,
+    v) }` in `consolidate/otl/{gdef,gpos_cursive,gpos_single,gsub_
+    reverse,gsub_single}.rs`, or the negated `if !seen.contains_key(k) {
+    compute, insert }` with no `else` in `gsub_multi.rs`) -- `seen`'s key
+    is always a `Copy` `i32` glyph id, and the value computed on the
+    insert side (a name clone, a position/anchor/coverage value) has no
+    side effect of its own beyond that one write, so a `match seen.
+    entry(k) { Entry::Vacant(e) => { ..; e.insert(v); } Entry::Occupied(_)
+    => { log } }` is a pure single-lookup rewrite of the exact same two
+    branches, not a reordering. Applied via `cargo clippy --fix --all-
+    targets -- -A clippy::all -W clippy::map_entry`, all 6 hunks read in
+    full: each is exactly the vacant/occupied arm bodies swapped into the
+    `Entry` match with no other change. The golden suite's five `*-
+    dedup-input.json` fixtures (gpos-cursive/gdef-ligcaret/gsub-single/
+    gsub-reverse/mark-consolidate) exist specifically to pin this
+    double-mapping warning behavior byte-for-byte, and all still pass
+    after the rewrite -- the most direct check available that no
+    duplicate-detection edge case moved.
+  - **`macro_metavars_in_unsafe` (documented 2, real 1): read the
+    flagged site first, per the task's own instruction, before touching
+    anything -- it now lives in `src/support/fmt.rs` (moved from `vendor/
+    sds.rs` by an earlier `support/` reorg stage; `Cargo.toml`'s comment
+    was stale about the file, not just the count).** The lint fires once,
+    at `bytesbuild!`'s own macro definition, not per call site: its
+    `unsafe { SdsPart::append_to_vec($part, &mut __v) }` expands a
+    caller-supplied `$part` inside an `unsafe` block clippy warns could
+    let a caller smuggle in an unsafe expression without writing `unsafe`
+    themselves. Investigated rather than assumed deliberate: every
+    `SdsPart` impl in the file (grepped) is a fully safe trait method,
+    so this `unsafe` wrapping is actually vestigial -- kept only to give
+    the adjacent `#[allow(unused_unsafe)]` (documented above it: callers
+    increasingly wrap their whole function body in one `unsafe` block,
+    which makes this macro's own nested `unsafe` redundant) something to
+    silence, not because the call needs it. All ~286 `bytesbuild!` call
+    sites in the crate (grepped) pass plain byte literals, string/slice
+    refs, or small numeric wrapper types, never a raw-pointer deref, so
+    the scenario this lint warns about doesn't occur today. Per the
+    task's own suggested treatment for this entry, added a narrow
+    `#[allow(clippy::macro_metavars_in_unsafe)]` at the macro definition
+    itself (alongside the existing `#[allow(unused_unsafe)]`) rather than
+    restructure any of the 286 call sites, with a comment explaining why.
+  - **`too_many_arguments` (documented 8, real 4) and `type_complexity`
+    (documented 2, real 3) confirmed as genuine design-deferred work, not
+    touched.** Both would need an actual API change -- grouping a
+    function's parameters into a struct, or naming a type alias for a
+    complex return/field type -- not a mechanical rewrite, so per the
+    task's own instruction these were left alone and only their
+    `Cargo.toml` count comments corrected to the freshly measured
+    numbers.
+  - **Two out-of-scope observations, left untouched on purpose, worth
+    recording so a future stale-count cleanup doesn't have to
+    re-derive them.** `missing_safety_doc`'s documented "924" and
+    `needless_return`'s documented "1426" are both dramatically stale --
+    a full re-measurement (same technique, same run) found 10 and 303
+    respectively, presumably because the stage-M raw-pointer/`unsafe fn`
+    burn-down (M-26 through M-29 and others) has already shrunk both
+    categories far more than either entry's comment reflects. Neither is
+    in this task's scope (both explicitly deferred to their own later
+    stages, and `needless_return` additionally per this session's own
+    standing instruction not to touch it), so neither's `Cargo.toml` line
+    was edited -- but `needless_return`'s real count did drop by exactly
+    2 (303 -> 301) as a side effect of the `if_same_then_else` merge
+    above (two of `weight_axis_region`'s three duplicate `return 1_i32 as
+    Pos;` arms went away when they were folded into one), the same kind
+    of incidental reduction Cargo.toml's own comment already describes
+    as expected for lints deferred to a later rewrite.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean at every
+    step, not just the end. `cargo clippy --all-targets -- -D warnings`
+    clean. A second full all-allows-removed clippy run (same technique as
+    the initial measurement) diffed file+line+column against the first,
+    confirming every fixed lint dropped to exactly zero and every
+    untouched lint's site set is byte-identical to before (`explicit_
+    auto_deref` 569/569, `too_many_arguments` 4/4) -- the two exceptions,
+    `missing_safety_doc` and `needless_return`, are explained above.
+    `cargo test -- --test-threads=1`: 421 passed, the same 2 pre-existing
+    timing-threshold failures on record since M-10 (unrelated). **Golden
+    byte-exact suite**: `cargo test --test golden -- --test-threads=1`,
+    all 4 tests passing, including the five dedup-warning fixtures the
+    `map_entry` rewrite is most directly checked against. `tests/abi.rs`,
+    `tests/dll_abi.rs`, `tests/log_output.rs`, `tests/cycles.rs`: all
+    passing. `cargo check` in `fuzz/`: clean. `survey-unsafe.sh`: `unsafe
+    fn`/`unsafe blocks` unchanged at 8/48 (confirmed against a fresh
+    checkout of this stage's own start-of-task commit, not the prior
+    stage's recorded figures, since the task asked not to assume little
+    movement); raw pointer types 498 -> 496 (the two `manual_c_str_
+    literals` sites' now-redundant `as *const c_char` casts, the one
+    place this batch touched anything pointer-adjacent, as anticipated);
+    `.offset(`/`is_null()`/`while loops` unchanged at 22/21/226.
+    `Cargo.toml`'s `[lints.clippy]` table now holds only
+    `ptr_offset_with_cast`, `needless_return`, `explicit_auto_deref`,
+    `missing_safety_doc`, `too_many_arguments`, and `type_complexity` --
+    every other entry either removed (already zero or fixed here) or,
+    for the last two, corrected in place.
 
 - **`table/otl/subtables/gpos_pair.rs`'s `otl_read_gpos_pair`: PairPos
   Format 2's own byte-length guard has a `stride == 0` loophole -- a real,
@@ -17283,5 +17501,7 @@ on the other platform before a commit is trusted.
     `==ERROR: libFuzzer: out-of-memory (used: 2237Mb; limit: 2048Mb)` to
     a clean exit in 90ms. `survey-unsafe.sh`: `unsafe fn`/`unsafe
     blocks`/raw pointer types/`while loops` all unchanged at
-    8/48/498/226 (this fix adds no `unsafe` code and no genuine loop,
-    only a new `const` and an early-return check).
+    8/48/496/226 (496, not the 498 this entry's own investigation
+    measured against, since the concurrently-merged lint-triage PR
+    above dropped it by 2 first; this fix itself adds no `unsafe` code
+    and no genuine loop, only a new `const` and an early-return check).

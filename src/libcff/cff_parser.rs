@@ -383,8 +383,6 @@ pub fn cff_parse_subr(
     subr: &mut CffIndex,
 ) -> u8 {
     let mut fd: u8 = 0_u8;
-    let off_private: i32;
-    let len_private: i32;
     let off_subr: i32;
     match select {
         CffFdSelect::Format0(fds) => {
@@ -438,8 +436,8 @@ pub fn cff_parse_subr(
         .get(fd_dict_start..)
         .and_then(|s| s.get(..fd_dict_len))
         .unwrap_or(&[]);
-    off_private = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1_u32);
-    len_private = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0_u32);
+    let off_private: i32 = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1_u32);
+    let len_private: i32 = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0_u32);
     // Same bounds hole as `parse_cff_bytecode`'s Local Subrs lookup above:
     // `off_private`/`len_private` are Private-DICT-controlled operands,
     // unvalidated against `raw_length` until now.
@@ -652,7 +650,7 @@ pub fn cff_parse_outline(
                             hint_base_0 += pos_0 + width_0;
                         }
                         let mask_length: u32 =
-                            ((*stack).stem as i32 + 7_i32
+                            (((*stack).stem as i32 + 7_i32)
                                 >> 3_i32) as u32;
                         // `hintmask`/`cntrmask`'s mask bytes are raw payload
                         // embedded directly in the charstring right after

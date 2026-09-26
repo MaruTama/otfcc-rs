@@ -81,7 +81,7 @@ fn normalize_boundary(lhs: DiyFp) -> DiyFp {
         res.e -= 1;
     }
     res.f <<= K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2_i32;
-    res.e = res.e - (K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2_i32);
+    res.e -= K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2_i32;
     return res;
 }
 #[inline]
@@ -500,7 +500,7 @@ fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i
         }
         if d != 0 || *len != 0 {
             buffer[*len as usize] = b'0'.wrapping_add(d as u8);
-            *len = *len + 1;
+            *len += 1;
         }
         kappa -= 1;
         let tmp: u64 = ((p1 as u64) << -one.e).wrapping_add(p2);
@@ -531,7 +531,7 @@ fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i
         let d_0: u8 = (p2 >> -one.e) as u8;
         if d_0 != 0 || *len != 0 {
             buffer[*len as usize] = b'0'.wrapping_add(d_0);
-            *len = *len + 1;
+            *len += 1;
         }
         p2 &= one.f.wrapping_sub(1_u64);
         kappa -= 1;

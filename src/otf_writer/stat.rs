@@ -515,7 +515,7 @@ fn stat_os_2_unicode_ranges(font: &mut Font, options: &Options) {
     let mut u4: u32 = 0_u32;
     let mut min_unicode: i32 = 0xffff_i32;
     let mut max_unicode: i32 = 0_i32;
-    for (&u, _) in font.cmap.as_ref().unwrap().unicodes.iter() {
+    for &u in font.cmap.as_ref().unwrap().unicodes.keys() {
         if u < min_unicode {
             min_unicode = u;
         }
@@ -1305,11 +1305,10 @@ pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
         if cff.font_b_box_right < head_x_max as i32 as ::core::ffi::c_double {
             cff.font_b_box_right = head_x_max as i32 as ::core::ffi::c_double;
         }
-        if let Some(len) = glyf_len {
-            if cff.is_cid {
+        if let Some(len) = glyf_len
+            && cff.is_cid {
                 cff.cid_count = len;
             }
-        }
         if cff.is_cid {
             // `font_matrix` is `Option<Box<CffFontMatrix>>` now: dropping
             // the old value (reassignment to `None`) recurses through its
@@ -1346,16 +1345,14 @@ pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
         }
         stat_cff_widths(font);
     }
-    if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u16) {
-        if let Some(maxp) = font.maxp.as_deref_mut() {
+    if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u16)
+        && let Some(maxp) = font.maxp.as_deref_mut() {
             maxp.num_glyphs = len;
         }
-    }
-    if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u32) {
-        if let Some(post) = font.post.as_deref_mut() {
+    if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u32)
+        && let Some(post) = font.post.as_deref_mut() {
             post.max_mem_type42 = len;
         }
-    }
     let maxp_version_is_10000 =
         font.maxp.as_deref().map(|m| m.version) == Some(0x10000 as F16Dot16);
     if font.glyf.is_some() && font.maxp.is_some() && maxp_version_is_10000 {
@@ -1400,7 +1397,7 @@ pub fn otfcc_unstat_font(font: &mut Font) {
     delete_font_table(font, crate::tag::TAG_LTSH);
 }
 pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
-pub const __FLT_MAX__: ::core::ffi::c_float = 3.40282347e+38f32;
+pub const __FLT_MAX__: ::core::ffi::c_float = 3.402_823_5e38_f32;
 
 #[cfg(test)]
 mod stat_os_2_average_width_tests {

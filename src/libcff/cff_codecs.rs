@@ -16,7 +16,7 @@ pub fn cff_encode_cff_integer(mut val: i32) -> Buffer {
     if (-107_i32..=107_i32).contains(&val) {
         Buffer::from_bytes(&[(val + 139_i32) as u8])
     } else if (108_i32..=1131_i32).contains(&val) {
-        val = val - 108_i32;
+        val -= 108_i32;
         Buffer::from_bytes(&[((val >> 8_i32) + 247_i32) as u8, (val & 0xff_i32) as u8])
     } else if (-1131_i32..=-108_i32).contains(&val) {
         val = -108_i32 - val;

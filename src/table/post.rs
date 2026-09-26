@@ -543,11 +543,11 @@ pub fn otfcc_build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder
         // (unspecified) iteration order the way a literal `by_name` walk
         // would have to.
         buf.write_u16be(glyphorder.by_gid.len() as u16);
-        for (_, &idx) in glyphorder.by_gid.iter() {
+        for &idx in glyphorder.by_gid.values() {
             let entry = &glyphorder.entries[idx];
             buf.write_u16be((258_i32 + entry.gid as i32) as u16);
         }
-        for (_, &idx) in glyphorder.by_gid.iter() {
+        for &idx in glyphorder.by_gid.values() {
             let entry = &glyphorder.entries[idx];
             buf.write_u8(entry.name.len() as u8);
             buf.write_bytes(&entry.name);

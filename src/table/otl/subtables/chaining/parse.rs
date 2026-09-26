@@ -31,12 +31,11 @@ pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>, _options: &Options) -
     for application in apply_items {
         let mut index: TableId = 0 as TableId;
         let mut lookup: LookupHandle = otfcc_handle_empty() as LookupHandle;
-        if application.as_object().is_some() {
-            if let Some(ln) = application.get_typed(b"lookup", JsonType::String) {
+        if application.as_object().is_some()
+            && let Some(ln) = application.get_typed(b"lookup", JsonType::String) {
                 lookup = handle_from_name(ln.as_str_bytes().map(|b| b.to_vec())) as LookupHandle;
                 index = application.get_num(b"at") as TableId;
             }
-        }
         rule.apply.push(ChainLookupApplication { index, lookup });
     }
     Some(Subtable::Chaining(ChainingSubtable::Canonical(rule)))

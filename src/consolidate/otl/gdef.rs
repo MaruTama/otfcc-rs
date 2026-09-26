@@ -66,7 +66,13 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
         for rec in lig_carets.iter_mut() {
             if otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
                 let gid: i32 = rec.glyph.index as i32;
-                if seen.contains_key(&gid) {
+                if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(gid) {
+                    let gname: Vec<u8> = rec.glyph.name.clone();
+                    if !gname.is_empty() {
+                        let carets: CaretValueList = ::core::mem::take(&mut rec.carets);
+                        e.insert((gname, carets));
+                    }
+                } else {
                     logger_log_sds(
                         &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
@@ -76,12 +82,6 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
                             &rec.glyph.name,
                         ),
                     );
-                } else {
-                    let gname: Vec<u8> = rec.glyph.name.clone();
-                    if !gname.is_empty() {
-                        let carets: CaretValueList = ::core::mem::take(&mut rec.carets);
-                        seen.insert(gid, (gname, carets));
-                    }
                 }
             }
         }
