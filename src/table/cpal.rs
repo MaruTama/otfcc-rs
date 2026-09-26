@@ -137,37 +137,33 @@ fn parse_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
             FontReader::new(data).at(16 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
         {
             let offset_palette_type_array = offset_palette_type_array as usize;
-            if offset_palette_type_array != 0 {
-                if let Ok(mut tr) = FontReader::new(data).at(offset_palette_type_array) {
-                    if tr.require_room(num_palettes, 4).is_ok() {
+            if offset_palette_type_array != 0
+                && let Ok(mut tr) = FontReader::new(data).at(offset_palette_type_array)
+                    && tr.require_room(num_palettes, 4).is_ok() {
                         for p in palettes.iter_mut() {
                             p.type_0 = tr.u32().unwrap();
                         }
                     }
-                }
-            }
         }
         if let Some(offset_palette_label_array) =
             FontReader::new(data).at(20 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
         {
             let offset_palette_label_array = offset_palette_label_array as usize;
-            if offset_palette_label_array != 0 {
-                if let Ok(mut lr) = FontReader::new(data).at(offset_palette_label_array) {
-                    if lr.require_room(num_palettes, 2).is_ok() {
+            if offset_palette_label_array != 0
+                && let Ok(mut lr) = FontReader::new(data).at(offset_palette_label_array)
+                    && lr.require_room(num_palettes, 2).is_ok() {
                         for p in palettes.iter_mut() {
                             p.label = lr.u16().unwrap() as u32;
                         }
                     }
-                }
-            }
         }
         if let Some(offset_palette_entry_label_array) =
             FontReader::new(data).at(24 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
         {
             let offset_palette_entry_label_array = offset_palette_entry_label_array as usize;
-            if offset_palette_entry_label_array != 0 {
-                if let Ok(mut er) = FontReader::new(data).at(offset_palette_entry_label_array) {
-                    if er.require_room(num_palettes_entries, 4).is_ok() {
+            if offset_palette_entry_label_array != 0
+                && let Ok(mut er) = FontReader::new(data).at(offset_palette_entry_label_array)
+                    && er.require_room(num_palettes_entries, 4).is_ok() {
                         for j in 0..num_palettes_entries {
                             let label = er.u16().unwrap();
                             for p in palettes.iter_mut() {
@@ -175,8 +171,6 @@ fn parse_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
                             }
                         }
                     }
-                }
-            }
         }
     }
 

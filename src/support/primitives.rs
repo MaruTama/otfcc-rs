@@ -46,7 +46,7 @@ pub type Length = ::core::ffi::c_double;
 pub type FontFilePointer = *mut u8;
 pub const F16DOT16_PRECISION: i32 = 16_i32;
 pub const F16DOT16_K: i32 =
-    1_i32 << F16DOT16_PRECISION - 1_i32;
+    1_i32 << (F16DOT16_PRECISION - 1_i32);
 pub const F16DOT16_INFINITY: F16Dot16 = 0x7fffffff_i32 as F16Dot16;
 pub const F16DOT16_NEGATIVE_INFINITY: F16Dot16 = 0x80000000 as ::core::ffi::c_uint as F16Dot16;
 pub fn otfcc_from_f2dot14(x: F2Dot14) -> ::core::ffi::c_double {

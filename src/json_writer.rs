@@ -66,7 +66,7 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
             n_phantom_points: 4 as ShapeId,
             fvar: (*font).fvar.as_deref_mut(),
             has_vertical_metrics: (*font).vhea.is_some(),
-            export_fd_select: (*font).cff.as_deref().map_or(false, |c| c.is_cid),
+            export_fd_select: (*font).cff.as_deref().is_some_and(|c| c.is_cid),
         };
         otfcc_dump_glyf((*font).glyf.as_ref(), &mut root, options, &ctx);
     }

@@ -134,12 +134,11 @@ fn place_order_entries_from_cmap(table: &ParsedValue, go: &mut GlyphOrder) {
     };
     for (key, item) in fields {
         let unicode = crate::table::cmap::parse_unicode(&key[..key.len() - 1]);
-        if let Some(bytes) = item.as_str_bytes() {
-            if unicode > 0 && unicode <= 0x10ffff {
+        if let Some(bytes) = item.as_str_bytes()
+            && unicode > 0 && unicode <= 0x10ffff {
                 let gname: Vec<u8> = bytes.to_vec();
                 escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::Cmap, unicode as u32);
             }
-        }
     }
 }
 fn place_order_entries_from_subtable(table: &ParsedValue, go: &mut GlyphOrder, zero_only: bool) {

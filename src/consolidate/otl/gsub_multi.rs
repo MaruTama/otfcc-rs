@@ -55,10 +55,10 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
                 );
             } else {
                 let fromid: i32 = entry.from.index as i32;
-                if !seen.contains_key(&fromid) {
+                if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
                     let fromname: Vec<u8> = entry.from.name.clone();
                     let to: Coverage = ::core::mem::take(&mut entry.to);
-                    seen.insert(fromid, (fromname, to));
+                    e.insert((fromname, to));
                 }
             }
         }

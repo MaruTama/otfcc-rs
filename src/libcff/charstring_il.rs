@@ -170,7 +170,7 @@ fn _il_push_maskgroup(
             j_0 = j_0.wrapping_add(1);
         }
         if bits != 0 {
-            mask_byte = ((mask_byte as i32) << 8_i32 - bits as i32) as u8;
+            mask_byte = ((mask_byte as i32) << (8_i32 - bits as i32)) as u8;
             il_push_special(il, mask_byte as i32);
         }
         *jm = (*jm as i32 + 1_i32) as u16;

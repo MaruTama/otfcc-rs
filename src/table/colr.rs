@@ -193,7 +193,7 @@ pub fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
         _ => return None,
     };
     let mut colr: ColrTable = src.clone();
-    colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index));
+    colr.sort_by_key(|a| a.glyph.index);
     let mut current_layer_index: GlyphId = 0 as GlyphId;
     let mut layer_records: BkBlock = bk_new_block(Vec::new());
     let mut base_records: BkBlock = bk_new_block(Vec::new());
