@@ -688,11 +688,10 @@ pub fn otl_read_contextual(
     // before its contents are known.
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
     let mut format: u16 = 0_u16;
-    if let Ok(mut r) = FontReader::new(data).at(offset as usize) {
-        if let Ok(f) = r.u16() {
+    if let Ok(mut r) = FontReader::new(data).at(offset as usize)
+        && let Ok(f) = r.u16() {
             format = f;
         }
-    }
     if format as i32 == 1_i32 {
         return read_contextual_format1(data, offset, max_glyphs, subtable)
             .map(|s| Subtable::Chaining(*s));
@@ -1106,11 +1105,10 @@ pub fn otl_read_chaining(
     // See the identical comment in `otl_read_contextual`.
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
     let mut format: u16 = 0_u16;
-    if let Ok(mut r) = FontReader::new(data).at(offset as usize) {
-        if let Ok(f) = r.u16() {
+    if let Ok(mut r) = FontReader::new(data).at(offset as usize)
+        && let Ok(f) = r.u16() {
             format = f;
         }
-    }
     if format as i32 == 1_i32 {
         return read_chaining_format1(data, offset, max_glyphs, subtable)
             .map(|s| Subtable::Chaining(*s));

@@ -374,18 +374,16 @@ fn join_nodes(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
         unlink_node(g, m);
         let n_prev = g.node(n).prev;
         let n_next = g.node(n).next;
-        if let (Some(np), Some(nx)) = (n_prev, n_next) {
-            if ident_node(g, np, n) && ident_node(g, n, nx) {
+        if let (Some(np), Some(nx)) = (n_prev, n_next)
+            && ident_node(g, np, n) && ident_node(g, n, nx) {
                 add_doublet(g, Some(n));
             }
-        }
         let m_prev = g.node(m).prev;
         let m_next = g.node(m).next;
-        if let (Some(mp), Some(mx)) = (m_prev, m_next) {
-            if ident_node(g, mp, m) && ident_node(g, m, mx) {
+        if let (Some(mp), Some(mx)) = (m_prev, m_next)
+            && ident_node(g, mp, m) && ident_node(g, m, mx) {
                 add_doublet(g, Some(mp));
             }
-        }
     }
     g.node_mut(m).next = Some(n);
     g.node_mut(n).prev = Some(m);
@@ -484,11 +482,10 @@ fn process_match_doublet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     }
     let guard = g.rule(rule).guard;
     let first = g.node(guard).next.unwrap();
-    if let Some(fr) = g.node(first).rule {
-        if g.rule(fr).refcount == 1 {
+    if let Some(fr) = g.node(first).rule
+        && g.rule(fr).refcount == 1 {
             expand_call(g, first);
         }
-    }
 }
 fn process_match_singlet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     let m_prev = g.node(m).prev.unwrap();
@@ -570,13 +567,11 @@ fn append_node_to_graph(g: &mut CffSubrGraph, n: NodeId) {
     let root = g.root;
     let last = last_node_of(g, root);
     x_insert_node_after(g, last, n);
-    if g.do_subroutinize {
-        if !check_doublet_match(g, last) {
-            if g.node(n).terminal.as_ref().unwrap().len() > 15_usize {
+    if g.do_subroutinize
+        && !check_doublet_match(g, last)
+            && g.node(n).terminal.as_ref().unwrap().len() > 15_usize {
                 check_singlet_match(g, n);
             }
-        }
-    }
 }
 pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
     let mut blob = Buffer::new();

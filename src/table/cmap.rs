@@ -435,16 +435,14 @@ fn read_format14(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut 
         else {
             return;
         };
-        if default_uvs_offset != 0 {
-            if let Some(sub_offset) = offset.checked_add(default_uvs_offset as usize) {
+        if default_uvs_offset != 0
+            && let Some(sub_offset) = offset.checked_add(default_uvs_offset as usize) {
                 read_uvs_default(data, sub_offset, selector, cmap, budget);
             }
-        }
-        if non_default_uvs_offset != 0 {
-            if let Some(sub_offset) = offset.checked_add(non_default_uvs_offset as usize) {
+        if non_default_uvs_offset != 0
+            && let Some(sub_offset) = offset.checked_add(non_default_uvs_offset as usize) {
                 read_uvs_non_default(data, sub_offset, selector, cmap, budget);
             }
-        }
     }
 }
 fn read_cmap_mapping_table(
@@ -657,8 +655,8 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, option
             continue;
         }
         let gname: Vec<u8> = bytes.to_vec();
-        if !otfcc_encode_cmap_by_name(cmap, unicode as i32, gname.clone()) {
-            if let Some(current_map) = otfcc_cmap_lookup(cmap, unicode as i32) {
+        if !otfcc_encode_cmap_by_name(cmap, unicode as i32, gname.clone())
+            && let Some(current_map) = otfcc_cmap_lookup(cmap, unicode as i32) {
                 logger_log_sds(
                     &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
@@ -674,7 +672,6 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, option
                     ),
                 );
             }
-        }
     }
 }
 // Same borrow-the-key-directly reasoning as `parse_unicode`. The original
@@ -711,8 +708,8 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &O
             continue;
         }
         let gname: Vec<u8> = bytes.to_vec();
-        if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone()) {
-            if let Some(current_map) = otfcc_cmap_lookup_uvs(cmap, k) {
+        if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone())
+            && let Some(current_map) = otfcc_cmap_lookup_uvs(cmap, k) {
                 logger_log_sds(
                     &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
@@ -730,7 +727,6 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &O
                     ),
                 );
             }
-        }
     }
 }
 pub fn otfcc_parse_cmap(root: &ParsedValue, options: &Options) -> Option<Box<CmapTable>> {
@@ -971,8 +967,8 @@ fn build_format14_for_selector(
     let mut non_defaults: Vec<GlyphId> = vec![0xffff; MAX_UNICODE as usize];
     for (key, glyph) in cmap.uvs.iter() {
         let u: Unicode = key.unicode as Unicode;
-        if !(key.selector != selector || u >= MAX_UNICODE as Unicode) {
-            if !glyph.name.is_empty() {
+        if !(key.selector != selector || u >= MAX_UNICODE as Unicode)
+            && !glyph.name.is_empty() {
                 let uvs_gid: GlyphId = glyph.index;
                 match otfcc_cmap_lookup(cmap, u as i32) {
                     None => {
@@ -986,7 +982,6 @@ fn build_format14_for_selector(
                     }
                 }
             }
-        }
     }
     non_defaults[0] = 0xffff;
     defaults[0] = 0xffff;
@@ -1037,7 +1032,7 @@ fn build_format14_for_selector(
 }
 fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
-    for (key, _) in cmap.uvs.iter() {
+    for key in cmap.uvs.keys() {
         if key.selector < MAX_UNICODE as u32 {
             valid_selectors[key.selector as usize] = true;
         }
@@ -1106,7 +1101,7 @@ pub fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<B
     };
     let mut requires_format12: bool = false;
     let has_uvs: bool = !cmap.uvs.is_empty();
-    for (&unicode, _) in cmap.unicodes.iter() {
+    for &unicode in cmap.unicodes.keys() {
         if unicode > 0xffff_i32 {
             requires_format12 = true;
         }

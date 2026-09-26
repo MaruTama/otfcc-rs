@@ -57,7 +57,12 @@ pub fn consolidate_gsub_single(
             );
         } else {
             let fromid: i32 = subtable[k].from.index as i32;
-            if seen.contains_key(&fromid) {
+            if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
+                let toid: i32 = subtable[k].to.index as i32;
+                let fromname: Vec<u8> = subtable[k].from.name.clone();
+                let toname: Vec<u8> = subtable[k].to.name.clone();
+                e.insert((fromname, toid, toname));
+            } else {
                 logger_log_sds(
                     &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
@@ -68,11 +73,6 @@ pub fn consolidate_gsub_single(
                         b".\n",
                     ),
                 );
-            } else {
-                let toid: i32 = subtable[k].to.index as i32;
-                let fromname: Vec<u8> = subtable[k].from.name.clone();
-                let toname: Vec<u8> = subtable[k].to.name.clone();
-                seen.insert(fromid, (fromname, toid, toname));
             }
         }
         k = k.wrapping_add(1);

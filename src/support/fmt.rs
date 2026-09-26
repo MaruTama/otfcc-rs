@@ -163,7 +163,26 @@ macro_rules! bytesbuild {
             // which `unused_unsafe` (correctly) flags as redundant. Silenced
             // here, once, rather than forcing every call site (this macro is
             // used at ~50+ of them) to restructure around it.
-            #[allow(unused_unsafe)]
+            //
+            // `clippy::macro_metavars_in_unsafe` also fires here, once, at
+            // this macro's own definition (not per call site): `$part` is a
+            // metavariable expanded directly inside the `unsafe` block right
+            // below, so in principle a caller could smuggle in an expression
+            // that itself needs `unsafe` without writing `unsafe` at its own
+            // call site. In practice `SdsPart::append_to_vec` (every impl in
+            // this file, grepped) is a fully safe trait method with no
+            // `unsafe` in any implementation -- wrapping its call in
+            // `unsafe` at all is vestigial here, kept only to match the
+            // redundant-nesting shape `unused_unsafe` above is about, not
+            // because the call itself needs it. All ~286 `bytesbuild!` call
+            // sites in this crate pass plain byte literals, string/slice
+            // refs, or small numeric wrapper types (`Hex2`/`Hex4Upper`/
+            // etc.), never a raw-pointer deref -- so the scenario this lint
+            // warns about does not occur today. Allowed once here, at the
+            // macro definition, rather than restructuring every call site,
+            // per this migration's usual treatment of a lint that is about
+            // a macro's own internal shape rather than its callers' code.
+            #[allow(unused_unsafe, clippy::macro_metavars_in_unsafe)]
             unsafe { $crate::support::fmt::SdsPart::append_to_vec($part, &mut __v); }
         )*
         __v

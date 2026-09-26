@@ -44,7 +44,12 @@ pub fn consolidate_gpos_cursive(
             );
         } else {
             let fromid: i32 = entry.target.index as i32;
-            if seen.contains_key(&fromid) {
+            if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
+                let fromname: Vec<u8> = entry.target.name.clone();
+                let enter: Anchor = entry.enter;
+                let exit: Anchor = entry.exit;
+                e.insert((fromname, enter, exit));
+            } else {
                 logger_log_sds(
                     &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
@@ -55,11 +60,6 @@ pub fn consolidate_gpos_cursive(
                         b".\n",
                     ),
                 );
-            } else {
-                let fromname: Vec<u8> = entry.target.name.clone();
-                let enter: Anchor = entry.enter;
-                let exit: Anchor = entry.exit;
-                seen.insert(fromid, (fromname, enter, exit));
             }
         }
     }

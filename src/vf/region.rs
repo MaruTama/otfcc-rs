@@ -66,14 +66,13 @@ fn weight_axis_region(as_0: &VqAxisSpan, x: Pos) -> Pos {
     let a: Pos = as_0.start;
     let p: Pos = as_0.peak;
     let z: Pos = as_0.end;
-    if a > p || p > z {
-        return 1_i32 as Pos;
-    } else if a < 0_i32 as Pos
-        && z > 0_i32 as Pos
-        && p != 0_i32 as Pos
+    if a > p
+        || p > z
+        || a < 0_i32 as Pos
+            && z > 0_i32 as Pos
+            && p != 0_i32 as Pos
+        || p == 0_i32 as Pos
     {
-        return 1_i32 as Pos;
-    } else if p == 0_i32 as Pos {
         return 1_i32 as Pos;
     } else if x < a || x > z {
         return 0_i32 as Pos;

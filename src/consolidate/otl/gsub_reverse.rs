@@ -58,7 +58,12 @@ pub fn consolidate_gsub_reverse(
     // min(...)` computed by hand.
     for (from, to) in subtable.match_0[input_index].iter().zip(subtable.to.iter()) {
         let fromid: i32 = from.index as i32;
-        if seen.contains_key(&fromid) {
+        if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
+            let toid: i32 = to.index as i32;
+            let fromname: Vec<u8> = from.name.clone();
+            let toname: Vec<u8> = to.name.clone();
+            e.insert((fromname, toid, toname));
+        } else {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -69,11 +74,6 @@ pub fn consolidate_gsub_reverse(
                     b".\n",
                 ),
             );
-        } else {
-            let toid: i32 = to.index as i32;
-            let fromname: Vec<u8> = from.name.clone();
-            let toname: Vec<u8> = to.name.clone();
-            seen.insert(fromid, (fromname, toid, toname));
         }
     }
     let count: usize = seen.len();

@@ -211,15 +211,14 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         .post
         .as_deref()
         .and_then(|p| p.post_name_map.as_deref());
-    if let Some(post_name_map) = post_name_map {
-        if !options.ignore_glyph_order && !options.name_glyphs_by_gid {
-            for (_, &idx) in post_name_map.by_gid.iter() {
+    if let Some(post_name_map) = post_name_map
+        && !options.ignore_glyph_order && !options.name_glyphs_by_gid {
+            for &idx in post_name_map.by_gid.values() {
                 let entry = &post_name_map.entries[idx];
                 let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
                 otfcc_set_glyph_order_by_gid(&mut glyph_order, entry.gid, gname_1);
             }
         }
-    }
     if let Some(cmap) = font.cmap.as_ref().filter(|_| !options.name_glyphs_by_gid) {
         let mut aglfn = GlyphOrder {
             entries: Vec::new(),
@@ -233,12 +232,11 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
                 if unicode > 0_i32 && unicode < 0xffff_i32 {
                     otfcc_gord_name_a_field_shared(&aglfn, unicode as GlyphId, &mut name_bytes);
                 }
-                let name: Vec<u8>;
-                if name_bytes.is_empty() {
-                    name = crate::bytesbuild!(&prefix, b"uni", Hex4Upper(unicode as u32));
+                let name: Vec<u8> = if name_bytes.is_empty() {
+                    crate::bytesbuild!(&prefix, b"uni", Hex4Upper(unicode as u32))
                 } else {
-                    name = crate::bytesbuild!(&prefix, &name_bytes);
-                }
+                    crate::bytesbuild!(&prefix, &name_bytes)
+                };
                 otfcc_set_glyph_order_by_gid(&mut glyph_order, glyph.index, name);
             }
         }
@@ -465,14 +463,13 @@ fn merge_vmtx(font: &mut Font) {
     }
 }
 fn merge_ltsh(font: &mut Font) {
-    if let Some(glyf) = font.glyf.as_mut() {
-        if let Some(ltsh) = &font.ltsh {
+    if let Some(glyf) = font.glyf.as_mut()
+        && let Some(ltsh) = &font.ltsh {
             let n = (glyf.len() as GlyphId).min(ltsh.num_glyphs);
             for j in 0..n {
                 glyf[j as usize].as_mut().unwrap().y_pel = ltsh.y_pels[j as usize];
             }
         }
-    }
 }
 pub fn otfcc_unconsolidate_font(font: &mut Font, options: &Options) {
     merge_hmtx(font);

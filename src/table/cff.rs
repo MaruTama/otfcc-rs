@@ -420,13 +420,12 @@ fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], co
                 );
             }
         }
-        21 => {
-            if top != 0 {
+        21
+            if top != 0 => {
                 pd.nominal_width_x = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
-        }
         _ => {}
     };
 }
@@ -633,8 +632,8 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
                 }
             }
         }
-        3102 => {
-            if top as i32 >= 3_i32 {
+        3102
+            if top as i32 >= 3_i32 => {
                 meta.is_cid = true;
                 meta.cid_registry = get_cff_sid(
                     cffnum(
@@ -654,7 +653,6 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as u32;
             }
-        }
         _ => {}
     };
 }
@@ -837,7 +835,7 @@ pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> ::co
     let mut bits: u64 = x.wrapping_mul(2685821657736338717_u64);
     bits = bits >> 12_i32 | 0x3ff0000000000000_u64;
     let q: ::core::ffi::c_double = if bits & 2048_u64 != 0 {
-        1.0f64 - 2.2204460492503131E-16f64 / 2.0f64
+        1.0f64 - 2.220_446_049_250_313E-16_f64 / 2.0f64
     } else {
         1.0f64
     };
@@ -914,25 +912,24 @@ fn build_outline(
         defined_contour_masks: 0_u8,
         randx: 0_u64,
     };
-    let fd: u8;
     let f_raw_data = f.raw_data.as_slice();
-    if !matches!(f.fdselect, CffFdSelect::Unspecified) {
-        fd = cff_parse_subr(
+    let fd: u8 = if !matches!(f.fdselect, CffFdSelect::Unspecified) {
+        cff_parse_subr(
             i,
             f_raw_data,
             &f.font_dict,
             &f.fdselect,
             &mut local_subrs,
-        );
+        )
     } else {
-        fd = cff_parse_subr(
+        cff_parse_subr(
             i,
             f_raw_data,
             &f.top_dict,
             &f.fdselect,
             &mut local_subrs,
-        );
-    }
+        )
+    };
     bc.g.fd_select = handle_from_index(fd as GlyphId) as FdHandle;
     let ctx_fd_array: &Vec<Box<CffTable>> = &meta.fd_array;
     if (fd as usize) < ctx_fd_array.len() && ctx_fd_array[fd as usize].private_dict.is_some() {
@@ -1087,14 +1084,13 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                         let sid_3: CffSid = (first_1 as i32 + k_1 as i32) as CffSid;
                         let glyphname_3: Option<Vec<u8>> =
                             get_cff_sid(sid_3 as u16, &cff_file.string);
-                        if (glyphs_named_sofar_1 as usize) < glyphs.len() {
-                            if let Some(glyphname_3) = glyphname_3 {
+                        if (glyphs_named_sofar_1 as usize) < glyphs.len()
+                            && let Some(glyphname_3) = glyphname_3 {
                                 glyphs[glyphs_named_sofar_1 as usize]
                                     .as_mut()
                                     .unwrap()
                                     .name = glyphname_3;
                             }
-                        }
                         glyphs_named_sofar_1 = glyphs_named_sofar_1.wrapping_add(1);
                     }
                 }
@@ -1107,14 +1103,13 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                         let sid_4: CffSid = (first_2 as i32 + k_2 as i32) as CffSid;
                         let glyphname_4: Option<Vec<u8>> =
                             get_cff_sid(sid_4 as u16, &cff_file.string);
-                        if (glyphs_named_sofar_2 as usize) < glyphs.len() {
-                            if let Some(glyphname_4) = glyphname_4 {
+                        if (glyphs_named_sofar_2 as usize) < glyphs.len()
+                            && let Some(glyphname_4) = glyphname_4 {
                                 glyphs[glyphs_named_sofar_2 as usize]
                                     .as_mut()
                                     .unwrap()
                                     .name = glyphname_4;
                             }
-                        }
                         glyphs_named_sofar_2 = glyphs_named_sofar_2.wrapping_add(1);
                     }
                 }
