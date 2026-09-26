@@ -18088,3 +18088,91 @@ counter suggests," not more.
     nothing else shifted underneath this stage. Nothing outside
     `src/support/parsed_json.rs` was touched, and nothing in the crate
     calls `get_typed_mut` yet -- M-32 is next.
+
+- **Stage M-32: `table::glyf::otfcc_parse_glyf` takes `&mut ParsedValue`
+  and drops `unsafe fn`.** The second of the four Bucket B stages, built on
+  a branch on top of M-31 (`get_typed_mut` not yet merged to `master` at
+  the time this stage started -- `git checkout -b ... origin/<M-31 branch>`,
+  not `master`). Re-read the function's current body and its one caller
+  (`json_reader.rs::read_json`) before touching anything, per this
+  migration's own "don't trust a stale plan, re-measure" discipline; both
+  matched the plan's trace exactly, down to the loop's own read-then-
+  `take_field` ordering and `read_json`'s three call sites never reading
+  `json_root` again after `read_json` returns. `otfcc_parse_glyf`'s
+  signature is now `root: &mut ParsedValue` (from `root: &ParsedValue`);
+  the `table: *mut ParsedValue` raw pointer the old body cast out of
+  `root.get_typed(...)` (with a `.is_null()` check standing in for
+  `Option`, and `table.as_ref()`/`table.as_mut()` reborrows either side of
+  the loop's `take_field` call) is gone, replaced by `root.get_typed_mut(b
+  "glyf", JsonType::Object)?` resolving `table: &mut ParsedValue` once, up
+  front; the loop body is otherwise unchanged line for line --
+  `table.as_object()` (shared, ends when the `if` block reading `glyphdump`
+  does) then `table.take_field(j)` (mutable) -- just as plain safe
+  reborrows of one `&mut` instead of a raw pointer standing in for the same
+  ordering. No other raw-pointer-shaped operation turned up on the re-read
+  (the plan's own claim that this function "does not even need the
+  reordering" held), so `unsafe fn` drops from the signature entirely --
+  the function is now a plain safe `pub fn`.
+  - **The call site (`json_reader.rs::read_json`) could not simply pass
+    `root` by `&mut`, because M-32's own scope is `otfcc_parse_glyf` alone
+    -- `read_json` itself keeps `root: &ParsedValue` and `unsafe fn` until
+    M-34, once `otfcc_parse_otl` (M-33) is safe too and both no longer need
+    anything from `read_json` that a shared reference can't give them.**
+    `read_json` still calls `otfcc_parse_otl` (still `unsafe fn`, still
+    needing the same raw-pointer-derived-from-shared-`root` shape) a few
+    lines below the `otfcc_parse_glyf` call, so `read_json`'s own body
+    still has to hold a plain `&ParsedValue` for that call regardless.
+    Rather than pre-empt M-34's own signature change, the minimal fix is a
+    local reborrow scoped to just the one call: `read_json`'s body now
+    casts its own `root: &ParsedValue` to a raw pointer
+    (`root as *const ParsedValue as *mut ParsedValue`) and reborrows that
+    as `&mut ParsedValue` (via the raw pointer's own `as_mut()` -- not
+    `&mut *ptr` directly, which rustc's `invalid_reference_casting` lint
+    (`deny`-by-default) rejects as UB-shaped even though the two-raw-cast
+    version it's built from is exactly what `otfcc_parse_glyf`'s old body
+    itself used to do one call frame lower) for just that one call, then
+    goes back to using the original shared `root` for every call after it
+    -- the same raw-pointer-derived-from-shared-reference shape `read_json`'s
+    own `# Safety` doc comment already requires the caller not alias during
+    the call, just moved one call frame up from `otfcc_parse_glyf`'s old
+    body into `read_json`'s own (already-`unsafe fn`) body, rather than
+    invented fresh. `read_json`'s `# Safety` doc comment is updated to say
+    so explicitly and to note that only `otfcc_parse_otl` is left holding
+    it in `unsafe fn`.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean. `cargo test --
+    --test-threads=1`: 425 passed, 1 failed --
+    `otl_feature_ref_amplification_font_parses_promptly`, the same
+    sandbox-CPU-timing flake on record since M-10 (unrelated -- pure JSON
+    glyph-tree bookkeeping, no OTL code touched); the suite's other known
+    flake did not reproduce this run. `cargo test --test golden --test abi
+    --test dll_abi --test log_output --test cycles -- --test-threads=1`:
+    all 9 tests across the 5 files passing byte-for-byte, including
+    `fixed_payloads_match_golden` (a variable-font `glyf`/`gvar` fixture per
+    M-28's own note) and `dump_build_cycles_are_stable` (a full JSON ->
+    binary -> JSON round trip through `read_json`/`otfcc_parse_glyf`
+    itself). `(cd fuzz && cargo check)`: clean. `survey-unsafe.sh`:
+    `unsafe fn` 7 -> **6** (this stage's whole point), `is_null()` 21 ->
+    20 (the one check `otfcc_parse_glyf` used to make on its raw `table`
+    pointer, now folded into `get_typed_mut`'s own `?`), `while loops` 226
+    -> 227 (the word "while" appearing once in this stage's own new prose
+    comment in `read_json` -- the same incidental text-counter bump M-29's
+    own log entry already flagged as a false signal, not a real loop);
+    `unsafe blocks`/raw pointer types/`.offset(` all unchanged at
+    39/180/22 (raw pointer types unchanged because the cast this stage
+    removed from `otfcc_parse_glyf` reappears, same shape, one call frame
+    up in `read_json` -- text relocated, not eliminated; `read_json`
+    itself is still `unsafe fn` and still needs it until M-34).
+    `cargo +nightly-2026-08-17 fuzz run json_build -- -max_total_time=150`
+    (`fuzz/rust-toolchain.toml`'s pinned nightly), seeded with
+    `tests/payload/{cid-fdselect-test,iosevka-r,WorkSans-Regular,
+    kltf-bugfont1}.json` (all four containing a `"glyf"` table, so this is
+    the JSON-to-binary path this stage actually touches) plus an empty
+    `{}`: ran the full 150-second budget end to end (not `-runs=0` over the
+    seed corpus alone), 6058 executions at ~40-50 exec/s, coverage growing
+    steadily to 7696 edges / 13390 features by the end with no plateauing
+    that would suggest the run needed more time -- 0 crashes, 0 timeouts,
+    0 OOMs, `fuzz/artifacts/json_build/` empty afterward. Consistent with
+    this stage changing only how `otfcc_parse_glyf` borrows its input
+    tree (an ordinary safe reborrow in place of a raw-pointer cast), not
+    what inputs it accepts, how it walks them, or any bound it checks.

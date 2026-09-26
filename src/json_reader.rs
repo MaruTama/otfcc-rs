@@ -204,16 +204,33 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
 /// # Safety
 /// `read_json` has no caller-side contract of its own -- `root` and
 /// `options` are plain shared references. It is `unsafe fn` only because
-/// its body calls `otfcc_parse_glyf`/`otfcc_parse_otl`, which mutate parts
-/// of `root`'s tree in place through a raw pointer derived from that same
-/// shared reference; see their own `# Safety` sections for what that
-/// requires. As long as `root` is not read through any other reference
-/// during this call, there is nothing extra for a caller to uphold.
+/// its body calls `otfcc_parse_otl`, which mutates part of `root`'s tree in
+/// place through a raw pointer derived from that same shared reference; see
+/// its own `# Safety` section for what that requires. (`otfcc_parse_glyf`
+/// no longer needs this: Stage M-32 gave it a real `&mut ParsedValue`
+/// instead, reborrowed below from this function's own shared `root` for the
+/// one call that needs it -- see that reborrow's own comment. `otfcc_parse_
+/// otl` becoming safe the same way is M-33's job, after which this
+/// function's own `unsafe fn` goes away too, per M-34.) As long as `root`
+/// is not read through any other reference during this call, there is
+/// nothing extra for a caller to uphold.
 pub unsafe fn read_json(root: &ParsedValue, options: &Options) -> Option<Box<Font>> {
     let mut font: Box<Font> = Box::default();
     font.subtype = otfcc_decide_font_subtype_from_json(root);
     font.glyph_order = parse_glyph_order(root, options);
-    font.glyf = otfcc_parse_glyf(root, font.glyph_order.as_deref(), options);
+    // `otfcc_parse_glyf` (Stage M-32) takes `&mut ParsedValue` now that it
+    // resolves its own "glyf" child via `get_typed_mut` instead of an
+    // internal raw-pointer cast; `read_json` itself still only has a shared
+    // `root` (that is M-34's change, once `otfcc_parse_otl` is safe too), so
+    // the cast that used to live inside `otfcc_parse_glyf` moves one call
+    // frame up, into this function's own already-`unsafe fn` body, for just
+    // this one call. Nothing else reads or writes through `root` while this
+    // call runs (the next statement below is the very next use of `root`),
+    // so the aliasing this function's own `# Safety` section already
+    // requires the caller uphold is exactly what this reborrow needs too.
+    let root_ptr: *mut ParsedValue = root as *const ParsedValue as *mut ParsedValue;
+    let root_mut: &mut ParsedValue = root_ptr.as_mut().unwrap();
+    font.glyf = otfcc_parse_glyf(root_mut, font.glyph_order.as_deref(), options);
     font.cff = otfcc_parse_cff(root, options);
     font.head = otfcc_parse_head(root, options);
     font.hhea = otfcc_parse_hhea(root, options);

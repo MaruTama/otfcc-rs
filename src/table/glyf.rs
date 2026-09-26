@@ -726,55 +726,43 @@ fn otfcc_glyf_parse_glyph(
 // carries the same "may legitimately be absent" meaning `glyph_order.
 // is_null()` used to check.
 //
-// `table: *mut ParsedValue` (derived from `root: &ParsedValue`, a shared
-// reference, via an explicit `as *mut` cast) is the one thing here that
-// stays a genuine raw pointer rather than shell residue: this loop reads
-// glyph `j` fully into an owned `Box<Glyph>` and then nulls that same slot
-// out via `take_field`, which needs a `&mut ParsedValue` this function was
-// never handed -- the same "resolve fresh at point of use" shape Stage 11's
-// `otfcc_parse_otl`/`feature_merger_activate` established for this exact
-// kind of in-place JSON-tree mutation. `unsafe fn` stays for that reason.
-/// # Safety
-/// While this call runs, no other reference may read or write the `"glyf"`
-/// object reachable from `root` (or anything above it in the tree): the
-/// body casts a sub-node reached through the shared `root` reference to a
-/// raw pointer and later reborrows it mutably (`table.as_mut()`) to null
-/// out each glyph slot it has already consumed. Each iteration finishes
-/// its immutable read of slot `j` before the mutable `take_field(j)` that
-/// follows it, so the two never overlap -- but that ordering guarantee is
-/// this function's alone; a caller who keeps some other live reference
-/// into the same subtree across the call still invites the aliasing
-/// violation the internal sequencing works around.
+// `table` used to be a genuine `*mut ParsedValue`, derived from `root:
+// &ParsedValue` (a shared reference) via an explicit `as *mut` cast: this
+// loop reads glyph `j` fully into an owned `Box<Glyph>` and then nulls that
+// same slot out via `take_field`, which needs a `&mut ParsedValue` this
+// function was never handed. Stage M-32 (see RUST_MIGRATION.md's "Stage 7-4
+// plan", Bucket B) closes that gap the way the plan's own trace of this
+// loop found: `root` is now `&mut ParsedValue`, so `root.get_typed_mut(b
+// "glyf", Object)` resolves `table: &mut ParsedValue` directly, and each
+// iteration's immutable read of slot `j` (`table.as_object()`, scoped to
+// that iteration) finishes before the mutable `table.take_field(j)` that
+// follows it -- the exact same non-overlapping order the raw-pointer
+// version already executed by hand, just expressed as an ordinary
+// sequential reborrow instead of a pointer standing in for it. No raw
+// pointer or `unsafe` remains in this function.
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_parse_glyf(
-    root: &ParsedValue,
+pub fn otfcc_parse_glyf(
+    root: &mut ParsedValue,
     glyph_order: Option<&GlyphOrder>,
     options: &Options,
 ) -> Option<GlyfTable> {
     let glyph_order = glyph_order?;
     root.as_object()?;
-    let table: *mut ParsedValue = root
-        .get_typed(b"glyf", JsonType::Object)
-        .map_or(::core::ptr::null_mut(), |v| {
-            v as *const ParsedValue as *mut ParsedValue
-        });
-    if table.is_null() {
-        return None;
-    }
+    let table = root.get_typed_mut(b"glyf", JsonType::Object)?;
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"glyf"),
     );
-    let n = table.as_ref().and_then(ParsedValue::as_object).map_or(0, |f| f.len());
+    let n = table.as_object().map_or(0, |f| f.len());
     let mut glyf_val: GlyfTable = Vec::with_capacity(n);
     glyf_val.resize_with(n, || None);
     // Each iteration reads glyph `j` fully (into an owned `Box<Glyph>`,
     // via `otfcc_glyf_parse_glyph`) before nulling that same slot out --
     // never both at once -- so the immutable reborrow below (`fields`,
-    // scoped to this iteration) is always finished before the mutable one
-    // (`table.as_mut()`) begins.
+    // scoped to this iteration) is always finished before the mutable
+    // `take_field` call that follows it.
     for j in 0..n {
-        let Some(fields) = table.as_ref().and_then(ParsedValue::as_object) else {
+        let Some(fields) = table.as_object() else {
             break;
         };
         let (name_key, glyphdump) = &fields[j];
@@ -788,9 +776,7 @@ pub unsafe fn otfcc_parse_glyf(
                         Some(otfcc_glyf_parse_glyph(glyphdump, order_entry, options));
                 }
             }
-        if let Some(t) = table.as_mut() {
-            t.take_field(j);
-        }
+        table.take_field(j);
     }
     logger_finish(&mut options.logger.borrow_mut());
     Some(glyf_val)
