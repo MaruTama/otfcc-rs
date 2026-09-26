@@ -39,23 +39,21 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-    unsafe {
-        let Some(sfnt) = otfcc_read_sfnt_from_reader(&mut Cursor::new(data)) else {
-            return;
-        };
-        if sfnt.count == 0 {
-            return;
-        }
-
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
-
-        // Subfont index 0 always exists once `count > 0` -- fuzzing which
-        // TTC subfont gets selected would mostly re-exercise the same
-        // per-table readers this target already drives, at the cost of a
-        // second dimension in the corpus.
-        let font = read_otf(&sfnt, 0, &options);
-
-        drop(font);
+    let Some(sfnt) = otfcc_read_sfnt_from_reader(&mut Cursor::new(data)) else {
+        return;
+    };
+    if sfnt.count == 0 {
+        return;
     }
+
+    let mut options: Box<Options> = Box::default();
+    options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+    // Subfont index 0 always exists once `count > 0` -- fuzzing which
+    // TTC subfont gets selected would mostly re-exercise the same
+    // per-table readers this target already drives, at the cost of a
+    // second dimension in the corpus.
+    let font = read_otf(&sfnt, 0, &options);
+
+    drop(font);
 });

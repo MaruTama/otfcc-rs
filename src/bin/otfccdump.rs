@@ -275,11 +275,7 @@ fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        // `read_otf` is `unsafe fn` only because its body drives the CFF
-        // builder core (raw-pointer tables, excluded from this migration);
-        // its arguments are plain shared references, so there is no
-        // caller-side contract to uphold here.
-        font = unsafe { read_otf(sfnt.as_ref().unwrap(), ttcindex, &*options) };
+        font = read_otf(sfnt.as_ref().unwrap(), ttcindex, &options);
         if font.is_none() {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),

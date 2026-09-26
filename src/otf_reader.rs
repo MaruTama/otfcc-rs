@@ -68,15 +68,18 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
 /// nothing and cost every caller a pair of casts. Both inputs are plain
 /// references now and the cast pairs are gone.
 ///
-/// # Safety
-/// `read_otf` has no caller-side contract of its own: `sfnt` and `options`
-/// are plain shared references, `index` is bounds-checked against
-/// `sfnt.count` before use, and every table reader it calls (including the
-/// CFF/glyf builder core) takes and returns owned or safely-referenced
-/// values. It stays `unsafe fn` as a holdover from when it drove raw-
-/// pointer table builders directly; callers need not uphold anything
-/// beyond passing valid references.
-pub unsafe fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Option<Box<Font>> {
+/// `sfnt` and `options` are plain shared references, `index` is
+/// bounds-checked against `sfnt.count` before use, and every table reader
+/// this calls (including the CFF/glyf builder core, made a safe `pub fn`
+/// back in Stage M-14) takes and returns owned or safely-referenced values.
+/// This used to stay `unsafe fn` as a holdover from when it drove
+/// raw-pointer table builders directly, with a `# Safety` doc comment
+/// noting there was no actual caller-side contract left to uphold; once
+/// that was double-checked against every callee's own signature (all
+/// plain `pub fn`s, none `unsafe fn`) and the body itself (no `unsafe`
+/// block, no raw pointer deref anywhere in it), the leftover `unsafe`
+/// keyword was dropped along with the doc comment that only justified it.
+pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Option<Box<Font>> {
     if sfnt.count.wrapping_sub(1_u32) < index {
         return None;
     } else {
@@ -206,22 +209,20 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-cff-per-glyph-stack-realloc-hang.bin",
         )
         .unwrap();
-        unsafe {
-            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-            let mut options: Box<Options> = Box::default();
-            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let start = Instant::now();
-            let font = super::read_otf(&sfnt, 0, &options);
-            let elapsed = start.elapsed();
-            drop(font);
+        let start = Instant::now();
+        let font = super::read_otf(&sfnt, 0, &options);
+        let elapsed = start.elapsed();
+        drop(font);
 
-            assert!(
-                elapsed < Duration::from_secs(10),
-                "read_otf took {elapsed:?}, expected well under 10s"
-            );
-        }
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "read_otf took {elapsed:?}, expected well under 10s"
+        );
     }
 
     /// A `cargo fuzz run otf_parse` CI job found `tests/fuzz-corpus/known-
@@ -270,22 +271,20 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-contextual-amplification-hang.bin",
         )
         .unwrap();
-        unsafe {
-            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-            let mut options: Box<Options> = Box::default();
-            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let start = Instant::now();
-            let font = super::read_otf(&sfnt, 0, &options);
-            let elapsed = start.elapsed();
-            drop(font);
+        let start = Instant::now();
+        let font = super::read_otf(&sfnt, 0, &options);
+        let elapsed = start.elapsed();
+        drop(font);
 
-            assert!(
-                elapsed < Duration::from_secs(10),
-                "read_otf took {elapsed:?}, expected well under 10s"
-            );
-        }
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "read_otf took {elapsed:?}, expected well under 10s"
+        );
     }
 
     /// A follow-up `cargo fuzz run otf_parse` CI job (after the fix above
@@ -321,50 +320,48 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-amplification-oom.bin",
         )
         .unwrap();
-        unsafe {
-            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-            let mut options: Box<Options> = Box::default();
-            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let start = Instant::now();
-            let font = super::read_otf(&sfnt, 0, &options);
-            let elapsed = start.elapsed();
+        let start = Instant::now();
+        let font = super::read_otf(&sfnt, 0, &options);
+        let elapsed = start.elapsed();
 
-            // The wall-clock check below alone doesn't actually catch this
-            // regression: this file's memory blowup happens fast enough on
-            // native, uninstrumented hardware that even the fully-uncapped
-            // version parses in well under a second here -- it only
-            // crossed libFuzzer's 2048MB `-rss_limit_mb` under ASan's
-            // memory-overhead multiplier in CI. Assert the actual
-            // invariant the fix establishes instead: neither cap was
-            // exceeded, for either table.
-            let font = font.expect("font must parse");
-            for otl in [font.gsub.as_deref(), font.gpos.as_deref()]
-                .into_iter()
-                .flatten()
-            {
-                assert!(
-                    otl.lookups.len()
-                        <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
-                    "lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
-                    otl.lookups.len()
-                );
-                let total_feature_refs: usize =
-                    otl.languages.iter().map(|lang| lang.features.len()).sum();
-                assert!(
-                    total_feature_refs
-                        <= crate::table::otl::read::MAX_TOTAL_FEATURE_REFS_PER_TABLE as usize,
-                    "total feature refs = {total_feature_refs} exceeds MAX_TOTAL_FEATURE_REFS_PER_TABLE"
-                );
-            }
-            drop(font);
-
+        // The wall-clock check below alone doesn't actually catch this
+        // regression: this file's memory blowup happens fast enough on
+        // native, uninstrumented hardware that even the fully-uncapped
+        // version parses in well under a second here -- it only
+        // crossed libFuzzer's 2048MB `-rss_limit_mb` under ASan's
+        // memory-overhead multiplier in CI. Assert the actual
+        // invariant the fix establishes instead: neither cap was
+        // exceeded, for either table.
+        let font = font.expect("font must parse");
+        for otl in [font.gsub.as_deref(), font.gpos.as_deref()]
+            .into_iter()
+            .flatten()
+        {
             assert!(
-                elapsed < Duration::from_secs(10),
-                "read_otf took {elapsed:?}, expected well under 10s"
+                otl.lookups.len()
+                    <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
+                "lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
+                otl.lookups.len()
+            );
+            let total_feature_refs: usize =
+                otl.languages.iter().map(|lang| lang.features.len()).sum();
+            assert!(
+                total_feature_refs
+                    <= crate::table::otl::read::MAX_TOTAL_FEATURE_REFS_PER_TABLE as usize,
+                "total feature refs = {total_feature_refs} exceeds MAX_TOTAL_FEATURE_REFS_PER_TABLE"
             );
         }
+        drop(font);
+
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "read_otf took {elapsed:?}, expected well under 10s"
+        );
     }
 
     /// A follow-up `cargo fuzz run otf_parse` CI job (this time triggered
@@ -392,47 +389,45 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-feature-list-amplification-hang.bin",
         )
         .unwrap();
-        unsafe {
-            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-            let mut options: Box<Options> = Box::default();
-            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let start = Instant::now();
-            let font = super::read_otf(&sfnt, 0, &options);
-            let elapsed = start.elapsed();
+        let start = Instant::now();
+        let font = super::read_otf(&sfnt, 0, &options);
+        let elapsed = start.elapsed();
 
-            // Same reasoning as the feature-ref-amplification test above:
-            // assert the actual invariant the fix establishes, not just
-            // wall-clock time (which may not reliably distinguish "fixed"
-            // from "fast enough on this hardware" alone).
-            let font = font.expect("font must parse");
-            for otl in [font.gsub.as_deref(), font.gpos.as_deref()]
-                .into_iter()
-                .flatten()
-            {
-                assert!(
-                    otl.features.len()
-                        <= crate::table::otl::read::MAX_TOTAL_FEATURES_PER_TABLE as usize,
-                    "features.len() = {} exceeds MAX_TOTAL_FEATURES_PER_TABLE",
-                    otl.features.len()
-                );
-                for feature in otl.features.iter().flatten() {
-                    assert!(
-                        feature.lookups.len()
-                            <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
-                        "feature.lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
-                        feature.lookups.len()
-                    );
-                }
-            }
-            drop(font);
-
+        // Same reasoning as the feature-ref-amplification test above:
+        // assert the actual invariant the fix establishes, not just
+        // wall-clock time (which may not reliably distinguish "fixed"
+        // from "fast enough on this hardware" alone).
+        let font = font.expect("font must parse");
+        for otl in [font.gsub.as_deref(), font.gpos.as_deref()]
+            .into_iter()
+            .flatten()
+        {
             assert!(
-                elapsed < Duration::from_secs(10),
-                "read_otf took {elapsed:?}, expected well under 10s"
+                otl.features.len()
+                    <= crate::table::otl::read::MAX_TOTAL_FEATURES_PER_TABLE as usize,
+                "features.len() = {} exceeds MAX_TOTAL_FEATURES_PER_TABLE",
+                otl.features.len()
             );
+            for feature in otl.features.iter().flatten() {
+                assert!(
+                    feature.lookups.len()
+                        <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
+                    "feature.lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
+                    feature.lookups.len()
+                );
+            }
         }
+        drop(font);
+
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "read_otf took {elapsed:?}, expected well under 10s"
+        );
     }
 
     /// A `cargo fuzz run otf_parse` CI job found this: a TTF-subtype font
@@ -466,18 +461,16 @@ mod regression_tests {
         data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
         assert_eq!(data.len(), 28 + 54);
 
-        unsafe {
-            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
 
-            let mut options: Box<Options> = Box::default();
-            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let font = super::read_otf(&sfnt, 0, &options);
-            let font = font.expect("font must parse");
-            assert!(font.maxp.is_none());
-            assert!(font.glyf.is_none());
-            drop(font);
-        }
+        let font = super::read_otf(&sfnt, 0, &options);
+        let font = font.expect("font must parse");
+        assert!(font.maxp.is_none());
+        assert!(font.glyf.is_none());
+        drop(font);
     }
 
     /// A follow-up `cargo fuzz run otf_dump` CI job found a second,
@@ -510,23 +503,21 @@ mod regression_tests {
         data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
         assert_eq!(data.len(), 28 + 54);
 
-        unsafe {
-            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
 
-            let mut options: Box<Options> = Box::default();
-            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let font = super::read_otf(&sfnt, 0, &options);
-            let mut font = font.expect("font must parse");
-            assert!(font.maxp.is_none());
+        let font = super::read_otf(&sfnt, 0, &options);
+        let mut font = font.expect("font must parse");
+        assert!(font.maxp.is_none());
 
-            // The point of this regression test is that dumping a font with
-            // no `maxp` does not panic; the dumped value itself is just
-            // dropped.
-            drop(crate::json_writer::serialize_to_json(&mut font, &options));
+        // The point of this regression test is that dumping a font with
+        // no `maxp` does not panic; the dumped value itself is just
+        // dropped.
+        drop(crate::json_writer::serialize_to_json(&mut font, &options));
 
-            drop(font);
-        }
+        drop(font);
     }
 
     /// `tests/fuzz-corpus/known-issues/otf-dump-otl-coverage-consolidate-
@@ -572,25 +563,23 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-dump-otl-coverage-consolidate-amplification-hang.bin",
         )
         .unwrap();
-        unsafe {
-            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-            let mut options: Box<Options> = Box::default();
-            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let start = Instant::now();
-            let mut font = super::read_otf(&sfnt, 0, &options);
-            if let Some(font) = font.as_mut() {
-                otfcc_consolidate_font(font, &options);
-            }
-            let elapsed = start.elapsed();
-            drop(font);
-
-            assert!(
-                elapsed < Duration::from_secs(15),
-                "read_otf + otfcc_consolidate_font took {elapsed:?}, expected well under 15s"
-            );
+        let start = Instant::now();
+        let mut font = super::read_otf(&sfnt, 0, &options);
+        if let Some(font) = font.as_mut() {
+            otfcc_consolidate_font(font, &options);
         }
+        let elapsed = start.elapsed();
+        drop(font);
+
+        assert!(
+            elapsed < Duration::from_secs(15),
+            "read_otf + otfcc_consolidate_font took {elapsed:?}, expected well under 15s"
+        );
     }
 
     /// `cargo fuzz run otf_dump` CI (run 35233787763) found `tests/
@@ -629,30 +618,28 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-dump-cmap-uvs-non-default-aliasing-oom.bin",
         )
         .unwrap();
-        unsafe {
-            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-            let mut options: Box<Options> = Box::default();
-            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let start = Instant::now();
-            let font = super::read_otf(&sfnt, 0, &options);
-            let elapsed = start.elapsed();
+        let start = Instant::now();
+        let font = super::read_otf(&sfnt, 0, &options);
+        let elapsed = start.elapsed();
 
-            let font = font.expect("font must parse");
-            if let Some(cmap) = font.cmap.as_deref() {
-                assert!(
-                    cmap.uvs.len() <= crate::table::cmap::MAX_TOTAL_CMAP_MAPPINGS as usize,
-                    "cmap.uvs.len() = {} exceeds MAX_TOTAL_CMAP_MAPPINGS",
-                    cmap.uvs.len()
-                );
-            }
-            drop(font);
-
+        let font = font.expect("font must parse");
+        if let Some(cmap) = font.cmap.as_deref() {
             assert!(
-                elapsed < Duration::from_secs(10),
-                "read_otf took {elapsed:?}, expected well under 10s"
+                cmap.uvs.len() <= crate::table::cmap::MAX_TOTAL_CMAP_MAPPINGS as usize,
+                "cmap.uvs.len() = {} exceeds MAX_TOTAL_CMAP_MAPPINGS",
+                cmap.uvs.len()
             );
         }
+        drop(font);
+
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "read_otf took {elapsed:?}, expected well under 10s"
+        );
     }
 }
