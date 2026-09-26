@@ -202,14 +202,31 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
 /// so it is dropped rather than kept as a silently-ignored parameter.
 ///
 /// # Safety
-/// `read_json` has no caller-side contract of its own -- `root` and
-/// `options` are plain shared references. It is `unsafe fn` only because
-/// its body calls `otfcc_parse_glyf`/`otfcc_parse_otl`, which mutate parts
-/// of `root`'s tree in place through a raw pointer derived from that same
-/// shared reference; see their own `# Safety` sections for what that
-/// requires. As long as `root` is not read through any other reference
-/// during this call, there is nothing extra for a caller to uphold.
-pub unsafe fn read_json(root: &ParsedValue, options: &Options) -> Option<Box<Font>> {
+/// `read_json` has no caller-side contract of its own -- `options` is a
+/// plain shared reference. It is `unsafe fn` only because its body calls
+/// `otfcc_parse_otl`, which mutates part of `root`'s tree in place through
+/// a raw pointer derived from a reborrow of `root`; see its own `# Safety`
+/// section for what that requires. `otfcc_parse_otl` becoming safe the
+/// same way `otfcc_parse_glyf` already has is M-33's job, after which this
+/// function's own `unsafe fn` goes away too, per M-34.
+///
+/// `root` is `&mut ParsedValue`, not `&ParsedValue`. An earlier revision of
+/// this function kept `root: &ParsedValue` and reborrowed it into a
+/// `&mut ParsedValue` for just the one call `otfcc_parse_glyf` needed, via
+/// an explicit `as *mut` cast, on the reasoning that "nothing else reads
+/// `root` during this call" was enough to make it sound. **That reasoning
+/// is wrong, and Miri caught it on the very next CI run**: a `&T`-typed
+/// reference's own tag caps every pointer derived from it at
+/// `SharedReadOnly` for that borrow's whole lifetime under Stacked
+/// Borrows, independent of what else does or doesn't read through it --
+/// casting it to `*mut` and dereferencing mutably is undefined behavior
+/// unconditionally, not something "nothing else aliases it" can excuse
+/// away. Every one of this function's three real call sites already owns
+/// its `ParsedValue` as a mutable local that is never read again
+/// afterward (`ffi/dll.rs`, `bin/otfccbuild.rs`, `benches/support/mod.rs`),
+/// so taking `&mut ParsedValue` here costs nothing at any of them, and the
+/// `otfcc_parse_glyf` call below is now a plain, ordinary, sound reborrow.
+pub unsafe fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>> {
     let mut font: Box<Font> = Box::default();
     font.subtype = otfcc_decide_font_subtype_from_json(root);
     font.glyph_order = parse_glyph_order(root, options);

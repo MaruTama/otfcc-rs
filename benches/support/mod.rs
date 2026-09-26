@@ -83,9 +83,9 @@ pub fn dump_to_json(sfnt_bytes: &[u8], options: &Options) -> Vec<u8> {
 /// in, built OTF/TTF bytes out.
 pub fn build_to_otf(json_bytes: &[u8], options: &Options) -> Vec<u8> {
     unsafe {
-        let json_root = parse_json(json_bytes).expect("parse_json returned None");
+        let mut json_root = parse_json(json_bytes).expect("parse_json returned None");
 
-        let mut font = read_json(&json_root, options).expect("read_json returned None");
+        let mut font = read_json(&mut json_root, options).expect("read_json returned None");
 
         otfcc_consolidate_font(&mut font, options);
 

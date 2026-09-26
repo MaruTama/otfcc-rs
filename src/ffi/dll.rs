@@ -35,11 +35,11 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     }
     // The one place the raw `(pointer, length)` pair from the C caller is
     // turned into a slice; everything from here on is safe.
-    let Some(json_root) = parse_json(::core::slice::from_raw_parts(injson as *const u8, inlen as usize))
+    let Some(mut json_root) = parse_json(::core::slice::from_raw_parts(injson as *const u8, inlen as usize))
     else {
         return ::core::ptr::null_mut::<Buffer>();
     };
-    let Some(mut font) = read_json(&json_root, &options) else {
+    let Some(mut font) = read_json(&mut json_root, &options) else {
         return ::core::ptr::null_mut::<Buffer>();
     };
     drop(json_root);

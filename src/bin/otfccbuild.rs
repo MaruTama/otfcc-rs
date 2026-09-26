@@ -359,7 +359,7 @@ fn main_0(args: Vec<String>) -> i32 {
         // in-place JSON-tree parsers and the CFF builder core (both
         // excluded from this migration); its arguments are plain shared
         // references, so there is no caller-side contract to uphold here.
-        font = unsafe { read_json(json_root.as_ref().unwrap(), &*options) };
+        font = unsafe { read_json(json_root.as_mut().unwrap(), &*options) };
         if font.is_none() {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),
