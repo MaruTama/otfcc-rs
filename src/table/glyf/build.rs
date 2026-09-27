@@ -129,7 +129,7 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         } else {
             ComponentFlags::empty()
         };
-        let output_anchor: bool = r.is_anchored == RefAnchorStatus::AnchorConsolidated;
+        let output_anchor: bool = r.is_anchored.get() == RefAnchorStatus::AnchorConsolidated;
         // Was a `union { pointid: u16, coord: i16 }` -- `arg1`/`arg2` are
         // written as whichever type this glyph's arguments actually are,
         // then always read back as `u16` further down (`bufwrite16b`/
@@ -146,8 +146,8 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
             (a1, a2)
         } else {
             flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
-            let c1 = vq_get_still(r.x.clone()) as i16;
-            let c2 = vq_get_still(r.y.clone()) as i16;
+            let c1 = vq_get_still(r.x.borrow().clone()) as i16;
+            let c2 = vq_get_still(r.y.borrow().clone()) as i16;
             if !((c1 as i32) < 128_i32
                 && c1 as i32 >= -128_i32
                 && (c2 as i32) < 128_i32

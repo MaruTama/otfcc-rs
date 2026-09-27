@@ -19381,3 +19381,236 @@ counter suggests," not more.
     above. None of these is a stage waiting to happen; each is a shape this
     plan's own five stages, read together, already gave a specific reason
     to leave alone.
+- **Stage M-43: `consolidate.rs`'s `get_point_coordinates`/
+  `consolidate_anchor_ref` pair -- Stage 7-4's own Bucket C, re-opened and
+  this time landed -- drop `unsafe fn` and every raw pointer, via
+  `Cell`/`RefCell` interior mutability rather than the "take it out of the
+  arena" technique Bucket C already ruled out.** Bucket C's own conclusion
+  (quoted again above, in "The 62 live sites, sorted into three buckets")
+  was never wrong about the technique it examined: taking a self-
+  referencing glyph out of `GlyfTable` to recurse into it mutably really
+  would make it see itself as absent mid-recursion, changing what the
+  existing `RefAnchorStatus::AnchorConsolidating*`/`MAX_COMPONENT_
+  REFERENCE_DEPTH` cycle-detection guards actually observe. What Bucket C
+  never considered -- because this stage's own task framing is what first
+  named it -- is a narrower question: what, precisely, do these two
+  functions *mutate* through their raw `table`/`gr`/`rr` pointers, as
+  opposed to merely read? Re-reading both bodies in full (not skimming
+  from the prior stage's own summary) found the answer is exactly three
+  fields of one `ComponentReference`: `is_anchored`, `x`, and `y`.
+  Everything else either function touches through `table` --
+  `Glyph.contours`, every other `ComponentReference` field, `GlyfTable`
+  itself -- is read-only for the whole walk. That is a much narrower
+  target than "the whole arena needs mutable access," and interior
+  mutability is precisely Rust's tool for narrowing a mutation down to
+  specific fields behind an otherwise-shared reference.
+  - **The design: `is_anchored: Cell<RefAnchorStatus>`, `x`/`y`:
+    `RefCell<VQ>`.** `RefAnchorStatus` is already `Copy`, so `Cell` is
+    free -- `.get()`/`.set()` are plain loads/stores with no runtime check
+    and can never panic, matching this field's every existing read/write
+    site with a mechanical suffix change. `VQ` (`{ kernel: Pos, shift:
+    Vec<VqSegment> }`, already `Clone`/`Default`) is not `Copy`, so `Cell`
+    would need `.take()`/`.replace()` at every read site instead of a
+    plain `.clone()` -- workable, but `RefCell` was chosen instead because
+    every existing read of `x`/`y` in both functions is already a
+    `.clone()` off a dereferenced pointer (`(*rr).x.clone()`), which
+    `rr.x.borrow().clone()` mirrors with no reshaping of the surrounding
+    expression, and every existing write is a plain field assignment
+    (`(*rr).x = rrx`), which `rr.x.replace(rrx)` mirrors the same way.
+    `RefCell` was only safe to reach for, though, once the specific claim
+    below was proven -- a `Cell`-based "take, use, put back" transaction
+    pattern (the task's own suggested fallback) was the fallback plan if
+    it hadn't held.
+  - **The property that had to be proven, not assumed: can this recursion
+    ever try to borrow the same `ComponentReference`'s `x`/`y` twice while
+    an outer borrow of it is still logically live, which would panic at
+    runtime -- a new failure mode this code path does not have today?**
+    Traced every read and write of `rr.x`/`rr.y` in both functions against
+    every place either function can recurse, not just the common path:
+    - `get_point_coordinates` never mutates `x`/`y` on any
+      `ComponentReference` at all (table-resident or synthetic) -- it only
+      reads `gr.x`/`gr.y` (to compute an output point) and, after its own
+      call to `consolidate_anchor_ref(rr)` has *already returned*, reads
+      `rr.x`/`rr.y` to build the synthetic `ref_0` it recurses with. Both
+      reads are single, non-recursive expressions; neither is ever a write.
+    - `consolidate_anchor_ref` is the only function that ever writes
+      `rr.x`/`rr.y`, and it does so in exactly one place: after both of its
+      own recursive `get_point_coordinates` calls (`s1`, `s2`) have
+      returned, never before and never in between. Nothing between marking
+      `rr.is_anchored` as `AnchorConsolidating*` and that final read/write
+      touches `rr.x`/`rr.y` at all.
+    - **The reachable re-entrancy case, confirmed by tracing it end to
+      end, not just asserted:** `consolidate_glyf`'s own top-level `gr` is
+      the glyph *containing* `rr` (`gr.glyph.index == j`, the same `j`
+      whose `references[r]` is `rr`), so `get_point_coordinates(table, gr,
+      rr.outer, ...)` -- one of `consolidate_anchor_ref`'s own two
+      recursive calls -- walks that *same* glyph's own `references` list
+      and, when it reaches index `r` again, calls `consolidate_anchor_ref`
+      on the identical `rr` a second time while the first call is still on
+      the stack. This is real and reachable, not a theoretical worst case
+      invented for extra caution -- it is the exact shape `RefAnchorStatus
+      ::AnchorConsolidatingAnchor`/`AnchorConsolidatingXy` exist to catch.
+      But the guard for exactly this case (`rr.is_anchored.get()` already
+      `Consolidating*`) fires and returns *before* the function reaches any
+      code that touches `rr.x`/`rr.y` -- it only logs, sets `is_anchored`
+      to `Xy`, and returns `false`. So the one call path that can
+      re-enter the same `rr` while its outer resolution is in progress is
+      exactly the one guaranteed never to reach a `borrow()`/`borrow_mut()`
+      on it. No other path re-enters the same `rr` at all, because `gr` is
+      never itself a table-resident `ComponentReference` anywhere in this
+      pair's own recursion -- every value ever passed as `gr` is either the
+      one synthetic self-reference `consolidate_glyf` builds per glyph, or
+      a freshly synthesized `ref_0`/`rr1` local built fresh on the stack at
+      that call -- so a second, unrelated `get_point_coordinates` frame
+      can never pick a `gr` that aliases the `rr` some enclosing frame is
+      mid-resolution on. Since a `RefCell` borrow in this code is never
+      held across a call in the first place (every touch of `x`/`y` is one
+      non-recursive statement), and the one path that could re-enter the
+      same `rr` is turned away before it would ever try to borrow, no
+      overlapping borrow of the same `RefCell` is reachable on any input,
+      well-formed or fuzz-crafted. `Cell`'s own total panic-freedom made
+      this less urgent for `is_anchored`, but the same argument applies to
+      it too: the guard reads happen fresh, at the top of the function,
+      with no cached pre-recursion value trusted across the two nested
+      calls -- see the next bullet for why that particular detail had to
+      be preserved deliberately, not simplified away.
+  - **One easy mistake this stage's own rewrite avoided, worth naming since
+    it would have been a silent behavior change, not a compile error:**
+    the raw-pointer original re-dereferences `(*rr).is_anchored` fresh
+    *after* both recursive `get_point_coordinates` calls return, to decide
+    which of the two final branches (`AnchorConsolidatingAnchor` -> write
+    `x`/`y`, else -> compare-and-warn only) to take -- it does not cache
+    the value read before recursing. That matters precisely because of the
+    re-entrancy case above: if the recursion loops back to this exact
+    `rr`, the re-entrant call overwrites `is_anchored` to `Xy` before
+    returning, and the outer call's own final branch has to observe that
+    overwrite (taking the "else" branch even though it entered as
+    `AnchorAnchor`) to match what the original single-address pointer read
+    would see. A first draft of this rewrite called `rr.is_anchored.get()`
+    once before the two recursive calls and reused that local across the
+    branch decision after them -- compiles fine, all existing tests still
+    pass (neither cycle-detection regression test's own cyclic fixture
+    happens to be an anchored reference, so it never exercises this exact
+    interaction), but it is a real, silent divergence from the original on
+    a narrower input this stage did not construct a fresh test for. Caught
+    by re-reading the raw-pointer version's own dereference order line by
+    line rather than trusting a first safe-looking rewrite, and fixed by
+    calling `.get()` again after `s1`/`s2` instead of reusing the
+    pre-recursion local -- the final code now matches the original's read/
+    recurse/mutate order field for field, not just its final values on the
+    tests already in this file.
+  - **`gr` needed no wrapper at all.** Grepping every dereference of `gr`
+    in both functions found it is only ever read (`.glyph.index`, `.x`,
+    `.y`, `.a`/`.b`/`.c`/`.d`) -- neither function ever assigns through
+    `gr`. Combined with the fact established above that `gr` is never
+    itself a table-resident reference (always either `consolidate_glyf`'s
+    own per-glyph synthetic self-reference or a `ref_0`/`rr1` local built
+    fresh on the stack), the new signatures take it as a plain `&
+    ComponentReference` with no interior mutability involved at all --
+    only `rr` (and, transitively, every `ComponentReference` the
+    `RefCell`/`Cell` wrapper types apply to structurally) needed to change.
+  - **Blast radius: 6 files, found by changing the struct and following
+    every compile error rather than trusting a grep-based enumeration.**
+    The task's own starting list (`table/glyf.rs`, `table/glyf/read.rs`,
+    `table/glyf/build.rs`, `otf_writer/stat.rs`, `consolidate.rs`) was
+    off by one file in practice: `otf_reader/unconsolidate.rs`'s
+    `name_glyph_by_hash` (the glyph-hash function `otf_reader.rs`'s own
+    duplicate-glyph-merging pass calls) reads `r.x`/`r.y` too, for hashing,
+    and a plain grep for `ComponentReference {`-shaped construction sites
+    would not have surfaced a read-only call site like it. Every site
+    across all six files was a mechanical `.clone()` ->
+    `.borrow().clone()`/`!= X` -> `.get() != X`/`= value` ->
+    `.replace(value)` or `= RefCell::new(value)`/`Cell::new(value)`
+    rewrite with one exception: `table/glyf/read.rs`'s `apply_polymorphism`
+    (the `fvar`/`gvar` tuple-variation write-back pass, unrelated to this
+    pair but sharing the same struct) already held `&mut ComponentReference`
+    from `references.iter_mut()` at its two `rf.x`/`rf.y.shift.push(...)`
+    write sites, so those became `.get_mut()` (zero-cost, no runtime
+    borrow check, since an existing `&mut` already proves exclusivity)
+    rather than `.borrow_mut()`. No site needed `Send`/`Sync` (grepped for
+    both crate-wide against this struct: no hits -- this crate has no
+    threading, confirming the task's own expectation), and no site
+    depended on `ComponentReference`/`Glyph` being cloned while a borrow
+    was outstanding (`Cell<T>: Clone` needs `T: Copy`, satisfied
+    automatically for `is_anchored`; `RefCell<T>: Clone` needs `T: Clone`,
+    satisfied by `VQ`'s own derive, and no `.clone()` of either whole
+    struct exists anywhere in the crate today regardless).
+  - **One call this stage's rewrite still had to wrap in `unsafe {}`, not
+    remove: `fabs`.** `consolidate_anchor_ref`'s mismatch-warning check
+    calls the crate's one remaining `unsafe extern "C"` `fabs` import
+    (declared at the top of `consolidate.rs`) -- invisible while the
+    enclosing function was itself `unsafe fn` (every call inside one is
+    implicitly permitted), but a real, separate `unsafe {}` block once the
+    function became safe, the same narrow-block shape `otf_writer/
+    stat.rs`'s own `round` calls already use for the identical reason.
+    This is the one place this stage's own unsafe-block count did not
+    strictly decrease alongside the raw-pointer count -- expected and
+    unrelated to the `Cell`/`RefCell` redesign itself.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean. `cargo test --
+    --test-threads=1`: 428 passed, 2 failed -- both pre-existing,
+    unrelated sandbox-CPU-timing flakes this file's own history already
+    names (`otl_coverage_and_consolidate_log_amplification_font_dumps_
+    promptly`, `otl_feature_ref_amplification_font_parses_promptly`,
+    neither touching `consolidate.rs`'s anchor/point-coordinate pair);
+    both of this stage's own named regression tests
+    (`get_point_coordinates_stops_at_a_reference_cycle_instead_of_
+    overflowing_the_stack`, `consolidate_anchor_ref_stops_at_a_reference_
+    cycle_instead_of_overflowing_the_stack`) pass by name, confirmed with
+    a separate filtered run. `cargo test --test golden --test abi --test
+    dll_abi --test log_output --test cycles -- --test-threads=1`: all 9
+    tests across the 5 files passing byte-for-byte -- the strongest signal
+    available that this rewrite changed no observable output, not just
+    that it compiles. `cargo +nightly-2026-08-17 miri test --lib -- <the
+    same 17 module filters CI uses>`: 201 passed, 0 failed, 25 ignored (a
+    `consolidate`-only re-run separately confirms both regression tests
+    pass under Miri too, 7 passed 0 failed) -- specifically confirms no UB
+    and, since this stage introduces this crate's first `RefCell` on a
+    structure this deeply recursive, no unexpected double-borrow panic on
+    any input Miri's own interpreter exercised. `./scripts/survey-unsafe.
+    sh`: `unsafe fn` 4 -> 2 (exactly the two functions this stage
+    converted, as expected), raw pointer types 165 -> 150 (-15), `unsafe`
+    blocks 30 -> 29 (net -1: this stage removed three blocks --
+    `consolidate_glyf`'s own bridging block and both regression tests' own
+    wrapper -- and added two narrow ones back around the two `fabs` calls
+    above), `while loops` 137 -> 141 (+4, entirely comment-text drift, the
+    same false signal M-42's own log entry already found and named: this
+    stage's new doc comments quote the original code's shape in prose
+    using the word "while" five times, and the script's own `\bwhile `
+    counter can't distinguish that from a real loop keyword -- no `while`
+    loop in this file's actual code was added, removed, or converted).
+    `(cd fuzz && cargo check)` clean. Fuzzed both targets this pair's
+    composite-glyph-consolidation code path is reachable from, for real
+    time budgets given this is explicitly the highest-remaining-risk
+    unsafe code in the crate: `cargo +nightly fuzz run otf_dump --
+    -max_total_time=180` (2,362,499 executions, 0 crashes) and `cargo
+    +nightly fuzz run otf_parse -- -max_total_time=180` (6,793,537
+    executions, 0 crashes) -- if `RefCell`'s double-borrow panic risk had
+    been ruled out wrongly, either target's own composite-glyph corpus
+    entries would be exactly the kind of input to surface it, and neither
+    did. All 22 `tests/fuzz-corpus/known-issues/*.bin` regression files
+    re-run directly against the freshly rebuilt `otf_dump`/`otf_parse`/
+    `json_build` release binaries: all 22 exit 0, including the
+    documented bounded-but-slow `otf-dump-otl-coverage-consolidate-
+    amplification-hang.bin` case (37.4s here -- slower than M-39's/M-42's
+    own 23-25s recordings, consistent with ordinary sandbox timing
+    variance on a case this stage's own change does not touch, not a
+    regression: that file exercises OTL coverage consolidation
+    amplification, not `consolidate.rs`'s glyf/anchor pair).
+  - **Net effect on Stage 7-4's own Bucket C.** Of Bucket C's original 20
+    sites, this stage closes the `consolidate.rs` 14 (the
+    `get_point_coordinates`/`consolidate_anchor_ref` pair plus
+    `consolidate_glyf`'s own bridging `unsafe {}` block, all now gone),
+    leaving 6: `ffi/dll.rs`'s ABI boundary, `support/buffer.rs`'s
+    ownership-transfer shell, `support/cli/stopwatch.rs`'s deliberately
+    deferred `%g` formatting, and the two test-oracle files' `libc` calls
+    -- all five of those unchanged by this stage and, per Bucket C's own
+    original reasoning (re-quoted above, still standing), still genuine
+    structural walls for a different reason each: real FFI boundaries a
+    safe signature cannot describe, or deliberate libc-oracle comparisons
+    where calling libc *is* the point. Bucket C's own headline claim --
+    "one real cyclic-graph-mutation shape with no safe redesign" -- turned
+    out to be one technique too narrow, not wrong about the difficulty:
+    the arena-eviction technique it evaluated really doesn't work here,
+    and interior mutability is what closes the gap between "no redesign
+    using that technique" and "no safe redesign at all."

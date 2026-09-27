@@ -104,7 +104,7 @@ pub fn stat_single_glyph(
             // calls need the narrow block.
             let x: Pos = unsafe {
                 round(
-                    vq_get_still(gr.x.clone()) as ::core::ffi::c_double
+                    vq_get_still(gr.x.borrow().clone()) as ::core::ffi::c_double
                         + gr.a as ::core::ffi::c_double
                             * vq_get_still(p.x.clone()) as ::core::ffi::c_double
                         + gr.b as ::core::ffi::c_double
@@ -113,7 +113,7 @@ pub fn stat_single_glyph(
             } as Pos;
             let y: Pos = unsafe {
                 round(
-                    vq_get_still(gr.y.clone()) as ::core::ffi::c_double
+                    vq_get_still(gr.y.borrow().clone()) as ::core::ffi::c_double
                         + gr.c as ::core::ffi::c_double
                             * vq_get_still(p.x.clone()) as ::core::ffi::c_double
                         + gr.d as ::core::ffi::c_double
@@ -139,14 +139,14 @@ pub fn stat_single_glyph(
     n_composite_contours = g.contours.len() as u16;
     for r in 0..g.references.len() as ShapeId {
         let mut ref_0: ComponentReference = ComponentReference {
-            x: VQ {
+            x: std::cell::RefCell::new(VQ {
                 kernel: 0.,
                 shift: Vec::new(),
-            },
-            y: VQ {
+            }),
+            y: std::cell::RefCell::new(VQ {
                 kernel: 0.,
                 shift: Vec::new(),
-            },
+            }),
             round_to_grid: false,
             use_my_metrics: false,
             glyph: Handle {
@@ -158,7 +158,7 @@ pub fn stat_single_glyph(
             b: 0.,
             c: 0.,
             d: 0.,
-            is_anchored: RefAnchorStatus::Xy,
+            is_anchored: std::cell::Cell::new(RefAnchorStatus::Xy),
             inner: 0,
             outer: 0,
         };
@@ -169,16 +169,16 @@ pub fn stat_single_glyph(
         ref_0.b = rr.a * gr.b + rr.b * gr.d;
         ref_0.c = gr.a * rr.c + gr.c * rr.d;
         ref_0.d = gr.b * rr.c + rr.d * gr.d;
-        ref_0.x = vq_create_still(
-            vq_get_still(rr.x.clone())
-                + rr.a as Pos * vq_get_still(gr.x.clone())
-                + rr.b as Pos * vq_get_still(gr.y.clone()),
-        );
-        ref_0.y = vq_create_still(
-            vq_get_still(rr.y.clone())
-                + rr.c as Pos * vq_get_still(gr.x.clone())
-                + rr.d as Pos * vq_get_still(gr.y.clone()),
-        );
+        ref_0.x = std::cell::RefCell::new(vq_create_still(
+            vq_get_still(rr.x.borrow().clone())
+                + rr.a as Pos * vq_get_still(gr.x.borrow().clone())
+                + rr.b as Pos * vq_get_still(gr.y.borrow().clone()),
+        ));
+        ref_0.y = std::cell::RefCell::new(vq_create_still(
+            vq_get_still(rr.y.borrow().clone())
+                + rr.c as Pos * vq_get_still(gr.x.borrow().clone())
+                + rr.d as Pos * vq_get_still(gr.y.borrow().clone()),
+        ));
         let thatstat: GlyphStat = stat_single_glyph(
             table,
             &mut ref_0,
@@ -245,14 +245,14 @@ pub fn stat_glyf(font: &mut Font, options: &Options) {
     let mut ymax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
     for j in 0..glyf.len() as GlyphId {
         let mut gr: ComponentReference = ComponentReference {
-            x: VQ {
+            x: std::cell::RefCell::new(VQ {
                 kernel: 0.,
                 shift: Vec::new(),
-            },
-            y: VQ {
+            }),
+            y: std::cell::RefCell::new(VQ {
                 kernel: 0.,
                 shift: Vec::new(),
-            },
+            }),
             round_to_grid: false,
             use_my_metrics: false,
             glyph: Handle {
@@ -264,13 +264,13 @@ pub fn stat_glyf(font: &mut Font, options: &Options) {
             b: 0.,
             c: 0.,
             d: 0.,
-            is_anchored: RefAnchorStatus::Xy,
+            is_anchored: std::cell::Cell::new(RefAnchorStatus::Xy),
             inner: 0,
             outer: 0,
         };
         gr.glyph = handle_from_index(j);
-        gr.x = vq_create_still(0_i32 as Pos);
-        gr.y = vq_create_still(0_i32 as Pos);
+        gr.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
+        gr.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
         gr.a = 1_i32 as Scale;
         gr.b = 0_i32 as Scale;
         gr.c = 0_i32 as Scale;

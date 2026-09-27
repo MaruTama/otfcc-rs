@@ -264,51 +264,54 @@ pub fn consolidate_glyph(
 // running out of budget only means "point not found" (mirrors the
 // existing cycle-detection return), never a wrong-but-silent answer.
 pub const MAX_COMPONENT_REFERENCE_DEPTH: u32 = 10;
-/// # Safety
-/// `table` must point to a live `GlyfTable`, and `gr`'s `glyph.index` (and
-/// every index reachable through its own and its references' nested
-/// `ComponentReference`s) must be a valid, populated index into it -- this
-/// walk indexes `table` and dereferences `gr`/`stated`/`x`/`y` with no
-/// bounds or null checks of its own. `gr`, `stated`, `x` and `y` must each
-/// be valid, non-null pointers to live values for the call's duration, and
-/// no other live reference into `*table` may exist concurrently: this
-/// function and `consolidate_anchor_ref` both re-derive fresh raw pointers
-/// into `table` on every recursive step rather than holding a safe
-/// reference across it.
-pub unsafe fn get_point_coordinates(
-    table: *mut GlyfTable,
-    gr: *mut ComponentReference,
+// Stage M-43 (see RUST_MIGRATION.md): both functions took raw pointers
+// because `is_anchored`/`x`/`y` -- the only three `ComponentReference`
+// fields either one ever mutates -- lived as plain fields, so mutating one
+// while the walk holds a *shared* view of the rest of `table` needed
+// `unsafe`. Those three fields are now `Cell<RefAnchorStatus>`/
+// `RefCell<VQ>`/`RefCell<VQ>` (see the doc comment on `ComponentReference`
+// itself in `table/glyf.rs`), which gives interior mutability through a
+// plain shared `&ComponentReference` -- so both functions now take
+// `table: &GlyfTable` and `gr`/`rr`: `&ComponentReference`, drop
+// `unsafe fn`, and are otherwise byte-for-byte the same walk: the read/
+// recurse/mutate order below is unchanged from the raw-pointer version
+// this replaced, field for field and branch for branch, since that order
+// (not just the final values) is what the existing cycle-detection
+// guards' own semantics depend on.
+pub fn get_point_coordinates(
+    table: &GlyfTable,
+    gr: &ComponentReference,
     n: ShapeId,
-    stated: *mut ShapeId,
-    x: *mut VQ,
-    y: *mut VQ,
+    stated: &mut ShapeId,
+    x: &mut VQ,
+    y: &mut VQ,
     options: &Options,
     depth: u32,
 ) -> bool {
     if depth >= MAX_COMPONENT_REFERENCE_DEPTH {
         return false;
     }
-    let j: GlyphId = (*gr).glyph.index;
-    let g: *mut Glyph = &raw mut **(&mut (*table))[j as usize].as_mut().unwrap();
+    let j: GlyphId = gr.glyph.index;
+    let g: &Glyph = table[j as usize].as_deref().unwrap();
     let mut c: ShapeId = 0 as ShapeId;
-    while (c as usize) < (*g).contours.len() {
+    while (c as usize) < g.contours.len() {
         let mut pj: ShapeId = 0 as ShapeId;
-        while (pj as usize) < (&(*g).contours)[c as usize].len() {
+        while (pj as usize) < g.contours[c as usize].len() {
             if *stated as i32 == n as i32 {
-                let p: *mut Point = &raw mut (&mut (*g).contours)[c as usize][pj as usize];
+                let p: &Point = &g.contours[c as usize][pj as usize];
                 *x = vq_point_linear_tfm(
-                    (*gr).x.clone(),
-                    (*gr).a as Pos,
-                    (*p).x.clone(),
-                    (*gr).b as Pos,
-                    (*p).y.clone(),
+                    gr.x.borrow().clone(),
+                    gr.a as Pos,
+                    p.x.clone(),
+                    gr.b as Pos,
+                    p.y.clone(),
                 );
                 *y = vq_point_linear_tfm(
-                    (*gr).y.clone(),
-                    (*gr).c as Pos,
-                    (*p).x.clone(),
-                    (*gr).d as Pos,
-                    (*p).y.clone(),
+                    gr.y.borrow().clone(),
+                    gr.c as Pos,
+                    p.x.clone(),
+                    gr.d as Pos,
+                    p.y.clone(),
                 );
                 return true;
             }
@@ -318,31 +321,31 @@ pub unsafe fn get_point_coordinates(
         c = c.wrapping_add(1);
     }
     let mut r: ShapeId = 0 as ShapeId;
-    while (r as usize) < (*g).references.len() {
-        let rr: *mut ComponentReference = &raw mut (&mut (*g).references)[r as usize];
+    while (r as usize) < g.references.len() {
+        let rr: &ComponentReference = &g.references[r as usize];
         consolidate_anchor_ref(table, gr, rr, options, depth + 1);
         let mut ref_0: ComponentReference = (glyf_component_reference_empty)();
-        ref_0.glyph = handle_from_index((&(*g).references)[r as usize].glyph.index) as GlyphHandle;
-        ref_0.a = (*gr).a * (*rr).a + (*rr).b * (*gr).c;
-        ref_0.b = (*rr).a * (*gr).b + (*rr).b * (*gr).d;
-        ref_0.c = (*gr).a * (*rr).c + (*gr).c * (*rr).d;
-        ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
-        ref_0.x = vq_point_linear_tfm(
-            (*rr).x.clone(),
-            (*rr).a as Pos,
-            (*gr).x.clone(),
-            (*rr).b as Pos,
-            (*gr).y.clone(),
-        );
-        ref_0.y = vq_point_linear_tfm(
-            (*rr).y.clone(),
-            (*rr).c as Pos,
-            (*gr).x.clone(),
-            (*rr).d as Pos,
-            (*gr).y.clone(),
-        );
+        ref_0.glyph = handle_from_index(g.references[r as usize].glyph.index) as GlyphHandle;
+        ref_0.a = gr.a * rr.a + rr.b * gr.c;
+        ref_0.b = rr.a * gr.b + rr.b * gr.d;
+        ref_0.c = gr.a * rr.c + gr.c * rr.d;
+        ref_0.d = gr.b * rr.c + rr.d * gr.d;
+        ref_0.x = std::cell::RefCell::new(vq_point_linear_tfm(
+            rr.x.borrow().clone(),
+            rr.a as Pos,
+            gr.x.borrow().clone(),
+            rr.b as Pos,
+            gr.y.borrow().clone(),
+        ));
+        ref_0.y = std::cell::RefCell::new(vq_point_linear_tfm(
+            rr.y.borrow().clone(),
+            rr.c as Pos,
+            gr.x.borrow().clone(),
+            rr.d as Pos,
+            gr.y.borrow().clone(),
+        ));
         let success: bool =
-            get_point_coordinates(table, &raw mut ref_0, n, stated, x, y, options, depth + 1);
+            get_point_coordinates(table, &ref_0, n, stated, x, y, options, depth + 1);
         // `ref_0` is a plain owned local; every field auto-drops when it
         // goes out of scope here (or at the `return true` below), so no
         // explicit dispose call is needed.
@@ -353,34 +356,39 @@ pub unsafe fn get_point_coordinates(
     }
     return false;
 }
-/// # Safety
-/// Same contract as [`get_point_coordinates`]: `table` must point to a
-/// live `GlyfTable`, and `gr`/`rr` must be valid, non-null pointers to
-/// live `ComponentReference`s whose `glyph.index` (and every index
-/// reachable through nested references) is a valid, populated index into
-/// `table`. This function mutates `(*rr).is_anchored` and dereferences
-/// `table`, `gr` and `rr` without bounds or null checks, and recurses into
-/// itself and `get_point_coordinates` using further raw pointers derived
-/// from the same `table`, so no other live reference into it may exist
-/// for the call's duration.
-pub unsafe fn consolidate_anchor_ref(
-    table: *mut GlyfTable,
-    gr: *mut ComponentReference,
-    rr: *mut ComponentReference,
+// See the doc comment on `get_point_coordinates` just above for why this
+// function no longer needs `unsafe fn` or raw pointers either.
+//
+// The one subtlety worth spelling out explicitly (see `RUST_MIGRATION.md`'s
+// Stage M-43 entry for the full trace): the two branches below re-read
+// `rr.is_anchored.get()` *after* both recursive `get_point_coordinates`
+// calls (`s1`/`s2`) have returned, exactly as the raw-pointer version
+// re-dereferenced `(*rr).is_anchored` fresh at that point rather than
+// reusing a value cached before the recursion -- because a re-entrant call
+// that reaches this exact `rr` again during `s1`/`s2` (a real, reachable
+// cycle) overwrites `is_anchored` to `Xy` before returning, and this
+// function's own final branch has to observe that overwrite the same way
+// the original single-address raw pointer did. Caching the pre-recursion
+// value in a local here would be a real behavior change, not just a
+// cosmetic one.
+pub fn consolidate_anchor_ref(
+    table: &GlyfTable,
+    gr: &ComponentReference,
+    rr: &ComponentReference,
     options: &Options,
     depth: u32,
 ) -> bool {
     if depth >= MAX_COMPONENT_REFERENCE_DEPTH {
-        (*rr).is_anchored = RefAnchorStatus::Xy;
+        rr.is_anchored.set(RefAnchorStatus::Xy);
         return false;
     }
-    if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidated
-        || (*rr).is_anchored == RefAnchorStatus::Xy
+    if rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidated
+        || rr.is_anchored.get() == RefAnchorStatus::Xy
     {
         return true;
     }
-    if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor
-        || (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingXy
+    if rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingAnchor
+        || rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingXy
     {
         logger_log_sds(
             &mut options.logger.borrow_mut(),
@@ -390,13 +398,13 @@ pub unsafe fn consolidate_anchor_ref(
                 b"Found circular reference of out-of-range point reference in anchored reference.",
             ),
         );
-        (*rr).is_anchored = RefAnchorStatus::Xy;
+        rr.is_anchored.set(RefAnchorStatus::Xy);
         return false;
     }
-    if (*rr).is_anchored == RefAnchorStatus::AnchorAnchor {
-        (*rr).is_anchored = RefAnchorStatus::AnchorConsolidatingAnchor;
+    if rr.is_anchored.get() == RefAnchorStatus::AnchorAnchor {
+        rr.is_anchored.set(RefAnchorStatus::AnchorConsolidatingAnchor);
     } else {
-        (*rr).is_anchored = RefAnchorStatus::AnchorConsolidatingXy;
+        rr.is_anchored.set(RefAnchorStatus::AnchorConsolidatingXy);
     }
     let mut inner_x: VQ = (vq_neutral)();
     let mut outer_x: VQ = (vq_neutral)();
@@ -405,24 +413,24 @@ pub unsafe fn consolidate_anchor_ref(
     let mut inner_counter: ShapeId = 0 as ShapeId;
     let mut outer_counter: ShapeId = 0 as ShapeId;
     let mut rr1: ComponentReference = (glyf_component_reference_empty)();
-    rr1.glyph = handle_from_index((*rr).glyph.index) as GlyphHandle;
+    rr1.glyph = handle_from_index(rr.glyph.index) as GlyphHandle;
     let s1: bool = get_point_coordinates(
         table,
         gr,
-        (*rr).outer,
-        &raw mut outer_counter,
-        &raw mut outer_x,
-        &raw mut outer_y,
+        rr.outer,
+        &mut outer_counter,
+        &mut outer_x,
+        &mut outer_y,
         options,
         depth + 1,
     );
     let s2: bool = get_point_coordinates(
         table,
-        &raw mut rr1,
-        (*rr).inner,
-        &raw mut inner_counter,
-        &raw mut inner_x,
-        &raw mut inner_y,
+        &rr1,
+        rr.inner,
+        &mut inner_counter,
+        &mut inner_x,
+        &mut inner_y,
         options,
         depth + 1,
     );
@@ -433,7 +441,7 @@ pub unsafe fn consolidate_anchor_ref(
             LoggerType::Warning,
             crate::bytesbuild!(
                 b"Failed to access point ",
-                (*rr).outer as i32,
+                rr.outer as i32,
                 b" in outer glyph.",
             ),
         );
@@ -445,40 +453,48 @@ pub unsafe fn consolidate_anchor_ref(
             LoggerType::Warning,
             crate::bytesbuild!(
                 b"Failed to access point ",
-                (*rr).outer as i32,
+                rr.outer as i32,
                 b" in reference to ",
-                &(*rr).glyph.name,
+                &rr.glyph.name,
                 b".",
             ),
         );
     }
     let rrx: VQ = vq_point_linear_tfm(
         outer_x.clone(),
-        -((*rr).a as Pos),
+        -(rr.a as Pos),
         inner_x.clone(),
-        -((*rr).b as Pos),
+        -(rr.b as Pos),
         inner_y.clone(),
     );
     let rry: VQ = vq_point_linear_tfm(
         outer_y.clone(),
-        -((*rr).c as Pos),
+        -(rr.c as Pos),
         inner_x.clone(),
-        -((*rr).d as Pos),
+        -(rr.d as Pos),
         inner_y.clone(),
     );
-    if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor {
-        (*rr).x = rrx;
-        (*rr).y = rry;
-        (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
+    if rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingAnchor {
+        rr.x.replace(rrx);
+        rr.y.replace(rry);
+        rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     } else {
-        if fabs(
-            vq_get_still((*rr).x.clone()) as ::core::ffi::c_double
-                - vq_get_still(rrx.clone()) as ::core::ffi::c_double,
-        ) > 0.5f64
-            && fabs(
-                vq_get_still((*rr).y.clone()) as ::core::ffi::c_double
-                    - vq_get_still(rry.clone()) as ::core::ffi::c_double,
-            ) > 0.5f64
+        // `fabs` is this crate's one remaining `unsafe extern "C"` import
+        // in this file (declared at the top), so only this one call needs
+        // the narrow block -- the same pattern `otf_writer/stat.rs` uses
+        // around its own `round` calls.
+        if unsafe {
+            fabs(
+                vq_get_still(rr.x.borrow().clone()) as ::core::ffi::c_double
+                    - vq_get_still(rrx.clone()) as ::core::ffi::c_double,
+            )
+        } > 0.5f64
+            && unsafe {
+                fabs(
+                    vq_get_still(rr.y.borrow().clone()) as ::core::ffi::c_double
+                        - vq_get_still(rry.clone()) as ::core::ffi::c_double,
+                )
+            } > 0.5f64
         {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),
@@ -486,12 +502,12 @@ pub unsafe fn consolidate_anchor_ref(
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"Anchored reference to ",
-                    &(*rr).glyph.name,
+                    &rr.glyph.name,
                     b" does not match its X/Y offset data.",
                 ),
             );
         }
-        (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
+        rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     }
     // `rr1`/`inner_x`/`inner_y`/`outer_x`/`outer_y` (and, in this branch,
     // `rrx`/`rry`) are all plain owned locals that were never moved out --
@@ -513,39 +529,32 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
             *slot = Some(otfcc_new_glyf_glyph());
         }
     }
-    // `consolidate_anchor_ref` is a genuinely unsafe recursive walk that
-    // can revisit *any* glyph in the table (not just the one being
-    // processed) while resolving anchor points -- bridged here as one
-    // narrow unsafe block operating on a single raw `*mut GlyfTable`
-    // derived once from `glyf`, the same raw-pointer shape
-    // `consolidate_anchor_ref`'s own signature still requires, rather
-    // than interleaving safe indexing with a freshly-rederived raw
-    // pointer each iteration (the exact Stacked Borrows hazard a past PR
-    // in this crate found and fixed elsewhere -- see
-    // `table/glyf/read.rs`'s `apply_polymorphism`).
-    unsafe {
-        let table: *mut GlyfTable = glyf;
-        let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as usize) < (*table).len() {
-            let g: *mut Glyph = &raw mut **(&mut (*table))[j_0 as usize].as_mut().unwrap();
-            logger_start_sds(
-                &mut options.logger.borrow_mut(),
-                crate::bytesbuild!(&(*g).name),
-            );
-            let mut gr: ComponentReference = (glyf_component_reference_empty)();
-            gr.glyph = handle_from_index(j_0) as GlyphHandle;
-            let mut r: ShapeId = 0 as ShapeId;
-            while (r as usize) < (*g).references.len() {
-                let rr: *mut ComponentReference = &raw mut (&mut (*g).references)[r as usize];
-                consolidate_anchor_ref(table, &raw mut gr, rr, options, 0);
-                r = r.wrapping_add(1);
-            }
-            // `gr` is a plain owned local; every field auto-drops when it
-            // goes out of scope at the end of this iteration, so no
-            // explicit dispose call is needed.
-            logger_finish(&mut options.logger.borrow_mut());
-            j_0 = j_0.wrapping_add(1);
+    // `consolidate_anchor_ref` recurses over the reference graph and can
+    // revisit *any* glyph in the table (not just the one being processed)
+    // while resolving anchor points -- but it mutates only
+    // `ComponentReference.is_anchored`/`x`/`y`, now `Cell`/`RefCell` (see
+    // that struct's own doc comment and `get_point_coordinates`'s/
+    // `consolidate_anchor_ref`'s in this file), so a single shared `&
+    // GlyfTable` reference for the whole walk below is all either function
+    // needs: no raw pointer, and no `unsafe`.
+    let table: &GlyfTable = glyf;
+    let mut j_0: GlyphId = 0 as GlyphId;
+    while (j_0 as usize) < table.len() {
+        let g: &Glyph = table[j_0 as usize].as_deref().unwrap();
+        logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(&g.name));
+        let mut gr: ComponentReference = (glyf_component_reference_empty)();
+        gr.glyph = handle_from_index(j_0) as GlyphHandle;
+        let mut r: ShapeId = 0 as ShapeId;
+        while (r as usize) < g.references.len() {
+            let rr: &ComponentReference = &g.references[r as usize];
+            consolidate_anchor_ref(table, &gr, rr, options, 0);
+            r = r.wrapping_add(1);
         }
+        // `gr` is a plain owned local; every field auto-drops when it
+        // goes out of scope at the end of this iteration, so no
+        // explicit dispose call is needed.
+        logger_finish(&mut options.logger.borrow_mut());
+        j_0 = j_0.wrapping_add(1);
     }
 }
 pub fn consolidate_cmap(font: &mut Font, options: &Options) {
@@ -1412,10 +1421,10 @@ mod composite_reference_cycle_tests {
 
     #[test]
     fn get_point_coordinates_stops_at_a_reference_cycle_instead_of_overflowing_the_stack() {
-        unsafe {
-            let mut table = cyclic_glyf_table();
+        {
+            let table = cyclic_glyf_table();
             let options = Options::default();
-            let mut gr = reference_to(0);
+            let gr = reference_to(0);
             let mut stated: ShapeId = 0;
             let mut x = vq_neutral();
             let mut y = vq_neutral();
@@ -1426,12 +1435,12 @@ mod composite_reference_cycle_tests {
             // rather than the test process crashing, is the regression
             // signal.
             let found = get_point_coordinates(
-                &raw mut table,
-                &raw mut gr,
+                &table,
+                &gr,
                 999,
-                &raw mut stated,
-                &raw mut x,
-                &raw mut y,
+                &mut stated,
+                &mut x,
+                &mut y,
                 &options,
                 0,
             );
@@ -1441,12 +1450,12 @@ mod composite_reference_cycle_tests {
 
     #[test]
     fn consolidate_anchor_ref_stops_at_a_reference_cycle_instead_of_overflowing_the_stack() {
-        unsafe {
-            let mut table = cyclic_glyf_table();
+        {
+            let table = cyclic_glyf_table();
             let options = Options::default();
-            let mut gr = reference_to(0);
+            let gr = reference_to(0);
             let mut rr = reference_to(1);
-            rr.is_anchored = RefAnchorStatus::AnchorAnchor;
+            rr.is_anchored.set(RefAnchorStatus::AnchorAnchor);
             rr.outer = 999;
             rr.inner = 999;
             // `consolidate_anchor_ref` always returns `false` at its own
@@ -1456,9 +1465,9 @@ mod composite_reference_cycle_tests {
             // point search inside it (via get_point_coordinates) still
             // has to walk the cycle up to the depth budget before giving
             // up, which is exactly the path that used to overflow.
-            let resolved = consolidate_anchor_ref(&raw mut table, &raw mut gr, &raw mut rr, &options, 0);
+            let resolved = consolidate_anchor_ref(&table, &gr, &rr, &options, 0);
             assert!(!resolved);
-            assert_eq!(rr.is_anchored, RefAnchorStatus::AnchorConsolidated);
+            assert_eq!(rr.is_anchored.get(), RefAnchorStatus::AnchorConsolidated);
         }
     }
 }

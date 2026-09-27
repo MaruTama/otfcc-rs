@@ -244,16 +244,16 @@ fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyp
         let mut ref_0: ComponentReference = (glyf_component_reference_empty)();
         ref_0.glyph = handle_from_index(index) as GlyphHandle;
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
-            ref_0.is_anchored = RefAnchorStatus::Xy;
+            ref_0.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                ref_0.x = vq_create_still(r.i16().ok()? as Pos);
-                ref_0.y = vq_create_still(r.i16().ok()? as Pos);
+                ref_0.x = std::cell::RefCell::new(vq_create_still(r.i16().ok()? as Pos));
+                ref_0.y = std::cell::RefCell::new(vq_create_still(r.i16().ok()? as Pos));
             } else {
-                ref_0.x = vq_create_still(r.i8().ok()? as Pos);
-                ref_0.y = vq_create_still(r.i8().ok()? as Pos);
+                ref_0.x = std::cell::RefCell::new(vq_create_still(r.i8().ok()? as Pos));
+                ref_0.y = std::cell::RefCell::new(vq_create_still(r.i8().ok()? as Pos));
             }
         } else {
-            ref_0.is_anchored = RefAnchorStatus::AnchorAnchor;
+            ref_0.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorAnchor);
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
                 ref_0.outer = r.u16().ok()? as ShapeId;
                 ref_0.inner = r.u16().ok()? as ShapeId;
@@ -602,8 +602,8 @@ fn apply_polymorphism(
         }
     }
     for rf in &glyph.references {
-        kernel_x.push(rf.x.kernel);
-        kernel_y.push(rf.y.kernel);
+        kernel_x.push(rf.x.borrow().kernel);
+        kernel_y.push(rf.y.borrow().kernel);
     }
 
     let nudges_x = apply_coords(
@@ -648,11 +648,11 @@ fn apply_polymorphism(
     for rf in glyph.references.iter_mut() {
         let dx = nudges_x[j].clone();
         if !(dx.unwrap_delta().quantity == 0. && dx.is_touched()) {
-            rf.x.shift.push(dx);
+            rf.x.get_mut().shift.push(dx);
         }
         let dy = nudges_y[j].clone();
         if !(dy.unwrap_delta().quantity == 0. && dy.is_touched()) {
-            rf.y.shift.push(dy);
+            rf.y.get_mut().shift.push(dy);
         }
         j += 1;
     }
@@ -1152,9 +1152,9 @@ mod glyf_read_tests {
             let g = g.unwrap();
             assert_eq!(g.references.len(), 1);
             assert_eq!(g.references[0].glyph.index, 5);
-            assert_eq!(still(&g.references[0].x), 10.0);
-            assert_eq!(still(&g.references[0].y), 20.0);
-            assert_eq!(g.references[0].is_anchored, RefAnchorStatus::Xy);
+            assert_eq!(still(&g.references[0].x.borrow()), 10.0);
+            assert_eq!(still(&g.references[0].y.borrow()), 20.0);
+            assert_eq!(g.references[0].is_anchored.get(), RefAnchorStatus::Xy);
         }
     }
 
@@ -1488,8 +1488,8 @@ mod gvar_polymorphize_tests {
         // index 1, per the same contours-then-references order the
         // original `CoordRef`-building loop used).
         let mut reference = glyf_component_reference_empty();
-        reference.x = vq_create_still(0.0);
-        reference.y = vq_create_still(0.0);
+        reference.x = std::cell::RefCell::new(vq_create_still(0.0));
+        reference.y = std::cell::RefCell::new(vq_create_still(0.0));
         glyph.references.push(reference);
 
         let r: Rc<VqRegion> = Rc::from(vq_create_region(1));
@@ -1505,9 +1505,9 @@ mod gvar_polymorphize_tests {
         assert_eq!(p0.y.shift[0].unwrap_delta().quantity, 50.0);
 
         let c0 = &glyph.references[0];
-        assert_eq!(c0.x.shift.len(), 1);
-        assert_eq!(c0.x.shift[0].unwrap_delta().quantity, 100.0);
-        assert_eq!(c0.y.shift.len(), 1);
-        assert_eq!(c0.y.shift[0].unwrap_delta().quantity, 200.0);
+        assert_eq!(c0.x.borrow().shift.len(), 1);
+        assert_eq!(c0.x.borrow().shift[0].unwrap_delta().quantity, 100.0);
+        assert_eq!(c0.y.borrow().shift.len(), 1);
+        assert_eq!(c0.y.borrow().shift[0].unwrap_delta().quantity, 200.0);
     }
 }

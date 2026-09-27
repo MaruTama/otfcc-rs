@@ -63,10 +63,33 @@ pub enum RefAnchorStatus {
     AnchorConsolidatingAnchor = 4,
     AnchorConsolidatingXy = 5,
 }
+// `is_anchored`/`x`/`y` are the three fields `consolidate.rs`'s
+// `get_point_coordinates`/`consolidate_anchor_ref` mutate while walking a
+// *shared* `&GlyfTable` (see that file's own doc comment on the pair for
+// why the walk itself can never hold `&mut` access to the table it
+// recurses over: the reference graph it walks can revisit the same
+// `ComponentReference` twice on different call paths, which is exactly
+// what those two functions' cycle-detection guards exist to catch, not
+// prevent). `is_anchored` is `Copy`, so `Cell` costs nothing beyond a
+// `.get()`/`.set()` pair at each site and can never panic. `x`/`y` are
+// `VQ`, not `Copy` (a `Vec`-backed `shift` list), so they need `RefCell`
+// instead -- sound here specifically because every read or write of a
+// given `ComponentReference`'s `x`/`y` in `consolidate.rs` happens as a
+// single, non-recursive statement: `consolidate_anchor_ref` only touches
+// its own `rr.x`/`rr.y` *after* both of its recursive
+// `get_point_coordinates` calls have already returned (never while one is
+// in flight), and any re-entrant call that reaches the very same
+// `ComponentReference` while its resolution is already in progress is
+// turned away by the `is_anchored` state-machine guard *before* it ever
+// reaches the `x`/`y`-touching code -- so no borrow of a given
+// `ComponentReference`'s `x`/`y` is ever still outstanding when a nested
+// call could try to borrow that same one again. See `consolidate.rs`'s
+// own doc comments on `get_point_coordinates`/`consolidate_anchor_ref` for
+// the full trace this reasoning is based on.
 #[derive(Clone, Debug)]
 pub struct ComponentReference {
-    pub x: VQ,
-    pub y: VQ,
+    pub x: std::cell::RefCell<VQ>,
+    pub y: std::cell::RefCell<VQ>,
     pub round_to_grid: bool,
     pub use_my_metrics: bool,
     pub glyph: GlyphHandle,
@@ -74,7 +97,7 @@ pub struct ComponentReference {
     pub b: Scale,
     pub c: Scale,
     pub d: Scale,
-    pub is_anchored: RefAnchorStatus,
+    pub is_anchored: std::cell::Cell<RefAnchorStatus>,
     pub inner: ShapeId,
     pub outer: ShapeId,
 }
@@ -236,13 +259,13 @@ fn glyf_contour_fill(arr: &mut Contour, n: usize) {
 #[inline]
 fn init_glyf_reference(ref_0: &mut ComponentReference) {
     ref_0.glyph = otfcc_handle_empty() as GlyphHandle;
-    ref_0.x = vq_create_still(0_i32 as Pos);
-    ref_0.y = vq_create_still(0_i32 as Pos);
+    ref_0.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
+    ref_0.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
     ref_0.a = 1_i32 as Scale;
     ref_0.b = 0_i32 as Scale;
     ref_0.c = 0_i32 as Scale;
     ref_0.d = 1_i32 as Scale;
-    ref_0.is_anchored = RefAnchorStatus::Xy;
+    ref_0.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
     ref_0.outer = 0 as ShapeId;
     ref_0.inner = ref_0.outer;
     ref_0.round_to_grid = false;
@@ -251,14 +274,14 @@ fn init_glyf_reference(ref_0: &mut ComponentReference) {
 #[inline]
 pub fn glyf_component_reference_empty() -> ComponentReference {
     let mut x: ComponentReference = ComponentReference {
-        x: VQ {
+        x: std::cell::RefCell::new(VQ {
             kernel: 0.,
             shift: Vec::new(),
-        },
-        y: VQ {
+        }),
+        y: std::cell::RefCell::new(VQ {
             kernel: 0.,
             shift: Vec::new(),
-        },
+        }),
         round_to_grid: false,
         use_my_metrics: false,
         glyph: Handle {
@@ -270,7 +293,7 @@ pub fn glyf_component_reference_empty() -> ComponentReference {
         b: 0.,
         c: 0.,
         d: 0.,
-        is_anchored: RefAnchorStatus::Xy,
+        is_anchored: std::cell::Cell::new(RefAnchorStatus::Xy),
         inner: 0,
         outer: 0,
     };
@@ -373,13 +396,13 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
         ref_0.push_field(b"glyph", BuiltValue::str_truncated_at_nul(&r.glyph.name));
         // See the comment on the `json_new_vq` calls in
         // `glyf_glyph_dump_contours` above.
-        ref_0.push_field(b"x", json_new_vq(r.x.clone(), ctx.fvar.as_deref()));
-        ref_0.push_field(b"y", json_new_vq(r.y.clone(), ctx.fvar.as_deref()));
+        ref_0.push_field(b"x", json_new_vq(r.x.borrow().clone(), ctx.fvar.as_deref()));
+        ref_0.push_field(b"y", json_new_vq(r.y.borrow().clone(), ctx.fvar.as_deref()));
         ref_0.push_field(b"a", BuiltValue::position(r.a as Pos));
         ref_0.push_field(b"b", BuiltValue::position(r.b as Pos));
         ref_0.push_field(b"c", BuiltValue::position(r.c as Pos));
         ref_0.push_field(b"d", BuiltValue::position(r.d as Pos));
-        if r.is_anchored != RefAnchorStatus::Xy {
+        if r.is_anchored.get() != RefAnchorStatus::Xy {
             ref_0.push_field(b"isAnchored", BuiltValue::Bool(true));
             ref_0.push_field(b"inner", BuiltValue::Int(r.inner as i64));
             ref_0.push_field(b"outer", BuiltValue::Int(r.outer as i64));
@@ -571,8 +594,8 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     let mut ref_0: ComponentReference = glyf_component_reference_empty();
     let Some(_gname) = refdump.get_typed(b"glyph", JsonType::String) else {
         ref_0.glyph.name = Vec::new();
-        ref_0.x = vq_create_still(0_i32 as Pos);
-        ref_0.y = vq_create_still(0_i32 as Pos);
+        ref_0.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
+        ref_0.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
         ref_0.a = 1.0f64 as Scale;
         ref_0.b = 0.0f64 as Scale;
         ref_0.c = 0.0f64 as Scale;
@@ -582,8 +605,8 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
         return ref_0;
     };
     ref_0.glyph = handle_from_name(_gname.as_str_bytes().map(|b| b.to_vec()));
-    ref_0.x = json_vq_of(refdump.get(b"x"));
-    ref_0.y = json_vq_of(refdump.get(b"y"));
+    ref_0.x = std::cell::RefCell::new(json_vq_of(refdump.get(b"x")));
+    ref_0.y = std::cell::RefCell::new(json_vq_of(refdump.get(b"y")));
     ref_0.a = refdump.get_num_or(b"a", 1.0f64) as Scale;
     ref_0.b = refdump.get_num_or(b"b", 0.0f64) as Scale;
     ref_0.c = refdump.get_num_or(b"c", 0.0f64) as Scale;
@@ -591,7 +614,7 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     ref_0.round_to_grid = refdump.get_bool(b"roundToGrid");
     ref_0.use_my_metrics = refdump.get_bool(b"useMyMetrics");
     if refdump.get_bool(b"isAnchored") {
-        ref_0.is_anchored = RefAnchorStatus::AnchorXy;
+        ref_0.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorXy);
         ref_0.inner = refdump.get_int(b"inner") as ShapeId;
         ref_0.outer = refdump.get_int(b"outer") as ShapeId;
     }
