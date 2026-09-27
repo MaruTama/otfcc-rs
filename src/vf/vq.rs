@@ -197,8 +197,7 @@ fn simplify_vq(x: &mut VQ) {
     let shift: &mut Vec<VqSegment> = &mut x.shift;
     shift.sort_by(|a, b| vqs_compare(a, b).cmp(&0_i32));
     let mut k: usize = 0_usize;
-    let mut j: usize = 1_usize;
-    while j < shift.len() {
+    for j in 1..shift.len() {
         if vqs_compatible(&shift[k], &shift[j]) {
             let other = shift[j].clone();
             match &mut shift[k] {
@@ -218,14 +217,12 @@ fn simplify_vq(x: &mut VQ) {
             shift[k] = shift[j].clone();
             k = k.wrapping_add(1);
         }
-        j = j.wrapping_add(1);
     }
     shift.truncate(k.wrapping_add(1_usize));
 }
 pub(crate) fn vq_inplace_plus(a: &mut VQ, b: VQ) {
     a.kernel += b.kernel;
-    let mut p: usize = 0_usize;
-    while p < b.shift.len() {
+    for p in 0..b.shift.len() {
         let k: VqSegment = b.shift[p].clone();
         if let VqSegment::Still(still) = k {
             a.kernel += still;
@@ -234,16 +231,13 @@ pub(crate) fn vq_inplace_plus(a: &mut VQ, b: VQ) {
             vq_segment_copy(&mut s, &k);
             a.shift.push(s);
         }
-        p = p.wrapping_add(1);
     }
     simplify_vq(a);
 }
 fn vq_inplace_scale(a: &mut VQ, b: Pos) {
     a.kernel *= b;
     let shift: &mut Vec<VqSegment> = &mut a.shift;
-    let mut j: usize = 0_usize;
-    while j < shift.len() {
-        let s: &mut VqSegment = &mut shift[j];
+    for s in shift.iter_mut() {
         match s {
             VqSegment::Still(sv) => {
                 *sv *= b;
@@ -252,7 +246,6 @@ fn vq_inplace_scale(a: &mut VQ, b: Pos) {
                 sd.quantity *= b;
             }
         }
-        j = j.wrapping_add(1);
     }
 }
 fn vq_inplace_negate(a: &mut VQ) {
@@ -303,12 +296,10 @@ pub(crate) fn vq_compare(a: VQ, b: VQ) -> i32 {
 }
 pub(crate) fn vq_get_still(v: VQ) -> Pos {
     let mut result: Pos = v.kernel;
-    let mut j: usize = 0_usize;
-    while j < v.shift.len() {
+    for j in 0..v.shift.len() {
         if let VqSegment::Still(still) = &v.shift[j] {
             result += *still;
         }
-        j = j.wrapping_add(1);
     }
     return result;
 }

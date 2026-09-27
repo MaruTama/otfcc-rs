@@ -31,36 +31,35 @@ pub fn consolidate_gsub_single(
     // `PositionValue`.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
-    let mut k: usize = 0_usize;
-    while k < subtable.len() {
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut subtable[k].from) {
+    for entry in subtable.iter_mut() {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.from) {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"[Consolidate] Ignored missing glyph /",
-                    &subtable[k].from.name,
+                    &entry.from.name,
                     b".\n",
                 ),
             );
-        } else if !otfcc_gord_consolidate_handle(glyph_order, &mut subtable[k].to) {
+        } else if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.to) {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"[Consolidate] Ignored missing glyph /",
-                    &subtable[k].to.name,
+                    &entry.to.name,
                     b".\n",
                 ),
             );
         } else {
-            let fromid: i32 = subtable[k].from.index as i32;
+            let fromid: i32 = entry.from.index as i32;
             if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
-                let toid: i32 = subtable[k].to.index as i32;
-                let fromname: Vec<u8> = subtable[k].from.name.clone();
-                let toname: Vec<u8> = subtable[k].to.name.clone();
+                let toid: i32 = entry.to.index as i32;
+                let fromname: Vec<u8> = entry.from.name.clone();
+                let toname: Vec<u8> = entry.to.name.clone();
                 e.insert((fromname, toid, toname));
             } else {
                 logger_log_sds(
@@ -69,13 +68,12 @@ pub fn consolidate_gsub_single(
                     LoggerType::Warning,
                     crate::bytesbuild!(
                         b"[Consolidate] Double-mapping a glyph in a single substitution /",
-                        &subtable[k].from.name,
+                        &entry.from.name,
                         b".\n",
                     ),
                 );
             }
         }
-        k = k.wrapping_add(1);
     }
     if seen.len() != subtable.len() {
         logger_log_sds(

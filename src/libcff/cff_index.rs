@@ -193,8 +193,7 @@ pub(crate) fn new_index_by_callback(
     let mut data: Vec<u8> = Vec::new();
     let mut used: usize = 0_usize;
     let mut blank: usize = 0_usize;
-    let mut i: Arity = 0 as Arity;
-    while i < length {
+    for i in 0..length {
         let blob: Buffer = items.next().expect("iterator shorter than length");
         let blob_size: usize = blob.data.len();
         if blank < blob_size {
@@ -209,7 +208,6 @@ pub(crate) fn new_index_by_callback(
         offset[i.wrapping_add(1 as Arity) as usize] =
             blob_size.wrapping_add(offset[i as usize] as usize) as u32;
         data[write_at..write_at.wrapping_add(blob_size)].copy_from_slice(&blob.data);
-        i = i.wrapping_add(1);
     }
     data.truncate(used);
     CffIndex {
@@ -244,8 +242,7 @@ pub(crate) fn build_index(index: &CffIndex) -> Buffer {
     blob.write_u8(index.count.wrapping_rem(256 as Arity) as u8);
     blob.write_u8(off_size);
     if index.count > 0 as Arity {
-        let mut i: Arity = 0 as Arity;
-        while i <= index.count {
+        for i in 0..=index.count {
             let offset_i: u32 = offset[i as usize];
             match off_size as i32 {
                 1 => {
@@ -268,7 +265,6 @@ pub(crate) fn build_index(index: &CffIndex) -> Buffer {
                 }
                 _ => {}
             }
-            i = i.wrapping_add(1);
         }
         if !index.data.is_empty() {
             let n = (offset[index.count as usize]).wrapping_sub(1_u32) as usize;

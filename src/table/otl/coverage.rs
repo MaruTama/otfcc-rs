@@ -306,8 +306,7 @@ pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
     if dosort {
         coverage.sort_by_key(|h| h.index);
         let mut skip: usize = 0;
-        let mut rear: usize = 1;
-        while rear < coverage.len() {
+        for rear in 1..coverage.len() {
             if coverage[rear].index == coverage[rear - skip - 1].index {
                 coverage[rear] = Handle::default();
                 skip += 1;
@@ -315,7 +314,6 @@ pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
                 let elem = coverage[rear].clone();
                 coverage[rear - skip] = elem;
             }
-            rear += 1;
         }
         let new_len = coverage.len() - skip;
         coverage.truncate(new_len);

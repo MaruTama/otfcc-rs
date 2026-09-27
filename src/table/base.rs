@@ -461,9 +461,8 @@ fn str2tag(tags: Option<&[u8]>) -> u32 {
         tag = tag << 8_i32 | b as u32;
         len = len.wrapping_add(1);
     }
-    while (len as i32) < 4_i32 {
+    for _ in len..4_u8 {
         tag = tag << 8_i32 | ' ' as i32 as u32;
-        len = len.wrapping_add(1);
     }
     tag
 }

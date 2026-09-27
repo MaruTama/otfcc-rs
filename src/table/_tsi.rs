@@ -289,13 +289,12 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, type_0: TsiEntr
         index_part.write_u32be(length_sofar as u32);
         items_pushed = (items_pushed as i32 + 1_i32) as GlyphId;
     }
-    while (items_pushed as i32) < min_n as i32 {
+    for _ in items_pushed..min_n {
         let text_pos = target.text_part.as_ref().unwrap().pos();
         let index_part = target.index_part.as_mut().unwrap();
         index_part.write_u16be(propergid(None, type_0) as u16);
         index_part.write_u16be(0_u16);
         index_part.write_u32be(text_pos as u32);
-        items_pushed = (items_pushed as i32 + 1_i32) as GlyphId;
     }
 }
 #[allow(improper_ctypes_definitions)]

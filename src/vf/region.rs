@@ -87,10 +87,10 @@ fn weight_axis_region(as_0: &VqAxisSpan, x: Pos) -> Pos {
 pub fn vq_region_get_weight(r: &VqRegion, v: &VV) -> Pos {
     let coords: &Vec<Pos> = v;
     let mut w: Pos = 1_i32 as Pos;
-    let mut j: usize = 0_usize;
-    while j < r.dimensions as usize && !coords.is_empty() {
-        w *= weight_axis_region(&r.spans[j], coords[j]);
-        j = j.wrapping_add(1);
+    if !coords.is_empty() {
+        for (span, &coord) in r.spans.iter().zip(coords.iter()).take(r.dimensions as usize) {
+            w *= weight_axis_region(span, coord);
+        }
     }
     return w;
 }

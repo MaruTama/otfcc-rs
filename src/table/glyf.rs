@@ -217,7 +217,7 @@ fn glyf_point_copy(dst: &mut Point, src: &Point) {
 /// the by-value [`glyf_point_dup`] instead, not this one.)
 #[inline]
 fn glyf_contour_fill(arr: &mut Contour, n: usize) {
-    while arr.len() < n {
+    for _ in arr.len()..n {
         let mut x: Point = Point {
             x: VQ {
                 kernel: 0.,

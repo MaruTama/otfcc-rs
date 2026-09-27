@@ -81,10 +81,8 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> ClassDef {
             let start = r.u16().unwrap();
             let end = r.u16().unwrap();
             let cls = r.u16().unwrap();
-            let mut k = start as i32;
-            while k <= end as i32 {
+            for k in start as i32..=end as i32 {
                 h.entry(k as GlyphId).or_insert(cls as GlyphClass);
-                k += 1;
             }
         }
         let mut entries: Vec<(GlyphId, GlyphClass)> = h.into_iter().collect();

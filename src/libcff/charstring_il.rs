@@ -145,8 +145,7 @@ fn _il_push_maskgroup(
         il_push_op(il, op);
         let mut mask_byte: u8 = 0_u8;
         let mut bits: u8 = 0_u8;
-        let mut j: u16 = 0_u16;
-        while (j as i32) < nh as i32 {
+        for j in 0..nh {
             mask_byte = ((mask_byte as i32) << 1_i32
                 | masks[*jm as usize].mask_h[j as usize] as i32 & 1_i32)
                 as u8;
@@ -155,10 +154,8 @@ fn _il_push_maskgroup(
                 il_push_special(il, mask_byte as i32);
                 bits = 0_u8;
             }
-            j = j.wrapping_add(1);
         }
-        let mut j_0: u16 = 0_u16;
-        while (j_0 as i32) < nv as i32 {
+        for j_0 in 0..nv {
             mask_byte = ((mask_byte as i32) << 1_i32
                 | masks[*jm as usize].mask_v[j_0 as usize] as i32 & 1_i32)
                 as u8;
@@ -167,7 +164,6 @@ fn _il_push_maskgroup(
                 il_push_special(il, mask_byte as i32);
                 bits = 0_u8;
             }
-            j_0 = j_0.wrapping_add(1);
         }
         if bits != 0 {
             mask_byte = ((mask_byte as i32) << (8_i32 - bits as i32)) as u8;
@@ -231,8 +227,7 @@ fn _il_push_stemgroup(
     } else {
         0_i32
     }) as u16;
-    let mut j: u16 = 0_u16;
-    while (j as usize) < stems.len() {
+    for j in 0..stems.len() as u16 {
         il_push_operand(
             il,
             stems[j as usize].position as ::core::ffi::c_double - ref_0 as ::core::ffi::c_double,
@@ -250,7 +245,6 @@ fn _il_push_stemgroup(
             il.instr[last_idx].arity = nn as Arity;
             nn = 0_u16;
         }
-        j = j.wrapping_add(1);
     }
     if hasmask {
         il_push_op(il, ophm);
@@ -280,31 +274,25 @@ pub fn cff_compile_glyph_to_il(
     let mut temp_contours: Vec<Contour> = Vec::with_capacity(g.contours.len());
     let mut x: VQ = (vq_neutral)();
     let mut y: VQ = (vq_neutral)();
-    let mut c: u16 = 0_u16;
-    while (c as usize) < g.contours.len() {
+    for c in 0..g.contours.len() as u16 {
         let contour: &Contour = &g.contours[c as usize];
         let mut newcontour: Contour = Vec::new();
-        let mut j: ShapeId = 0 as ShapeId;
-        while (j as usize) < contour.len() {
+        for j in 0..contour.len() as ShapeId {
             newcontour.push(glyf_point_dup(contour[j as usize].clone()));
-            j = j.wrapping_add(1);
         }
         if newcontour.len() > 2_usize && newcontour[newcontour.len() - 1].on_curve == 0 {
             let first = newcontour[0_usize].clone();
             newcontour.push(glyf_point_dup(first));
         }
-        let mut j_0: ShapeId = 0 as ShapeId;
-        while (j_0 as usize) < newcontour.len() {
+        for j_0 in 0..newcontour.len() as ShapeId {
             let dx: VQ = vq_minus(newcontour[j_0 as usize].x.clone(), x.clone());
             let dy: VQ = vq_minus(newcontour[j_0 as usize].y.clone(), y.clone());
             x = newcontour[j_0 as usize].x.clone();
             y = newcontour[j_0 as usize].y.clone();
             newcontour[j_0 as usize].x = dx;
             newcontour[j_0 as usize].y = dy;
-            j_0 = j_0.wrapping_add(1);
         }
         temp_contours.push(newcontour);
-        c = c.wrapping_add(1);
     }
     // `x`/`y` are plain owned locals, never moved out, so they auto-drop
     // when this function returns -- no explicit dispose call is needed.
@@ -343,8 +331,7 @@ pub fn cff_compile_glyph_to_il(
             &mut jm,
         );
     }
-    let mut c_0: ShapeId = 0 as ShapeId;
-    while (c_0 as usize) < g.contours.len() {
+    for c_0 in 0..g.contours.len() as ShapeId {
         let contour_0: &Contour = &temp_contours[c_0 as usize];
         let n: ShapeId = contour_0.len() as ShapeId;
         if !(n as i32 == 0_i32) {
@@ -411,7 +398,6 @@ pub fn cff_compile_glyph_to_il(
             contours_sofar = (contours_sofar as i32 + 1_i32) as ShapeId;
             points_sofar = 0 as ShapeId;
         }
-        c_0 = c_0.wrapping_add(1);
     }
     il_push_op(&mut il, OP_ENDCHAR);
     // `temp_contours` is a plain owned `Vec<Contour>` now -- it drops
@@ -423,12 +409,10 @@ fn il_matchtype(il: &CffCharstringIl, j: u32, k: u32, t: CffInstructionType) -> 
     if k >= il.instr.len() as u32 {
         return false;
     }
-    let mut m: u32 = j;
-    while m < k {
+    for m in j..k {
         if il.instr[m as usize].type_0 as ::core::ffi::c_uint != t as ::core::ffi::c_uint {
             return false;
         }
-        m = m.wrapping_add(1);
     }
     return true;
 }
@@ -481,8 +465,7 @@ fn zroll(
             arity as usize,
             "zroll: flag count must match the operator's arity"
         );
-        let mut m: u32 = 0_u32;
-        while m < arity as u32 {
+        for m in 0..arity as u32 {
             let checkzero: bool = zeros[m as usize];
             mask[m as usize] = checkzero;
             if checkzero {
@@ -491,16 +474,13 @@ fn zroll(
                     && il.instr[j.wrapping_add(m) as usize].d() == 0_i32 as ::core::ffi::c_double)
                     as i32 as u8;
             }
-            m = m.wrapping_add(1);
         }
         if check != 0 {
-            let mut m_0: u32 = 0_u32;
-            while m_0 < arity as u32 {
+            for m_0 in 0..arity as u32 {
                 if mask[m_0 as usize] {
                     il.instr[j.wrapping_add(m_0) as usize].type_0 =
                         CffInstructionType::PhantomOperand;
                 }
-                m_0 = m_0.wrapping_add(1);
             }
             let end_idx = j.wrapping_add(arity as u32) as usize;
             il.instr[end_idx].set_i(op2.0);
