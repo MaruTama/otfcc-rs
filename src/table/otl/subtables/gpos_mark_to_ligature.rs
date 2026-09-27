@@ -17,7 +17,7 @@ use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
     bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array, otl_read_anchor,
-    otl_read_mark_array,
+    otl_read_mark_array, try_spend_mark_attach_anchor_budget,
 };
 use crate::table::otl::{
     Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
@@ -115,6 +115,22 @@ pub fn otl_read_gpos_mark_to_ligature(
             };
             if ar.require_room(total_anchors, 2).is_err() {
                 break 'parse;
+            }
+            // See `try_spend_mark_attach_anchor_budget`'s own doc comment
+            // (`gpos_common.rs`): each ligAttachOffset is read via its own
+            // fresh reader, so `require_room` above only ever bounds THIS
+            // entry's cost against the buffer -- it can't see that an
+            // earlier entry already claimed (and, for a crafted font
+            // aliasing the same bytes, already fully accounted for) the
+            // same allowance. This table-wide budget is what actually
+            // stops `lig_count` separate entries each maxing out that
+            // per-entry allowance from multiplying into an unbounded
+            // total. Exhausting it stops processing further lig_attach
+            // entries (not just this one) -- there's no reason to expect
+            // a later entry to fare any better, and the entries already
+            // built stay valid.
+            if !try_spend_mark_attach_anchor_budget(total_anchors) {
+                break;
             }
             let mut lig = LigatureBaseRecord {
                 glyph: bases[j].clone(),
@@ -360,6 +376,9 @@ pub fn otfcc_build_gpos_mark_to_ligature(
 #[cfg(test)]
 mod otl_read_gpos_mark_to_ligature_tests {
     use super::*;
+    use crate::table::otl::subtables::gpos_common::{
+        MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE, reset_mark_attach_anchor_budget,
+    };
 
     // format(2)@0, marksOffset(2)@2 -> 12, ligatureOffset(2)@4 -> 18,
     // classCount(2)@6, markArrayOffset(2)@8 -> 24, ligatureArrayOffset(2)
@@ -425,5 +444,114 @@ mod otl_read_gpos_mark_to_ligature_tests {
         data[30..32].copy_from_slice(&u16::MAX.to_be_bytes()); // componentCount
         let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
         assert!(result.is_none());
+    }
+
+    // Builds a table with `n` ligatureCoverage entries (a single format-2
+    // Coverage range, so the coverage table itself stays a few bytes
+    // regardless of `n`) whose `n` ligAttachOffsets ALL alias one shared
+    // LigatureAttach blob (`componentCount` components, one class each).
+    // See `try_spend_mark_attach_anchor_budget`'s doc comment
+    // (`gpos_common.rs`) for why this specific shape -- every entry's own
+    // `require_room` check is individually satisfied against the same
+    // small blob, so nothing but the table-wide budget bounds the total.
+    fn mark_to_ligature_aliased_data(n: u16, component_count: u16) -> Vec<u8> {
+        let mut d = vec![0u8; 12];
+        d[2..4].copy_from_slice(&12u16.to_be_bytes()); // marks coverage @12
+        d[4..6].copy_from_slice(&18u16.to_be_bytes()); // bases coverage @18
+        d[6..8].copy_from_slice(&1u16.to_be_bytes()); // classCount = 1
+        d[8..10].copy_from_slice(&28u16.to_be_bytes()); // mark array @28
+        d[10..12].copy_from_slice(&30u16.to_be_bytes()); // lig array @30
+
+        // marks coverage @12: format 1, 1 glyph.
+        d.extend_from_slice(&1u16.to_be_bytes());
+        d.extend_from_slice(&1u16.to_be_bytes());
+        d.extend_from_slice(&0u16.to_be_bytes());
+
+        // bases coverage @18: format 2, one range covering gids 0..n-1.
+        d.extend_from_slice(&2u16.to_be_bytes());
+        d.extend_from_slice(&1u16.to_be_bytes()); // rangeCount
+        d.extend_from_slice(&0u16.to_be_bytes()); // start
+        d.extend_from_slice(&(n - 1).to_be_bytes()); // end
+        d.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
+
+        // mark array @28: markCount = 0.
+        d.extend_from_slice(&0u16.to_be_bytes());
+
+        // lig array @30: ligCount = n, then n identical ligAttachOffsets
+        // pointing at one shared blob right after this header.
+        let lig_array_offset: u32 = 30;
+        d.extend_from_slice(&n.to_be_bytes());
+        let blob_offset = d.len() as u32 + 2 * n as u32;
+        let blob_rel = (blob_offset - lig_array_offset) as u16;
+        for _ in 0..n {
+            d.extend_from_slice(&blob_rel.to_be_bytes());
+        }
+
+        // Shared LigatureAttach blob: componentCount, then that many
+        // absent (0) anchorOffset entries.
+        d.extend_from_slice(&component_count.to_be_bytes());
+        for _ in 0..component_count {
+            d.extend_from_slice(&0u16.to_be_bytes());
+        }
+        d
+    }
+
+    #[test]
+    // This test has to actually materialize close to the real
+    // `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE` (2,000,000) anchors for
+    // it to mean anything -- proving the cap is enforced at its real
+    // production value, not a shrunk stand-in, the same reasoning `otl/
+    // read.rs`'s `total_language_count_across_the_whole_table_is_capped`
+    // gives for its own `#[cfg_attr(miri, ignore)]`. Under a normal
+    // `cargo test` this completes in well under a second; under Miri's
+    // interpreter, 2,000,000 individual small `Vec` allocations does not.
+    #[cfg_attr(
+        miri,
+        ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~2,000,000 individual Vec<Anchor> allocations to exceed MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE"
+    )]
+    fn aliased_lig_attach_offsets_are_capped_by_table_wide_anchor_budget() {
+        // Regression test for the OOM this crate's `otf_dump` fuzz target
+        // hit intermittently in CI (see `fuzz/README.md`'s "Known
+        // findings"): a crafted font whose LigatureArray has many
+        // ligCount entries, every one of them pointing its ligAttachOffset
+        // at the SAME small LigatureAttach blob. Each individual entry's
+        // own `require_room` check passes (it only ever sees the shared
+        // blob's own small size), so before this fix nothing stopped
+        // 60,000 such entries from each independently allocating a fresh
+        // `componentCount`-sized `Vec<Vec<Anchor>>` -- confirmed via a
+        // standalone harness driving this exact function directly: a
+        // 137,104-byte crafted table (n=65,535, componentCount=3,000) was
+        // OOM-killed after exhausting 15GB of RAM. This table is smaller
+        // (chosen so `n * component_count` clears `MAX_TOTAL_MARK_ATTACH_
+        // ANCHORS_PER_TABLE`'s 2,000,000-anchor ceiling by a comfortable
+        // margin, exercising the same aliasing shape without the test
+        // itself needing anywhere near that much memory) and must
+        // terminate as a merely-truncated result, not a hang or a
+        // multi-hundred-MB allocation.
+        reset_mark_attach_anchor_budget();
+        let n: u16 = 200;
+        let component_count: u16 = 20_000; // n * component_count = 4,000,000
+        let data = mark_to_ligature_aliased_data(n, component_count);
+        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
+        let Some(Subtable::GposMarkToLigature(ref subtable)) = result else {
+            unreachable!()
+        };
+        // Every entry built (however many the budget allowed) is still a
+        // real, fully-formed record -- the budget stops further entries
+        // from being built at all, it never truncates one mid-flight.
+        assert!(!subtable.lig_array.is_empty());
+        assert!((subtable.lig_array.len() as u32) < n as u32);
+        for lig in &subtable.lig_array {
+            assert_eq!(lig.component_count, component_count);
+            assert_eq!(lig.anchors.len(), component_count as usize);
+        }
+        // Total anchors actually materialized never exceeds the budget.
+        let total_anchors: u64 = subtable
+            .lig_array
+            .iter()
+            .map(|lig| lig.anchors.len() as u64)
+            .sum();
+        assert!(total_anchors <= MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE as u64);
+        reset_mark_attach_anchor_budget();
     }
 }
