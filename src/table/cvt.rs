@@ -50,14 +50,12 @@ pub fn otfcc_dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, options: 
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"cvt"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut arr = BuiltValue::new_array(table.words.len());
         for &w in &table.words {
             arr.push_item(BuiltValue::Int(w as i64));
         }
         root.push_field(tag, arr);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }

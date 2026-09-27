@@ -268,8 +268,7 @@ pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue, options:
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"BASE"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut _base = BuiltValue::new_object(2);
         if let Some(horizontal) = base.horizontal.as_deref() {
             _base.push_field(b"horizontal", axis_to_json(horizontal));
@@ -278,7 +277,6 @@ pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue, options:
             _base.push_field(b"vertical", axis_to_json(vertical));
         }
         root.push_field(b"BASE", _base);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }
@@ -332,15 +330,13 @@ pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<Bas
             &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"BASE"),
         );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
+        {
             let horizontal = axis_from_json(table.get_typed(b"horizontal", JsonType::Object));
             let vertical = axis_from_json(table.get_typed(b"vertical", JsonType::Object));
             base = Some(Box::new(BaseTable {
                 horizontal,
                 vertical,
             }));
-            ___loggedstep_v = false;
             logger_finish(&mut options.logger.borrow_mut());
         }
     }
@@ -465,9 +461,8 @@ fn str2tag(tags: Option<&[u8]>) -> u32 {
         tag = tag << 8_i32 | b as u32;
         len = len.wrapping_add(1);
     }
-    while (len as i32) < 4_i32 {
+    for _ in len..4_u8 {
         tag = tag << 8_i32 | ' ' as i32 as u32;
-        len = len.wrapping_add(1);
     }
     tag
 }

@@ -17,26 +17,18 @@ pub fn otfcc_build_meta(meta: Option<&MetaTable>) -> Option<Buffer> {
         bk_int(BkCellType::B32, 0_u32),
         bk_int(BkCellType::B32, entries.len() as u32),
     ]);
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < entries.len() {
-        let e: &MetaEntry = &entries[__caryll_index];
-        while keep != 0 {
-            bk_push(
-                &mut root,
-                vec![
-                    bk_int(BkCellType::B32, e.tag),
-                    bk_ptr(
-                        BkCellType::P32,
-                        Some(bk_new_block_from_bytes(&e.data)),
-                    ),
-                    bk_int(BkCellType::B32, (e.data.len()) as u32),
-                ],
-            );
-            keep = (keep == 0) as i32 as usize;
-        }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
+    for e in entries.iter() {
+        bk_push(
+            &mut root,
+            vec![
+                bk_int(BkCellType::B32, e.tag),
+                bk_ptr(
+                    BkCellType::P32,
+                    Some(bk_new_block_from_bytes(&e.data)),
+                ),
+                bk_int(BkCellType::B32, (e.data.len()) as u32),
+            ],
+        );
     }
     Some(bk_build_block(root))
 }

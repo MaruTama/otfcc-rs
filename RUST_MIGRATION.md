@@ -18432,3 +18432,952 @@ counter suggests," not more.
     future stage in this sequence's own verification list should include
     `cargo +nightly-2026-08-17 miri test --lib` (or the relevant module
     filter) as a standing requirement, not an optional extra.
+
+- **Stage M-35: `clippy::explicit_auto_deref`'s raw-pointer-idiom subset
+  fixed for `otf_writer.rs`, `json_writer.rs`, and `font/caryll_font.rs`
+  (103 sites); the CFF interpreter and a small tail deliberately left for
+  later stages.** The first of three planned stages (M-35 through M-37,
+  see "Stage 7-5 plan" -- not yet merged to `master` as of this stage, read
+  from `origin/claude/amazing-bell-wb1fyf-23`) that together clear the
+  remaining 475-site `explicit_auto_deref` allow-list entry: the raw-pointer
+  half of the exact same c2rust idiom (`(*ptr).field` / `(*ptr).method(...)`)
+  whose `RefCell`/`RefMut` reborrow half was already fixed separately
+  (above). This stage covers the plan's own lowest-risk grouping -- the
+  top-level dump/build orchestration code, not the CFF charstring
+  interpreter its own fuzz history flags for extra care (deferred to M-37).
+  - **Scope re-verified, not trusted from the plan's count.** Stripped
+    `Cargo.toml`'s `[lints.clippy]` table entirely and relaxed
+    `[lints.rust] warnings` to `"warn"` (reverted immediately after each
+    measurement, same as every prior stage using this technique), then
+    `cargo clippy --all-targets --message-format=json`, deduped by
+    file+line: **475** sites crate-wide (matching the plan's own re-measure
+    exactly), of which **103** fall in the three target files -- `otf_writer.rs`
+    43, `json_writer.rs` 31, `font/caryll_font.rs` 29 -- also matching the
+    plan's own count one-for-one.
+  - **Applied via `cargo clippy --fix --all-targets --allow-dirty -- -A
+    clippy::all -W clippy::explicit_auto_deref`** (same scoped-lint
+    technique as the `RefCell`/`RefMut` fix and `len_zero`/`needless_return`
+    before it), with the allow-list entry removed and `warnings` relaxed so
+    `--fix` didn't stop at the first target. This produced fixes crate-wide
+    (`libcff/cff_parser.rs`, `ffi/dll.rs`, and the M-36 tail files all got
+    touched too, since `--fix` isn't scopable to a file subset on its own);
+    every file outside the three in scope for this stage was reverted with
+    `git checkout --` immediately after, untouched otherwise.
+  - **Per-hunk review, not a sample.** All 103 hunks read by hand across
+    the three files: every single one is the exact same one-line
+    transformation, `(*font).field` -> `font.field` or `(*font).method(...)`
+    -> `font.method(...)`, on `font: &mut Font` (all three files) -- no
+    hunk stores a reborrow in a `let` binding for later reuse, none touches
+    a `Copy`-vs-move distinction (every site is a field read/write or an
+    inline method call, never a value moved out through the deref), and
+    none changes evaluation order (multi-deref lines like
+    `json_writer.rs`'s `if let (Some(head), Some(maxp)) = ((*font).head...,
+    (*font).maxp...)` keep the same two-argument tuple, same left-to-right
+    evaluation, just without the redundant `*`). Zero semantic change in
+    every hunk, confirmed individually rather than assumed from the shape.
+  - **`Cargo.toml`'s entry corrected, not removed**: this stage alone
+    covers 103 of the 475 sites, so `explicit_auto_deref` stays in the
+    allow-list (M-36's 13-site tail and M-37's 359-site CFF interpreter
+    remain). Re-measured after the fix landed, with the same strip-and-
+    relax technique: **372** sites crate-wide (475 - 103, matching the
+    hunk count exactly) and 0 remaining in the three target files. The
+    count comment moved from the stale "476" to "372", with a note on
+    which stage fixed which subset, matching this entry's own and the
+    `RefCell`/`RefMut` entry's established convention.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean (with the corrected count),
+    `cargo test -- --test-threads=1` (425 passed, 1 pre-existing
+    timing-threshold flake on record since M-10 --
+    `otl_feature_ref_amplification_font_parses_promptly` -- unrelated; its
+    sibling flake `otl_coverage_and_consolidate_log_amplification_font_
+    dumps_promptly` did not trigger this run but is the same known class).
+    `cargo test --test golden --test abi --test dll_abi --test log_output
+    --test cycles -- --test-threads=1`: all 9 tests across the 5 files
+    passing byte-for-byte -- the most important check for this stage,
+    since `otf_writer.rs`/`json_writer.rs` sit directly in the dump/build
+    entry points every golden fixture exercises. `(cd fuzz && cargo
+    check)` clean. `survey-unsafe.sh`: no movement at all (165/30/4/22/19/
+    226 for raw pointer types/unsafe blocks/unsafe fn/`.offset(`/
+    `is_null()`/while loops, all unchanged from baseline) -- expected,
+    since `font: &mut Font` in all three files was never a raw pointer to
+    begin with, and this script doesn't track `explicit_auto_deref` at
+    all, only clippy does.
+
+- **Stage M-36: `clippy::explicit_auto_deref`'s raw-pointer-idiom subset
+  fixed for the 13-site tail -- `bin/otfccbuild.rs`, `table/glyf/read.rs`,
+  `ffi/dll.rs`, `table/svg.rs`, `bin/otfccdump.rs` -- leaving only the CFF
+  interpreter (M-37) in the allow-list.** The second of three planned
+  stages (M-35 through M-37, see "Stage 7-5 plan" -- not yet merged to
+  `master` as of this stage, read from
+  `origin/claude/amazing-bell-wb1fyf-23`) that together clear the
+  `explicit_auto_deref` allow-list entry. Branched directly off M-35's own
+  branch (`claude/amazing-bell-wb1fyf-24`, PR #503, not yet merged), since
+  the two stages touch the same lint machinery and this keeps history
+  clean rather than rebasing later.
+  - **Scope re-verified, not trusted from the plan's own count.** Stripped
+    `Cargo.toml`'s `[lints.clippy]` table entirely and relaxed
+    `[lints.rust] warnings` to `"warn"` (reverted immediately after each
+    measurement, same technique as M-35 and every prior stage using it),
+    then `cargo clippy --all-targets --message-format=json`, deduped by
+    file+line: **372** sites crate-wide (475 - M-35's 103, exactly as
+    M-35's own log entry predicted), of which **359** are
+    `libcff/cff_parser.rs` (M-37's own scope, untouched here) and the
+    remaining **13** are the tail the plan named -- `bin/otfccbuild.rs` 4,
+    `table/glyf/read.rs` 3, `ffi/dll.rs` 2, `table/svg.rs` 2,
+    `bin/otfccdump.rs` 2 -- matching the plan's file list and per-file
+    counts exactly, no drift.
+  - **Applied via the same scoped-lint technique as M-35**: `cargo clippy
+    --fix --all-targets --allow-dirty -- -A clippy::all -W
+    clippy::explicit_auto_deref`, with the allow-list entry removed and
+    `warnings` relaxed so `--fix` didn't stop at the first target. This
+    fixed the same 13 tail sites plus all 359 `libcff/cff_parser.rs` sites
+    (`--fix` isn't scopable to a file subset); `git checkout --
+    src/libcff/cff_parser.rs` reverted that file immediately after,
+    leaving it untouched for M-37 as instructed, with only the 5 tail
+    files left staged.
+  - **Per-hunk review, not a sample.** All 13 hunks read by hand across
+    the 5 files: every one is the same one-line transformation M-35
+    already established, just on different variables -- `&*options` ->
+    `&options` / `&mut *options` -> `&mut options` (`options: Box<Options>`,
+    8 sites: `bin/otfccbuild.rs` (4, one of them the `&mut` form),
+    `bin/otfccdump.rs` (2), `ffi/dll.rs` (2)), `(*g).field` -> `g.field`
+    (`g: Box<Glyph>`, 3 sites in `table/glyf/read.rs`), and `(*a).field`
+    -> `a.field` (`a: &SvgAssignment`, 2 sites in `table/svg.rs`). Every
+    site is a field read/write or an inline call argument, never a value
+    moved out through the deref, and no hunk changes evaluation order or
+    introduces a new `let` binding. Zero semantic change in every hunk,
+    confirmed individually.
+  - **`ffi/dll.rs`'s two sites, the ABI-boundary file this plan flagged by
+    name**: both are inside `otfccbuild_json_otf`'s body (`&*options` ->
+    `&options` twice, passed to `otfcc_consolidate_font`/`serialize_to_otf`)
+    -- internal-only deref simplifications, no change to the function's
+    own `pub unsafe extern "C" fn` signature, parameter types, return type,
+    or safety contract. `tests/abi.rs` and `tests/dll_abi.rs` re-run
+    explicitly (not just as part of the full suite) to confirm the
+    exported ABI surface and the built `otfccdll` output are unchanged --
+    both pass byte-for-byte, see verification below.
+  - **`Cargo.toml`'s entry corrected, not removed**: this stage covers 13
+    more of the 475 sites (116 of 475 total across M-35+M-36), so
+    `explicit_auto_deref` stays in the allow-list -- only M-37's
+    359-site `libcff/cff_parser.rs` remains. Re-measured after the fix
+    landed, with the same strip-and-relax technique: **359** sites
+    crate-wide, all in `libcff/cff_parser.rs`, 0 remaining anywhere else.
+    The count comment moved from "372" to "359", with a note on which
+    stage fixed which subset, matching M-35's own and the
+    `RefCell`/`RefMut` entry's established convention.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean (with the corrected count).
+    `cargo test -- --test-threads=1`: 426 passed, 0 failed this run (the
+    pre-existing sandbox-CPU-timing flakes on record since M-10 did not
+    trigger). `cargo test --test golden --test abi --test dll_abi --test
+    log_output --test cycles -- --test-threads=1`: all 9 tests across the
+    5 files passing byte-for-byte, `abi.rs`/`dll_abi.rs` included --
+    the specific check this stage's `ffi/dll.rs` sites called for.
+    `(cd fuzz && cargo check)` clean. `survey-unsafe.sh`: no movement at
+    all (165/30/4/22/19/226 for raw pointer types/unsafe blocks/unsafe
+    fn/`.offset(`/`is_null()`/while loops, all unchanged from the M-35
+    baseline) -- expected, since none of this stage's 13 sites were on a
+    raw-pointer-typed variable (`Box<Options>`/`Box<Glyph>`/
+    `&SvgAssignment`, all already-owned/borrowed types), and this script
+    doesn't track `explicit_auto_deref` at all, only clippy does.
+
+- **Stage M-37: `clippy::explicit_auto_deref` fixed for `libcff/
+  cff_parser.rs`'s 359 sites -- the CFF Type 2 CharString interpreter --
+  closing out the lint entirely; the allow-list entry removed from
+  `Cargo.toml`.** The third and last of three planned stages (M-35 through
+  M-37) that together clear the `explicit_auto_deref` allow-list entry.
+  Branched directly off M-36's own branch (`claude/amazing-bell-wb1fyf-25`,
+  PR #504, stacked on #503, neither merged yet), since all three stages
+  touch the same lint machinery. Flagged by the plan (and by M-36's own
+  log entry) as the highest-risk of the three, given this exact file's own
+  fuzz-found bug history -- the unguarded `callsubr`/`callgsubr` recursion
+  and the four unchecked-subtraction operand-count operators fixed
+  earlier (see "Next steps" above) -- so this stage got a full hand review
+  of every hunk plus a dedicated fuzz-run pass, not just the standard
+  build/clippy/test suite the lower-risk M-35/M-36 stages relied on.
+  - **Scope re-verified, not trusted from the plan's or M-36's own count.**
+    Stripped `Cargo.toml`'s `[lints.clippy]` table entirely and relaxed
+    `[lints.rust] warnings` to `"warn"` (reverted immediately after each
+    measurement, same technique as M-35/M-36), then `cargo clippy
+    --all-targets --message-format=json`, deduped by file+line: **359**
+    sites, all in `libcff/cff_parser.rs`, exactly matching M-36's own
+    prediction with zero drift.
+  - **Read the live code first, not just the diff shape.** Before
+    applying any fix, read `cff_parse_outline` (the file's one interpreter
+    function, ~2,600 of the file's 3,160 lines) start to finish, plus its
+    three small helpers. Every one of the 359 sites turned out to be the
+    same single variable, `stack: &mut CffStack` (the operand-stack/hint-
+    count state `cff_parse_outline` threads through its own recursive
+    calls) -- `(*stack).field` / `(*stack).method(...)` / indexing through
+    `(&mut (*stack).stack)[..]`, never a raw pointer despite the c2rust-era
+    parenthesized-deref look; grepping every other `(*ident)` occurrence in
+    the file found only two (`(*total_calls)`, both `*total_calls =
+    (*total_calls).wrapping_add(1)`) and neither is an `explicit_auto_deref`
+    site (`u32::wrapping_add` takes `self` by value, so clippy doesn't
+    flag it the way it flags a method call that resolves through
+    autoderef) -- left untouched, exactly as `cargo clippy --fix` itself
+    left them.
+  - **Applied via the same scoped-lint technique as M-35/M-36**: `cargo
+    clippy --fix --all-targets --allow-dirty -- -A clippy::all -W
+    clippy::explicit_auto_deref`, with the allow-list entry removed and
+    `warnings` relaxed so `--fix` didn't stop at the first target. This
+    time the fix landed in exactly one file (`git status` showed only
+    `libcff/cff_parser.rs` touched) -- M-35 and M-36 between them had
+    already cleared every other site in the crate, so there was no other
+    file to `git checkout --` away afterward.
+  - **Per-hunk review of all 359 sites, not a sample, verified
+    programmatically as well as by eye.** Read every hunk by hand across
+    the file (including each of the four operand-count-checked operators'
+    -- `rcurveline`/`rlinecurve`/`vhcurveto`/`hvcurveto` -- bodies, the
+    `callsubr`/`callgsubr` recursion sites, and the three operand-stack
+    push sites guarded by a capacity check) to confirm each is the plain
+    `(*stack).x` -> `stack.x` shape with the guard/check logic itself
+    completely unchanged either side of the diff. Then confirmed this
+    mechanically for all 359 in one pass: for every removed line in the
+    diff, substituting `stack` for every `(*stack)` (and doing nothing
+    else) reproduced the corresponding added line exactly, character for
+    character, with zero mismatches -- catching, for free, anything a
+    manual skim might miss (a changed operator, a dropped parenthesis, a
+    reordered argument). No hunk stores a reborrow in a `let` binding for
+    later reuse, none changes which value a `match`/`if let` binds, none
+    touches the recursion-depth (`depth > MAX_SUBR_CALL_DEPTH`) or
+    total-call-budget (`*total_calls > MAX_TOTAL_SUBR_CALLS`) guards
+    (neither reads through `stack` at all), and none touches the operand-
+    stack bounds checks (`(stack.index as usize) < stack.stack.len()`, all
+    three push sites) or the four curve operators' own `stack.index < N`
+    minimum-operand-count guards -- every one of those conditions is
+    read/compared identically before and after, only the redundant `*`
+    removed from around `stack`. Zero semantic change in every hunk,
+    confirmed individually and cross-checked mechanically.
+  - **`Cargo.toml`'s entry removed entirely, not just corrected**: this is
+    the last of the three stages, so with all 359 sites fixed here (on top
+    of M-35's 103 and M-36's 13, 475 total), `explicit_auto_deref` has
+    nothing left to allow. Re-measured after the fix landed, with the same
+    strip-and-relax technique: **0** sites crate-wide. The allow-list line
+    itself removed from `Cargo.toml` (replaced with a short comment
+    recording that all three stages landed and the lint needs no allow
+    any more), rather than corrected to "0" -- matching this migration's
+    own convention of deleting a fully-cleared entry (e.g. `len_zero`)
+    instead of leaving a zero-count line behind.
+  - **Verification, deliberately heavier than M-35/M-36 given this file's
+    own history**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean (entry removed, confirms no
+    `explicit_auto_deref` warning anywhere in the crate any more). `cargo
+    test -- --test-threads=1`: 426 passed, 0 failed this run (the
+    pre-existing sandbox-CPU-timing flakes on record since M-10 did not
+    trigger). `cargo test --test golden --test abi --test dll_abi --test
+    log_output --test cycles -- --test-threads=1`: all 9 tests across the
+    5 files passing byte-for-byte, including `krname_cff_subroutinize_o2_
+    matches_golden` (the `KRName-Regular` CFF golden fixture this
+    migration's own history flags as the relevant CFF payload check).
+    `(cd fuzz && cargo check)` clean. `survey-unsafe.sh`: no movement at
+    all (165/30/4/22/19/226 for raw pointer types/unsafe blocks/unsafe
+    fn/`.offset(`/`is_null()`/while loops, unchanged from the M-36
+    baseline) -- expected, since `stack: &mut CffStack` was never a raw
+    pointer to begin with. Given this stage's flagged risk level, both
+    required fuzz targets were run for a real time budget rather than
+    `-runs=0`: `cargo +nightly-2026-08-17 fuzz run otf_parse --
+    -max_total_time=180` (10,353,239 executions in 181s, 0 crashes/
+    timeouts/OOMs) and `cargo +nightly-2026-08-17 fuzz run otf_dump --
+    -max_total_time=180` (1,419,358 executions in 181s, 0 crashes/
+    timeouts/OOMs, one recorded slow-unit artifact at ~26s -- the same
+    pre-existing slow-input class M-35's own fuzz history already has on
+    record, not a new one). All 21 `tests/fuzz-corpus/known-issues/*.bin`
+    files (22 with the directory's own listing file) re-run directly
+    against the rebuilt binaries -- `cargo +nightly-2026-08-17 fuzz run
+    otf_parse tests/fuzz-corpus/known-issues/ -- -runs=0` and the matching
+    `otf_dump` invocation, both 0 crashes -- confirming none of this
+    migration's own previously-fixed CFF (and non-CFF) findings regressed.
+  - **Nothing left alone.** Every one of the 359 sites is the same
+    mechanical `stack: &mut CffStack` shape; none needed hand-fixing or
+    was skipped for requiring judgment. This closes out `clippy::
+    explicit_auto_deref` entirely: M-35 (103 sites) + M-36 (13 sites) +
+    M-37 (359 sites) = 475, matching the very first fresh measurement this
+    three-stage plan started from.
+- **Stage M-38: deleted all 32 `___loggedstep_v*` run-once macro-emulation
+  wrappers, unwrapping each into a plain scoped block.** The first of five
+  planned stages (M-38 through M-42, see "Stage 7-5 plan" -- not yet merged
+  to `master` as of this stage, read from
+  `origin/claude/amazing-bell-wb1fyf-23`) that together clean up c2rust's
+  mechanical `while`-loop translation shape, and the safest of the five:
+  this bucket is c2rust's translation of this crate's C-side `LOGGED_STEP`
+  -style macro (`logger_start_sds(...); { body }; logger_finish(...)`) as
+  `let mut ___loggedstep_v: bool = true; while ___loggedstep_v { body;
+  ___loggedstep_v = false; logger_finish(...); }` -- a `while` that always
+  runs its body exactly once and was never really a loop at all.
+  - **Scope re-verified, not trusted from the plan's own count.**
+    `grep -rn "___loggedstep_v" src/` found **32** sites across 12 files --
+    one more than the plan's own estimate of 31, all in the "one or two
+    each" tail files it named but didn't total precisely:
+    `bin/otfccbuild.rs` 8, `bin/otfccdump.rs` 7, `table/otl/dump.rs` 4,
+    `consolidate.rs` 3, `table/base.rs` 2, `table/svg.rs` 2, and one each in
+    `table/cvt.rs`, `table/cpal.rs`, `table/_tsi.rs`, `table/otl/build.rs`,
+    `table/otl/parse.rs`, `table/name.rs`. Every one of the 32 read in full
+    (not sampled) before touching it, independently confirming the plan's
+    own "zero `break`" claim rather than trusting it: the bool is declared
+    `true`, never reassigned to `true` anywhere in its body, reassigned to
+    `false` exactly once as the body's own last statement (before
+    `logger_finish`), and no site contains a `break` or `continue` --
+    several bodies (`bin/otfccdump.rs`'s and `bin/otfccbuild.rs`'s in
+    particular) do contain an early `return EXIT_FAILURE;`/`return
+    EXIT_FAILURE;`-shaped exit, correctly flagged and confirmed harmless
+    per the task's own reasoning: a `return` inside a `while` that always
+    runs once behaves identically inside a bare block. All 32 matched the
+    shape exactly; none was left unconverted.
+  - **The fix**: deleted each `let mut ___loggedstep_v_N: bool = true;`
+    declaration, replaced its paired `while ___loggedstep_v_N {` with a
+    bare `{`, and deleted the paired `___loggedstep_v_N = false;` line
+    inside the body -- applied programmatically across all 32 sites (the
+    substitution is identical everywhere, so scripting it and then
+    reviewing the diff by hand is less error-prone than 32 manual edits),
+    then every resulting hunk read by hand to confirm each is exactly this
+    one substitution and nothing else.
+  - **Braces kept, not removed.** `cargo clippy --all-targets -- -D
+    warnings` raised no `unused_braces`/redundant-block complaint against
+    any of the 32 plain blocks after the fix, so per the task's own
+    instruction to follow clippy's own call, every block kept its braces
+    rather than being inlined further -- several genuinely need the scope
+    for their own local `let` bindings, and clippy raised nothing asking
+    for the rest to be flattened either.
+  - **One real fix beyond the substitution itself, `table/otl/
+    build.rs::otfcc_build_otl`.** Unwrapping its `while` turned `let mut
+    buf: Option<Buffer> = None;` (initialized before the loop, assigned
+    once inside it, read after) into a genuinely dead initial assignment
+    once the loop's conditional-execution shape was gone -- `cargo build
+    --lib` caught this immediately as `error: value assigned to \`buf\` is
+    never read` (`-D unused-assignments`), not a silent behavior change.
+    Fixed by declaring `let buf: Option<Buffer>;` with no initial value and
+    letting the block's own unconditional `buf = Some(...)` be its one and
+    only assignment -- the same value ends up in `buf` either way, just
+    without carrying a `None` no code path can still observe. No other of
+    the 32 sites hit this same shape (grepped for the same "declared before,
+    assigned once inside, read after" pattern in the other 31 bodies;
+    every other case either has no separate pre-declared local at all, or
+    the local is read for the first time only after the block).
+  - **A stale comment, also fixed.** `bin/otfccdump.rs`'s own comment on
+    `root: Option<BuiltValue>` referred to "the goto-emulating `while
+    ___loggedstep_v` block below" by name; reworded to "the plain block
+    below" now that the wrapper it named is gone. (`table/otl/parse.rs`'s
+    own comment mentioning `___loggedstep_v` was left alone -- it already
+    reads "No longer a `___loggedstep_v`/`current_block`-flagged `loop`",
+    describing history, not the current wrapper.)
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean. `cargo test --
+    --test-threads=1`: 426 passed, 0 failed (the pre-existing
+    sandbox-CPU-timing flakes on record since M-10 did not trigger this
+    run). `cargo test --test golden --test abi --test dll_abi --test
+    log_output --test cycles -- --test-threads=1`: all 9 tests across the 5
+    files passing byte-for-byte -- expected, since this is pure
+    control-flow simplification with identical runtime behavior, and
+    confirmed rather than assumed. `(cd fuzz && cargo check)` clean.
+    `survey-unsafe.sh`'s `while loops` counter: 226 -> **193**, a drop of
+    33 rather than the 32 sites actually converted -- the extra one is the
+    stale-comment fix above, whose old wording contained the literal text
+    "while ___loggedstep_v" and so counted toward this script's own
+    text-based `\bwhile ` counter (the same class of drift this script's
+    header already flags, and the same thing M-29's own log entry hit in
+    the other direction). Every other counter (`unsafe fn`/`unsafe
+    blocks`/raw pointer types/`.offset(`/`is_null()`) unchanged at
+    4/30/165/22/19, exactly as expected for a stage that touches no
+    `unsafe` code and no pointer.
+
+- **Stage M-39: 38 plain monotonic index-count `while` loops converted to
+  `for`, the first of Bucket 2's two tranches.** Branched from M-38's own
+  branch (`claude/amazing-bell-wb1fyf-27`, not yet merged to `master` as of
+  this stage). Re-confirmed the baseline before touching anything:
+  `survey-unsafe.sh`'s `while loops` counter read **193**, matching M-38's
+  own recorded post-conversion count exactly.
+  - **Scope.** The Stage 7-5 plan's own estimate for Bucket 2 was "an
+    estimated 120-140 of the remaining 195 sites," split into two tranches
+    (M-39/M-40) purely for reviewable diff size, not by any difference in
+    risk between the two. Rather than stop at the plan's four named
+    candidate files (`table/cff.rs`, `libcff/charstring_il.rs`'s
+    non-`(*ptr)`-based sites, `table/otl/subtables/gsub_multi.rs`,
+    `table/base.rs`), every one of the 155 remaining `while` sites crate-
+    wide was read in full (not sampled) to sort the real population into
+    "plain fixed-bound count, safe to convert" versus everything else --
+    the same "don't trust a stale bucket count, re-verify every site"
+    discipline M-38 used. `table/otl/subtables/gsub_multi.rs` turned out
+    to have a `break` in both its sites (subtable-splitting budget logic)
+    and was left alone rather than force-converted; `table/base.rs`'s one
+    real site converted cleanly.
+  - **38 sites converted, across 16 files:**
+    - `table/cff.rs` (2): the two `fd_array`-indexing loops in
+      `otfcc_read_cff_and_glyf_tables`'s FD-extraction phase and
+      `writecff_cid_keyed`'s private-DICT offset-patching loop, both
+      `j: TableId` over `fd_array`'s own length -- following the
+      `for j in 0..n.len() as GlyphId`-style idiom this crate already uses
+      at a dozen other sites (`table/otl/subtables/gsub_multi.rs`,
+      `otf_writer/stat.rs`, `consolidate.rs`, `otf_reader/
+      unconsolidate.rs`) rather than treating the narrower loop-variable
+      type as a reason to leave these alone.
+    - `libcff/charstring_il.rs` (10): `_il_push_maskgroup`'s two mask-byte
+      loops (`nh`/`nv`, fixed bit-count bounds); `_il_push_stemgroup`'s
+      stem-list loop; `cff_compile_glyph_to_il`'s first contour-copy pass
+      (the outer `c` loop over `g.contours`, its inner point-duplication
+      `j` loop, and the following delta-computation `j_0` loop over the
+      just-built `newcontour`) and its second pass's outer `c_0` loop over
+      `g.contours` (its own inner `j_1` loop was left alone -- see below);
+      `il_matchtype`'s `m` loop (`j..k`, not `0..k` -- a non-zero start,
+      still a plain fixed range); `zroll`'s two `m`/`m_0` loops over a
+      fixed `arity`.
+    - `libcff/subr.rs` (1): `cff_insert_il_to_graph`'s `j` loop over
+      `il.instr`.
+    - `libcff/cff_index.rs` (2): `new_index_by_callback`'s `i` loop over
+      `length`; `build_index`'s `i` loop, `0..=index.count` (inclusive).
+    - `vf/vq.rs` (4): `simplify_vq`'s `j` loop (elements mutated in place,
+      never pushed/popped, so `shift.len()` is fixed for the loop's whole
+      duration); `vq_inplace_plus`'s `p` loop over `b.shift` (a different
+      `Vec` than the one `a.shift.push` grows); `vq_inplace_scale`'s loop
+      (further simplified to `shift.iter_mut()` per clippy's
+      `needless_range_loop`, since nothing else needed the index);
+      `vq_get_still`'s `j` loop over `v.shift`.
+    - `vf/region.rs` (1): `vq_region_get_weight`'s `j` loop -- the
+      original's `while j < r.dimensions as usize && !coords.is_empty()`
+      compound condition has a second half that never depends on `j` and
+      never changes during the loop (`coords`/`v` is a plain shared
+      borrow, never mutated), so it is equivalent to guarding the whole
+      loop with one `if !coords.is_empty()` outside a plain `for` --
+      restructured that way, then further adjusted to a `zip().take()`
+      iterator per clippy's `needless_range_loop`.
+    - `font/caryll_sfnt.rs` (4): `otfcc_read_packets`'s outer `count` loop
+      over `font.count`, its per-packet table-directory `i` loop over
+      `packet.num_tables`, and its per-packet table-data `i_0` loop over
+      `packet.pieces.len()` (a length fixed by the table-directory loop
+      that already ran); `otfcc_read_sfnt_body`'s per-TTC-offset `i` loop.
+      Every early `return false` inside these (a truncated/malformed file)
+      is a function return, not a loop-scoped `break` -- identical whether
+      the enclosing construct is a `while` or a `for`, the same reasoning
+      M-38 already established for `return` inside its wrappers.
+    - `consolidate/otl/gsub_single.rs` (1): `consolidate_gsub_single`'s `k`
+      loop over `subtable`, converted and then rewritten to
+      `subtable.iter_mut()` per clippy's `needless_range_loop` (every use
+      of the index was `subtable[k]`, nothing else).
+    - `table/base.rs` (1) and `table/meta/parse.rs` (1): both files' own
+      copy of the identical `str2tag` helper's tail loop (`while len < 4 {
+      pad with a space; len += 1 }`, after an initial `for` already copied
+      up to 4 real tag bytes) -- converted to `for _ in len..4_u8`, a
+      count-up from a non-zero, non-constant start (whatever `len` the
+      first loop left it at) to a fixed constant, still a plain range.
+    - `table/otl/coverage.rs` (1): the post-sort dedup `rear` loop
+      (`push_to_coverage`'s compaction helper) -- `coverage`'s length is
+      fixed for the loop's duration (elements overwritten in place;
+      `.truncate()` only happens after the loop), `rear` starts at a fixed
+      `1`, no `break`/`continue`.
+    - `table/otl/classdef.rs` (1): the format-2 `ClassDef` range-expansion
+      `k` loop (`start..=end`, both fixed per-range bounds read once
+      before the loop starts) -- unlike `table/otl/coverage.rs`'s sibling
+      format-1 loop just above it in the same file, this one has no
+      budget guard and no `break`, so it converts cleanly; the coverage
+      file's own budget-guarded loop was left alone (see below).
+    - `table/glyf.rs` (1): `glyf_contour_fill`'s grow-to-`n` loop --
+      rewritten as `for _ in arr.len()..n { arr.push(...) }`, using the
+      `Vec`'s own starting length as the range's start instead of a
+      separate counter, since the loop's only job is "push until we reach
+      length `n`" and the body never reads the index.
+    - `table/_tsi.rs` (1): `push_tsi_entries`'s "pad up to `min_n` entries"
+      tail loop -- same "count up from wherever the previous loop left
+      the counter, to a fixed bound" shape as the `str2tag` sites above.
+    - `table/glyf/read.rs` (2): `read_packed_point_numbers`'s
+      point-index-fill loop (exactly one `push` per iteration, up to a
+      fixed `n_points`, rewritten as `for _ in 0..n_points`) and
+      `read_packed_delta`'s `filled` loop (fixed `n_points`, the loop
+      variable itself reused directly as the `for` binding since the body
+      already indexed by it). Both live in this file's packed-number
+      decoders, not in `otfcc_parse_glyf`'s own raw-pointer-heavy body the
+      Stage 7-4 plan flagged separately -- confirmed no raw-pointer
+      involvement before touching either.
+    - `table/cmap.rs` (5): `otfcc_build_cmap_format4`'s sequential
+      glyph-id-array fill loop (`last_gid_start..=last_gid_end`, both
+      fixed once the enclosing `if` branch is entered) and its
+      `id_range_offset` backpatch loop (`0..segments_count as i32`, fixed
+      once `segments_count` is finalized just above); `build_format14_for_
+      selector`'s `u_0` loop (`1..MAX_UNICODE`, a compile-time constant
+      bound); `otfcc_build_cmap_format14`'s `n_selectors`-counting loop
+      and its per-selector build loop (both `0..MAX_UNICODE`). Also fixed
+      three pre-existing `unnecessary_cast` clippy hits in the per-selector
+      build loop's body (`(... as u32) as u32`, unrelated to the loop
+      shape itself but only surfaced once `-D warnings` ran clean past the
+      loop-shape fixes) while in the area.
+  - **Left alone, with why, so M-40 doesn't re-check the same ground:**
+    - `libcff/charstring_il.rs`: `_il_push_maskgroup`'s own outer scan
+      (mutates `*jm` across calls and stops on a data-dependent match, not
+      a fixed count), the second contour pass's inner `j_1` loop (advances
+      by 1 or 2 depending on curve detection -- a data-dependent step),
+      `nextstop` (scans until a type-tag mismatch, no bound known ahead),
+      and `cff_optimize_il`'s own driver loop (`j` advances by
+      `decide_advance`'s data-dependent return value).
+    - `libcff/subr.rs`: the six `while e != guard` circular-linked-list
+      traversals -- no natural `0..n` range, exactly Bucket 5's "graph
+      walk with no natural range" case from the Stage 7-5 plan.
+    - `libcff/cff_dict.rs`, `libcff/cff_codecs.rs`, `libcff/cff_charset.rs`,
+      `libcff/cff_parser.rs`: token/byte scanners with a `break` and/or a
+      data-dependent step (`pos += adv`, `i += 1` or `+= 2`,
+      `glyphs_encoded_sofar += 1 + nleft`). `cff_parser.rs`'s own main
+      charstring-interpreter loop in particular is the file the Stage 7-5
+      plan itself flags for its fuzz history and reserves for its own
+      dedicated `explicit_auto_deref` stage (M-37) -- left untouched here
+      entirely, on top of also having a data-dependent step.
+    - `bk/bkgraph.rs`: all three scans (`alias` chase, `rear > 0`,
+      matching-height scan) are data-dependent extents over a graph, per
+      the file's own comment ("extent is data-dependent, so this scan
+      must stay a `while` loop").
+    - `consolidate.rs`: all remaining sites are the raw-pointer-entangled
+      cyclic-graph pair (`get_point_coordinates`/`consolidate_anchor_ref`)
+      Stage 7-4's Bucket C and the Stage 7-5 plan both already found no
+      safe redesign for -- left alone for the same reason, not re-litigated
+      here.
+    - `otf_writer/stat.rs`: `stat_hmtx`'s two `count_a`/`count_k`-shaping
+      loops compare adjacent glyphs' advance widths to decide how far to
+      shrink a count -- a data-dependent stopping point, not a fixed
+      bound.
+    - `support/unicode/unicodeconv.rs`, `support/parsed_json.rs`,
+      `support/cli/getopt.rs`, `table/post.rs`,
+      `table/otl/subtables/chaining/classifier.rs`: every remaining loop
+      in these files is a scanner with a `break`/`continue`, a
+      data-dependent step, or (`getopt.rs`) an index bumped by a different
+      amount on different branches -- none is a plain fixed-count loop.
+    - `support/ttinstr.rs`, `vendor/emyg_dtoa.rs`: excluded outright, per
+      the Stage 7-5 plan (the former is this migration's most recently
+      fuzz-fragile file; the latter is third-party vendored code, out of
+      scope for this migration's own idiom cleanup regardless of shape).
+    - `table/vdmx/funcs.rs`, `table/colr.rs`, `table/svg.rs`,
+      `table/meta/build.rs`: every loop here is Bucket 3's `keep`-flag
+      do-once-with-continue-emulation shape -- M-41's territory, not
+      re-scoped into M-39/M-40.
+    - `table/cmap.rs`'s four `budget`-guarded loops (the format-4/12/UVS
+      encoders), `table/otl/coverage.rs`'s format-1 budget-guarded `k`
+      loop (has its own `break 'ranges`), and
+      `table/otl/subtables/chaining/read.rs`'s three `zero_budget_left()`
+      loops are all Bucket 4 -- M-42's territory, left alone here even
+      though several are otherwise plain index-count shapes, because their
+      budget check must stay verified on the exact cadence M-42's own plan
+      calls for, not touched incidentally by this stage.
+    - `table/cmap.rs`'s own `i <<= 1` next-power-of-two loop (geometric
+      step, not a fixed range) and `write_default_range`'s chunking loop
+      (terminates on a remaining-distance check rather than a simple
+      index bound) were read and deliberately left alone rather than
+      force-fit into a range.
+    - `table/otl/subtables/gsub_multi.rs`: both sites contain a `break`
+      (subtable-splitting size-budget logic) -- not the plan's "clean"
+      shape its own name suggested; left alone.
+    - `table/tsi5.rs`'s and `table/_tsi.rs`'s two `while let Ok(...)`
+      loops: already idiomatic, no bound known ahead of the scan.
+  - **This tranche's own remaining Bucket 2 population for M-40**: none of
+    the sites listed as "left alone" above are Bucket 2 (plain index-count)
+    sites -- every genuine Bucket 2 site found crate-wide during this
+    stage's full-crate read was converted. M-40's own investigation should
+    re-verify this claim fresh rather than trust it (the same discipline
+    this entry itself applied to the Stage 7-5 plan's own count), since a
+    site that looks data-dependent from one angle can turn out to be fixed
+    once traced fully, as `table/otl/classdef.rs`'s format-2 loop did here
+    despite sitting right next to `table/otl/coverage.rs`'s budget-guarded
+    sibling.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean (after the `needless_range_
+    loop`/`unnecessary_cast` fixups noted above -- clippy caught these on
+    the first pass, not left for CI). `cargo test -- --test-threads=1`:
+    426 passed, 0 failed (no sandbox-timing flakes this run). `cargo test
+    --test golden --test abi --test dll_abi --test log_output --test
+    cycles -- --test-threads=1`: all 9 tests across the 5 files passing
+    byte-for-byte. `cargo +nightly-2026-08-17 miri test --lib --
+    <the same 17 module filters CI uses> --test-threads=1`: 199 passed, 0
+    failed, 25 ignored (unchanged from the ignore list already on record).
+    `(cd fuzz && cargo check)` clean. `survey-unsafe.sh`: `while loops` 193
+    -> **155** (-38, matching exactly); every other counter (`unsafe fn`/
+    `unsafe blocks`/raw pointer types/`.offset(`/`is_null()`) unchanged at
+    4/30/165/22/19, confirming this stage touched no `unsafe` code and no
+    pointer, as expected for a pure control-flow-shape change. Fuzzed for
+    a real budget given this touches parsing/building code broadly, not
+    `-runs=0`: `cargo +nightly-2026-08-17 fuzz run otf_parse --
+    -max_total_time=150` (11,683,095 executions, 0 crashes), `cargo fuzz
+    run otf_dump -- -max_total_time=150` (1,350,137 executions, 0 crashes
+    -- this target's own known low exec/s, see M-31's log entry, held
+    here too), and `cargo fuzz run json_build -- -max_total_time=100`
+    (5,395,884 executions, 0 crashes), covering the read (`otf_parse`),
+    dump (`otf_dump`), and build (`json_build`) paths this stage's changes
+    span. All 22 `tests/fuzz-corpus/known-issues/*.bin` regression files
+    re-run directly against their matching rebuilt target: all exit 0,
+    including the one documented bounded-but-slow case (`otf-dump-otl-
+    coverage-consolidate-amplification-hang.bin`, 23.2s here, consistent
+    with the "slow but not a hang" finding already on record from Stage
+    7-4/M-33's own investigation) -- re-confirmed rather than assumed
+    unaffected, since this stage's `table/otl/coverage.rs` change sits in
+    that exact file.
+  - **Second tranche is M-40.** With this stage's own full-crate read
+    already sorting every `while` site into a bucket, M-40 starts from a
+    settled map rather than a fresh survey: its own scope is simply
+    "confirm nothing changed since this entry, then verify there is
+    nothing left to convert" -- Bucket 2 is fully closed as of this stage,
+    so M-40, if it still finds nothing new, should say so plainly rather
+    than force additional conversions to hit a number the original plan's
+    own estimate was always just an estimate for.
+
+- **M-40 skipped: M-39's own full-crate read already found Bucket 2 empty.**
+  M-39's own tail note above says it plainly: every genuine plain-index-count
+  `while` site found by that stage's own full-crate read was already
+  converted in that same stage, leaving nothing in Bucket 2 for a "second
+  tranche" to do. Re-deriving this from scratch (re-running the same
+  `while <ident> < <expr>` proxy search and reading every remaining site
+  crate-wide) rather than trusting the prior stage's own claim found the same
+  answer: the 155 `while` sites left after M-39 sort entirely into Bucket 3
+  (this stage, below), Bucket 4 (M-42's budget-guarded loops), and Bucket 5
+  (the "not simple index loops" remainder the Stage 7-5 plan itself excludes
+  from conversion) -- nothing plain and fixed-bound remains unconverted. So,
+  per the plan's own instruction not to force a number the original estimate
+  was only ever an estimate for, M-40 does no conversion work at all; this
+  entry exists only to record that its own re-verification was actually done,
+  not assumed, before moving on to M-41.
+
+- **Stage M-41: all 16 of Bucket 3's `keep`-flag "do-once with
+  continue-emulation" sites converted, across the four files the Stage 7-5
+  plan itself named.** Branched from M-39's own branch
+  (`claude/amazing-bell-wb1fyf-28`, not yet merged to `master` as of this
+  stage). Re-confirmed the baseline before touching anything:
+  `survey-unsafe.sh`'s `while loops` counter read **155**, matching M-39's
+  own recorded post-conversion count exactly.
+  - **Scope re-verified, not trusted from the plan's own count.** The plan's
+    own estimate was 17 sites, "concentrated in `table/vdmx/funcs.rs` with a
+    handful elsewhere." Grepping crate-wide for both of this shape's two
+    unmistakable fingerprints (`let mut keep` and the `__caryll_index`
+    counter naming c2rust gives this specific hoisted-continue translation)
+    found the same four files the plan named and no others --
+    `table/vdmx/funcs.rs` (4 `keep` variables), `table/colr.rs` (2),
+    `table/svg.rs` (1), `table/meta/build.rs` (1), 8 `keep` flags in total,
+    each one pairing an outer real per-item `while` with an inner do-once
+    `while` it wraps -- 16 `while` sites, one fewer than the plan's own
+    17-site estimate, the same kind of small over/undercount M-38
+    (32 vs. an estimated 31) and M-39 (38 real sites vs. an estimated
+    120-140) both already found for this same plan's other buckets. Every
+    one of the 16 sites was read in full before touching it, per the task's
+    own "trace precisely" instruction, not converted on shape alone.
+  - **The tracing, and what it actually found: a simpler sub-case than the
+    plan's own worst-case description.** The plan frames Bucket 3 as
+    needing confirmation "that every exit path through the inner `while
+    keep != 0` block still reaches the outer loop's own `idx += 1`" --
+    i.e. that the `keep` flag might be flipped to `0` *conditionally*,
+    partway through the body, emulating a real C `continue` that jumps past
+    some of the body but must still fall through to the counter bump. None
+    of the 16 sites actually does this. In every one, `keep`'s only
+    assignment inside the inner `while` is its own last statement,
+    unconditional (`keep = (keep == 0) as i32 as usize;`, which -- since
+    `keep` is always `1` on entry to that inner `while` -- always evaluates
+    to `0`), and the matching outer-body assignment right after the inner
+    `while` exits is equally unconditional. There is no `if <condition> {
+    keep = 0; ... }` anywhere in any of the 16 -- no C `continue` was
+    actually hoisted past live code in any of these particular sites, only
+    past the (empty, in every case) remainder of a body that already ends
+    at that exact point. This makes the safe rewrite strictly simpler than
+    the plan's own worst case: no conditional needs reconstructing, no
+    early `return`/labeled `break` stands in for a skipped tail, because
+    there was never a skipped tail to begin with -- confirmed by reading
+    every site's full body against this specific question, not inferred
+    from the shape alone, exactly as the task's own instructions ask.
+  - **The fix: the inner `keep` do-once wrapper removed (M-38's own
+    transform, applied to a nested rather than a top-level `while`), and
+    the outer real per-item `while` -- itself entangled with `keep` in
+    every site's own `while keep != 0 && idx < len` condition, which is
+    exactly why M-39 left this file's population for this stage rather
+    than folding it into Bucket 2 -- converted to `for item in
+    collection.iter()` (M-39's own Bucket 2 idiom) in the same pass, since
+    unwrapping the inner flag alone would leave a `for`-shaped `while` with
+    a permanently-true condition behind, which is not the resting state
+    either bucket's own idiom aims for.** Concretely, `table/vdmx/
+    funcs.rs`'s `otfcc_build_vdmx` had two independent top-level nests (one
+    over `ratios` alone, one over `ratios` with a further nest over each
+    ratio's `records` twice for the `startsz`/`endsz` scan and the actual
+    record-pushing pass) -- all four `__caryll_index_N`/`keep_N` pairs in
+    that function collapsed the same way, into four `for` loops with no
+    index or flag left over. `table/colr.rs`'s `otfcc_build_colr` had one
+    outer nest over `colr` (base-glyph records) with one further nest over
+    each mapping's `layers` (layer records, and the `current_layer_index`
+    running counter, which was already incremented unconditionally inside
+    the inner body and needed no change beyond losing the `keep_0` line
+    around it). `table/svg.rs`'s `otfcc_build_svg` and `table/meta/
+    build.rs`'s `otfcc_build_meta` each had exactly one nest, over `svg`/
+    `entries` respectively -- both collapsed to a single `for` with the
+    body's own comments (`svg.rs`'s `Buffer::from_bytes` note) carried over
+    unchanged, since nothing about the comment's own subject moved.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean -- no `needless_range_loop`
+    or similar left behind, since every converted loop's body already used
+    its bound variable as a value (`rr`/`mapping`/`a`/`e`), never as a raw
+    index, so `for x in collection.iter()` was the correct idiom on the
+    first pass, not a further clippy-driven rewrite. `cargo test --
+    --test-threads=1`: 426 passed, 0 failed. `cargo test --test golden
+    --test abi --test dll_abi --test log_output --test cycles --
+    --test-threads=1`: all 9 tests across the 5 files passing byte-for-byte
+    -- the VDMX/COLR/SVG/META-touching golden fixtures included, and this
+    matters more here than in M-38/M-39: unlike those two stages' purely
+    mechanical substitutions, this stage also collapsed the outer counting
+    loop into a `for`, so a byte-exact re-match on these four tables'
+    fixtures is the actual behavioral proof, not a formality.
+    `cargo +nightly-2026-08-17 miri test --lib -- table::vdmx table::colr
+    table::svg table::meta --test-threads=1`: 20 passed, 0 failed (none of
+    these four files contain `unsafe fn`/`unsafe {}` -- confirmed by
+    `grep -rl "unsafe fn\|unsafe {" src --include=*.rs`, so they were never
+    in CI's own Miri module-filter list to begin with -- this run is purely
+    this stage's own extra check given the code sits next to indexed-slice
+    access, per the plan's own instruction, not a gap CI would otherwise
+    have left uncovered). `(cd fuzz && cargo check)` clean.
+    `survey-unsafe.sh`'s `while loops` counter: 155 -> **139**, a drop of
+    exactly 16, matching the 16 sites converted (unlike M-38's off-by-one
+    from a stale comment, no comment in any of the four touched files
+    mentioned the literal text "while", so no drift here). Every other
+    counter (`unsafe fn`/`unsafe blocks`/raw pointer types/`.offset(`/
+    `is_null()`) unchanged at 4/30/165/22/19, confirming this stage touched
+    no `unsafe` code and no pointer, as expected for a pure control-flow
+    change in files that were never `unsafe` to begin with. Fuzzed for a
+    real budget on `json_build` given this stage's changes are entirely in
+    the JSON-to-OTF *build* path (VDMX/COLR/SVG/META table encoding), the
+    one fuzz target that actually drives `otfcc_build_vdmx`/
+    `otfcc_build_colr`/`otfcc_build_svg`/`otfcc_build_meta`:
+    `cargo +nightly-2026-08-17 fuzz run json_build -- -max_total_time=150`
+    (5,711,606 executions, 0 crashes). All 22
+    `tests/fuzz-corpus/known-issues/*.bin` regression files re-run directly
+    against the rebuilt `json_build` binary: all exit 0 in well under a
+    second each, including the documented bounded-but-slow
+    `otf-dump-otl-coverage-consolidate-amplification-hang.bin` case (which
+    is an `otf_dump`-side amplification, not a `json_build`-side one, so
+    running fast here is expected, not a regression of that finding).
+  - **What this leaves for the plan's remaining stage.** Bucket 3 is now
+    fully closed: the 8 `keep`-flag sites the Stage 7-5 plan's own count
+    was built from are gone, and the crate-wide grep for both of this
+    shape's fingerprints (`let mut keep`, `__caryll_index`) returns nothing.
+    M-42 is the plan's last stage, covering Bucket 4's 7 budget-guarded
+    loops (`table/cmap.rs`'s format-4/12/UVS encoders and
+    `table/otl/subtables/chaining/read.rs`'s `ClassDef`-scanning helpers) --
+    the only population left that Stage 7-5 itself proposes converting;
+    Bucket 5's remainder stays intentionally unconverted, per that section's
+    own reasoning, and is not this plan's territory to revisit.
+
+- **Stage M-42: Bucket 4's budget-guarded loops converted where the exit
+  condition's own bound is fixed, left as `while` where it genuinely isn't --
+  the fifth and LAST stage of the `while`-loop cleanup plan (M-38 through
+  M-42, see "Stage 7-5 plan," not yet merged to `master` as of this stage,
+  read from `origin/claude/amazing-bell-wb1fyf-23`).** Branched from M-41's
+  own branch (`claude/amazing-bell-wb1fyf-29`, not yet merged to `master` as
+  of this stage). Re-confirmed the baseline before touching anything:
+  `survey-unsafe.sh`'s `while loops` counter read **139**, matching M-41's
+  own recorded post-conversion count exactly.
+  - **Scope re-verified, not trusted from the plan's own 7-site estimate.**
+    The plan named `table/cmap.rs`'s format-4/12/UVS encoders and
+    `table/otl/subtables/chaining/read.rs`'s `ClassDef`-scanning helpers.
+    Grepping both files directly for every remaining `while` found 4 sites
+    in `cmap.rs` (`read_format12`'s group walk, `read_format4`'s two
+    direct-delta/indirect segment walks, `read_uvs_default`'s range walk --
+    `read_uvs_non_default` was *already* a `for _ in 0..num_mappings { if
+    *budget == 0 { break } ... }`, not a `while` at all, apparently written
+    that way from the start rather than converted by an earlier stage) and
+    3 in `chaining/read.rs` (`class_coverage`'s `cls == 0` branch's two
+    loops plus its `cls != 0` branch's one loop) -- 7 exactly, matching the
+    plan's own count for once (M-38/M-39/M-41 each found a small over- or
+    undercount against their own plan estimates; this is the first of the
+    five stages where re-verifying found the plan's number exactly right).
+    Per the task's own explicit instruction not to trust a stale bucket
+    count even at 7 sites, a further crate-wide sweep for any other
+    budget/amplification-guard-shaped loop was done before accepting that
+    number: grepping every file mentioning `_BUDGET` (`consolidate/otl/
+    chaining.rs`, `consolidate.rs`, `support/options.rs`, `otf_reader.rs`,
+    plus the two files above) found one more genuine Bucket-4 site the
+    plan's own count had folded into "chaining/read.rs's ClassDef-scanning
+    helpers" without naming it separately: `table/otl/coverage.rs`'s
+    format-2 range-expansion loop, which shares `chaining/read.rs`'s
+    `CLASS_ZERO_BUDGET`/`CLASS_COVERAGE_CALL_BUDGET` reasoning via its own
+    `COVERAGE_ENTRY_BUILD_BUDGET` and was already flagged as "M-42's
+    territory" in M-39's own "left alone" notes above. Real population: **8
+    sites**, one more than the plan's own headline number, the same kind of
+    small correction every prior stage in this plan made to its own bucket
+    count. `libcff/cff_charset.rs`'s two `glyphs_encoded_sofar < nchars`
+    loops (format-1/format-2 CFF charset RLE decoding) were checked too --
+    no named `MAX_..._BUDGET` constant, no fuzz-amplification doc comment,
+    and a data-dependent step (`1 + nleft`, not a fixed per-iteration
+    charge) -- confirmed the same "data-dependent step" shape M-39 already
+    excludes from Bucket 2 entirely, not a Bucket 4 budget guard; left
+    alone, out of scope for this stage on its own terms, not this plan's.
+    `table/otl/subtables/gsub_multi.rs`'s subtable-splitting loop (`while
+    (start as usize) < subtable.len()`, `GSUB_MULTI_SUBTABLE_SIZE_LIMIT`)
+    was checked again too, for the same reason M-39 already gave it: a
+    size-budget for output-splitting during *encoding*, not a fuzz-found-
+    amplification guard against *attacker-controlled* input cost, and not
+    named among this plan's own budget constants -- left alone, unrelated
+    to Bucket 4 despite the surface resemblance.
+  - **Every one of the 8 sites traced in full against the task's own
+    question: is the loop's bound fixed at entry, with `budget` only ever
+    causing an early exit, or is the bound itself budget-dependent?** All 8
+    turned out to be the former -- in every site, the walked range (a
+    segment's `start..=end`, a UVS range's `start..=end`, a `ClassDef`'s own
+    `glyphs.len()`, a `max_glyphs` parameter, a coverage range's `start..=
+    end`) is computed once, before the loop, from values that never depend
+    on the budget and are never mutated during the loop; `budget`/the
+    global atomic budget statics only ever gate an early `break`, checked
+    first in the body, in the exact position the `while`'s own `&&
+    budget-still-available` clause checked it.
+    - **7 of the 8 converted to `for <bound> { if <budget exhausted> {
+      break} ...; <charge> }`, preserving the exact original check-then-
+      charge cadence:** `cmap.rs`'s `read_format12` (`for c in
+      start_code..=clamped_end`), both `read_format4` branches (`for c in
+      (start_code as u32)..=upper`, `upper` the same `end_code.min(0xfffe)`
+      fixed bound the `while`'s compound `c < 0xffff && c <= end_code`
+      condition computed one step at a time), `read_uvs_default` (`for u in
+      start_unicode_value..=end`); `chaining/read.rs`'s `class_coverage`
+      `cls == 0` branch's classified-bitmap loop (`for j in 0..cd.glyphs.
+      len()`) and unclassified-push loop (`for k in 0..max_glyphs`, safe
+      because `max_glyphs` is itself a `GlyphId`/`u16`, so at most 65535,
+      well short of ever needing to represent a `for` range endpoint past
+      what a `u16` can hold); `coverage.rs`'s format-2 range-expansion loop
+      (`for k in start as i32..=end as i32`), whose budget-exhaustion
+      `break` already targeted the *outer* per-range loop's own `'ranges`
+      label before this conversion (a nested `while` inside a labeled
+      `for`) and still does after it (a nested `for` inside the same
+      labeled `for`) -- the label itself is untouched, so the outer loop's
+      own break-on-exhaustion behavior is unchanged, only the inner loop's
+      own shape is.
+    - **1 of the 8 left as a `while`, per the task's own explicit "if not
+      100% certain, don't convert" instruction:** `class_coverage`'s `cls
+      != 0` branch's loop (`while (j_2 as usize) < cd.glyphs.len() &&
+      zero_budget_left()`). `j_2` is a `GlyphId` (`u16`), but the bound it
+      is compared against, `cd.glyphs.len()`, is a `usize` with no `u16`
+      cap from this function's own signature -- unlike `max_glyphs` in the
+      sibling loop just above it, which *is* a `GlyphId` parameter and
+      therefore provably at most 65535. Tracing `table/otl/
+      classdef.rs::read_class_def`'s format-2 branch (the only way a
+      `ClassDef` this large gets built) found that its `IndexMap<GlyphId,
+      GlyphClass>` dedup can legitimately hold exactly 65536 entries -- the
+      full `GlyphId` space -- when crafted ranges cover it entirely, making
+      `cd.glyphs.len() == 65536` reachable, not merely a theoretical edge
+      case this analysis invented to be extra cautious. In that exact case
+      the original's `j_2 = j_2.wrapping_add(1)` wraps `0xffff` back to `0`
+      *before* `(j_2 as usize) < cd.glyphs.len()` ever goes false, so the
+      `while` keeps re-scanning the same 65536-entry `ClassDef` -- each
+      full pass re-charging the budget and, for every glyph whose class
+      matches `cls`, re-pushing a duplicate `GlyphHandle` -- until
+      `zero_budget_left()` alone ends it, not a single `for j_2 in
+      0..cd.glyphs.len()` pass. Converting this one would silently change
+      what a maximal-`ClassDef` input does (far fewer duplicate pushes, a
+      different final `Coverage`), which is exactly the class of mistake
+      this stage's own risk warning exists to prevent -- left as a `while`,
+      documented in place with the reasoning above, not forced to hit a
+      round number.
+  - **New tests, one per converted site's own function (4 sites in
+    `cmap.rs` share 2 tests since two of them -- `read_format4`'s two
+    branches -- are exercised by the same input; the other 2 needed none,
+    reusing existing coverage), matching this migration's own established
+    "pin the exact boundary" style for these budgets (`format12_budget_
+    caps_the_total_across_many_groups_not_just_one`, `format14_non_
+    default_uvs_offset_aliasing_respects_shared_budget`):**
+    `format4_budget_stops_mid_segment_at_the_exact_boundary` (a 16-
+    codepoint direct-delta segment, budget 5, asserts exactly the first 5
+    codepoints map and the budget hits 0) and `uvs_default_budget_stops_
+    mid_range_at_the_exact_boundary` (a 16-codepoint default-UVS range,
+    same shape) in `cmap.rs`; `format2_budget_stops_mid_range_at_the_
+    exact_boundary` in `coverage.rs` (a 16-glyph format-2 range against
+    `COVERAGE_ENTRY_BUILD_BUDGET` forced to 5 via the private static
+    directly, then restored via `reset_coverage_entry_build_budget()` so
+    the global doesn't leak into whichever test runs next); `class_
+    coverage_cls_zero_budget_stops_mid_scan_at_the_exact_boundary` in
+    `chaining/read.rs` (a 3-glyph `ClassDef`, `CLASS_ZERO_BUDGET` forced to
+    7, pins that the *shared* budget crosses both of the `cls == 0` loops
+    in the right order: the first loop's own 3 charges leave exactly 4 for
+    the second, which then stops after processing indices `0..=3`,
+    skipping the one already-classified index and never reaching index 4).
+    `read_format12`'s and `read_format14`'s existing budget tests already
+    covered those two sites' own boundaries, so no new test was added for
+    them -- reusing established coverage rather than duplicating it.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean. `cargo test --
+    --test-threads=1`: 430 passed (426 + 4 new), 0 failed. `cargo test
+    --test golden --test abi --test dll_abi --test log_output --test
+    cycles -- --test-threads=1`: all 9 tests across the 5 files passing
+    byte-for-byte. `cargo +nightly-2026-08-17 miri test --lib -- <the same
+    17 module filters CI uses>`: 218 passed, 0 failed, 26 ignored -- CI's
+    own filter list doesn't cover `table::cmap` (no `unsafe fn`/`unsafe {}`
+    in that file, confirmed by the same `grep -rl` CI's own filter is built
+    from) or `table::otl::coverage` on its own, but `table::otl` (already
+    in CI's list) covers `coverage.rs` and `chaining/read.rs` as
+    submodules; `table::cmap` was added to this run anyway as this stage's
+    own extra check, the same "code sits next to indexed-slice access"
+    discipline M-41 already applied to VDMX/COLR/SVG/META -- all pass, 0
+    failed. `(cd fuzz && cargo check)` clean.
+  - **`survey-unsafe.sh`'s `while loops` counter: 139 -> 137, a drop of only
+    2 -- NOT the 7 sites actually converted, and re-verified rather than
+    taken at face value, since a script-counter drift smaller than this
+    stage's own real change would be an easy thing to wave away as
+    rounding.** `git diff` on the actual change found the explanation: 5 of
+    this stage's own new doc comments quote the original `while <cond>`
+    shape verbatim (e.g. "Pins the `while c < 0xffff && c <= end_code as
+    u32 && *budget > 0` -> `for c in ...`"), each containing the literal
+    text "while " the script's own `\bwhile ` counter matches -- the same
+    class of comment-text drift M-38's own log entry already found (there,
+    *removing* a stale comment's "while ___loggedstep_v" text over-counted
+    the drop by one; here, *adding* comments that quote the old shape
+    under-counts it by five, the same mechanism in the opposite direction).
+    The real number of `while`-loop sites converted this stage is exactly
+    **7**, confirmed directly (not inferred from the script) by counting
+    every site traced above; 139 (real) - 7 = **132** real `while` loops
+    left in the crate, even though the script's own text-based counter
+    reads 137. Every other counter (`unsafe fn`/`unsafe blocks`/raw pointer
+    types/`.offset(`/`is_null()`) unchanged at 4/30/165/22/19, confirming
+    this stage touched no `unsafe` code and no pointer, as expected for a
+    stage that only reshapes already-safe loop control flow in files that
+    were never `unsafe` to begin with.
+  - **Fuzzed for real time budgets on both targets this stage's changes
+    reach, given this is explicitly the plan's highest-risk stage
+    (amplification/budget-guard code, this crate's most fuzz-sensitive
+    class of bug):** `cargo +nightly-2026-08-17 fuzz run otf_parse --
+    -max_total_time=180` (2,174,678 executions, 0 crashes -- reaches
+    `cmap.rs`'s format-4/12/UVS readers and `chaining/read.rs`'s
+    `class_coverage` via any font with a `cmap`/GSUB-or-GPOS-contextual
+    table) and `cargo +nightly-2026-08-17 fuzz run otf_dump --
+    -max_total_time=180` (942,128 executions, 0 crashes -- this target's
+    own known low exec/s, see M-31's and M-39's log entries, held here
+    too; reaches the same code via the read+consolidate+dump pipeline,
+    plus `coverage.rs`'s format-2 loop through GDEF/GSUB/GPOS consolidation
+    and re-dump). All 22 `tests/fuzz-corpus/known-issues/*.bin` regression
+    files re-run directly against their matching rebuilt target (`otf-
+    parse-*` against `otf_parse`, `otf-dump-*` against `otf_dump`, `json-
+    build-*` against `json_build`): all 22 exit 0, including the
+    documented bounded-but-slow `otf-dump-otl-coverage-consolidate-
+    amplification-hang.bin` case (24.99s here, consistent with the
+    "slow but not a hang" finding on record from Stage 7-4/M-33's original
+    investigation and M-39's own re-confirmation at 23.2s) -- re-confirmed
+    rather than assumed unaffected, since this stage's `coverage.rs` change
+    sits in that exact file's format-2 loop.
+  - **The `while`-loop cleanup plan (M-38 through M-42) is now complete.**
+    Five stages, starting from the Stage 7-5 plan's own fresh count of
+    **226** `while` loops: M-38 deleted 32 `___loggedstep_v` run-once
+    wrappers (Bucket 1), M-39 converted 38 plain index-count loops
+    (Bucket 2, closing it in one tranche -- M-40 was skipped, its own
+    re-verification finding nothing left to do), M-41 converted 16
+    `keep`-flag do-once-with-continue-emulation loops (Bucket 3), and this
+    stage converted 7 of Bucket 4's 8 budget-guarded loops, real total: 32
+    + 38 + 16 + 7 = **93** loops converted, leaving **132** real (137 by
+    the script's own text-counter, given the comment-drift explained
+    above) -- a bit over half the original 226 remain, entirely by design,
+    not by this plan running out of runway. What remains, permanently, is
+    Bucket 5 plus this stage's own one "leave alone" site, every one of
+    them already named with its own specific reason rather than a generic
+    "looked risky": `consolidate.rs`'s raw-pointer-entangled cyclic-graph
+    pair (`get_point_coordinates`/`consolidate_anchor_ref`, no safe
+    redesign preserving cycle-detection semantics, per Stage 7-4's own
+    Bucket C); `support/ttinstr.rs`'s tokenizer and number-parsing helpers
+    (labeled breaks, data-dependent scan conditions, and this crate's own
+    most recently fuzz-fragile file -- restructuring control flow there for
+    a cosmetic win is exactly the risk this plan's own Bucket 4 warning was
+    written to generalize from); `libcff/subr.rs`'s and `bk/bkgraph.rs`'s
+    circular-linked-list/graph walks (`while e != guard`, no natural `0..n`
+    range to force); already-idiomatic `while let`s (`support/
+    parsed_json.rs`, `libcff/subr.rs`, `table/tsi5.rs`, `table/_tsi.rs`);
+    `vendor/emyg_dtoa.rs` (third-party vendored code, out of scope
+    regardless of shape); and every scanner across `libcff/cff_dict.rs`,
+    `libcff/cff_codecs.rs`, `libcff/cff_charset.rs`, `libcff/cff_parser.rs`,
+    `support/unicode/unicodeconv.rs`, `support/cli/getopt.rs`,
+    `table/post.rs`, `table/glyf/read.rs`, `table/otl/subtables/chaining/
+    classifier.rs`, `otf_writer/stat.rs`, and `table/otl/subtables/
+    gsub_multi.rs` whose stopping point is a data-dependent step or an
+    explicit size/count budget unrelated to Bucket 4's fuzz-amplification
+    shape -- plus, new to this stage's own accounting, `chaining/
+    read.rs::class_coverage`'s one budget-dependent-wraparound site named
+    above. None of these is a stage waiting to happen; each is a shape this
+    plan's own five stages, read together, already gave a specific reason
+    to leave alone.

@@ -863,30 +863,24 @@ fn consolidate_otl(font: &mut Font, options: &Options) {
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"GSUB"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         consolidate_otl_table(glyph_order, font.gsub.as_deref_mut(), options);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"GPOS"),
     );
-    let mut ___loggedstep_v_0: bool = true;
-    while ___loggedstep_v_0 {
+    {
         consolidate_otl_table(glyph_order, font.gpos.as_deref_mut(), options);
-        ___loggedstep_v_0 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"GDEF"),
     );
-    let mut ___loggedstep_v_1: bool = true;
-    while ___loggedstep_v_1 {
+    {
         consolidate_gdef(glyph_order, font.gdef.as_deref_mut(), options);
-        ___loggedstep_v_1 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }

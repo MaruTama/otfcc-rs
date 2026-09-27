@@ -66,8 +66,7 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
     let Ok(total_len) = file.seek(SeekFrom::End(0)) else {
         return false;
     };
-    let mut count: u32 = 0;
-    while count < font.count {
+    for count in 0..font.count {
         let offset = font.offsets[count as usize];
         if file.seek(SeekFrom::Start(offset as u64)).is_err() {
             return false;
@@ -94,8 +93,7 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
             packet.search_range = search_range;
             packet.entry_selector = entry_selector;
             packet.range_shift = range_shift;
-            let mut i: u32 = 0;
-            while i < packet.num_tables as u32 {
+            for _ in 0..packet.num_tables as u32 {
                 let Some(tag) = otfcc_get32u(file) else {
                     return false;
                 };
@@ -118,7 +116,6 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
                     length,
                     data: vec![0u8; length as usize],
                 });
-                i += 1;
             }
         }
         {
@@ -141,8 +138,7 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
             // by it instead fixes both: no more cross-packet indexing,
             // and no behavior change for the common case where every
             // member does share the same table count.
-            let mut i_0: u32 = 0;
-            while i_0 < packet.pieces.len() as u32 {
+            for i_0 in 0..packet.pieces.len() as u32 {
                 let piece = &mut packet.pieces[i_0 as usize];
                 if file.seek(SeekFrom::Start(piece.offset as u64)).is_err() {
                     return false;
@@ -150,10 +146,8 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
                 if file.read_exact(&mut piece.data).is_err() {
                     return false;
                 }
-                i_0 += 1;
             }
         }
-        count += 1;
     }
     true
 }
@@ -232,14 +226,12 @@ fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &m
                     pieces: Vec::new(),
                 })
                 .collect();
-            let mut i: u32 = 0;
             let offsets: &mut Vec<u32> = &mut font.offsets;
-            while i < offsets.len() as u32 {
+            for i in 0..offsets.len() as u32 {
                 let Some(v) = otfcc_get32u(file) else {
                     return false;
                 };
                 offsets[i as usize] = v;
-                i += 1;
             }
             otfcc_read_packets(font, file)
         }

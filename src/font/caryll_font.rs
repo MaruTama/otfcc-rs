@@ -82,119 +82,119 @@ pub enum FontSubtype {
 pub(crate) fn delete_font_table(font: &mut Font, tag: u32) {
     match tag {
         crate::tag::TAG_HEAD => {
-            (*font).head = None;
+            font.head = None;
             return;
         }
         crate::tag::TAG_HHEA => {
-            (*font).hhea = None;
+            font.hhea = None;
             return;
         }
         crate::tag::TAG_MAXP => {
-            (*font).maxp = None;
+            font.maxp = None;
             return;
         }
         crate::tag::TAG_OS_2_ALT | crate::tag::TAG_OS_2 => {
-            (*font).os_2 = None;
+            font.os_2 = None;
             return;
         }
         crate::tag::TAG_NAME => {
-            (*font).name = None;
+            font.name = None;
             return;
         }
         crate::tag::TAG_META => {
-            (*font).meta = None;
+            font.meta = None;
             return;
         }
         crate::tag::TAG_HMTX => {
-            (*font).hmtx = None;
+            font.hmtx = None;
             return;
         }
         crate::tag::TAG_VMTX => {
-            (*font).vmtx = None;
+            font.vmtx = None;
             return;
         }
         crate::tag::TAG_POST => {
-            (*font).post = None;
+            font.post = None;
             return;
         }
         crate::tag::TAG_VHEA => {
-            (*font).vhea = None;
+            font.vhea = None;
             return;
         }
         crate::tag::TAG_FPGM => {
-            (*font).fpgm = None;
+            font.fpgm = None;
             return;
         }
         crate::tag::TAG_PREP => {
-            (*font).prep = None;
+            font.prep = None;
             return;
         }
         crate::tag::TAG_CVT_ALT | crate::tag::TAG_CVT => {
-            (*font).cvt_ = None;
+            font.cvt_ = None;
             return;
         }
         crate::tag::TAG_GASP => {
-            (*font).gasp = None;
+            font.gasp = None;
             return;
         }
         crate::tag::TAG_CFF_ALT | crate::tag::TAG_CFF => {
-            (*font).cff = None;
+            font.cff = None;
             return;
         }
         crate::tag::TAG_GLYF => {
-            (*font).glyf = None;
+            font.glyf = None;
             return;
         }
         crate::tag::TAG_CMAP => {
-            (*font).cmap = None;
+            font.cmap = None;
             return;
         }
         crate::tag::TAG_LTSH => {
-            (*font).ltsh = None;
+            font.ltsh = None;
             return;
         }
         crate::tag::TAG_GSUB => {
-            (*font).gsub = None;
+            font.gsub = None;
             return;
         }
         crate::tag::TAG_GPOS => {
-            (*font).gpos = None;
+            font.gpos = None;
             return;
         }
         crate::tag::TAG_GDEF => {
-            (*font).gdef = None;
+            font.gdef = None;
             return;
         }
         crate::tag::TAG_BASE => {
-            (*font).base = None;
+            font.base = None;
             return;
         }
         crate::tag::TAG_VORG => {
-            (*font).vorg = None;
+            font.vorg = None;
             return;
         }
         crate::tag::TAG_CPAL => {
-            (*font).cpal = None;
+            font.cpal = None;
             return;
         }
         crate::tag::TAG_COLR => {
-            (*font).colr = None;
+            font.colr = None;
             return;
         }
         crate::tag::TAG_SVG | crate::tag::TAG_SVG_ALT => {
-            (*font).svg = None;
+            font.svg = None;
             return;
         }
         crate::tag::TAG_TSI0 | crate::tag::TAG_TSI1 => {
-            (*font).tsi_01 = None;
+            font.tsi_01 = None;
             return;
         }
         crate::tag::TAG_TSI2 | crate::tag::TAG_TSI3 => {
-            (*font).tsi_23 = None;
+            font.tsi_23 = None;
             return;
         }
         crate::tag::TAG_TSI5 => {
-            (*font).tsi5 = None;
+            font.tsi5 = None;
             return;
         }
         _ => {}

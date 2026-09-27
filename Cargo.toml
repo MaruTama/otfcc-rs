@@ -45,7 +45,12 @@ warnings = "deny"
 # Stage 7-4 (C-ism mechanical cleanup) removes these as a direct consequence
 # of further mechanical passes over c2rust's transpile shape:
 needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
-explicit_auto_deref = "allow" # 476 -- c2rust's `&raw` / deref-cast idiom (raw-pointer sites only; the RefCell/RefMut reborrow subset was fixed separately, see RUST_MIGRATION.md)
+# `explicit_auto_deref` removed entirely (was here): the RefCell/RefMut
+# reborrow subset, the otf_writer.rs/json_writer.rs/font/caryll_font.rs
+# subset (Stage M-35, 103 sites), the 13-site tail (Stage M-36), and finally
+# libcff/cff_parser.rs's 359-site CFF charstring interpreter (Stage M-37)
+# are all fixed now -- 0 sites crate-wide, re-measured fresh before removing
+# this entry -- so the lint needs no allow any more. See RUST_MIGRATION.md.
 
 # Real design work, not a mechanical lint fix -- `too_many_arguments` would
 # need restructuring a function's parameter list (e.g. into a struct) and

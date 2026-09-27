@@ -290,7 +290,7 @@ fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyp
         if flags.contains(ComponentFlags::WE_HAVE_INSTRUCTIONS) {
             glyph_has_instruction = true;
         }
-        (*g).references.push(ref_0);
+        g.references.push(ref_0);
         if !(flags.contains(ComponentFlags::MORE_COMPONENTS)) {
             break;
         }
@@ -298,9 +298,9 @@ fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyp
     if glyph_has_instruction {
         let instruction_length: u16 = r.u16().ok()?;
         let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
-        (*g).instructions = instruction_bytes.to_vec();
+        g.instructions = instruction_bytes.to_vec();
     } else {
-        (*g).instructions = Vec::new();
+        g.instructions = Vec::new();
     }
     Some(g)
 }
@@ -384,7 +384,7 @@ fn parse_point_numbers(
         };
         let mut j_point: ShapeId = 0 as ShapeId;
         point_indeces = Vec::with_capacity(n_points as usize);
-        while (point_indeces.len() as i32) < n_points as i32 {
+        for _ in 0..n_points {
             if run.length as i32 == 0_i32 {
                 let run_header: u8 = r.u8().ok()?;
                 run.wide = run_header as i32 & POINTS_ARE_WORDS != 0;
@@ -435,8 +435,7 @@ fn read_packed_delta(
         wide: false,
         zero: false,
     };
-    let mut filled: ShapeId = 0 as ShapeId;
-    while (filled as i32) < n_points as i32 {
+    for filled in 0..n_points {
         let mut delta: i16 = 0_i16;
         if run.length as i32 == 0_i32 {
             let run_header: u8 = r.u8().ok()?;
@@ -453,7 +452,6 @@ fn read_packed_delta(
             }
         }
         deltas[filled as usize] = delta as Pos;
-        filled = filled.wrapping_add(1);
         run.length = run.length.wrapping_sub(1);
     }
     Some(r.pos())

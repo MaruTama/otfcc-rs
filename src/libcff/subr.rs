@@ -577,8 +577,7 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
     let mut blob = Buffer::new();
     let mut flush: bool = false;
     let mut last: bool = false;
-    let mut j: u32 = 0_u32;
-    while j < il.instr.len() as u32 {
+    for j in 0..il.instr.len() as u32 {
         match il.instr[j as usize].type_0 as ::core::ffi::c_uint {
             0 => {
                 if flush {
@@ -608,7 +607,6 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
             }
             _ => {}
         }
-        j = j.wrapping_add(1);
     }
     if !blob.data.is_empty() {
         let n_0 = g.alloc_node();

@@ -219,8 +219,7 @@ fn main_0(args: Vec<String>) -> i32 {
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read SFNT"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         logger_log_sds(
             &mut options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -265,7 +264,6 @@ fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     let mut font: Option<Box<Font>> = None;
@@ -273,8 +271,7 @@ fn main_0(args: Vec<String>) -> i32 {
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read Font"),
     );
-    let mut ___loggedstep_v_0: bool = true;
-    while ___loggedstep_v_0 {
+    {
         font = read_otf(sfnt.as_ref().unwrap(), ttcindex, &options);
         if font.is_none() {
             logger_log_sds(
@@ -296,48 +293,42 @@ fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v_0 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Consolidate"),
     );
-    let mut ___loggedstep_v_1: bool = true;
-    while ___loggedstep_v_1 {
-        otfcc_consolidate_font(font.as_mut().unwrap(), &*options);
+    {
+        otfcc_consolidate_font(font.as_mut().unwrap(), &options);
         logger_log_sds(
             &mut options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v_1 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     // Owned now that `serialize_to_json` returns the `BuiltValue` itself
     // rather than a `BuiltValue::into_raw` pointer; `Option` only because
-    // the goto-emulating `while ___loggedstep_v` block below is what
-    // assigns it.
+    // the plain block below is what assigns it.
     let mut root: Option<BuiltValue> = None;
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Dump"),
     );
-    let mut ___loggedstep_v_2: bool = true;
-    while ___loggedstep_v_2 {
+    {
         // The "dump returned null" error path that used to sit here was
         // already dead: the serializer's every exit built a real
         // `BuiltValue`, so the pointer it handed back was never null. With
         // an owned return there is no null to test for at all.
-        root = Some(serialize_to_json(font.as_mut().unwrap(), &*options));
+        root = Some(serialize_to_json(font.as_mut().unwrap(), &options));
         logger_log_sds(
             &mut options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v_2 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     let mut buf: Vec<u8> = Vec::new();
@@ -345,8 +336,7 @@ fn main_0(args: Vec<String>) -> i32 {
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Serialize to JSON"),
     );
-    let mut ___loggedstep_v_3: bool = true;
-    while ___loggedstep_v_3 {
+    {
         let mut jsonOptions: JsonSerializeOpts = JsonSerializeOpts {
             mode: 0,
             opts: 0,
@@ -373,15 +363,13 @@ fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v_3 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Output"),
     );
-    let mut ___loggedstep_v_4: bool = true;
-    while ___loggedstep_v_4 {
+    {
         if let Some(ref output_path) = outputPath {
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
             let write_result = std::fs::File::create(std::path::Path::new(os_path)).and_then(
@@ -418,15 +406,13 @@ fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v_4 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Finalize"),
     );
-    let mut ___loggedstep_v_5: bool = true;
-    while ___loggedstep_v_5 {
+    {
         drop(font.take());
         drop(root.take());
         // `inPath`/`outputPath` are `CString`/`Option<CString>` now --
@@ -438,7 +424,6 @@ fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v_5 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     return 0_i32;

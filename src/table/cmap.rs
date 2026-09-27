@@ -229,15 +229,24 @@ fn read_format12(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut 
         // are always <= 0x10FFFF) and turns the unbounded/infinite cases
         // into a bounded, still-correct partial read of the group.
         let clamped_end = end_code.min(0x10ffff);
-        let mut c = start_code;
-        while c <= clamped_end && *budget > 0 {
+        // `start_code..=clamped_end`: both ends are fixed once computed
+        // above (neither depends on `budget`), so this is the exact same
+        // walked range the `while` used to compute one step at a time --
+        // an empty range when `start_code > clamped_end`, matching the
+        // `while`'s own zero-iteration case. `budget` only ever causes an
+        // *early* `break`, checked first thing in the body (before the
+        // decrement), the same position the `while`'s own `&& *budget > 0`
+        // clause checked it in.
+        for c in start_code..=clamped_end {
+            if *budget == 0 {
+                break;
+            }
             *budget -= 1;
             otfcc_encode_cmap_by_index(
                 cmap,
                 c as i32,
                 c.wrapping_sub(start_code).wrapping_add(start_gid) as u16,
             );
-            c = c.wrapping_add(1);
         }
     }
 }
@@ -298,17 +307,29 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
         let Some(id_range_offset) = read_u16(id_range_offset_entry_rel) else {
             return;
         };
+        // `c < 0xffff && c <= end_code` combine into one fixed upper bound,
+        // computed once here rather than re-checked every step: neither
+        // half depends on `budget`, so `start_code..=upper` walks exactly
+        // the same segment the `while` did (empty when `start_code as u32
+        // > upper`, same as the `while`'s own zero-iteration case).
+        // `budget` only ever causes an early `break`, checked first in the
+        // body, the same position the `while`'s `&& *budget > 0` checked
+        // it in.
+        let upper = (end_code as u32).min(0xfffe);
         if id_range_offset == 0 {
-            let mut c = start_code as u32;
-            while c < 0xffff && c <= end_code as u32 && *budget > 0 {
+            for c in (start_code as u32)..=upper {
+                if *budget == 0 {
+                    break;
+                }
                 *budget -= 1;
                 let gid = (c.wrapping_add(id_delta as u32) & 0xffff) as u16;
                 otfcc_encode_cmap_by_index(cmap, c as i32, gid);
-                c = c.wrapping_add(1);
             }
         } else {
-            let mut c = start_code as u32;
-            while c < 0xffff && c <= end_code as u32 && *budget > 0 {
+            for c in (start_code as u32)..=upper {
+                if *budget == 0 {
+                    break;
+                }
                 *budget -= 1;
                 // idRangeOffset's value is a byte distance measured from the
                 // idRangeOffset array *entry itself* -- matches the
@@ -320,7 +341,6 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
                     let gid = ((raw as i32 + id_delta as i32) & 0xffff) as u16;
                     otfcc_encode_cmap_by_index(cmap, c as i32, gid);
                 }
-                c = c.wrapping_add(1);
             }
         }
     }
@@ -343,9 +363,18 @@ fn read_uvs_default(
     for _ in 0..num_ranges {
         let start_unicode_value = r.u24().unwrap();
         let additional_count = r.u8().unwrap();
-        let mut u = start_unicode_value;
         let end = start_unicode_value.wrapping_add(additional_count as u32);
-        while u <= end && *budget > 0 {
+        // `start_unicode_value..=end`: `end` is fixed above (`u24` plus a
+        // `u8` count, never wrapping in practice since both are far below
+        // `u32::MAX`), and doesn't depend on `budget` -- an empty range
+        // when `start_unicode_value > end` matches the `while`'s own
+        // zero-iteration case exactly. `budget` only ever causes an early
+        // `break`, checked first in the body, the same position the
+        // `while`'s own `&& *budget > 0` checked it in.
+        for u in start_unicode_value..=end {
+            if *budget == 0 {
+                break;
+            }
             *budget -= 1;
             if let Some(gid) = otfcc_cmap_lookup(cmap, u as i32).map(|g| g.index) {
                 otfcc_encode_cmap_uvs_by_index(
@@ -357,7 +386,6 @@ fn read_uvs_default(
                     gid,
                 );
             }
-            u = u.wrapping_add(1);
         }
     }
 }
@@ -788,10 +816,8 @@ fn otfcc_build_cmap_format4(cmap: &CmapTable) -> Buffer {
                         == last_gid_end + 1_i32)
                 {
                     last_glyph_id_array_offset = glyph_id_array.cursor;
-                    let mut j: i32 = last_gid_start;
-                    while j <= last_gid_end {
+                    for j in last_gid_start..=last_gid_end {
                         glyph_id_array.write_u16be(j as u16);
-                        j += 1;
                     }
                 }
                 last_unicode_end = unicode;
@@ -840,8 +866,7 @@ fn otfcc_build_cmap_format4(cmap: &CmapTable) -> Buffer {
         id_range_offset.write_u16be(0_u16);
         segments_count = (segments_count as i32 + 1_i32) as u16;
     }
-    let mut j_0: i32 = 0_i32;
-    while j_0 < segments_count as i32 {
+    for j_0 in 0..segments_count as i32 {
         let idx = (j_0 * 2_i32) as usize;
         let mut ro: u16 =
             u16::from_be_bytes([id_range_offset.data[idx], id_range_offset.data[idx + 1]]);
@@ -853,7 +878,6 @@ fn otfcc_build_cmap_format4(cmap: &CmapTable) -> Buffer {
             id_range_offset.seek((2_i32 * j_0) as usize);
             id_range_offset.write_u16be(ro);
         }
-        j_0 += 1;
     }
     buf.write_u16be(4_u16);
     buf.write_u16be(0_u16);
@@ -992,8 +1016,7 @@ fn build_format14_for_selector(
     let mut num_uvs_mappings: u32 = 0_u32;
     dflt.write_u32be(0_u32);
     nondflt.write_u32be(0_u32);
-    let mut u_0: Unicode = 1 as Unicode;
-    while u_0 < MAX_UNICODE as Unicode {
+    for u_0 in 1..MAX_UNICODE as Unicode {
         if defaults[u_0 as usize] as i32 != 0xffff_i32
             && defaults[u_0.wrapping_sub(1 as Unicode) as usize] as i32 == 0xffff_i32
         {
@@ -1014,7 +1037,6 @@ fn build_format14_for_selector(
             nondflt.write_u16be(non_defaults[u_0 as usize] as u16);
             num_uvs_mappings = num_uvs_mappings.wrapping_add(1);
         }
-        u_0 = u_0.wrapping_add(1);
     }
     dflt.seek(0_usize);
     dflt.write_u32be(num_unicode_value_ranges);
@@ -1038,20 +1060,17 @@ fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
         }
     }
     let mut n_selectors: u32 = 0_u32;
-    let mut selector: Unicode = 0 as Unicode;
-    while selector < MAX_UNICODE as Unicode {
+    for selector in 0..MAX_UNICODE as Unicode {
         if valid_selectors[selector as usize] {
             n_selectors = n_selectors.wrapping_add(1);
         }
-        selector = selector.wrapping_add(1);
     }
     let mut st: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 14_u32),
         bk_int(BkCellType::B32, 0_u32),
         bk_int(BkCellType::B32, n_selectors),
     ]);
-    let mut selector_0: Unicode = 0 as Unicode;
-    while selector_0 < MAX_UNICODE as Unicode {
+    for selector_0 in 0..MAX_UNICODE as Unicode {
         if valid_selectors[selector_0 as usize] {
             let mut dflt = Buffer::new();
             let mut nondflt = Buffer::new();
@@ -1071,22 +1090,21 @@ fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
                 vec![
                     bk_int(
                         BkCellType::B8,
-                        (selector_0 >> 16_i32 & 0xff as Unicode) as u32,
+                        selector_0 >> 16_i32 & 0xff as Unicode,
                     ),
                     bk_int(
                         BkCellType::B8,
-                        (selector_0 >> 8_i32 & 0xff as Unicode) as u32,
+                        selector_0 >> 8_i32 & 0xff as Unicode,
                     ),
                     bk_int(
                         BkCellType::B8,
-                        (selector_0 & 0xff as Unicode) as u32,
+                        selector_0 & 0xff as Unicode,
                     ),
                     bk_ptr(BkCellType::P32, bk_new_block_from_buffer(dflt)),
                     bk_ptr(BkCellType::P32, bk_new_block_from_buffer(nondflt)),
                 ],
             );
         }
-        selector_0 = selector_0.wrapping_add(1);
     }
     let mut buf = bk_build_block(st);
     buf.seek(2_usize);
@@ -1260,6 +1278,55 @@ mod cmap_read_tests {
     }
 
     #[test]
+    fn format4_budget_stops_mid_segment_at_the_exact_boundary() {
+        // Pins the `while c < 0xffff && c <= end_code as u32 && *budget >
+        // 0` -> `for c in start_code..=upper { if *budget == 0 { break }
+        // ... }` conversion (Stage M-42): a single direct-delta segment
+        // spanning 16 codepoints (0x41..=0x50), given a budget of only 5,
+        // must map exactly the first 5 codepoints in the segment's own
+        // order and leave the budget fully spent -- not skip one, not map
+        // one extra, and not silently reset/re-grant the budget once the
+        // segment's own range is exhausted.
+        let mut data = Vec::new();
+        data.extend_from_slice(&4u16.to_be_bytes()); // format
+        data.extend_from_slice(&32u16.to_be_bytes()); // length (informational)
+        data.extend_from_slice(&0u16.to_be_bytes()); // language
+        data.extend_from_slice(&4u16.to_be_bytes()); // segCountX2 (2 segments)
+        data.extend_from_slice(&[0u8; 6]);
+        data.extend_from_slice(&0x0050u16.to_be_bytes()); // endCode[0]
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // endCode[1]
+        data.extend_from_slice(&0u16.to_be_bytes()); // reservedPad
+        data.extend_from_slice(&0x0041u16.to_be_bytes()); // startCode[0]
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // startCode[1]
+        data.extend_from_slice(&0i16.to_be_bytes()); // idDelta[0]: gid == codepoint
+        data.extend_from_slice(&1i16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes()); // idRangeOffset[0]: direct delta
+        data.extend_from_slice(&0u16.to_be_bytes());
+        assert_eq!(data.len(), 32);
+
+        let mut cmap = empty_cmap();
+        let mut budget: u32 = 5;
+        read_format4(&data, 0, cmap.as_mut(), &mut budget);
+
+        assert_eq!(budget, 0, "the budget must be fully consumed");
+        assert_eq!(
+            cmap.unicodes.len(),
+            5,
+            "exactly `budget` codepoints mapped, not fewer or more"
+        );
+        for cp in 0x41u32..0x46 {
+            assert!(
+                cmap.unicodes.contains_key(&(cp as i32)),
+                "codepoint {cp:#x} within the budget must be mapped"
+            );
+        }
+        assert!(
+            !cmap.unicodes.contains_key(&0x46),
+            "the first codepoint past the budget must not be mapped"
+        );
+    }
+
+    #[test]
     fn format12_direct_group_maps_a_range() {
         let mut data = Vec::new();
         data.extend_from_slice(&12u16.to_be_bytes()); // format
@@ -1369,6 +1436,56 @@ mod cmap_read_tests {
             cmap.unicodes.len(),
             5,
             "no more mappings than the budget allows, even though each group alone claims far more"
+        );
+    }
+
+    #[test]
+    fn uvs_default_budget_stops_mid_range_at_the_exact_boundary() {
+        // Pins the `while u <= end && *budget > 0` -> `for u in
+        // start_unicode_value..=end { if *budget == 0 { break } ... }`
+        // conversion (Stage M-42): a single default-UVS range spanning 16
+        // codepoints (0x41..=0x50, `additionalCount == 15`), given a
+        // budget of only 5, must register a UVS mapping for exactly the
+        // first 5 codepoints in the range's own order and leave the
+        // budget fully spent. Every codepoint in the range must already
+        // resolve via `otfcc_cmap_lookup` -- `read_uvs_default` only
+        // registers a UVS mapping when the plain cmap already maps that
+        // codepoint -- so the budget is the only reason fewer than 16
+        // entries land in `cmap.uvs`, not a lookup miss.
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u32.to_be_bytes()); // numUnicodeValueRanges
+        data.extend_from_slice(&[0x00, 0x00, 0x41]); // startUnicodeValue (24-bit): 0x41
+        data.extend_from_slice(&15u8.to_be_bytes()); // additionalCount: 16 codepoints total
+        assert_eq!(data.len(), 8);
+
+        let mut cmap = empty_cmap();
+        for cp in 0x41i32..=0x50 {
+            otfcc_encode_cmap_by_index(cmap.as_mut(), cp, cp as u16);
+        }
+        let mut budget: u32 = 5;
+        read_uvs_default(&data, 0, 0xFE00, cmap.as_mut(), &mut budget);
+
+        assert_eq!(budget, 0, "the budget must be fully consumed");
+        assert_eq!(
+            cmap.uvs.len(),
+            5,
+            "exactly `budget` UVS mappings registered, not fewer or more"
+        );
+        for cp in 0x41u32..0x46 {
+            assert!(
+                cmap.uvs.contains_key(&CmapUvsKey {
+                    unicode: cp,
+                    selector: 0xFE00
+                }),
+                "codepoint {cp:#x} within the budget must be registered"
+            );
+        }
+        assert!(
+            !cmap.uvs.contains_key(&CmapUvsKey {
+                unicode: 0x46,
+                selector: 0xFE00
+            }),
+            "the first codepoint past the budget must not be registered"
         );
     }
 

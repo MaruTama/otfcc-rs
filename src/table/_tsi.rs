@@ -176,8 +176,7 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &O
     };
     logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let entries: &Vec<TsiEntry> = tsi;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut _tsi = BuiltValue::new_object(2);
         let mut _glyphs = BuiltValue::new_object(entries.len());
         for entry in entries.iter() {
@@ -200,7 +199,6 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &O
         _tsi.push_field(b"glyphs", _glyphs);
         _tsi.push_field(b"extra", _extra);
         root.push_field(tag, _tsi);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }
@@ -291,13 +289,12 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, type_0: TsiEntr
         index_part.write_u32be(length_sofar as u32);
         items_pushed = (items_pushed as i32 + 1_i32) as GlyphId;
     }
-    while (items_pushed as i32) < min_n as i32 {
+    for _ in items_pushed..min_n {
         let text_pos = target.text_part.as_ref().unwrap().pos();
         let index_part = target.index_part.as_mut().unwrap();
         index_part.write_u16be(propergid(None, type_0) as u16);
         index_part.write_u16be(0_u16);
         index_part.write_u32be(text_pos as u32);
-        items_pushed = (items_pushed as i32 + 1_i32) as GlyphId;
     }
 }
 #[allow(improper_ctypes_definitions)]

@@ -669,10 +669,9 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
 }
 pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) -> Option<Buffer> {
     let table: &OtlTable = table?;
-    let mut buf: Option<Buffer> = None;
+    let buf: Option<Buffer>;
     logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let lookup_dense = storage_to_dense(&table.lookups);
         let feature_dense = storage_to_dense(&table.features);
         let lookups: BkBlock = write_otl_lookups(table, options, tag);
@@ -685,7 +684,6 @@ pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) 
             bk_ptr(BkCellType::P16, Some(lookups)),
         ]);
         buf = Some(bk_build_block(root));
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     return buf;

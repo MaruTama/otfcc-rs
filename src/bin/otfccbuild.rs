@@ -115,7 +115,7 @@ fn main_0(args: Vec<String>) -> i32 {
     let mut options: Box<Options> = Box::default();
     options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     logger_indent_sds(&mut options.logger.borrow_mut(), b"otfccbuild".to_vec());
-    otfcc_options_optimize_to(&mut *options, 1_u8);
+    otfcc_options_optimize_to(&mut options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     // `--keep-glyph-order` and `--dont-ignore-glyph-order` are documented as
@@ -273,15 +273,13 @@ fn main_0(args: Vec<String>) -> i32 {
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Load file"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         if let Some(ref in_path) = inPath {
             logger_start_sds(
                 &mut options.logger.borrow_mut(),
                 otfcc_rust::bytesbuild!(b"Load from file ", in_path.as_bytes()),
             );
-            let mut ___loggedstep_v_0: bool = true;
-            while ___loggedstep_v_0 {
+            {
                 let Some(b) = readEntireFile(in_path.as_c_str()) else {
                     return EXIT_FAILURE;
                 };
@@ -294,7 +292,6 @@ fn main_0(args: Vec<String>) -> i32 {
                 // for the rest of the function and drops naturally at
                 // the end, which is exactly what those later reads
                 // needed all along.
-                ___loggedstep_v_0 = false;
                 logger_finish(&mut options.logger.borrow_mut());
             }
         } else {
@@ -302,10 +299,8 @@ fn main_0(args: Vec<String>) -> i32 {
                 &mut options.logger.borrow_mut(),
                 otfcc_rust::bytesbuild!(b"Load from stdin"),
             );
-            let mut ___loggedstep_v_1: bool = true;
-            while ___loggedstep_v_1 {
+            {
                 buffer = readEntireStdin();
-                ___loggedstep_v_1 = false;
                 logger_finish(&mut options.logger.borrow_mut());
             }
         }
@@ -315,7 +310,6 @@ fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     let mut json_root: Option<ParsedValue> = None;
@@ -323,8 +317,7 @@ fn main_0(args: Vec<String>) -> i32 {
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Parse into JSON"),
     );
-    let mut ___loggedstep_v_2: bool = true;
-    while ___loggedstep_v_2 {
+    {
         json_root = parse_json(&buffer);
         logger_log_sds(
             &mut options.logger.borrow_mut(),
@@ -345,7 +338,6 @@ fn main_0(args: Vec<String>) -> i32 {
             );
             return EXIT_FAILURE;
         }
-        ___loggedstep_v_2 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     let mut font: Option<Box<Font>> = None;
@@ -353,11 +345,10 @@ fn main_0(args: Vec<String>) -> i32 {
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Parse"),
     );
-    let mut ___loggedstep_v_3: bool = true;
-    while ___loggedstep_v_3 {
+    {
         // `read_json` is a plain safe `pub fn` as of Stage M-34 -- see its
         // own doc comment for why it now takes `&mut ParsedValue`.
-        font = read_json(json_root.as_mut().unwrap(), &*options);
+        font = read_json(json_root.as_mut().unwrap(), &options);
         if font.is_none() {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),
@@ -378,41 +369,36 @@ fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v_3 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Consolidate"),
     );
-    let mut ___loggedstep_v_4: bool = true;
-    while ___loggedstep_v_4 {
-        otfcc_consolidate_font(font.as_mut().unwrap(), &*options);
+    {
+        otfcc_consolidate_font(font.as_mut().unwrap(), &options);
         logger_log_sds(
             &mut options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&mut begin),
         );
-        ___loggedstep_v_4 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     logger_start_sds(
         &mut options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Build"),
     );
-    let mut ___loggedstep_v_5: bool = true;
-    while ___loggedstep_v_5 {
+    {
         // Owned now that `serialize_to_otf` returns the `Buffer` itself;
         // it drops at the end of this block, where an explicit
         // `Buffer::from_raw` used to be needed.
-        let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &*options);
+        let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &options);
         logger_start_sds(
             &mut options.logger.borrow_mut(),
             otfcc_rust::bytesbuild!(b"Write to file"),
         );
-        let mut ___loggedstep_v_6: bool = true;
-        while ___loggedstep_v_6 {
+        {
             // Always `Some` here -- the `outputPath.is_none()` branch
             // above already exited.
             let output_path = outputPath.as_ref().unwrap();
@@ -430,7 +416,6 @@ fn main_0(args: Vec<String>) -> i32 {
                 );
                 return EXIT_FAILURE;
             }
-            ___loggedstep_v_6 = false;
             logger_finish(&mut options.logger.borrow_mut());
         }
         logger_log_sds(
@@ -443,7 +428,6 @@ fn main_0(args: Vec<String>) -> i32 {
         // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
         // their own at the end of this function's scope, no explicit
         // free needed.
-        ___loggedstep_v_5 = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     return 0_i32;

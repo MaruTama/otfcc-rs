@@ -1262,8 +1262,7 @@ pub fn otfcc_read_cff_and_glyf_tables(
                 if cff_file.font_dict.count != 0 {
                     let fd_count = cff_file.font_dict.count as usize;
                     context.meta.fd_array = Vec::with_capacity(fd_count);
-                    let mut j: TableId = 0 as TableId;
-                    while (j as usize) < fd_count {
+                    for j in 0..fd_count as TableId {
                         // Pushed *before* the recursive parse below (not
                         // after): `context.fd_array_index` makes
                         // `callback_extract_fd`/`callback_extract_private`
@@ -1299,7 +1298,6 @@ pub fn otfcc_read_cff_and_glyf_tables(
                             context.meta.fd_array[j as usize].font_name =
                                 crate::bytesbuild!(b"_Subfont", j as i32);
                         }
-                        j = j.wrapping_add(1);
                     }
                 }
             } // `context` (and its `&mut meta` borrow) ends here.
@@ -2113,8 +2111,7 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         let idx: &mut CffIndex = fd_array_index.as_mut().unwrap();
         let mut fd_array_privates_start_offset: u32 = off;
         let mut fd_array_privates: Vec<Buffer> = Vec::with_capacity(cff.fd_array.len());
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < cff.fd_array.len() {
+        for j in 0..cff.fd_array.len() as TableId {
             let pd: CffDict = cff_make_private_dict(cff.fd_array[j as usize].private_dict.as_deref());
             let mut p_0 = build_dict(&pd);
             p_0.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
@@ -2138,10 +2135,8 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
                 (fd_array_privates_start_offset >> 8_i32 & 0xff_u32) as u8;
             idx.data[private_offset_off + 3] = (fd_array_privates_start_offset & 0xff_u32) as u8;
             fd_array_privates_start_offset = (fd_array_privates_start_offset as usize)
-                .wrapping_add(p_0.len()) as u32
-                as u32;
+                .wrapping_add(p_0.len()) as u32;
             fd_array_privates.push(p_0);
-            j = j.wrapping_add(1);
         }
         r = build_index(idx);
         blob.write_buffer_owned(r);

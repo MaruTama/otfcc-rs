@@ -110,8 +110,7 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &O
         crate::bytesbuild!(b"SVG "),
     );
     let entries: &Vec<SvgAssignment> = svg;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         let mut _svg = BuiltValue::new_array(entries.len());
         for a in entries.iter() {
             let mut _a = BuiltValue::new_object(4);
@@ -128,7 +127,6 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &O
             _svg.push_item(_a);
         }
         root.push_field(b"SVG_", _svg);
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
 }
@@ -139,8 +137,7 @@ pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable
         &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"SVG "),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
+    {
         if let Some(items) = svg_val.as_array() {
             for a in items {
                 if a.as_object().is_some() {
@@ -160,7 +157,6 @@ pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable
                 }
             }
         }
-        ___loggedstep_v = false;
         logger_finish(&mut options.logger.borrow_mut());
     }
     return Some(svg);
@@ -176,35 +172,27 @@ pub fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     let mut svg: SvgTable = _svg.iter().map(svg_assignment_dup).collect();
     svg.sort_by_key(|a| a.start);
     let mut major: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (svg.len()) as u32)]);
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < svg.len() {
-        let a: &SvgAssignment = &svg[__caryll_index];
-        while keep != 0 {
-            // `bk_new_block_from_buffer_copy` takes `Option<&Buffer>`;
-            // build a stack-local `Buffer` view over `a.document`'s bytes
-            // for this one call. Stage 7-2-e made `Buffer.data` an owned
-            // `Vec<u8>`, so unlike before this is a real clone, not a
-            // zero-copy borrow -- correctness-preserving and cheap enough
-            // (once per SVG assignment during build, not a hot per-byte
-            // path).
-            let doc_buf = Buffer::from_bytes(&a.document);
-            bk_push(
-                &mut major,
-                vec![
-                    bk_int(BkCellType::B16, ((*a).start as i32) as u32),
-                    bk_int(BkCellType::B16, ((*a).end as i32) as u32),
-                    bk_ptr(
-                        BkCellType::P32,
-                        bk_new_block_from_buffer_copy(Some(&doc_buf)),
-                    ),
-                    bk_int(BkCellType::B32, (a.document.len()) as u32),
-                ],
-            );
-            keep = (keep == 0) as i32 as usize;
-        }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
+    for a in svg.iter() {
+        // `bk_new_block_from_buffer_copy` takes `Option<&Buffer>`;
+        // build a stack-local `Buffer` view over `a.document`'s bytes
+        // for this one call. Stage 7-2-e made `Buffer.data` an owned
+        // `Vec<u8>`, so unlike before this is a real clone, not a
+        // zero-copy borrow -- correctness-preserving and cheap enough
+        // (once per SVG assignment during build, not a hot per-byte
+        // path).
+        let doc_buf = Buffer::from_bytes(&a.document);
+        bk_push(
+            &mut major,
+            vec![
+                bk_int(BkCellType::B16, (a.start as i32) as u32),
+                bk_int(BkCellType::B16, (a.end as i32) as u32),
+                bk_ptr(
+                    BkCellType::P32,
+                    bk_new_block_from_buffer_copy(Some(&doc_buf)),
+                ),
+                bk_int(BkCellType::B32, (a.document.len()) as u32),
+            ],
+        );
     }
     let root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0_u32),
