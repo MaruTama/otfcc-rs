@@ -19150,3 +19150,234 @@ counter suggests," not more.
     the only population left that Stage 7-5 itself proposes converting;
     Bucket 5's remainder stays intentionally unconverted, per that section's
     own reasoning, and is not this plan's territory to revisit.
+
+- **Stage M-42: Bucket 4's budget-guarded loops converted where the exit
+  condition's own bound is fixed, left as `while` where it genuinely isn't --
+  the fifth and LAST stage of the `while`-loop cleanup plan (M-38 through
+  M-42, see "Stage 7-5 plan," not yet merged to `master` as of this stage,
+  read from `origin/claude/amazing-bell-wb1fyf-23`).** Branched from M-41's
+  own branch (`claude/amazing-bell-wb1fyf-29`, not yet merged to `master` as
+  of this stage). Re-confirmed the baseline before touching anything:
+  `survey-unsafe.sh`'s `while loops` counter read **139**, matching M-41's
+  own recorded post-conversion count exactly.
+  - **Scope re-verified, not trusted from the plan's own 7-site estimate.**
+    The plan named `table/cmap.rs`'s format-4/12/UVS encoders and
+    `table/otl/subtables/chaining/read.rs`'s `ClassDef`-scanning helpers.
+    Grepping both files directly for every remaining `while` found 4 sites
+    in `cmap.rs` (`read_format12`'s group walk, `read_format4`'s two
+    direct-delta/indirect segment walks, `read_uvs_default`'s range walk --
+    `read_uvs_non_default` was *already* a `for _ in 0..num_mappings { if
+    *budget == 0 { break } ... }`, not a `while` at all, apparently written
+    that way from the start rather than converted by an earlier stage) and
+    3 in `chaining/read.rs` (`class_coverage`'s `cls == 0` branch's two
+    loops plus its `cls != 0` branch's one loop) -- 7 exactly, matching the
+    plan's own count for once (M-38/M-39/M-41 each found a small over- or
+    undercount against their own plan estimates; this is the first of the
+    five stages where re-verifying found the plan's number exactly right).
+    Per the task's own explicit instruction not to trust a stale bucket
+    count even at 7 sites, a further crate-wide sweep for any other
+    budget/amplification-guard-shaped loop was done before accepting that
+    number: grepping every file mentioning `_BUDGET` (`consolidate/otl/
+    chaining.rs`, `consolidate.rs`, `support/options.rs`, `otf_reader.rs`,
+    plus the two files above) found one more genuine Bucket-4 site the
+    plan's own count had folded into "chaining/read.rs's ClassDef-scanning
+    helpers" without naming it separately: `table/otl/coverage.rs`'s
+    format-2 range-expansion loop, which shares `chaining/read.rs`'s
+    `CLASS_ZERO_BUDGET`/`CLASS_COVERAGE_CALL_BUDGET` reasoning via its own
+    `COVERAGE_ENTRY_BUILD_BUDGET` and was already flagged as "M-42's
+    territory" in M-39's own "left alone" notes above. Real population: **8
+    sites**, one more than the plan's own headline number, the same kind of
+    small correction every prior stage in this plan made to its own bucket
+    count. `libcff/cff_charset.rs`'s two `glyphs_encoded_sofar < nchars`
+    loops (format-1/format-2 CFF charset RLE decoding) were checked too --
+    no named `MAX_..._BUDGET` constant, no fuzz-amplification doc comment,
+    and a data-dependent step (`1 + nleft`, not a fixed per-iteration
+    charge) -- confirmed the same "data-dependent step" shape M-39 already
+    excludes from Bucket 2 entirely, not a Bucket 4 budget guard; left
+    alone, out of scope for this stage on its own terms, not this plan's.
+    `table/otl/subtables/gsub_multi.rs`'s subtable-splitting loop (`while
+    (start as usize) < subtable.len()`, `GSUB_MULTI_SUBTABLE_SIZE_LIMIT`)
+    was checked again too, for the same reason M-39 already gave it: a
+    size-budget for output-splitting during *encoding*, not a fuzz-found-
+    amplification guard against *attacker-controlled* input cost, and not
+    named among this plan's own budget constants -- left alone, unrelated
+    to Bucket 4 despite the surface resemblance.
+  - **Every one of the 8 sites traced in full against the task's own
+    question: is the loop's bound fixed at entry, with `budget` only ever
+    causing an early exit, or is the bound itself budget-dependent?** All 8
+    turned out to be the former -- in every site, the walked range (a
+    segment's `start..=end`, a UVS range's `start..=end`, a `ClassDef`'s own
+    `glyphs.len()`, a `max_glyphs` parameter, a coverage range's `start..=
+    end`) is computed once, before the loop, from values that never depend
+    on the budget and are never mutated during the loop; `budget`/the
+    global atomic budget statics only ever gate an early `break`, checked
+    first in the body, in the exact position the `while`'s own `&&
+    budget-still-available` clause checked it.
+    - **7 of the 8 converted to `for <bound> { if <budget exhausted> {
+      break} ...; <charge> }`, preserving the exact original check-then-
+      charge cadence:** `cmap.rs`'s `read_format12` (`for c in
+      start_code..=clamped_end`), both `read_format4` branches (`for c in
+      (start_code as u32)..=upper`, `upper` the same `end_code.min(0xfffe)`
+      fixed bound the `while`'s compound `c < 0xffff && c <= end_code`
+      condition computed one step at a time), `read_uvs_default` (`for u in
+      start_unicode_value..=end`); `chaining/read.rs`'s `class_coverage`
+      `cls == 0` branch's classified-bitmap loop (`for j in 0..cd.glyphs.
+      len()`) and unclassified-push loop (`for k in 0..max_glyphs`, safe
+      because `max_glyphs` is itself a `GlyphId`/`u16`, so at most 65535,
+      well short of ever needing to represent a `for` range endpoint past
+      what a `u16` can hold); `coverage.rs`'s format-2 range-expansion loop
+      (`for k in start as i32..=end as i32`), whose budget-exhaustion
+      `break` already targeted the *outer* per-range loop's own `'ranges`
+      label before this conversion (a nested `while` inside a labeled
+      `for`) and still does after it (a nested `for` inside the same
+      labeled `for`) -- the label itself is untouched, so the outer loop's
+      own break-on-exhaustion behavior is unchanged, only the inner loop's
+      own shape is.
+    - **1 of the 8 left as a `while`, per the task's own explicit "if not
+      100% certain, don't convert" instruction:** `class_coverage`'s `cls
+      != 0` branch's loop (`while (j_2 as usize) < cd.glyphs.len() &&
+      zero_budget_left()`). `j_2` is a `GlyphId` (`u16`), but the bound it
+      is compared against, `cd.glyphs.len()`, is a `usize` with no `u16`
+      cap from this function's own signature -- unlike `max_glyphs` in the
+      sibling loop just above it, which *is* a `GlyphId` parameter and
+      therefore provably at most 65535. Tracing `table/otl/
+      classdef.rs::read_class_def`'s format-2 branch (the only way a
+      `ClassDef` this large gets built) found that its `IndexMap<GlyphId,
+      GlyphClass>` dedup can legitimately hold exactly 65536 entries -- the
+      full `GlyphId` space -- when crafted ranges cover it entirely, making
+      `cd.glyphs.len() == 65536` reachable, not merely a theoretical edge
+      case this analysis invented to be extra cautious. In that exact case
+      the original's `j_2 = j_2.wrapping_add(1)` wraps `0xffff` back to `0`
+      *before* `(j_2 as usize) < cd.glyphs.len()` ever goes false, so the
+      `while` keeps re-scanning the same 65536-entry `ClassDef` -- each
+      full pass re-charging the budget and, for every glyph whose class
+      matches `cls`, re-pushing a duplicate `GlyphHandle` -- until
+      `zero_budget_left()` alone ends it, not a single `for j_2 in
+      0..cd.glyphs.len()` pass. Converting this one would silently change
+      what a maximal-`ClassDef` input does (far fewer duplicate pushes, a
+      different final `Coverage`), which is exactly the class of mistake
+      this stage's own risk warning exists to prevent -- left as a `while`,
+      documented in place with the reasoning above, not forced to hit a
+      round number.
+  - **New tests, one per converted site's own function (4 sites in
+    `cmap.rs` share 2 tests since two of them -- `read_format4`'s two
+    branches -- are exercised by the same input; the other 2 needed none,
+    reusing existing coverage), matching this migration's own established
+    "pin the exact boundary" style for these budgets (`format12_budget_
+    caps_the_total_across_many_groups_not_just_one`, `format14_non_
+    default_uvs_offset_aliasing_respects_shared_budget`):**
+    `format4_budget_stops_mid_segment_at_the_exact_boundary` (a 16-
+    codepoint direct-delta segment, budget 5, asserts exactly the first 5
+    codepoints map and the budget hits 0) and `uvs_default_budget_stops_
+    mid_range_at_the_exact_boundary` (a 16-codepoint default-UVS range,
+    same shape) in `cmap.rs`; `format2_budget_stops_mid_range_at_the_
+    exact_boundary` in `coverage.rs` (a 16-glyph format-2 range against
+    `COVERAGE_ENTRY_BUILD_BUDGET` forced to 5 via the private static
+    directly, then restored via `reset_coverage_entry_build_budget()` so
+    the global doesn't leak into whichever test runs next); `class_
+    coverage_cls_zero_budget_stops_mid_scan_at_the_exact_boundary` in
+    `chaining/read.rs` (a 3-glyph `ClassDef`, `CLASS_ZERO_BUDGET` forced to
+    7, pins that the *shared* budget crosses both of the `cls == 0` loops
+    in the right order: the first loop's own 3 charges leave exactly 4 for
+    the second, which then stops after processing indices `0..=3`,
+    skipping the one already-classified index and never reaching index 4).
+    `read_format12`'s and `read_format14`'s existing budget tests already
+    covered those two sites' own boundaries, so no new test was added for
+    them -- reusing established coverage rather than duplicating it.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean. `cargo test --
+    --test-threads=1`: 430 passed (426 + 4 new), 0 failed. `cargo test
+    --test golden --test abi --test dll_abi --test log_output --test
+    cycles -- --test-threads=1`: all 9 tests across the 5 files passing
+    byte-for-byte. `cargo +nightly-2026-08-17 miri test --lib -- <the same
+    17 module filters CI uses>`: 218 passed, 0 failed, 26 ignored -- CI's
+    own filter list doesn't cover `table::cmap` (no `unsafe fn`/`unsafe {}`
+    in that file, confirmed by the same `grep -rl` CI's own filter is built
+    from) or `table::otl::coverage` on its own, but `table::otl` (already
+    in CI's list) covers `coverage.rs` and `chaining/read.rs` as
+    submodules; `table::cmap` was added to this run anyway as this stage's
+    own extra check, the same "code sits next to indexed-slice access"
+    discipline M-41 already applied to VDMX/COLR/SVG/META -- all pass, 0
+    failed. `(cd fuzz && cargo check)` clean.
+  - **`survey-unsafe.sh`'s `while loops` counter: 139 -> 137, a drop of only
+    2 -- NOT the 7 sites actually converted, and re-verified rather than
+    taken at face value, since a script-counter drift smaller than this
+    stage's own real change would be an easy thing to wave away as
+    rounding.** `git diff` on the actual change found the explanation: 5 of
+    this stage's own new doc comments quote the original `while <cond>`
+    shape verbatim (e.g. "Pins the `while c < 0xffff && c <= end_code as
+    u32 && *budget > 0` -> `for c in ...`"), each containing the literal
+    text "while " the script's own `\bwhile ` counter matches -- the same
+    class of comment-text drift M-38's own log entry already found (there,
+    *removing* a stale comment's "while ___loggedstep_v" text over-counted
+    the drop by one; here, *adding* comments that quote the old shape
+    under-counts it by five, the same mechanism in the opposite direction).
+    The real number of `while`-loop sites converted this stage is exactly
+    **7**, confirmed directly (not inferred from the script) by counting
+    every site traced above; 139 (real) - 7 = **132** real `while` loops
+    left in the crate, even though the script's own text-based counter
+    reads 137. Every other counter (`unsafe fn`/`unsafe blocks`/raw pointer
+    types/`.offset(`/`is_null()`) unchanged at 4/30/165/22/19, confirming
+    this stage touched no `unsafe` code and no pointer, as expected for a
+    stage that only reshapes already-safe loop control flow in files that
+    were never `unsafe` to begin with.
+  - **Fuzzed for real time budgets on both targets this stage's changes
+    reach, given this is explicitly the plan's highest-risk stage
+    (amplification/budget-guard code, this crate's most fuzz-sensitive
+    class of bug):** `cargo +nightly-2026-08-17 fuzz run otf_parse --
+    -max_total_time=180` (2,174,678 executions, 0 crashes -- reaches
+    `cmap.rs`'s format-4/12/UVS readers and `chaining/read.rs`'s
+    `class_coverage` via any font with a `cmap`/GSUB-or-GPOS-contextual
+    table) and `cargo +nightly-2026-08-17 fuzz run otf_dump --
+    -max_total_time=180` (942,128 executions, 0 crashes -- this target's
+    own known low exec/s, see M-31's and M-39's log entries, held here
+    too; reaches the same code via the read+consolidate+dump pipeline,
+    plus `coverage.rs`'s format-2 loop through GDEF/GSUB/GPOS consolidation
+    and re-dump). All 22 `tests/fuzz-corpus/known-issues/*.bin` regression
+    files re-run directly against their matching rebuilt target (`otf-
+    parse-*` against `otf_parse`, `otf-dump-*` against `otf_dump`, `json-
+    build-*` against `json_build`): all 22 exit 0, including the
+    documented bounded-but-slow `otf-dump-otl-coverage-consolidate-
+    amplification-hang.bin` case (24.99s here, consistent with the
+    "slow but not a hang" finding on record from Stage 7-4/M-33's original
+    investigation and M-39's own re-confirmation at 23.2s) -- re-confirmed
+    rather than assumed unaffected, since this stage's `coverage.rs` change
+    sits in that exact file's format-2 loop.
+  - **The `while`-loop cleanup plan (M-38 through M-42) is now complete.**
+    Five stages, starting from the Stage 7-5 plan's own fresh count of
+    **226** `while` loops: M-38 deleted 32 `___loggedstep_v` run-once
+    wrappers (Bucket 1), M-39 converted 38 plain index-count loops
+    (Bucket 2, closing it in one tranche -- M-40 was skipped, its own
+    re-verification finding nothing left to do), M-41 converted 16
+    `keep`-flag do-once-with-continue-emulation loops (Bucket 3), and this
+    stage converted 7 of Bucket 4's 8 budget-guarded loops, real total: 32
+    + 38 + 16 + 7 = **93** loops converted, leaving **132** real (137 by
+    the script's own text-counter, given the comment-drift explained
+    above) -- a bit over half the original 226 remain, entirely by design,
+    not by this plan running out of runway. What remains, permanently, is
+    Bucket 5 plus this stage's own one "leave alone" site, every one of
+    them already named with its own specific reason rather than a generic
+    "looked risky": `consolidate.rs`'s raw-pointer-entangled cyclic-graph
+    pair (`get_point_coordinates`/`consolidate_anchor_ref`, no safe
+    redesign preserving cycle-detection semantics, per Stage 7-4's own
+    Bucket C); `support/ttinstr.rs`'s tokenizer and number-parsing helpers
+    (labeled breaks, data-dependent scan conditions, and this crate's own
+    most recently fuzz-fragile file -- restructuring control flow there for
+    a cosmetic win is exactly the risk this plan's own Bucket 4 warning was
+    written to generalize from); `libcff/subr.rs`'s and `bk/bkgraph.rs`'s
+    circular-linked-list/graph walks (`while e != guard`, no natural `0..n`
+    range to force); already-idiomatic `while let`s (`support/
+    parsed_json.rs`, `libcff/subr.rs`, `table/tsi5.rs`, `table/_tsi.rs`);
+    `vendor/emyg_dtoa.rs` (third-party vendored code, out of scope
+    regardless of shape); and every scanner across `libcff/cff_dict.rs`,
+    `libcff/cff_codecs.rs`, `libcff/cff_charset.rs`, `libcff/cff_parser.rs`,
+    `support/unicode/unicodeconv.rs`, `support/cli/getopt.rs`,
+    `table/post.rs`, `table/glyf/read.rs`, `table/otl/subtables/chaining/
+    classifier.rs`, `otf_writer/stat.rs`, and `table/otl/subtables/
+    gsub_multi.rs` whose stopping point is a data-dependent step or an
+    explicit size/count budget unrelated to Bucket 4's fuzz-amplification
+    shape -- plus, new to this stage's own accounting, `chaining/
+    read.rs::class_coverage`'s one budget-dependent-wraparound site named
+    above. None of these is a stage waiting to happen; each is a shape this
+    plan's own five stages, read together, already gave a specific reason
+    to leave alone.

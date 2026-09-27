@@ -291,8 +291,18 @@ pub fn class_coverage(
         || CLASS_ZERO_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
     if cls as i32 == 0_i32 {
         let mut classified = vec![false; max_glyphs as usize];
-        let mut j: usize = 0;
-        while j < cd.glyphs.len() && zero_budget_left() {
+        // `0..cd.glyphs.len()`: the bound is `cd.glyphs`'s own length,
+        // fixed for this whole call (never mutated inside either loop),
+        // and doesn't depend on `budget` -- the same range the `while`
+        // walked one step at a time. `zero_budget_left()` only ever
+        // causes an early `break`, checked first in the body, the same
+        // position the `while`'s own `&& zero_budget_left()` checked it
+        // in; `charge_zero_budget()` stays unconditional and in the same
+        // place, right before the loop variable would have advanced.
+        for j in 0..cd.glyphs.len() {
+            if !zero_budget_left() {
+                break;
+            }
             if cd.classes[j] as i32 > 0_i32 {
                 let idx = cd.glyphs[j].index as usize;
                 if idx < classified.len() {
@@ -300,17 +310,41 @@ pub fn class_coverage(
                 }
             }
             charge_zero_budget();
-            j += 1;
         }
-        let mut k: GlyphId = 0 as GlyphId;
-        while (k as i32) < max_glyphs as i32 && zero_budget_left() {
+        // `0..max_glyphs`: `max_glyphs` is a `GlyphId` (`u16`, so at most
+        // 65535) fixed for the whole call, and, like the loop above,
+        // doesn't depend on `budget` -- same range, same early-`break`
+        // shape.
+        for k in 0..max_glyphs {
+            if !zero_budget_left() {
+                break;
+            }
             if !classified[k as usize] {
                 push_to_coverage(&mut cov, handle_from_index(k) as GlyphHandle);
             }
             charge_zero_budget();
-            k = k.wrapping_add(1);
         }
     } else {
+        // Left as a `while`, not converted: `j_2` is a `GlyphId` (`u16`),
+        // but the bound it is compared against is `cd.glyphs.len()`
+        // (`usize`), which -- unlike `max_glyphs` above -- is not itself
+        // capped to fit in a `u16` by this function's own signature. A
+        // `format 2` `ClassDef` can legitimately hold exactly 65536
+        // distinct glyphs (`table/otl/classdef.rs::read_class_def`'s
+        // format-2 branch dedups by `GlyphId` into an `IndexMap`, whose
+        // key space is the full `u16` range), so `cd.glyphs.len() ==
+        // 65536` is reachable, not merely theoretical. In that exact case
+        // the original's `j_2 = j_2.wrapping_add(1)` wraps `0xffff` back
+        // to `0` *before* `(j_2 as usize) < cd.glyphs.len()` ever goes
+        // false, so the `while` keeps re-scanning the same 65536 entries
+        // (each full pass re-charging and, on a matching `cls`, re-pushing
+        // every match) until `zero_budget_left()` alone ends it -- a
+        // materially different outcome (many repeated passes, and
+        // correspondingly many duplicate pushes) than a single `for j_2
+        // in 0..cd.glyphs.len()` pass would produce. Converting this one
+        // would silently change what a maximal-`ClassDef` input does, so
+        // per the task's own "leave it alone rather than guess" rule, it
+        // stays a `while`.
         let mut j_2: GlyphId = 0 as GlyphId;
         while (j_2 as usize) < cd.glyphs.len() && zero_budget_left() {
             if cd.classes[j_2 as usize] as i32 == cls as i32 {
@@ -1161,6 +1195,59 @@ mod chaining_read_tests {
 
     fn glyphs_of(cov: &Coverage) -> Vec<GlyphId> {
         cov.iter().map(|h| h.index).collect()
+    }
+
+    #[test]
+    fn class_coverage_cls_zero_budget_stops_mid_scan_at_the_exact_boundary() {
+        // Pins both of `class_coverage`'s `cls == 0` loops -- the
+        // classified-bitmap build (`while j < cd.glyphs.len() &&
+        // zero_budget_left()`) and the unclassified-glyph push (`while (k
+        // as i32) < max_glyphs as i32 && zero_budget_left()`) -- converted
+        // to `for` + an explicit early `break` in Stage M-42. Both loops
+        // draw from the same shared, process-wide `CLASS_ZERO_BUDGET`,
+        // charged unconditionally once per iteration regardless of which
+        // loop, so a small combined budget must exhaust across the two
+        // loops in the exact same order the `while`s did: the first loop
+        // (3 glyphs) fully completes, leaving exactly 4 units for the
+        // second loop (`max_glyphs == 10`), which must then stop after
+        // processing indices `0..=3` and leave index `4` untouched. The
+        // budget statics are global, so this test resets them before and
+        // after, the same "leave global state clean" discipline
+        // `table/otl/coverage.rs`'s equivalent budget test uses.
+        reset_class_coverage_budgets();
+        CLASS_ZERO_BUDGET.store(7, ::core::sync::atomic::Ordering::Relaxed);
+
+        let cd = ClassDef {
+            maxclass: 1,
+            glyphs: vec![
+                handle_from_index(2) as GlyphHandle,
+                handle_from_index(5) as GlyphHandle,
+                handle_from_index(8) as GlyphHandle,
+            ],
+            classes: vec![1, 1, 1],
+        };
+        let defs = ClassDefs {
+            bc: Some(Box::new(cd)),
+            ic: None,
+            fc: None,
+        };
+
+        let cov = class_coverage(&[], 0, 0, 1, 10, &defs);
+
+        assert_eq!(
+            CLASS_ZERO_BUDGET.load(::core::sync::atomic::Ordering::Relaxed),
+            0,
+            "the shared budget must be fully consumed across both loops"
+        );
+        assert_eq!(
+            glyphs_of(&cov),
+            vec![0, 1, 3],
+            "unclassified glyphs 0, 1, 3 pushed in order -- index 2 is \
+             skipped (classified in the first loop), and index 4 is never \
+             reached (budget ran out after processing 0..=3)"
+        );
+
+        reset_class_coverage_budgets();
     }
 
     #[test]

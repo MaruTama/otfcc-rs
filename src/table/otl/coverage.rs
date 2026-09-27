@@ -171,14 +171,21 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> Coverage {
                 let start = r.u16().unwrap();
                 let end = r.u16().unwrap();
                 let start_coverage_index = r.u16().unwrap();
-                let mut k = start as i32;
-                while k <= end as i32 {
+                // `start as i32..=end as i32`: both ends are fixed once
+                // read above and don't depend on the budget, so this walks
+                // exactly the same range the `while` did one step at a
+                // time (empty when `start > end`, matching the `while`'s
+                // own zero-iteration case). The budget check keeps its
+                // exact original position -- first thing in the body,
+                // still `break 'ranges` (the *outer* per-range loop, not
+                // just this expanded range) on exhaustion, unchanged by
+                // this loop's own shape becoming a `for`.
+                for k in start as i32..=end as i32 {
                     if COVERAGE_ENTRY_BUILD_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) == 0 {
                         break 'ranges;
                     }
                     let cov_index = start_coverage_index as i32 + k;
                     h.entry(k as GlyphId).or_insert(cov_index);
-                    k += 1;
                     COVERAGE_ENTRY_BUILD_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
                 }
             }
@@ -349,6 +356,43 @@ mod read_coverage_tests {
             cov.iter().map(|h| h.index).collect::<Vec<_>>(),
             vec![10, 11, 12]
         );
+    }
+
+    #[test]
+    fn format2_budget_stops_mid_range_at_the_exact_boundary() {
+        // Pins the `while k <= end as i32` -> `for k in start as
+        // i32..=end as i32 { if ... == 0 { break 'ranges } ... }`
+        // conversion (Stage M-42): a single format-2 range spanning 16
+        // glyphs (10..=25), given a `COVERAGE_ENTRY_BUILD_BUDGET` of only
+        // 5, must expand exactly the first 5 glyphs in the range's own
+        // order and leave the shared, process-wide budget fully spent --
+        // not skip one, not expand one extra. The budget is a global
+        // static shared with every other `read_coverage` call (including
+        // every other test in this module), so it is force-set low here
+        // and restored to its full default before returning, the same
+        // "leave global state clean for whichever test runs next"
+        // discipline this crate already applies to `Options::logger`-
+        // adjacent statics.
+        COVERAGE_ENTRY_BUILD_BUDGET.store(5, ::core::sync::atomic::Ordering::Relaxed);
+        let mut data = Vec::new();
+        data.extend_from_slice(&2u16.to_be_bytes()); // format
+        data.extend_from_slice(&1u16.to_be_bytes()); // rangeCount
+        data.extend_from_slice(&10u16.to_be_bytes()); // startGlyphID
+        data.extend_from_slice(&25u16.to_be_bytes()); // endGlyphID (16 glyphs total)
+        data.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
+        let cov = read_coverage(&data, 0);
+
+        assert_eq!(
+            COVERAGE_ENTRY_BUILD_BUDGET.load(::core::sync::atomic::Ordering::Relaxed),
+            0,
+            "the shared budget must be fully consumed"
+        );
+        assert_eq!(
+            cov.iter().map(|h| h.index).collect::<Vec<_>>(),
+            vec![10, 11, 12, 13, 14],
+            "exactly `budget` glyphs expanded, in range order, not fewer or more"
+        );
+        reset_coverage_entry_build_budget();
     }
 
     #[test]
