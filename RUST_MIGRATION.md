@@ -19012,3 +19012,141 @@ counter suggests," not more.
     so M-40, if it still finds nothing new, should say so plainly rather
     than force additional conversions to hit a number the original plan's
     own estimate was always just an estimate for.
+
+- **M-40 skipped: M-39's own full-crate read already found Bucket 2 empty.**
+  M-39's own tail note above says it plainly: every genuine plain-index-count
+  `while` site found by that stage's own full-crate read was already
+  converted in that same stage, leaving nothing in Bucket 2 for a "second
+  tranche" to do. Re-deriving this from scratch (re-running the same
+  `while <ident> < <expr>` proxy search and reading every remaining site
+  crate-wide) rather than trusting the prior stage's own claim found the same
+  answer: the 155 `while` sites left after M-39 sort entirely into Bucket 3
+  (this stage, below), Bucket 4 (M-42's budget-guarded loops), and Bucket 5
+  (the "not simple index loops" remainder the Stage 7-5 plan itself excludes
+  from conversion) -- nothing plain and fixed-bound remains unconverted. So,
+  per the plan's own instruction not to force a number the original estimate
+  was only ever an estimate for, M-40 does no conversion work at all; this
+  entry exists only to record that its own re-verification was actually done,
+  not assumed, before moving on to M-41.
+
+- **Stage M-41: all 16 of Bucket 3's `keep`-flag "do-once with
+  continue-emulation" sites converted, across the four files the Stage 7-5
+  plan itself named.** Branched from M-39's own branch
+  (`claude/amazing-bell-wb1fyf-28`, not yet merged to `master` as of this
+  stage). Re-confirmed the baseline before touching anything:
+  `survey-unsafe.sh`'s `while loops` counter read **155**, matching M-39's
+  own recorded post-conversion count exactly.
+  - **Scope re-verified, not trusted from the plan's own count.** The plan's
+    own estimate was 17 sites, "concentrated in `table/vdmx/funcs.rs` with a
+    handful elsewhere." Grepping crate-wide for both of this shape's two
+    unmistakable fingerprints (`let mut keep` and the `__caryll_index`
+    counter naming c2rust gives this specific hoisted-continue translation)
+    found the same four files the plan named and no others --
+    `table/vdmx/funcs.rs` (4 `keep` variables), `table/colr.rs` (2),
+    `table/svg.rs` (1), `table/meta/build.rs` (1), 8 `keep` flags in total,
+    each one pairing an outer real per-item `while` with an inner do-once
+    `while` it wraps -- 16 `while` sites, one fewer than the plan's own
+    17-site estimate, the same kind of small over/undercount M-38
+    (32 vs. an estimated 31) and M-39 (38 real sites vs. an estimated
+    120-140) both already found for this same plan's other buckets. Every
+    one of the 16 sites was read in full before touching it, per the task's
+    own "trace precisely" instruction, not converted on shape alone.
+  - **The tracing, and what it actually found: a simpler sub-case than the
+    plan's own worst-case description.** The plan frames Bucket 3 as
+    needing confirmation "that every exit path through the inner `while
+    keep != 0` block still reaches the outer loop's own `idx += 1`" --
+    i.e. that the `keep` flag might be flipped to `0` *conditionally*,
+    partway through the body, emulating a real C `continue` that jumps past
+    some of the body but must still fall through to the counter bump. None
+    of the 16 sites actually does this. In every one, `keep`'s only
+    assignment inside the inner `while` is its own last statement,
+    unconditional (`keep = (keep == 0) as i32 as usize;`, which -- since
+    `keep` is always `1` on entry to that inner `while` -- always evaluates
+    to `0`), and the matching outer-body assignment right after the inner
+    `while` exits is equally unconditional. There is no `if <condition> {
+    keep = 0; ... }` anywhere in any of the 16 -- no C `continue` was
+    actually hoisted past live code in any of these particular sites, only
+    past the (empty, in every case) remainder of a body that already ends
+    at that exact point. This makes the safe rewrite strictly simpler than
+    the plan's own worst case: no conditional needs reconstructing, no
+    early `return`/labeled `break` stands in for a skipped tail, because
+    there was never a skipped tail to begin with -- confirmed by reading
+    every site's full body against this specific question, not inferred
+    from the shape alone, exactly as the task's own instructions ask.
+  - **The fix: the inner `keep` do-once wrapper removed (M-38's own
+    transform, applied to a nested rather than a top-level `while`), and
+    the outer real per-item `while` -- itself entangled with `keep` in
+    every site's own `while keep != 0 && idx < len` condition, which is
+    exactly why M-39 left this file's population for this stage rather
+    than folding it into Bucket 2 -- converted to `for item in
+    collection.iter()` (M-39's own Bucket 2 idiom) in the same pass, since
+    unwrapping the inner flag alone would leave a `for`-shaped `while` with
+    a permanently-true condition behind, which is not the resting state
+    either bucket's own idiom aims for.** Concretely, `table/vdmx/
+    funcs.rs`'s `otfcc_build_vdmx` had two independent top-level nests (one
+    over `ratios` alone, one over `ratios` with a further nest over each
+    ratio's `records` twice for the `startsz`/`endsz` scan and the actual
+    record-pushing pass) -- all four `__caryll_index_N`/`keep_N` pairs in
+    that function collapsed the same way, into four `for` loops with no
+    index or flag left over. `table/colr.rs`'s `otfcc_build_colr` had one
+    outer nest over `colr` (base-glyph records) with one further nest over
+    each mapping's `layers` (layer records, and the `current_layer_index`
+    running counter, which was already incremented unconditionally inside
+    the inner body and needed no change beyond losing the `keep_0` line
+    around it). `table/svg.rs`'s `otfcc_build_svg` and `table/meta/
+    build.rs`'s `otfcc_build_meta` each had exactly one nest, over `svg`/
+    `entries` respectively -- both collapsed to a single `for` with the
+    body's own comments (`svg.rs`'s `Buffer::from_bytes` note) carried over
+    unchanged, since nothing about the comment's own subject moved.
+  - **Verification.** `cargo build --lib`/`--all-targets` clean. `cargo
+    clippy --all-targets -- -D warnings` clean -- no `needless_range_loop`
+    or similar left behind, since every converted loop's body already used
+    its bound variable as a value (`rr`/`mapping`/`a`/`e`), never as a raw
+    index, so `for x in collection.iter()` was the correct idiom on the
+    first pass, not a further clippy-driven rewrite. `cargo test --
+    --test-threads=1`: 426 passed, 0 failed. `cargo test --test golden
+    --test abi --test dll_abi --test log_output --test cycles --
+    --test-threads=1`: all 9 tests across the 5 files passing byte-for-byte
+    -- the VDMX/COLR/SVG/META-touching golden fixtures included, and this
+    matters more here than in M-38/M-39: unlike those two stages' purely
+    mechanical substitutions, this stage also collapsed the outer counting
+    loop into a `for`, so a byte-exact re-match on these four tables'
+    fixtures is the actual behavioral proof, not a formality.
+    `cargo +nightly-2026-08-17 miri test --lib -- table::vdmx table::colr
+    table::svg table::meta --test-threads=1`: 20 passed, 0 failed (none of
+    these four files contain `unsafe fn`/`unsafe {}` -- confirmed by
+    `grep -rl "unsafe fn\|unsafe {" src --include=*.rs`, so they were never
+    in CI's own Miri module-filter list to begin with -- this run is purely
+    this stage's own extra check given the code sits next to indexed-slice
+    access, per the plan's own instruction, not a gap CI would otherwise
+    have left uncovered). `(cd fuzz && cargo check)` clean.
+    `survey-unsafe.sh`'s `while loops` counter: 155 -> **139**, a drop of
+    exactly 16, matching the 16 sites converted (unlike M-38's off-by-one
+    from a stale comment, no comment in any of the four touched files
+    mentioned the literal text "while", so no drift here). Every other
+    counter (`unsafe fn`/`unsafe blocks`/raw pointer types/`.offset(`/
+    `is_null()`) unchanged at 4/30/165/22/19, confirming this stage touched
+    no `unsafe` code and no pointer, as expected for a pure control-flow
+    change in files that were never `unsafe` to begin with. Fuzzed for a
+    real budget on `json_build` given this stage's changes are entirely in
+    the JSON-to-OTF *build* path (VDMX/COLR/SVG/META table encoding), the
+    one fuzz target that actually drives `otfcc_build_vdmx`/
+    `otfcc_build_colr`/`otfcc_build_svg`/`otfcc_build_meta`:
+    `cargo +nightly-2026-08-17 fuzz run json_build -- -max_total_time=150`
+    (5,711,606 executions, 0 crashes). All 22
+    `tests/fuzz-corpus/known-issues/*.bin` regression files re-run directly
+    against the rebuilt `json_build` binary: all exit 0 in well under a
+    second each, including the documented bounded-but-slow
+    `otf-dump-otl-coverage-consolidate-amplification-hang.bin` case (which
+    is an `otf_dump`-side amplification, not a `json_build`-side one, so
+    running fast here is expected, not a regression of that finding).
+  - **What this leaves for the plan's remaining stage.** Bucket 3 is now
+    fully closed: the 8 `keep`-flag sites the Stage 7-5 plan's own count
+    was built from are gone, and the crate-wide grep for both of this
+    shape's fingerprints (`let mut keep`, `__caryll_index`) returns nothing.
+    M-42 is the plan's last stage, covering Bucket 4's 7 budget-guarded
+    loops (`table/cmap.rs`'s format-4/12/UVS encoders and
+    `table/otl/subtables/chaining/read.rs`'s `ClassDef`-scanning helpers) --
+    the only population left that Stage 7-5 itself proposes converting;
+    Bucket 5's remainder stays intentionally unconverted, per that section's
+    own reasoning, and is not this plan's territory to revisit.

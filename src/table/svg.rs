@@ -172,35 +172,27 @@ pub fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     let mut svg: SvgTable = _svg.iter().map(svg_assignment_dup).collect();
     svg.sort_by_key(|a| a.start);
     let mut major: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (svg.len()) as u32)]);
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < svg.len() {
-        let a: &SvgAssignment = &svg[__caryll_index];
-        while keep != 0 {
-            // `bk_new_block_from_buffer_copy` takes `Option<&Buffer>`;
-            // build a stack-local `Buffer` view over `a.document`'s bytes
-            // for this one call. Stage 7-2-e made `Buffer.data` an owned
-            // `Vec<u8>`, so unlike before this is a real clone, not a
-            // zero-copy borrow -- correctness-preserving and cheap enough
-            // (once per SVG assignment during build, not a hot per-byte
-            // path).
-            let doc_buf = Buffer::from_bytes(&a.document);
-            bk_push(
-                &mut major,
-                vec![
-                    bk_int(BkCellType::B16, (a.start as i32) as u32),
-                    bk_int(BkCellType::B16, (a.end as i32) as u32),
-                    bk_ptr(
-                        BkCellType::P32,
-                        bk_new_block_from_buffer_copy(Some(&doc_buf)),
-                    ),
-                    bk_int(BkCellType::B32, (a.document.len()) as u32),
-                ],
-            );
-            keep = (keep == 0) as i32 as usize;
-        }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
+    for a in svg.iter() {
+        // `bk_new_block_from_buffer_copy` takes `Option<&Buffer>`;
+        // build a stack-local `Buffer` view over `a.document`'s bytes
+        // for this one call. Stage 7-2-e made `Buffer.data` an owned
+        // `Vec<u8>`, so unlike before this is a real clone, not a
+        // zero-copy borrow -- correctness-preserving and cheap enough
+        // (once per SVG assignment during build, not a hot per-byte
+        // path).
+        let doc_buf = Buffer::from_bytes(&a.document);
+        bk_push(
+            &mut major,
+            vec![
+                bk_int(BkCellType::B16, (a.start as i32) as u32),
+                bk_int(BkCellType::B16, (a.end as i32) as u32),
+                bk_ptr(
+                    BkCellType::P32,
+                    bk_new_block_from_buffer_copy(Some(&doc_buf)),
+                ),
+                bk_int(BkCellType::B32, (a.document.len()) as u32),
+            ],
+        );
     }
     let root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0_u32),

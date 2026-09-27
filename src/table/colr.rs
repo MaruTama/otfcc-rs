@@ -197,55 +197,39 @@ pub fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
     let mut current_layer_index: GlyphId = 0 as GlyphId;
     let mut layer_records: BkBlock = bk_new_block(Vec::new());
     let mut base_records: BkBlock = bk_new_block(Vec::new());
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < colr.len() {
-        let mapping: &ColrMapping = &colr[__caryll_index];
-        while keep != 0 {
+    for mapping in colr.iter() {
+        bk_push(
+            &mut base_records,
+            vec![
+                bk_int(
+                    BkCellType::B16,
+                    (mapping.glyph.index as i32) as u32,
+                ),
+                bk_int(
+                    BkCellType::B16,
+                    (current_layer_index as i32) as u32,
+                ),
+                bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
+            ],
+        );
+        for layer in mapping.layers.iter() {
             bk_push(
-                &mut base_records,
+                &mut layer_records,
                 vec![
                     bk_int(
                         BkCellType::B16,
-                        (mapping.glyph.index as i32) as u32,
+                        (layer.glyph.index as i32) as u32,
                     ),
                     bk_int(
                         BkCellType::B16,
-                        (current_layer_index as i32) as u32,
+                        (layer.palette_index as i32) as u32,
                     ),
-                    bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
                 ],
             );
-            let mut __caryll_index_0: usize = 0_usize;
-            let mut keep_0: usize = 1_usize;
-            while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
-                let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
-                while keep_0 != 0 {
-                    bk_push(
-                        &mut layer_records,
-                        vec![
-                            bk_int(
-                                BkCellType::B16,
-                                (layer.glyph.index as i32) as u32,
-                            ),
-                            bk_int(
-                                BkCellType::B16,
-                                (layer.palette_index as i32) as u32,
-                            ),
-                        ],
-                    );
-                    current_layer_index = (current_layer_index as i32
-                        + 1_i32)
-                        as GlyphId;
-                    keep_0 = (keep_0 == 0) as i32 as usize;
-                }
-                keep_0 = (keep_0 == 0) as i32 as usize;
-                __caryll_index_0 = __caryll_index_0.wrapping_add(1);
-            }
-            keep = (keep == 0) as i32 as usize;
+            current_layer_index = (current_layer_index as i32
+                + 1_i32)
+                as GlyphId;
         }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
     }
     let root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0_u32),

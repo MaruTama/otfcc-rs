@@ -173,85 +173,53 @@ pub fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
         bk_int(BkCellType::B16, (ratios.len()) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
     ]);
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < ratios.len() {
-        let rr: &VdmxRatioRange = &ratios[__caryll_index];
-        while keep != 0 {
+    for rr in ratios.iter() {
+        bk_push(
+            &mut root,
+            vec![
+                bk_int(BkCellType::B8, (rr.b_charset as i32) as u32),
+                bk_int(BkCellType::B8, (rr.x_ratio as i32) as u32),
+                bk_int(
+                    BkCellType::B8,
+                    (rr.y_start_ratio as i32) as u32,
+                ),
+                bk_int(
+                    BkCellType::B8,
+                    (rr.y_end_ratio as i32) as u32,
+                ),
+            ],
+        );
+    }
+    for rr_0 in ratios.iter() {
+        let mut startsz: u16 = 0xffff_u16;
+        let mut endsz: u16 = 0_u16;
+        for r in rr_0.records.iter() {
+            if startsz as i32 > r.y_pel_height as i32 {
+                startsz = r.y_pel_height;
+            }
+            if (endsz as i32) < r.y_pel_height as i32 {
+                endsz = r.y_pel_height;
+            }
+        }
+        let mut group: BkBlock = bk_new_block(vec![
+            bk_int(BkCellType::B16, (rr_0.records.len()) as u32),
+            bk_int(BkCellType::B8, (startsz as i32) as u32),
+            bk_int(BkCellType::B8, (endsz as i32) as u32),
+        ]);
+        for r_0 in rr_0.records.iter() {
             bk_push(
-                &mut root,
+                &mut group,
                 vec![
-                    bk_int(BkCellType::B8, (rr.b_charset as i32) as u32),
-                    bk_int(BkCellType::B8, (rr.x_ratio as i32) as u32),
                     bk_int(
-                        BkCellType::B8,
-                        (rr.y_start_ratio as i32) as u32,
+                        BkCellType::B16,
+                        (r_0.y_pel_height as i32) as u32,
                     ),
-                    bk_int(
-                        BkCellType::B8,
-                        (rr.y_end_ratio as i32) as u32,
-                    ),
+                    bk_int(BkCellType::B16, (r_0.y_max as i32) as u32),
+                    bk_int(BkCellType::B16, (r_0.y_min as i32) as u32),
                 ],
             );
-            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
-    }
-    let mut __caryll_index_0: usize = 0_usize;
-    let mut keep_0: usize = 1_usize;
-    while keep_0 != 0 && __caryll_index_0 < ratios.len() {
-        let rr_0: &VdmxRatioRange = &ratios[__caryll_index_0];
-        while keep_0 != 0 {
-            let mut startsz: u16 = 0xffff_u16;
-            let mut endsz: u16 = 0_u16;
-            let mut __caryll_index_1: usize = 0_usize;
-            let mut keep_1: usize = 1_usize;
-            while keep_1 != 0 && __caryll_index_1 < rr_0.records.len() {
-                let r: &VdmxRecord = &rr_0.records[__caryll_index_1];
-                while keep_1 != 0 {
-                    if startsz as i32 > r.y_pel_height as i32 {
-                        startsz = r.y_pel_height;
-                    }
-                    if (endsz as i32) < r.y_pel_height as i32 {
-                        endsz = r.y_pel_height;
-                    }
-                    keep_1 = (keep_1 == 0) as i32 as usize;
-                }
-                keep_1 = (keep_1 == 0) as i32 as usize;
-                __caryll_index_1 = __caryll_index_1.wrapping_add(1);
-            }
-            let mut group: BkBlock = bk_new_block(vec![
-                bk_int(BkCellType::B16, (rr_0.records.len()) as u32),
-                bk_int(BkCellType::B8, (startsz as i32) as u32),
-                bk_int(BkCellType::B8, (endsz as i32) as u32),
-            ]);
-            let mut __caryll_index_2: usize = 0_usize;
-            let mut keep_2: usize = 1_usize;
-            while keep_2 != 0 && __caryll_index_2 < rr_0.records.len() {
-                let r_0: &VdmxRecord = &rr_0.records[__caryll_index_2];
-                while keep_2 != 0 {
-                    bk_push(
-                        &mut group,
-                        vec![
-                            bk_int(
-                                BkCellType::B16,
-                                (r_0.y_pel_height as i32) as u32,
-                            ),
-                            bk_int(BkCellType::B16, (r_0.y_max as i32) as u32),
-                            bk_int(BkCellType::B16, (r_0.y_min as i32) as u32),
-                        ],
-                    );
-                    keep_2 = (keep_2 == 0) as i32 as usize;
-                }
-                keep_2 = (keep_2 == 0) as i32 as usize;
-                __caryll_index_2 = __caryll_index_2.wrapping_add(1);
-            }
-            bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(group))]);
-            keep_0 = (keep_0 == 0) as i32 as usize;
-        }
-        keep_0 = (keep_0 == 0) as i32 as usize;
-        __caryll_index_0 = __caryll_index_0.wrapping_add(1);
+        bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(group))]);
     }
     Some(bk_build_block_no_minimize(root))
 }
