@@ -1,7 +1,3 @@
-unsafe extern "C" {
-    fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
-
 use crate::support::primitives::{Pos, Scale};
 use std::rc::Rc;
 
@@ -313,8 +309,13 @@ pub(crate) fn vq_is_still(v: VQ) -> bool {
     v.shift.iter().all(|s| matches!(s, VqSegment::Still(_)))
 }
 pub(crate) fn vq_is_zero(v: VQ, err: Pos) -> bool {
+    // `f64::abs` is IEEE-754 `fabs` (a sign-bit clear, no rounding involved),
+    // bit-for-bit identical to libm's `fabs` on every input class including
+    // NaN, +/-0.0 and +/-infinity -- so this is a direct replacement for the
+    // `unsafe extern "C" { fn fabs(...) }` import this file used to carry
+    // (removed in Stage M-45; see RUST_MIGRATION.md).
     return vq_is_still(v.clone()) as i32 != 0
-        && unsafe { fabs(vq_get_still(v) as ::core::ffi::c_double) } < err;
+        && (vq_get_still(v) as ::core::ffi::c_double).abs() < err;
 }
 // Takes `&Rc<VqRegion>`, not `Rc<VqRegion>`: `table/glyf/read.rs`'s four
 // call sites in `apply_polymorphism` all share one region across several
@@ -342,6 +343,35 @@ pub(crate) fn vq_point_linear_tfm(ax: VQ, a: Pos, x: VQ, b: Pos, y: VQ) -> VQ {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // `vq_is_zero`'s `unsafe extern "C" { fn fabs(...) }` import was dropped
+    // in Stage M-45 in favor of `f64::abs`. C99's `fabs` is specified to
+    // return `|x|` for every input class with no rounding involved (a
+    // sign-bit clear implemented directly in hardware on every platform
+    // this crate targets), which is exactly `f64::abs`'s own documented
+    // contract -- pinned here against the documented contract, the same
+    // "no live libc call needed to prove a hardware-identical operation"
+    // choice `libcff/cff_writer.rs`'s own `modf_tests` module already made
+    // for `floor`/`trunc`/`fract`.
+    #[test]
+    fn f64_abs_matches_fabs_contract_on_every_input_class() {
+        assert_eq!(1.5_f64.abs(), 1.5);
+        assert_eq!((-1.5_f64).abs(), 1.5);
+        assert_eq!(0.0_f64.abs().to_bits(), 0.0_f64.to_bits());
+        assert_eq!((-0.0_f64).abs().to_bits(), 0.0_f64.to_bits());
+        assert_eq!(f64::INFINITY.abs(), f64::INFINITY);
+        assert_eq!(f64::NEG_INFINITY.abs(), f64::INFINITY);
+        assert!(f64::NAN.abs().is_nan());
+    }
+
+    #[test]
+    fn vq_is_zero_is_sign_insensitive_around_the_error_margin() {
+        let err = 0.5;
+        assert!(vq_is_zero(vq_create_still(0.4), err));
+        assert!(vq_is_zero(vq_create_still(-0.4), err));
+        assert!(!vq_is_zero(vq_create_still(0.6), err));
+        assert!(!vq_is_zero(vq_create_still(-0.6), err));
+    }
 
     // This discriminant is written into the glyph hash byte-for-byte --
     // `hash_vqs` in otf_reader/unconsolidate.rs does `bufwrite8(buf, s.type_0 as
