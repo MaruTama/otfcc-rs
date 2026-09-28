@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 // `read_16u`/friends -- factored out of the ~40 per-file private copies
 // c2rust emitted (one per translation unit that #included
 // c/lib/support/bin-io.h's `static inline` helpers) -- lost their last

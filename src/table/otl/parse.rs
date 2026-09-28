@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 
 use crate::logger::{
     LOG_VL_IMPORTANT, LOG_VL_NOTICE, LoggerType, logger_dedent, logger_finish, logger_log_sds,

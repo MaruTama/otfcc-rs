@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
