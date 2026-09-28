@@ -50,8 +50,8 @@ fn hash_vqs(buf: &mut Buffer, s: &VqSegment) {
 fn hash_vq(buf: &mut Buffer, x: VQ) {
     buf.write_u32be(otfcc_to_fixed(x.kernel as ::core::ffi::c_double) as u32);
     buf.write_u32be(x.shift.len() as u32);
-    for j in 0..x.shift.len() {
-        hash_vqs(buf, &x.shift[j]);
+    for s in &x.shift {
+        hash_vqs(buf, s);
     }
 }
 pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {

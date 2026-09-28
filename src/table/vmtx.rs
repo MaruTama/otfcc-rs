@@ -50,9 +50,7 @@ pub fn otfcc_read_vmtx(
 ) -> Option<Box<VmtxTable>> {
     let vhea = vhea?;
     let maxp = maxp?;
-    if vhea.num_of_long_ver_metrics as i32 == 0_i32
-        || (maxp.num_glyphs as i32) < vhea.num_of_long_ver_metrics as i32
-    {
+    if vhea.num_of_long_ver_metrics == 0 || maxp.num_glyphs < vhea.num_of_long_ver_metrics {
         return None;
     }
     let table = packet

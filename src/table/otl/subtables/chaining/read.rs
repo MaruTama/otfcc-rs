@@ -21,10 +21,10 @@ use crate::table::otl::{
 // could travel through a shape the other two readers (which never needed
 // any userdata at all) were also forced to accept. `general_read_
 // contextual_rule`/`general_read_chaining_rule` (the only two callers)
-// now take the reader as a generic `impl FnMut(&[u8], u16, u32, u16,
-// GlyphId) -> Coverage` instead: `single_coverage`/`format3_coverage`
-// (already plain safe `fn`s with this exact signature) are passed
-// directly as function items, and `class_coverage`'s call sites capture
+// now take the reader as a generic `impl FnMut(&[u8], u16, u32,
+// ContextKind, GlyphId) -> Coverage` instead: `single_coverage`/
+// `format3_coverage` (already plain safe `fn`s with this exact signature)
+// are passed directly as function items, and `class_coverage`'s call sites capture
 // `&ClassDefs` in a closure instead of casting a raw pointer to it --
 // which in turn lets `class_coverage` itself take `&ClassDefs` and drop
 // `unsafe fn` too (its only unsafe operations were the userdata cast and
@@ -198,11 +198,28 @@ const MAX_APPLY_PER_RULE: usize = 50;
 /// -- using the uncapped counts there would let downstream code (e.g.
 /// `consolidate_chaining`) index past the end of `match_0`.
 const MAX_POSITIONS_PER_RULE: u16 = 50;
+/// Which side of a chaining/contextual rule a coverage lookup is for:
+/// backtrack (glyphs before the input sequence), input (the sequence
+/// itself), or lookahead (glyphs after it) -- the OpenType spec's own
+/// 1/2/3 numbering for the three `ClassDef` slots a format-2 rule can
+/// draw from. Replaces the `1_u16`/`2_u16`/`3_u16` magic numbers
+/// `class_coverage` used to compare its own `kind` parameter against.
+/// `single_coverage`/`format3_coverage` ignore this value entirely
+/// (their own coverage doesn't depend on which side of the rule it's
+/// for), but still take a real `ContextKind` rather than `Option<_>` or a
+/// leftover `u16`, so every implementer of the shared `fn_0` callback
+/// shape agrees on one type for this parameter.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum ContextKind {
+    Backtrack = 1,
+    Input = 2,
+    Lookahead = 3,
+}
 pub fn single_coverage(
     mut _data: &[u8],
     gid: u16,
     mut _offset: u32,
-    mut _kind: u16,
+    mut _kind: ContextKind,
     _max_glyphs: GlyphId,
 ) -> Coverage {
     let mut cov = Coverage::new();
@@ -213,7 +230,7 @@ pub fn class_coverage(
     mut _data: &[u8],
     cls: u16,
     mut _offset: u32,
-    kind: u16,
+    kind: ContextKind,
     max_glyphs: GlyphId,
     defs: &ClassDefs,
 ) -> Coverage {
@@ -226,12 +243,10 @@ pub fn class_coverage(
     // would-be null deref matches this migration's general "UB becomes a
     // panic" idiom (see e.g. `general_read_contextual_rule`'s own
     // `.expect()` calls above).
-    let cd: &ClassDef = if kind as i32 == 1_i32 {
-        defs.bc.as_deref()
-    } else if kind as i32 == 2_i32 {
-        defs.ic.as_deref()
-    } else {
-        defs.fc.as_deref()
+    let cd: &ClassDef = match kind {
+        ContextKind::Backtrack => defs.bc.as_deref(),
+        ContextKind::Input => defs.ic.as_deref(),
+        ContextKind::Lookahead => defs.fc.as_deref(),
     }
     .expect("class_coverage: ClassDefs field for this `kind` was not populated");
     // Charged unconditionally, before doing anything else: a rule set
@@ -363,7 +378,7 @@ pub fn format3_coverage(
     data: &[u8],
     shift: u16,
     mut _offset: u32,
-    mut _kind: u16,
+    mut _kind: ContextKind,
     _max_glyphs: GlyphId,
 ) -> Coverage {
     return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32));
@@ -385,7 +400,7 @@ pub fn general_read_contextual_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> Coverage,
+    mut fn_0: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId) -> Coverage,
     max_glyphs: GlyphId,
 ) -> Option<Box<ChainingRule>> {
     let minus_one_q: u16 = minus_one as u16;
@@ -437,7 +452,7 @@ pub fn general_read_contextual_rule(
                 slice,
                 start_gid,
                 offset,
-                2_u16,
+                ContextKind::Input,
                 max_glyphs,
             ));
     }
@@ -452,7 +467,7 @@ pub fn general_read_contextual_rule(
                 slice,
                 gid,
                 offset,
-                2_u16,
+                ContextKind::Input,
                 max_glyphs,
             ));
     }
@@ -726,27 +741,32 @@ pub fn otl_read_contextual(
         && let Ok(f) = r.u16() {
             format = f;
         }
-    if format as i32 == 1_i32 {
-        return read_contextual_format1(data, offset, max_glyphs, subtable)
-            .map(|s| Subtable::Chaining(*s));
-    } else if format as i32 == 2_i32 {
-        return read_contextual_format2(data, offset, max_glyphs, subtable)
-            .map(|s| Subtable::Chaining(*s));
-    } else if format as i32 == 3_i32 {
-        let rule_ptr = general_read_contextual_rule(
-            data,
-            offset.wrapping_add(2_u32),
-            0_u16,
-            false,
-            format3_coverage,
-            max_glyphs,
-        );
-        // Same "malformed individual rule, not the whole subtable" case as
-        // the format1/format2 loops above -- see their comment.
-        if rule_ptr.is_some() {
-            chaining_ruleset_mut(&mut subtable).rules.push(rule_ptr);
+    match format {
+        1 => {
+            return read_contextual_format1(data, offset, max_glyphs, subtable)
+                .map(|s| Subtable::Chaining(*s));
         }
-        return Some(Subtable::Chaining(*subtable));
+        2 => {
+            return read_contextual_format2(data, offset, max_glyphs, subtable)
+                .map(|s| Subtable::Chaining(*s));
+        }
+        3 => {
+            let rule_ptr = general_read_contextual_rule(
+                data,
+                offset.wrapping_add(2_u32),
+                0_u16,
+                false,
+                format3_coverage,
+                max_glyphs,
+            );
+            // Same "malformed individual rule, not the whole subtable" case
+            // as the format1/format2 loops above -- see their comment.
+            if rule_ptr.is_some() {
+                chaining_ruleset_mut(&mut subtable).rules.push(rule_ptr);
+            }
+            return Some(Subtable::Chaining(*subtable));
+        }
+        _ => {}
     }
     logger_log_sds(
         &mut options.logger.borrow_mut(),
@@ -763,7 +783,7 @@ pub fn general_read_chaining_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> Coverage,
+    mut fn_0: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId) -> Coverage,
     max_glyphs: GlyphId,
 ) -> Option<Box<ChainingRule>> {
     let minus_one_q: u16 = minus_one as u16;
@@ -833,7 +853,7 @@ pub fn general_read_chaining_rule(
                 slice,
                 gid,
                 offset,
-                1_u16,
+                ContextKind::Backtrack,
                 max_glyphs,
             ));
     }
@@ -843,7 +863,7 @@ pub fn general_read_chaining_rule(
                 slice,
                 start_gid,
                 offset,
-                2_u16,
+                ContextKind::Input,
                 max_glyphs,
             ));
     }
@@ -866,7 +886,7 @@ pub fn general_read_chaining_rule(
                 slice,
                 gid,
                 offset,
-                2_u16,
+                ContextKind::Input,
                 max_glyphs,
             ));
     }
@@ -882,7 +902,7 @@ pub fn general_read_chaining_rule(
                 slice,
                 gid,
                 offset,
-                3_u16,
+                ContextKind::Lookahead,
                 max_glyphs,
             ));
     }
@@ -1143,27 +1163,32 @@ pub fn otl_read_chaining(
         && let Ok(f) = r.u16() {
             format = f;
         }
-    if format as i32 == 1_i32 {
-        return read_chaining_format1(data, offset, max_glyphs, subtable)
-            .map(|s| Subtable::Chaining(*s));
-    } else if format as i32 == 2_i32 {
-        return read_chaining_format2(data, offset, max_glyphs, subtable)
-            .map(|s| Subtable::Chaining(*s));
-    } else if format as i32 == 3_i32 {
-        let rule_ptr = general_read_chaining_rule(
-            data,
-            offset.wrapping_add(2_u32),
-            0_u16,
-            false,
-            format3_coverage,
-            max_glyphs,
-        );
-        // Same "malformed individual rule, not the whole subtable" case as
-        // the format1/format2 loops above -- see their comment.
-        if rule_ptr.is_some() {
-            chaining_ruleset_mut(&mut subtable).rules.push(rule_ptr);
+    match format {
+        1 => {
+            return read_chaining_format1(data, offset, max_glyphs, subtable)
+                .map(|s| Subtable::Chaining(*s));
         }
-        return Some(Subtable::Chaining(*subtable));
+        2 => {
+            return read_chaining_format2(data, offset, max_glyphs, subtable)
+                .map(|s| Subtable::Chaining(*s));
+        }
+        3 => {
+            let rule_ptr = general_read_chaining_rule(
+                data,
+                offset.wrapping_add(2_u32),
+                0_u16,
+                false,
+                format3_coverage,
+                max_glyphs,
+            );
+            // Same "malformed individual rule, not the whole subtable" case
+            // as the format1/format2 loops above -- see their comment.
+            if rule_ptr.is_some() {
+                chaining_ruleset_mut(&mut subtable).rules.push(rule_ptr);
+            }
+            return Some(Subtable::Chaining(*subtable));
+        }
+        _ => {}
     }
     logger_log_sds(
         &mut options.logger.borrow_mut(),
@@ -1232,7 +1257,7 @@ mod chaining_read_tests {
             fc: None,
         };
 
-        let cov = class_coverage(&[], 0, 0, 1, 10, &defs);
+        let cov = class_coverage(&[], 0, 0, ContextKind::Backtrack, 10, &defs);
 
         assert_eq!(
             CLASS_ZERO_BUDGET.load(::core::sync::atomic::Ordering::Relaxed),

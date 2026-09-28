@@ -93,18 +93,27 @@ fn feature_name_to_tag(name: &[u8]) -> u32 {
     }
     return tag;
 }
+/// `_declare_lookup_writer`/`_declare_lookup_writer_split`/`_build_lookup`
+/// all thread the same 4 values (the output buffer list, the running
+/// offset, the per-lookup extension-format preference flag, and the
+/// build heuristics) unchanged through every one of `_build_lookup`'s own
+/// 10 candidate-writer calls -- bundled here instead of repeating the same
+/// 4-argument tail at each call site.
+struct LookupWriteCtx<'a> {
+    subtables: &'a mut Vec<Buffer>,
+    last_offset: &'a mut usize,
+    prefer_extension_for_this_lut: &'a mut bool,
+    heuristics: BuildHeuristics,
+}
 fn _declare_lookup_writer(
     type_0: LookupType,
     fn_0: OtlBuilder,
     lookup: &Lookup,
-    subtables: &mut Vec<Buffer>,
-    last_offset: &mut usize,
-    prefer_extension_for_this_lut: &mut bool,
-    heuristics: BuildHeuristics,
+    ctx: &mut LookupWriteCtx,
 ) -> TableId {
     if lookup.type_0 == type_0 {
-        subtables.clear();
-        subtables.reserve(lookup.subtables.len());
+        ctx.subtables.clear();
+        ctx.subtables.reserve(lookup.subtables.len());
         let mut total_buf_size_short: usize = 0_usize;
         let mut total_buf_size_ext: usize = 0_usize;
         for j in 0..lookup.subtables.len() {
@@ -113,18 +122,18 @@ fn _declare_lookup_writer(
             // safe fn as of Stage D.
             let buf: Buffer = fn_0.expect("non-null function pointer")(
                 subtable_at(&lookup.subtables, j),
-                heuristics,
+                ctx.heuristics,
             );
             total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
-            subtables.push(buf);
+            ctx.subtables.push(buf);
             total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
         }
         if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
-            *last_offset = (*last_offset).wrapping_add(total_buf_size_ext);
-            *prefer_extension_for_this_lut = true;
+            *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_ext);
+            *ctx.prefer_extension_for_this_lut = true;
         } else {
-            *last_offset = (*last_offset).wrapping_add(total_buf_size_short);
-            *prefer_extension_for_this_lut = false;
+            *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_short);
+            *ctx.prefer_extension_for_this_lut = false;
         }
         return lookup.subtables.len() as TableId;
     }
@@ -134,47 +143,38 @@ fn _declare_lookup_writer_split(
     type_0: LookupType,
     fn_0: OtlSplitBuilder,
     lookup: &Lookup,
-    subtables: &mut Vec<Buffer>,
-    last_offset: &mut usize,
-    prefer_extension_for_this_lut: &mut bool,
-    heuristics: BuildHeuristics,
+    ctx: &mut LookupWriteCtx,
 ) -> TableId {
     if lookup.type_0 == type_0 {
-        subtables.clear();
+        ctx.subtables.clear();
         let mut total_buf_size_short: usize = 0_usize;
         for j in 0..lookup.subtables.len() {
             // Same as `_declare_lookup_writer` above.
             let part: Vec<Buffer> = fn_0.expect("non-null function pointer")(
                 subtable_at(&lookup.subtables, j),
-                heuristics,
+                ctx.heuristics,
             );
             for buf in part {
                 total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
-                subtables.push(buf);
+                ctx.subtables.push(buf);
             }
         }
-        let total = subtables.len() as TableId;
+        let total = ctx.subtables.len() as TableId;
         if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
-            *last_offset = (*last_offset)
+            *ctx.last_offset = (*ctx.last_offset)
                 .wrapping_add((8_i32 * total as i32) as usize);
-            *prefer_extension_for_this_lut = true;
+            *ctx.prefer_extension_for_this_lut = true;
         } else {
-            *last_offset = (*last_offset).wrapping_add(total_buf_size_short);
-            *prefer_extension_for_this_lut = false;
+            *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_short);
+            *ctx.prefer_extension_for_this_lut = false;
         }
         return total;
     }
     return 0 as TableId;
 }
-fn _build_lookup(
-    lookup: &Lookup,
-    subtables: &mut Vec<Buffer>,
-    last_offset: &mut usize,
-    prefer_extension_for_this_lut: &mut bool,
-    heuristics: BuildHeuristics,
-) -> TableId {
+fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
     if lookup.type_0 == OTL_TYPE_GPOS_CHAINING || lookup.type_0 == OTL_TYPE_GSUB_CHAINING {
-        return otfcc_classified_build_chaining(lookup, subtables, last_offset);
+        return otfcc_classified_build_chaining(lookup, ctx.subtables, ctx.last_offset);
     }
     let mut written: TableId = 0 as TableId;
     if written == 0 {
@@ -185,10 +185,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -199,10 +196,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -213,10 +207,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -227,10 +218,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -238,10 +226,7 @@ fn _build_lookup(
             OTL_TYPE_GSUB_REVERSE,
             Some(otfcc_build_gsub_reverse as fn(&Subtable, BuildHeuristics) -> Buffer),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -252,10 +237,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -266,10 +248,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -280,10 +259,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -294,10 +270,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -308,10 +281,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     if written == 0 {
@@ -322,10 +292,7 @@ fn _build_lookup(
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
-            subtables,
-            last_offset,
-            prefer_extension_for_this_lut,
-            heuristics,
+            ctx,
         );
     }
     return written;
@@ -392,10 +359,12 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
         );
         subtable_quantity[j] = _build_lookup(
             lookup,
-            &mut subtables[j],
-            &mut last_offset,
-            &mut prefer_ext_for_this_lut[j],
-            heu,
+            &mut LookupWriteCtx {
+                subtables: &mut subtables[j],
+                last_offset: &mut last_offset,
+                prefer_extension_for_this_lut: &mut prefer_ext_for_this_lut[j],
+                heuristics: heu,
+            },
         );
     }
     let mut header_size: usize = 2_usize.wrapping_add(2_usize.wrapping_mul(live.len()));

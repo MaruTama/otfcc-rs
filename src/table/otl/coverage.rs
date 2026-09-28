@@ -278,14 +278,16 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
     format2.write_u16be(n_ranges as u16);
     format2.write_buffer_owned(ranges);
-    if format as i32 == 1_i32 {
-        format1
-    } else if format as i32 == 2_i32 {
-        format2
-    } else if format1.len() < format2.len() {
-        format1
-    } else {
-        format2
+    match format {
+        1 => format1,
+        2 => format2,
+        _ => {
+            if format1.len() < format2.len() {
+                format1
+            } else {
+                format2
+            }
+        }
     }
 }
 pub(crate) fn build_coverage(coverage: &Coverage) -> Buffer {
