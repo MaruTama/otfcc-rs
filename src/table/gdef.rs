@@ -184,7 +184,7 @@ fn dump_gdef_lig_carets(gdef: &GdefTable) -> BuiltValue {
         let mut _record = BuiltValue::new_array(record.carets.len());
         for caret in &record.carets {
             let mut _cv = BuiltValue::new_object(1);
-            if caret.format as i32 == 2_i32 {
+            if caret.format == 2 {
                 _cv.push_field(b"atPoint", BuiltValue::Int(caret.point_index as i64));
             } else {
                 _cv.push_field(b"at", BuiltValue::Int(caret.coordiante as i64));
@@ -288,7 +288,7 @@ fn write_lig_caret_rec(cr: &CaretValueRecord) -> BkBlock {
                     bk_int(BkCellType::B16, (caret.format as i32) as u32),
                     bk_int(
                         BkCellType::B16,
-                        (if caret.format as i32 == 2_i32 {
+                        (if caret.format == 2 {
                             caret.point_index as i32
                         } else {
                             caret.coordiante as i16 as i32

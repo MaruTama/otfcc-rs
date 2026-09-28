@@ -74,35 +74,31 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
             let py: i32 = vq_get_still(p.y.clone()).round() as i32;
             let dx: i16 = (px - cx) as i16;
             let dy: i16 = (py - cy) as i16;
-            if dx as i32 == 0_i32 {
-                flag.insert(PointFlags::SAME_X);
-            } else if dx as i32 >= -0xff_i32
-                && dx as i32 <= 0xff_i32
-            {
-                flag.insert(PointFlags::X_SHORT);
-                if dx as i32 > 0_i32 {
-                    flag.insert(PointFlags::POSITIVE_X);
-                    xs.write_u8(dx as u8);
-                } else {
-                    xs.write_u8(-(dx as i32) as u8);
+            match dx {
+                0 => flag.insert(PointFlags::SAME_X),
+                -0xff..=0xff => {
+                    flag.insert(PointFlags::X_SHORT);
+                    if dx > 0 {
+                        flag.insert(PointFlags::POSITIVE_X);
+                        xs.write_u8(dx as u8);
+                    } else {
+                        xs.write_u8(-(dx as i32) as u8);
+                    }
                 }
-            } else {
-                xs.write_u16be(dx as u16);
+                _ => xs.write_u16be(dx as u16),
             }
-            if dy as i32 == 0_i32 {
-                flag.insert(PointFlags::SAME_Y);
-            } else if dy as i32 >= -0xff_i32
-                && dy as i32 <= 0xff_i32
-            {
-                flag.insert(PointFlags::Y_SHORT);
-                if dy as i32 > 0_i32 {
-                    flag.insert(PointFlags::POSITIVE_Y);
-                    ys.write_u8(dy as u8);
-                } else {
-                    ys.write_u8(-(dy as i32) as u8);
+            match dy {
+                0 => flag.insert(PointFlags::SAME_Y),
+                -0xff..=0xff => {
+                    flag.insert(PointFlags::Y_SHORT);
+                    if dy > 0 {
+                        flag.insert(PointFlags::POSITIVE_Y);
+                        ys.write_u8(dy as u8);
+                    } else {
+                        ys.write_u8(-(dy as i32) as u8);
+                    }
                 }
-            } else {
-                ys.write_u16be(dy as u16);
+                _ => ys.write_u16be(dy as u16),
             }
             flags.write_u8(flag.bits());
             cx = px;

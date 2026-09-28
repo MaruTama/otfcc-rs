@@ -385,7 +385,7 @@ fn parse_point_numbers(
         let mut j_point: ShapeId = 0 as ShapeId;
         point_indeces = Vec::with_capacity(n_points as usize);
         for _ in 0..n_points {
-            if run.length as i32 == 0_i32 {
+            if run.length == 0 {
                 let run_header: u8 = r.u8().ok()?;
                 run.wide = run_header as i32 & POINTS_ARE_WORDS != 0;
                 run.length = ((run_header as i32 & POINT_RUN_COUNT_MASK)
@@ -437,7 +437,7 @@ fn read_packed_delta(
     };
     for filled in 0..n_points {
         let mut delta: i16 = 0_i16;
-        if run.length as i32 == 0_i32 {
+        if run.length == 0 {
             let run_header: u8 = r.u8().ok()?;
             run.zero = run_header as i32 & DELTAS_ARE_ZERO != 0;
             run.wide = run_header as i32 & DELTAS_ARE_WORDS != 0;
