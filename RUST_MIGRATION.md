@@ -1226,6 +1226,283 @@ omission here -- the 191/58 gap itself was the one surprise this
 investigation turned up, and it cuts toward "less work left than the raw
 counter suggests," not more.
 
+## Stage 7-5 plan: c2rust transpile-shape residue (`while` loops and `explicit_auto_deref`)
+
+*(This section is prospective, not retrospective, exactly like "Stage 7-4
+plan" above it -- nothing in it has been implemented, built, tested or
+fuzzed. It picks up the other axis Stage 7-4's own opening note left
+untouched: the unsafe/raw-pointer-correctness work is essentially done
+(`unsafe fn` down to 4, Bucket A/B/C above all landed as M-31 through M-34),
+but two `Cargo.toml` `[lints.clippy]` allow-list entries and one
+`survey-unsafe.sh` counter still track pure c2rust mechanical-transpile
+shape in code that was never unsafe to begin with. Re-measured fresh from a
+clean branch off `master`, on the same "don't trust a stale count" discipline:
+`./scripts/survey-unsafe.sh`'s `while loops` counter reads **226**, unchanged
+since M-34's own log entry recorded it (this axis has had zero PRs against
+it so far). The `explicit_auto_deref` count is a different story --
+`Cargo.toml`'s own comment says 476, but stripping `[lints.clippy]` entirely
+(and relaxing `[lints.rust] warnings` to `"warn"` so the build still
+completes) and re-running `cargo clippy --all-targets --message-format=json`,
+deduped by file+line rather than raw warning count (one line can carry
+several derefs, so the raw JSON has 1,136 entries; the file+line count is
+what matters for "how many sites to touch"), finds **475** -- close enough
+to be the same stale-but-basically-right number, not a meaningful drift.
+`needless_return` was re-measured too, only to confirm it is explicitly
+**out of scope**: this migration keeps `return expr;` as-is per a standing,
+non-negotiable instruction (a prior bulk-fix PR for it was reverted at the
+user's own request), so no stage below touches it, its `Cargo.toml` entry,
+or any file only for the sake of that lint. `too_many_arguments`/
+`type_complexity` are untouched and out of scope for the same "real design
+work, not syntax" reason Stage 7-4's own table already gives them.)*
+
+### `explicit_auto_deref` (475 sites): almost entirely one mechanical shape, concentrated in one file
+
+Sampling every file clippy flagged (not all 475 individual sites, but every
+file, and several sites per file) found the *same* shape everywhere sampled:
+c2rust's `(*ptr).field` / `(*ptr).method(...)` explicit deref on a raw
+pointer, which clippy's own `help: try:` suggestion simplifies to
+`ptr.field` / `ptr.method(...)` -- Rust's auto-deref already does the
+dereference, so the explicit `(*_)` is redundant syntax, not a different
+operation. This is exactly the shape the RefCell/RefMut reborrow subset of
+this same lint was already fixed for in an earlier stage (`Cargo.toml`'s own
+comment on the entry says as much); what's left is the raw-pointer subset of
+the identical idiom. Per-file breakdown (deduped by file+line; the 4 files
+below account for 462 of the 475 sites, 97%):
+
+- **`libcff/cff_parser.rs`: 359 sites (76% of the crate's total).** This is
+  the CFF charstring interpreter's operand-stack access
+  (`(*stack).index`/`(*stack).stem`/`(&mut (*stack).stack)[...]`, `stack:
+  *mut CffStack`) -- one struct, dereferenced by field name, over and over,
+  through the interpreter's whole opcode-dispatch body. Every sampled site
+  is the identical shape; `cargo clippy --fix` (scoped to just this lint)
+  would produce a large but completely uniform diff here. The caveat is not
+  the transform's mechanics but the file's own history: `table/cff.rs`'s
+  comments (read while investigating Stage 7-4's Bucket C above) document
+  more than one real index-computation/panic bug already found in this
+  exact interpreter by fuzzing, not by review -- so a stage touching this
+  file, however mechanical the edit, should re-run the CFF-relevant fuzz
+  targets for a real time budget, not just the unit suite, before landing.
+- **`otf_writer.rs` (43), `json_writer.rs` (31), `font/caryll_font.rs`
+  (29): 103 sites, same shape, different pointer.** All three are `(*font).
+  field` accesses (`font: *mut Font` or similar) in the top-level dump/build
+  orchestration code -- lower-traffic, lower fuzz-history code than the CFF
+  interpreter, and a good place to validate the `clippy --fix`-then-hand-
+  review methodology on this lint's raw-pointer subset before the big file.
+- **The tail: 13 sites across 5 files** -- `bin/otfccbuild.rs` (4),
+  `table/glyf/read.rs` (3), `ffi/dll.rs` (2), `table/svg.rs` (2), `bin/
+  otfccdump.rs` (2). Same shape again in every sampled site. `ffi/dll.rs`'s
+  two sites are worth flagging by name even though they're mechanical: that
+  file is the crate's one real ABI boundary (Stage 7-4's Bucket C), so a
+  stage touching it -- even for an internal-only deref simplification that
+  changes no signature and no safety contract -- should re-run `tests/
+  dll_abi.rs`/`tests/abi.rs` explicitly, the same standing rule Stage 7-4
+  already applies to that file.
+
+**Staging, ordered safest/most-mechanical first:**
+- **Stage M-35: `otf_writer.rs` + `json_writer.rs` + `font/caryll_font.rs`
+  (103 sites).** `cargo clippy --fix --allow-dirty --lib --bins` scoped to
+  just `-W clippy::explicit_auto_deref -A clippy::all` (or an equivalent
+  targeted invocation; the point is fixing only this one lint, the same
+  methodology this migration used for the RefCell/RefMut subset earlier),
+  then hand-review every hunk before committing -- confirm each is a pure
+  `(*x).y` -> `x.y` rewrite with nothing else changed, the way every prior
+  bulk-lint-fix stage in this migration has done. Verification: build/
+  clippy/test clean, golden fixtures re-run (these three files sit in the
+  dump/build entry points every golden test exercises anyway).
+- **Stage M-36: the 13-site tail (`bin/otfccbuild.rs`, `table/glyf/read.rs`,
+  `ffi/dll.rs`, `table/svg.rs`, `bin/otfccdump.rs`).** Small enough to land
+  in one PR with the same `clippy --fix`-then-review method; the only
+  special step is the `dll_abi`/`abi` test re-run for `ffi/dll.rs`'s two
+  sites, named above.
+- **Stage M-37: `libcff/cff_parser.rs` alone (359 sites, the last and
+  largest).** Same mechanical method, but its own stage rather than folded
+  into M-35/36, both to keep the diff reviewable (it is, on its own, larger
+  than M-35 and M-36 combined) and to give it the dedicated fuzz-run
+  verification its own history warrants: the relevant CFF-parsing fuzz
+  target(s) for a real time budget (not `-runs=0`), plus every `tests/
+  fuzz-corpus/known-issues/*.bin` regression file that targets CFF parsing,
+  re-run directly against the rebuilt binary. Landing this stage retires
+  the `explicit_auto_deref` line from `Cargo.toml`'s `[lints.clippy]` table
+  entirely (assuming M-35/M-36 already landed and a final re-measure of
+  `cargo clippy --all-targets` finds zero remaining hits, the same
+  "re-measure before deleting the entry" discipline `Cargo.toml`'s own
+  comment already asks for).
+
+None of these three stages touch any function signature, add or remove any
+`unsafe` block, or change what any test observes -- clippy's own suggested
+fix *is* the entire diff, reviewed rather than blindly applied. This is the
+lowest-risk work either axis in this plan proposes.
+
+### `while` loops (226 sites): one large zero-risk bucket, a large mechanical-with-review bucket, and a real "leave it alone" remainder
+
+Per-file breakdown (`grep -rc -E '\bwhile ' --include='*.rs' .` from
+`src/`) is spread across 57 files, topped by `support/ttinstr.rs` (24),
+`libcff/charstring_il.rs` (14), `table/cmap.rs` (13), `consolidate.rs` (10),
+`table/vdmx/funcs.rs` (8), `table/otl/subtables/chaining/read.rs` (8),
+`support/parsed_json.rs` (8), `libcff/subr.rs` (8), `bin/otfccdump.rs` (8),
+`bin/otfccbuild.rs` (8), with a long tail of 1-7 each across the rest.
+Reading a representative sample from all of the files above plus several
+more from the tail (`table/glyf/read.rs`, `table/cff.rs`,
+`table/otl/subtables/gpos_pair.rs`, `libcff/cff_parser.rs`) -- more than 140
+of the 226 sites read directly, not just grepped -- sorts into five
+distinct shapes, not a single "index loop vs. not" split:
+
+- **Bucket 1 -- `___loggedstep_v*` run-once macro emulation: 31 sites,
+  zero risk, not really "loops" at all.** c2rust's translation of this
+  crate's C-side `LOGGED_STEP`-style macro (`logger_start_sds(...); { body
+  }; logger_finish(...)`) came out as `let mut ___loggedstep_v: bool = true;
+  while ___loggedstep_v { body; ___loggedstep_v = false; logger_finish(...);
+  }` -- a `while` that always executes its body exactly once. Confirmed by
+  grepping every one of the 31 bodies (`bin/otfccdump.rs` 7, `bin/
+  otfccbuild.rs` 8, `consolidate.rs` 3, `table/otl/dump.rs` 4, and one or
+  two each in `table/{otl/build,otl/parse,cvt,base,cpal,_tsi,svg,name}.rs`)
+  for a `break` that would make the "runs once" claim false: none exists,
+  in any of the 31. The fix is not "convert to `for`" at all -- it's
+  deleting the bool variable and the `while` wrapper entirely, leaving a
+  plain scoped block (`{ body }`) that runs the same code the same number
+  of times (once) with the same drop order. Zero behavior change, and the
+  smallest possible verification burden of anything in either axis.
+  - **Stage M-38: delete all 31 `___loggedstep_v*` wrappers, across every
+    file listed above, in one PR.** Same substitution everywhere, so --
+    like Stage 7-4's Bucket A six-module deletion -- doing all of it
+    together is less work than splitting it, not more. Verification:
+    build/clippy/test clean, full golden suite (touches the dump/build
+    entry points and `consolidate.rs` directly).
+- **Bucket 2 -- plain monotonic index-count loops: the largest bucket,
+  an estimated 120-140 of the remaining 195 sites.** The classic `let mut i
+  = 0; while i < n { ...; i += 1; }` (or `.wrapping_add(1)`) shape, single
+  relational bound checked once per iteration, no `break`/`continue`, no
+  raw-pointer deref inside the body. Confirmed present in `table/cff.rs`
+  (both its sites), most of `libcff/charstring_il.rs`'s 14, several of
+  `table/cmap.rs`'s 13 (the ones without a `budget` guard -- see Bucket 4),
+  and scattered across the tail files. A textual proxy search (`while
+  <ident> < <expr>` as the loop head) finds 78 sites crate-wide matching
+  this exact head shape; not all 78 are risk-free in the body (a few carry
+  a data-dependent step or an early `return`), but the large majority
+  sampled are. These convert cleanly to `for i in 0..n` or, where the body
+  only ever indexes the same slice by `i`, `.iter().enumerate()` -- with
+  identical iteration count and order, no lint driving the rewrite (unlike
+  `explicit_auto_deref`, there is no `cargo clippy --fix` for this; every
+  site needs a human to confirm the bound is fixed at loop entry and the
+  step is unconditional before rewriting it).
+  - **Stage M-39: first tranche, ~40-60 sites in the files confirmed
+    clean during this investigation** -- `table/cff.rs`, `libcff/
+    charstring_il.rs`'s non-`(*ptr)`-based sites, `table/otl/subtables/
+    gsub_multi.rs`, `table/base.rs`, and similar small files with no
+    raw-pointer or fuzz-guard entanglement. Sized to keep the diff
+    reviewable one loop at a time; verification is build/clippy/test plus
+    whichever golden fixture exercises that file's subsystem (CFF/OTL
+    golden JSON round-trips for the CFF-adjacent files).
+  - **Stage M-40: second tranche, the remaining plain index loops not
+    covered by M-39 or by the more careful buckets below.** Same method,
+    no new judgment calls -- purely "more of the same," split into its own
+    stage so no single PR tries to touch 120+ sites at once.
+- **Bucket 3 -- nested "do-once with continue-emulation" (`keep != 0`)
+  loops: 17 sites, mechanical but needs per-site tracing first.**
+  `table/vdmx/funcs.rs` is the concentrated example: c2rust's translation of
+  a C `for (...) { ...; continue; ... }` inside a block that needed to hoist
+  a `continue` past code that runs after it came out as a `keep`-flag
+  variable (`while keep != 0 && idx < collection.len() { let item = ...;
+  while keep != 0 { body; keep = 0; } idx += 1; }` or similar), nested
+  inside the real index-count outer loop. This is the same "run once"
+  primitive as Bucket 1's `___loggedstep`, but wrapping a *body* rather than
+  a whole function step, and interacting with a real loop counter rather
+  than standing alone -- confirming that every exit path through the inner
+  `while keep != 0` block still reaches the outer loop's own `idx += 1`
+  (i.e. that unwrapping it to a plain `for` + ordinary `continue` doesn't
+  skip the counter bump some C `continue` used to reach directly) needs a
+  full read of each site, not a blind substitution.
+  - **Stage M-41: convert all 17 `keep`-flag sites, concentrated in
+    `table/vdmx/funcs.rs` with a handful elsewhere, one at a time with the
+    tracing above done explicitly per site.** Verification: build/clippy/
+    test, plus the VDMX golden fixtures specifically (this is VDMX-table
+    encoding code) and a Miri run given the code sits next to indexed-slice
+    access this migration's own discipline already treats as worth
+    double-checking.
+- **Bucket 4 -- budget/amplification-guard loops: 7 sites, mechanical
+  shape but explicitly fuzz-hardening code -- extra care, not a first-wave
+  candidate.** `while i < n && budget_still_available()`-shaped loops in
+  `table/cmap.rs` (the format-4/12/UVS cmap subtable encoders, budget-
+  guarding total glyph-index work) and `table/otl/subtables/chaining/
+  read.rs` (the `ClassDef`-scanning helpers, budget-guarding classdef reads
+  against amplification). These are still index-count loops at heart --
+  convertible to `for i in 0.. { if !budget_still_available() { break; }
+  ...}` or a `.take_while` — but every one of them exists *because* of a
+  past or hypothetical fuzz-found amplification finding (`chaining/read.rs`'s
+  own comments cite `MAX_TOTAL_RULES_PER_TABLE`/`MAX_APPLY_PER_RULE`-style
+  budgets by name), so a stage touching them must re-verify the budget is
+  still checked on the exact same cadence (once per iteration, not once per
+  outer call) after the rewrite -- an off-by-one here would silently widen
+  an amplification guard this migration has previously had to add under
+  fuzz pressure.
+  - **Stage M-42: convert all 7 budget-guarded loops, in one PR given how
+    few there are, with each one's specific guard re-verified by hand.**
+    Verification: the OTL and cmap golden fixtures, plus the specific fuzz
+    target(s) that reach `table/cmap.rs`/`table/otl/subtables/chaining/
+    read.rs` for a real time budget (this is exactly the kind of code Stage
+    7-4's own Bucket B staging (M-33) already flagged OTL fuzz history for),
+    and the relevant `tests/fuzz-corpus/known-issues/*.bin` regression
+    files re-run directly.
+- **Bucket 5 -- not simple index loops at all; not proposed for
+  conversion.** Roughly 30-35 of the 226, identified by shape rather than
+  file:
+  - **~9 `while let` loops** (`support/parsed_json.rs`'s digit-scan
+    helpers, `libcff/subr.rs`'s `while let Some(rid) = r`) are already
+    idiomatic Rust -- there is nothing to convert.
+  - **`consolidate.rs`'s while loops that live inside `get_point_
+    coordinates`/`consolidate_anchor_ref`** (the raw-pointer cyclic-graph
+    pair Stage 7-4's own Bucket C re-confirmed has no safe redesign that
+    preserves its cycle-detection semantics) are entangled with that same
+    raw-pointer code; converting the loop shape on its own, independent of
+    the pointer, would be pure cosmetic churn on code this migration has
+    already decided stays as-is. Left alone, for the same reason Bucket C
+    gives.
+  - **`support/ttinstr.rs`'s main `'outer: while i < len` tokenizer** (labeled
+    breaks, four separately-advancing indices across nested loops) and its
+    four number-parsing helpers (`while s.get(j).is_some_and(...)`, a
+    data-dependent scan condition, not a fixed bound) are not index-count
+    loops at all, and this is the exact file responsible for the most
+    recent real heap-buffer-overflow this migration found by fuzzing (the
+    `NPUSHW`/`PUSHW[n]` bug in "Next steps," directly below). Restructuring
+    control flow here for a cosmetic idiom win, in the crate's most
+    recently fuzz-fragile file, is not worth the risk it would reintroduce
+    -- explicitly **not** a candidate for any stage above.
+  - **`libcff/subr.rs`'s/`bk/bkgraph.rs`'s circular-linked-list traversals**
+    (`while e != guard`, walking a `next`-linked graph) have no natural
+    `0..n` range to convert to; forcing one in would mean inventing a
+    custom iterator for a purely cosmetic win. Left alone.
+  - **`table/glyf/read.rs`'s RLE flag-decode loop** (`flags_read_sofar`
+    advances by a data-dependent repeat count each iteration, not a fixed
+    step) and its circular nudge-scan loops (`j_next`/`j_prev` wrapping
+    around a point ring) are the same "data-dependent step, not a fixed
+    range" shape as `ttinstr.rs`'s helpers, in the same glyf-parsing
+    subsystem this migration's own "Next steps" history flags for
+    amplification-guard and fuzz-found bugs generally. Left alone for the
+    same reason.
+
+### What this means for the crate's overall completion picture
+
+Of the 226 `while` loops, 31 need a trivial macro-unwrap (Bucket 1, M-38),
+an estimated 120-140 are plain index-count loops with a concrete two-stage
+mechanical path (Bucket 2, M-39/M-40), 17 need per-site tracing but are
+still safely convertible (Bucket 3, M-41), 7 are fuzz-hardening budget
+guards needing the same extra fuzz-target verification this migration
+already applies to that class of code (Bucket 4, M-42), and roughly 30-35
+are genuinely not index loops -- already idiomatic, tied to a raw-pointer
+shape already decided to stay as-is, or a data-dependent/graph-walk shape
+with no natural range -- and are explicitly not proposed for conversion.
+Of the 475 `explicit_auto_deref` sites, all of them are the same one
+mechanical `(*ptr).field` -> `ptr.field` substitution clippy's own `--fix`
+already knows how to make; the only reason this is three stages (M-35
+through M-37) rather than one is diff size and per-file fuzz history, not
+any judgment call about whether the fix is correct. Put together: the large
+majority of both counters (roughly 475 of 475, and somewhere around 190 of
+226) are realistically mechanical-safe to convert with the staged,
+hand-reviewed methodology above; a small, specifically-identified remainder
+of the `while`-loop count (~30-35 sites) is better left alone than force-
+converted, for reasons tied to this migration's own prior findings rather
+than any new caution invented for this plan.
+
 ## Next steps
 
 - **`support/ttinstr.rs`: a truncated `NPUSHW`/`PUSHW[n]` operand left its
