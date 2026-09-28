@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;

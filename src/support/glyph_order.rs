@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)]
 // Stage 6 removes this; see RUST_MIGRATION.md
 // `GlyphOrderEntry.name` and every string-carrying `GlyphOrderPackage`
 // vtable slot (`set_by_gid`/`set_by_name`/`lookup_name`/
