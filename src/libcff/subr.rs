@@ -1,6 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-use libc::strncmp;
-
 use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
@@ -350,24 +347,68 @@ fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
     } else {
         let m_terminal = mn.terminal.as_ref().unwrap();
         let n_terminal = nn.terminal.as_ref().unwrap();
-        // `strncmp` here (rather than a plain `Vec<u8>` `==`) preserves the
-        // original's exact semantics: it stops comparing at an embedded NUL
-        // byte within the first `n` bytes of either side, even though this
-        // `data` is arbitrary charstring bytecode, not a C string. That is
-        // almost certainly a preexisting quirk inherited from the C source
-        // (two byte sequences that share a NUL-terminated prefix but differ
-        // after it would compare "equal" here), not something introduced by
-        // this conversion -- deliberately preserved, not fixed, matching
-        // this crate's rule of not changing behavior in a safety-only pass.
+        // `strncmp_eq` here (rather than a plain `Vec<u8>` `==`) preserves
+        // the original's exact semantics: it stops comparing at an embedded
+        // NUL byte within the first `n` bytes of either side, even though
+        // this `data` is arbitrary charstring bytecode, not a C string. That
+        // is almost certainly a preexisting quirk inherited from the C
+        // source (two byte sequences that share a NUL-terminated prefix but
+        // differ after it would compare "equal" here), not something
+        // introduced by this conversion -- deliberately preserved, not
+        // fixed, matching this crate's rule of not changing behavior in a
+        // safety-only pass. See `table/otl/parse.rs`'s `tag4_matches` for
+        // the same `strncmp`-replicating idiom already established
+        // elsewhere in this crate, generalized here to an arbitrary `n`
+        // instead of a fixed 4.
         return m_terminal.data.len() == n_terminal.data.len()
-            && unsafe {
-                strncmp(
-                    m_terminal.data.as_ptr() as *const ::core::ffi::c_char,
-                    n_terminal.data.as_ptr() as *const ::core::ffi::c_char,
-                    m_terminal.data.len(),
-                )
-            } == 0_i32;
+            && strncmp_eq(&m_terminal.data, &n_terminal.data, m_terminal.data.len());
     };
+}
+/// Replicates `strncmp(a, b, n) == 0` for two byte slices of length at
+/// least `n`: compares at most `n` bytes, stopping (and reporting equal)
+/// as soon as a NUL byte is reached at the same position in both, exactly
+/// matching `strncmp`'s own early termination on an embedded or trailing
+/// NUL.
+fn strncmp_eq(a: &[u8], b: &[u8], n: usize) -> bool {
+    for i in 0..n {
+        let (ac, bc) = (a[i], b[i]);
+        if ac != bc {
+            return false;
+        }
+        if ac == 0 {
+            return true;
+        }
+    }
+    true
+}
+#[cfg(test)]
+mod strncmp_eq_tests {
+    use super::strncmp_eq;
+
+    #[test]
+    fn identical_bytes_compare_equal() {
+        assert!(strncmp_eq(b"abcd", b"abcd", 4));
+    }
+
+    #[test]
+    fn a_difference_within_n_compares_unequal() {
+        assert!(!strncmp_eq(b"abcd", b"abXd", 4));
+    }
+
+    #[test]
+    fn a_difference_at_or_past_n_is_not_examined() {
+        assert!(strncmp_eq(b"abcX", b"abcY", 3));
+    }
+
+    #[test]
+    fn a_shared_leading_nul_stops_the_comparison_early_even_if_later_bytes_differ() {
+        // The exact quirk `ident_node`'s own comment calls out: charstring
+        // bytecode isn't a C string, but `strncmp`'s early termination on a
+        // NUL byte still applies to it, so two byte sequences sharing a
+        // NUL-terminated prefix compare "equal" here even though the bytes
+        // after the NUL differ.
+        assert!(strncmp_eq(b"ab\0X", b"ab\0Y", 4));
+    }
 }
 fn join_nodes(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     if g.node(m).next.is_some() {
@@ -978,10 +1019,6 @@ mod subr_graph_tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
-    )]
     fn one_glyph_with_subroutinize_off_produces_one_char_string_and_no_subroutines() {
         let il = simple_glyph_il(10.0, 20.0);
         let (s, gs, ls) = build(&[il], false);
@@ -991,10 +1028,6 @@ mod subr_graph_tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
-    )]
     fn two_identical_glyphs_with_subroutinize_on_extract_a_shared_subroutine() {
         let il1 = simple_glyph_il(10.0, 20.0);
         let il2 = simple_glyph_il(10.0, 20.0);
@@ -1009,10 +1042,6 @@ mod subr_graph_tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
-    )]
     fn two_identical_glyphs_subroutinized_have_a_smaller_char_strings_index() {
         // The *total* size (char strings + subr indexes) isn't guaranteed
         // to shrink for an example this tiny -- the subr INDEX header and
@@ -1033,10 +1062,6 @@ mod subr_graph_tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
-    )]
     fn two_different_glyphs_with_subroutinize_on_extract_no_subroutine() {
         let il1 = simple_glyph_il(10.0, 20.0);
         let il2 = simple_glyph_il(30.0, 40.0);
