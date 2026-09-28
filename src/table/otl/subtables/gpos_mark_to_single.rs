@@ -17,7 +17,7 @@ use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
     bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array, otl_read_anchor,
-    otl_read_mark_array,
+    otl_read_mark_array, try_spend_mark_attach_anchor_budget,
 };
 use crate::table::otl::{
     Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable,
@@ -102,6 +102,18 @@ pub fn otl_read_gpos_mark_to_single(
         }
 
         for base in &bases {
+            // See `try_spend_mark_attach_anchor_budget`'s own doc comment
+            // (`gpos_common.rs`): this loop's single sequential `base_
+            // reader` (unlike `gpos_mark_to_ligature.rs`'s per-entry
+            // fresh readers) already keeps *this* subtable's own total
+            // bounded to the real buffer -- it can't be re-aliased from
+            // within one call. What this closes is many separate MarkTo-
+            // Single/MarkToLigature subtables each independently pointing
+            // their BaseArray at the very same maximal-cost bytes; a
+            // table-wide budget is the only thing that can see that.
+            if !try_spend_mark_attach_anchor_budget(class_count as usize) {
+                break;
+            }
             let mut base_anchors: Vec<Anchor> = Vec::with_capacity(class_count as usize);
             for _ in 0..class_count {
                 let anchor_rel = base_reader.u16().unwrap();
@@ -313,6 +325,9 @@ pub fn otfcc_build_gpos_mark_to_single(
 #[cfg(test)]
 mod otl_read_gpos_mark_to_single_tests {
     use super::*;
+    use crate::table::otl::subtables::gpos_common::{
+        MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE, reset_mark_attach_anchor_budget,
+    };
 
     // format(2)@0, marksOffset(2)@2 -> 12, basesOffset(2)@4 -> 18,
     // classCount(2)@6, markArrayOffset(2)@8 -> 24, baseArrayOffset(2)@10
@@ -358,6 +373,76 @@ mod otl_read_gpos_mark_to_single_tests {
         data[26..28].copy_from_slice(&2u16.to_be_bytes()); // baseCount claims 2, coverage has only 1
         let result = otl_read_gpos_mark_to_single(&data, 0, 0);
         assert!(result.is_none());
+    }
+
+    // Builds a table with `base_count` glyphs in the bases Coverage (a
+    // plain format-1 list -- `base_count` is kept small in the test below,
+    // so this stays cheap) and a base array with exactly
+    // `base_count * class_count` sequential (all-absent) anchor slots.
+    fn many_bases_data(base_count: u16, class_count: u16) -> Vec<u8> {
+        let mut d = vec![0u8; 12];
+        let bases_offset: u16 = 18;
+        let mark_array_offset = bases_offset + 4 + 2 * base_count;
+        let base_array_offset = mark_array_offset + 2;
+        d[2..4].copy_from_slice(&12u16.to_be_bytes()); // marks coverage @12
+        d[4..6].copy_from_slice(&bases_offset.to_be_bytes());
+        d[6..8].copy_from_slice(&class_count.to_be_bytes());
+        d[8..10].copy_from_slice(&mark_array_offset.to_be_bytes());
+        d[10..12].copy_from_slice(&base_array_offset.to_be_bytes());
+
+        // marks coverage @12: format 1, 1 glyph.
+        d.extend_from_slice(&1u16.to_be_bytes());
+        d.extend_from_slice(&1u16.to_be_bytes());
+        d.extend_from_slice(&0u16.to_be_bytes());
+        assert_eq!(d.len(), bases_offset as usize);
+
+        // bases coverage: format 1, base_count distinct glyphs.
+        d.extend_from_slice(&1u16.to_be_bytes());
+        d.extend_from_slice(&base_count.to_be_bytes());
+        for gid in 0..base_count {
+            d.extend_from_slice(&(gid + 1).to_be_bytes());
+        }
+        assert_eq!(d.len(), mark_array_offset as usize);
+
+        // mark array: markCount = 0.
+        d.extend_from_slice(&0u16.to_be_bytes());
+        assert_eq!(d.len(), base_array_offset as usize);
+
+        // base array: baseCount, then base_count*class_count absent slots.
+        d.extend_from_slice(&base_count.to_be_bytes());
+        for _ in 0..(base_count as u32 * class_count as u32) {
+            d.extend_from_slice(&0u16.to_be_bytes());
+        }
+        d
+    }
+
+    #[test]
+    fn mark_attach_anchor_budget_truncates_base_array_once_exhausted() {
+        // Regression test for the table-wide `MARK_ATTACH_ANCHOR_BUDGET`
+        // (`gpos_common.rs`): this subtable's own single sequential
+        // `base_reader` already bounds ITS OWN total against the real
+        // buffer (that's what `anchor_array_shorter_than_class_count_
+        // times_base_count_is_rejected` above confirms), so the budget's
+        // job here is purely the cross-subtable case -- many MarkToSingle/
+        // MarkToLigature subtables in the same table each independently
+        // maxing out their own allowance. Simulated directly (draining
+        // the shared budget first) rather than by constructing multiple
+        // real subtables, which is exactly equivalent from this function's
+        // point of view (it only ever sees the budget's current value).
+        reset_mark_attach_anchor_budget();
+        assert!(try_spend_mark_attach_anchor_budget(
+            MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE as usize - 3
+        ));
+        let data = many_bases_data(10, 1);
+        let result = otl_read_gpos_mark_to_single(&data, 0, 0);
+        let Some(Subtable::GposMarkToSingle(ref subtable)) = result else {
+            unreachable!()
+        };
+        // Only 3 anchor-slot units were left in the budget (class_count=1,
+        // so 1 unit per base): the loop must stop there, not read (or
+        // panic on) the other 7 bases the table itself declares.
+        assert_eq!(subtable.base_array.len(), 3);
+        reset_mark_attach_anchor_budget();
     }
 
     #[test]

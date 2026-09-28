@@ -385,6 +385,45 @@ as regression pins even though none of them still reproduce:
   less obvious half (an unrelated `ImpliedReturn`-write ordering issue the
   first half of the fix exposed).
 
+- ~~`tests/fuzz-corpus/known-issues/otf-dump-gpos-mark-to-ligature-
+  aliased-lig-attach-oom.bin` (135KB) — the intermittent `libFuzzer:
+  out-of-memory` the `otf_dump` CI job had been hitting sporadically
+  (`-max_total_time=60`, a 60s randomized session): `table/otl/subtables/
+  gpos_mark_to_ligature.rs`'s `otl_read_gpos_mark_to_ligature` reads a
+  GPOS MarkToLigature subtable's `ligCount` (attacker-controlled, up to
+  65,535 -- and cheap to reach: a format-2 Coverage range expresses that
+  many glyphs in 8 bytes) ligAttachOffsets, each seeked to independently
+  via its own fresh `FontReader` (unlike `gpos_mark_to_single.rs`'s
+  BaseArray, read by one reader advancing sequentially). Each individual
+  ligAttachOffset's own `componentCount * classCount` was already
+  bounds-checked against the buffer remaining from THAT offset
+  (`require_room`, same discipline as everywhere else in this crate) --
+  but nothing tracked how much of the buffer earlier ligAttachOffsets had
+  already "spent", so a crafted font pointing every one of `ligCount`'s
+  offsets at the SAME small LigatureAttach blob let each one independently
+  re-claim the full allowance the buffer permits from there, the same
+  "individually bounded per call, unbounded in aggregate" shape as the
+  `gpos_pair`/coverage/chaining findings above. Root-caused by a
+  standalone harness calling `otl_read_gpos_mark_to_ligature` directly in
+  a tight loop while watching `/proc/self/status`'s `VmRSS` (isolating
+  this function's own cost from libFuzzer/ASan's own corpus-management
+  overhead, which a `-malloc_limit_mb` sweep and long `cargo fuzz run`
+  sessions alone could not distinguish it from -- no single allocation in
+  this bug is ever large, only their aggregate is): a 137KB crafted table
+  (ligCount=65,535 aliasing one ~6KB blob, componentCount=3,000) was
+  OOM-killed after exhausting 15GB of RAM in well under a second, and
+  replaying the actual reproducer above through `cargo fuzz run otf_dump`
+  reproduced the identical `SUMMARY: libFuzzer: out-of-memory`, symbolized
+  straight to this function's `Vec::with_capacity` call~~ — **fixed**: a
+  table-wide `MARK_ATTACH_ANCHOR_BUDGET` (`gpos_common.rs`,
+  `try_spend_mark_attach_anchor_budget`/`reset_mark_attach_anchor_budget`),
+  the same global-`AtomicU32`-reset-once-per-table shape as `chaining/
+  read.rs`'s `CLASS_COVERAGE_CALL_BUDGET` and `coverage.rs`'s `COVERAGE_
+  ENTRY_BUILD_BUDGET`. Shared with `gpos_mark_to_single.rs`'s BaseArray
+  loop too, as defense in depth against the same aggregate-cost shape
+  showing up across many subtables instead of within one. See
+  `RUST_MIGRATION.md`'s "Next steps" for the full writeup.
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).

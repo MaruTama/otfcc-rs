@@ -2213,10 +2213,6 @@ mod cff_matrix_no_head_regression_tests {
     // assertion; after it, `apply_cff_matrix` takes its `None` branch and
     // simply leaves the outline unscaled.
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "calls libc::modf via cff_merge_cs2_operand (writecff_cid_keyed's charstring writer), unsupported under Miri"
-    )]
     fn cff_font_matrix_with_no_head_table_does_not_crash() {
         let mut cff = table_cff_new();
         cff.private_dict = Some(otfcc_new_cff_private());

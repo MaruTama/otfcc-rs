@@ -82,8 +82,8 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
     for r in &g.references {
         let h: GlyphHash = name_glyph_by_hash(glyf[r.glyph.index as usize].as_deref().unwrap(), glyf);
         buf.write_bytes(&h.hash);
-        hash_vq(buf, r.x.clone());
-        hash_vq(buf, r.y.clone());
+        hash_vq(buf, r.x.borrow().clone());
+        hash_vq(buf, r.y.borrow().clone());
         buf.write_u32be(otfcc_to_f2dot14(r.a as ::core::ffi::c_double) as u32);
         buf.write_u32be(otfcc_to_f2dot14(r.b as ::core::ffi::c_double) as u32);
         buf.write_u32be(otfcc_to_f2dot14(r.c as ::core::ffi::c_double) as u32);
