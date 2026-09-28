@@ -126,26 +126,40 @@ fn il_curveto(il: &mut CffCharstringIl, dx1: VQ, dy1: VQ, dx2: VQ, dy2: VQ, dx3:
     il_push_vq(il, dy3);
     il_push_op(il, OP_RRCURVETO);
 }
+/// Where the mask-group walk below is in the glyph's own contour/point
+/// count -- `contours`/`points` are always passed together (both call
+/// sites in `il_push_masks` pass the same pair through unchanged), so
+/// bundling avoids the 8-argument form `clippy::too_many_arguments`
+/// flagged.
+struct ShapePosition {
+    contours: u16,
+    points: u16,
+}
+/// How many stem-hint bits each mask byte packs, per axis -- `nh`/`nv` are
+/// likewise always passed together (`il_push_masks`'s own `stem_h_len`/
+/// `stem_v_len`, identical at both call sites).
+struct StemCounts {
+    h: u16,
+    v: u16,
+}
 fn _il_push_maskgroup(
     il: &mut CffCharstringIl,
     masks: &MaskList,
-    contours: u16,
-    points: u16,
-    nh: u16,
-    nv: u16,
+    position: &ShapePosition,
+    stems: &StemCounts,
     jm: &mut u16,
     op: CffCharstringOperator,
 ) {
     let n: ShapeId = masks.len() as ShapeId;
     while (*jm as i32) < n as i32
-        && ((masks[*jm as usize].contours_before as i32) < contours as i32
-            || masks[*jm as usize].contours_before as i32 == contours as i32
-                && masks[*jm as usize].points_before as i32 <= points as i32)
+        && ((masks[*jm as usize].contours_before as i32) < position.contours as i32
+            || masks[*jm as usize].contours_before as i32 == position.contours as i32
+                && masks[*jm as usize].points_before as i32 <= position.points as i32)
     {
         il_push_op(il, op);
         let mut mask_byte: u8 = 0_u8;
         let mut bits: u8 = 0_u8;
-        for j in 0..nh {
+        for j in 0..stems.h {
             mask_byte = ((mask_byte as i32) << 1_i32
                 | masks[*jm as usize].mask_h[j as usize] as i32 & 1_i32)
                 as u8;
@@ -155,7 +169,7 @@ fn _il_push_maskgroup(
                 bits = 0_u8;
             }
         }
-        for j_0 in 0..nv {
+        for j_0 in 0..stems.v {
             mask_byte = ((mask_byte as i32) << 1_i32
                 | masks[*jm as usize].mask_v[j_0 as usize] as i32 & 1_i32)
                 as u8;
@@ -183,28 +197,13 @@ fn il_push_masks(
     if g.stem_h.is_empty() && g.stem_v.is_empty() {
         return;
     }
-    let stem_h_len = g.stem_h.len() as u16;
-    let stem_v_len = g.stem_v.len() as u16;
-    _il_push_maskgroup(
-        il,
-        &g.contour_masks,
-        contours,
-        points,
-        stem_h_len,
-        stem_v_len,
-        jh,
-        OP_CNTRMASK,
-    );
-    _il_push_maskgroup(
-        il,
-        &g.hint_masks,
-        contours,
-        points,
-        stem_h_len,
-        stem_v_len,
-        jm,
-        OP_HINTMASK,
-    );
+    let position = ShapePosition { contours, points };
+    let stems = StemCounts {
+        h: g.stem_h.len() as u16,
+        v: g.stem_v.len() as u16,
+    };
+    _il_push_maskgroup(il, &g.contour_masks, &position, &stems, jh, OP_CNTRMASK);
+    _il_push_maskgroup(il, &g.hint_masks, &position, &stems, jm, OP_HINTMASK);
 }
 // `stems` is never null in practice -- both call sites below pass a
 // reference to a `Glyph`'s own `stem_h`/`stem_v` field, an owned `Vec`, not

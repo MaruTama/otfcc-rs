@@ -26,6 +26,11 @@ use crate::table::otl::{
 };
 use crate::table::otl::{new_language, new_lookup};
 use crate::vendor::json::JsonType;
+/// One subtable-parsing function's signature, shared by every lookup
+/// type's own parse function and by `_declare_lookup_parser`'s own
+/// `parser` parameter -- named once here instead of spelled out at each
+/// of the 14 call/declaration sites below.
+type SubtableParser = fn(Option<&ParsedValue>, &Options) -> Option<Subtable>;
 /// A transient identity minted for a not-yet-collected `Lookup`, indexing
 /// `PendingLookups.lookups` (position within `LookupEntry.lookup_id`'s own
 /// backing store, *not* the final `OtlTable.lookups` position -- `lh` gets
@@ -140,7 +145,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_SINGLE,
-            Some(otl_gsub_parse_single as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
+            Some(otl_gsub_parse_single as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -150,7 +155,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_MULTIPLE,
-            Some(otl_gsub_parse_multi as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
+            Some(otl_gsub_parse_multi as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -160,7 +165,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_ALTERNATE,
-            Some(otl_gsub_parse_multi as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
+            Some(otl_gsub_parse_multi as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -170,9 +175,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_LIGATURE,
-            Some(
-                otl_gsub_parse_ligature as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
-            ),
+            Some(otl_gsub_parse_ligature as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -182,7 +185,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_CHAINING,
-            Some(otl_parse_chaining as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
+            Some(otl_parse_chaining as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -192,9 +195,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_REVERSE,
-            Some(
-                otl_gsub_parse_reverse as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
-            ),
+            Some(otl_gsub_parse_reverse as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -204,7 +205,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_SINGLE,
-            Some(otl_gpos_parse_single as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
+            Some(otl_gpos_parse_single as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -214,7 +215,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_PAIR,
-            Some(otl_gpos_parse_pair as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
+            Some(otl_gpos_parse_pair as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -224,9 +225,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_CURSIVE,
-            Some(
-                otl_gpos_parse_cursive as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
-            ),
+            Some(otl_gpos_parse_cursive as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -236,7 +235,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_CHAINING,
-            Some(otl_parse_chaining as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
+            Some(otl_parse_chaining as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -246,10 +245,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_MARK_TO_BASE,
-            Some(
-                otl_gpos_parse_mark_to_single
-                    as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
-            ),
+            Some(otl_gpos_parse_mark_to_single as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -259,10 +255,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_MARK_TO_MARK,
-            Some(
-                otl_gpos_parse_mark_to_single
-                    as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
-            ),
+            Some(otl_gpos_parse_mark_to_single as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -272,10 +265,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-            Some(
-                otl_gpos_parse_mark_to_ligature
-                    as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
-            ),
+            Some(otl_gpos_parse_mark_to_ligature as SubtableParser),
             lookup,
             lookup_name,
             options,
@@ -286,7 +276,7 @@ fn _parse_lookup(
 }
 fn _declare_lookup_parser(
     llt: LookupType,
-    parser: Option<fn(Option<&ParsedValue>, &Options) -> Option<Subtable>>,
+    parser: Option<SubtableParser>,
     _lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     options: &Options,
