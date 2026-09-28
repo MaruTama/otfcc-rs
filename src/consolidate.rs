@@ -1,9 +1,4 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 pub mod otl;
-
-unsafe extern "C" {
-    fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
 
 use crate::support::handle::{
     FdHandle, GlyphHandle, Handle, HandleState, handle_from_index, handle_name_eq_bytes,
@@ -479,22 +474,17 @@ pub fn consolidate_anchor_ref(
         rr.y.replace(rry);
         rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     } else {
-        // `fabs` is this crate's one remaining `unsafe extern "C"` import
-        // in this file (declared at the top), so only this one call needs
-        // the narrow block -- the same pattern `otf_writer/stat.rs` uses
-        // around its own `round` calls.
-        if unsafe {
-            fabs(
-                vq_get_still(rr.x.borrow().clone()) as ::core::ffi::c_double
-                    - vq_get_still(rrx.clone()) as ::core::ffi::c_double,
-            )
-        } > 0.5f64
-            && unsafe {
-                fabs(
-                    vq_get_still(rr.y.borrow().clone()) as ::core::ffi::c_double
-                        - vq_get_still(rry.clone()) as ::core::ffi::c_double,
-                )
-            } > 0.5f64
+        // `f64::abs` is IEEE-754 `fabs` bit for bit (see `vf/vq.rs`'s own
+        // note); this file's `unsafe extern "C" { fn fabs(...) }` import
+        // (removed in Stage M-45; see RUST_MIGRATION.md) is gone.
+        if (vq_get_still(rr.x.borrow().clone()) as ::core::ffi::c_double
+            - vq_get_still(rrx.clone()) as ::core::ffi::c_double)
+            .abs()
+            > 0.5f64
+            && (vq_get_still(rr.y.borrow().clone()) as ::core::ffi::c_double
+                - vq_get_still(rry.clone()) as ::core::ffi::c_double)
+                .abs()
+                > 0.5f64
         {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),

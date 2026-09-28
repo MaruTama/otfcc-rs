@@ -1,8 +1,3 @@
-use libc::{time, time_t};
-unsafe extern "C" {
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
-
 use crate::support::handle::{Handle, HandleState, handle_from_index};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
@@ -99,27 +94,19 @@ pub fn stat_single_glyph(
         let contour: &Contour = &g.contours[c as usize];
         for pj in 0..contour.len() as ShapeId {
             let p: &Point = &contour[pj as usize];
-            // `round` is the crate's one remaining `unsafe extern "C"`
-            // import (declared at the top of this file), so only the two
-            // calls need the narrow block.
-            let x: Pos = unsafe {
-                round(
-                    vq_get_still(gr.x.borrow().clone()) as ::core::ffi::c_double
-                        + gr.a as ::core::ffi::c_double
-                            * vq_get_still(p.x.clone()) as ::core::ffi::c_double
-                        + gr.b as ::core::ffi::c_double
-                            * vq_get_still(p.y.clone()) as ::core::ffi::c_double,
-                )
-            } as Pos;
-            let y: Pos = unsafe {
-                round(
-                    vq_get_still(gr.y.borrow().clone()) as ::core::ffi::c_double
-                        + gr.c as ::core::ffi::c_double
-                            * vq_get_still(p.x.clone()) as ::core::ffi::c_double
-                        + gr.d as ::core::ffi::c_double
-                            * vq_get_still(p.y.clone()) as ::core::ffi::c_double,
-                )
-            } as Pos;
+            // `f64::round` rounds half away from zero, the exact contract
+            // C99's `round` specifies (and propagates NaN/preserves
+            // +/-infinity/+/-0.0 identically) -- a direct replacement for
+            // this file's `unsafe extern "C" { fn round(...) }` import
+            // (removed in Stage M-45; see RUST_MIGRATION.md).
+            let x: Pos = (vq_get_still(gr.x.borrow().clone()) as ::core::ffi::c_double
+                + gr.a as ::core::ffi::c_double * vq_get_still(p.x.clone()) as ::core::ffi::c_double
+                + gr.b as ::core::ffi::c_double * vq_get_still(p.y.clone()) as ::core::ffi::c_double)
+                .round() as Pos;
+            let y: Pos = (vq_get_still(gr.y.borrow().clone()) as ::core::ffi::c_double
+                + gr.c as ::core::ffi::c_double * vq_get_still(p.x.clone()) as ::core::ffi::c_double
+                + gr.d as ::core::ffi::c_double * vq_get_still(p.y.clone()) as ::core::ffi::c_double)
+                .round() as Pos;
             if x < xmin {
                 xmin = x;
             }
@@ -1279,10 +1266,18 @@ pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
     if font.glyf.is_some() && font.head.is_some() {
         stat_glyf(font, options);
         if !options.keep_modified_time {
-            // `time` is the crate's other remaining `unsafe extern "C"`
-            // import in this file.
-            let now = unsafe { time(::core::ptr::null_mut::<time_t>()) };
-            font.head.as_deref_mut().unwrap().modified = 2082844800_i64 + now as i64;
+            // `std::time::SystemTime` measured against `UNIX_EPOCH` gives the
+            // same "whole seconds since 1970-01-01 UTC" value `libc::time`'s
+            // C99 contract does; `unwrap_or(0)` only matters if the system
+            // clock is set before the epoch, which no real caller of this
+            // font-build path can hit -- a direct replacement for this
+            // file's `unsafe extern "C" { fn time(...) }`/`libc::time_t`
+            // import (removed in Stage M-45; see RUST_MIGRATION.md).
+            let now = ::std::time::SystemTime::now()
+                .duration_since(::std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            font.head.as_deref_mut().unwrap().modified = 2082844800_i64 + now;
         }
     }
     if font.head.is_some() && font.cff.is_some() {
@@ -1461,5 +1456,32 @@ mod stat_os_2_average_width_tests {
         let options = Options::default();
         stat_os_2_average_width(&mut font, &options);
         assert_eq!(font.os_2.as_deref().unwrap().x_avg_char_width, 0);
+    }
+}
+
+// `stat_glyf`'s `unsafe extern "C" { fn round(...) }` import was dropped in
+// Stage M-45 in favor of `f64::round`. C99's `round` is specified as
+// "round half away from zero, propagate NaN, preserve +/-infinity and
+// +/-0.0" -- `f64::round`'s own documented contract is the identical
+// "round half away from zero", pinned here against that documented
+// contract rather than a live libc comparison, the same choice
+// `libcff/cff_writer.rs`'s own `modf_tests` module already made.
+#[cfg(test)]
+mod round_tests {
+    #[test]
+    fn f64_round_matches_round_contract_half_away_from_zero() {
+        assert_eq!(0.4_f64.round(), 0.0);
+        assert_eq!(0.5_f64.round(), 1.0);
+        assert_eq!(0.6_f64.round(), 1.0);
+        assert_eq!((-0.4_f64).round(), -0.0);
+        assert_eq!((-0.5_f64).round(), -1.0);
+        assert_eq!((-0.6_f64).round(), -1.0);
+        assert_eq!(2.5_f64.round(), 3.0);
+        assert_eq!((-2.5_f64).round(), -3.0);
+        assert_eq!(0.0_f64.round().to_bits(), 0.0_f64.to_bits());
+        assert_eq!((-0.0_f64).round().to_bits(), (-0.0_f64).to_bits());
+        assert_eq!(f64::INFINITY.round(), f64::INFINITY);
+        assert_eq!(f64::NEG_INFINITY.round(), f64::NEG_INFINITY);
+        assert!(f64::NAN.round().is_nan());
     }
 }

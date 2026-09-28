@@ -1,10 +1,5 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 pub mod build;
 pub mod read;
-
-unsafe extern "C" {
-    fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::TRUE_0;
@@ -459,11 +454,12 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
         b"advanceWidth",
         json_new_vq(g.advance_width.clone(), ctx.fvar.as_deref()),
     );
-    // `vq_is_still`/`vq_get_still` are plain safe fns; `fabs` is the crate's
-    // one remaining `unsafe extern "C"` import (declared at the top of this
-    // file), so only that call needs the narrow block.
+    // `f64::abs` is IEEE-754 `fabs` bit for bit (see `vf/vq.rs`'s own note);
+    // this file's `unsafe extern "C" { fn fabs(...) }` import (removed in
+    // Stage M-45; see RUST_MIGRATION.md) is gone along with the last
+    // `unsafe` in this file.
     if vq_is_still(g.horizontal_origin.clone())
-        && unsafe { fabs(vq_get_still(g.horizontal_origin.clone()) as ::core::ffi::c_double) }
+        && (vq_get_still(g.horizontal_origin.clone()) as ::core::ffi::c_double).abs()
             > 1.0f64 / 1000.0f64
     {
         glyph.push_field(
