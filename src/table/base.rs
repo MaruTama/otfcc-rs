@@ -203,7 +203,12 @@ fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
     }
     Some(Box::new(BaseAxis { entries }))
 }
-fn parse_base(data: &[u8]) -> Result<(Option<Box<BaseAxis>>, Option<Box<BaseAxis>>), ReadError> {
+/// `parse_base`'s own (horizontal, vertical) axis pair -- named once so the
+/// return type isn't spelled out twice (its own signature and every match
+/// arm's destructuring stay tuple-shaped either way, so no call site needs
+/// updating).
+type BaseAxisPair = (Option<Box<BaseAxis>>, Option<Box<BaseAxis>>);
+fn parse_base(data: &[u8]) -> Result<BaseAxisPair, ReadError> {
     let mut r = FontReader::new(data);
     r.skip(4)?; // majorVersion(2) + minorVersion(2), unused
     let offset_h = r.u16()?;

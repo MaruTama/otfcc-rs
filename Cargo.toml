@@ -56,9 +56,32 @@ needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
 # need restructuring a function's parameter list (e.g. into a struct) and
 # `type_complexity` would need introducing named type aliases; both are API
 # design choices, not syntax, so left alone deliberately. Counts re-measured
-# fresh, not trusted from the prior stale figures:
-too_many_arguments = "allow" # 4 -- re-measured (was 8)
-type_complexity = "allow" # 3 -- re-measured (was 2)
+# fresh, not trusted from the prior stale figures.
+#
+# `type_complexity` removed entirely (was here): all 3 sites (`libcff/
+# cff_codecs.rs`'s `DE_T2` decoder table, `table/otl/parse.rs`'s 14-site
+# subtable-parser signature, `table/base.rs`'s `parse_base` return type)
+# each got a `type` alias -- purely syntactic, no call site needed changing
+# for the tuple case (`base.rs`) since destructuring a named tuple type
+# looks the same as destructuring the bare tuple -- so the lint needs no
+# allow any more. See RUST_MIGRATION.md.
+#
+# `too_many_arguments`'s original 4 sites: 2 were closed the same
+# re-examine-first way (`consolidate.rs`'s `get_point_coordinates`, whose
+# `stated`/`x`/`y` out-parameters were always passed as a trio at every
+# call site, and `charstring_il.rs`'s `_il_push_maskgroup`, whose
+# `contours`/`points` and `nh`/`nv` pairs were always identical between its
+# two call sites -- both bundled into a small struct, no behavior change).
+# The 2 left below were judged not worth the risk on inspection, not merely
+# unexamined: `cff_parser.rs`'s `cff_parse_outline` mixes a per-call-path
+# by-value `depth` with a whole-recursion-shared `&mut total_calls`, and
+# `subr.rs`'s `serialize_node_to_buffer` passes `&mut [Buffer]` slices that
+# are also used standalone (without their own paired count) by
+# `resolve_subr_ref` elsewhere in the same file -- bundling either risks
+# introducing exactly the kind of behavior-changing bug this migration's
+# own rule (verify everything, assume nothing) exists to catch, for a
+# lint-only cosmetic win. See RUST_MIGRATION.md.
+too_many_arguments = "allow" # 2 -- re-measured (was 4)
 
 [dependencies]
 base64 = "0.23.1"

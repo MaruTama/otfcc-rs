@@ -273,13 +273,23 @@ pub const MAX_COMPONENT_REFERENCE_DEPTH: u32 = 10;
 // this replaced, field for field and branch for branch, since that order
 // (not just the final values) is what the existing cycle-detection
 // guards' own semantics depend on.
+/// `get_point_coordinates`'s three in/out parameters: how far the walk has
+/// counted so far (`stated`) and the coordinates it writes once `stated`
+/// reaches the target `n` (`x`/`y`). All three are always read and written
+/// together at every one of this function's own call sites (never one
+/// without the other two), which is exactly what bundling into one `&mut`
+/// out-parameter is for -- `clippy::too_many_arguments` flagged the
+/// unbundled 8-parameter form this replaces.
+pub struct PointSearch {
+    pub stated: ShapeId,
+    pub x: VQ,
+    pub y: VQ,
+}
 pub fn get_point_coordinates(
     table: &GlyfTable,
     gr: &ComponentReference,
     n: ShapeId,
-    stated: &mut ShapeId,
-    x: &mut VQ,
-    y: &mut VQ,
+    search: &mut PointSearch,
     options: &Options,
     depth: u32,
 ) -> bool {
@@ -292,16 +302,16 @@ pub fn get_point_coordinates(
     while (c as usize) < g.contours.len() {
         let mut pj: ShapeId = 0 as ShapeId;
         while (pj as usize) < g.contours[c as usize].len() {
-            if *stated as i32 == n as i32 {
+            if search.stated as i32 == n as i32 {
                 let p: &Point = &g.contours[c as usize][pj as usize];
-                *x = vq_point_linear_tfm(
+                search.x = vq_point_linear_tfm(
                     gr.x.borrow().clone(),
                     gr.a as Pos,
                     p.x.clone(),
                     gr.b as Pos,
                     p.y.clone(),
                 );
-                *y = vq_point_linear_tfm(
+                search.y = vq_point_linear_tfm(
                     gr.y.borrow().clone(),
                     gr.c as Pos,
                     p.x.clone(),
@@ -310,7 +320,7 @@ pub fn get_point_coordinates(
                 );
                 return true;
             }
-            *stated = (*stated as i32 + 1_i32) as ShapeId;
+            search.stated = (search.stated as i32 + 1_i32) as ShapeId;
             pj = pj.wrapping_add(1);
         }
         c = c.wrapping_add(1);
@@ -339,8 +349,7 @@ pub fn get_point_coordinates(
             rr.d as Pos,
             gr.y.borrow().clone(),
         ));
-        let success: bool =
-            get_point_coordinates(table, &ref_0, n, stated, x, y, options, depth + 1);
+        let success: bool = get_point_coordinates(table, &ref_0, n, search, options, depth + 1);
         // `ref_0` is a plain owned local; every field auto-drops when it
         // goes out of scope here (or at the `return true` below), so no
         // explicit dispose call is needed.
@@ -401,34 +410,20 @@ pub fn consolidate_anchor_ref(
     } else {
         rr.is_anchored.set(RefAnchorStatus::AnchorConsolidatingXy);
     }
-    let mut inner_x: VQ = (vq_neutral)();
-    let mut outer_x: VQ = (vq_neutral)();
-    let mut inner_y: VQ = (vq_neutral)();
-    let mut outer_y: VQ = (vq_neutral)();
-    let mut inner_counter: ShapeId = 0 as ShapeId;
-    let mut outer_counter: ShapeId = 0 as ShapeId;
+    let mut outer: PointSearch = PointSearch {
+        stated: 0 as ShapeId,
+        x: (vq_neutral)(),
+        y: (vq_neutral)(),
+    };
+    let mut inner: PointSearch = PointSearch {
+        stated: 0 as ShapeId,
+        x: (vq_neutral)(),
+        y: (vq_neutral)(),
+    };
     let mut rr1: ComponentReference = (glyf_component_reference_empty)();
     rr1.glyph = handle_from_index(rr.glyph.index) as GlyphHandle;
-    let s1: bool = get_point_coordinates(
-        table,
-        gr,
-        rr.outer,
-        &mut outer_counter,
-        &mut outer_x,
-        &mut outer_y,
-        options,
-        depth + 1,
-    );
-    let s2: bool = get_point_coordinates(
-        table,
-        &rr1,
-        rr.inner,
-        &mut inner_counter,
-        &mut inner_x,
-        &mut inner_y,
-        options,
-        depth + 1,
-    );
+    let s1: bool = get_point_coordinates(table, gr, rr.outer, &mut outer, options, depth + 1);
+    let s2: bool = get_point_coordinates(table, &rr1, rr.inner, &mut inner, options, depth + 1);
     if !s1 {
         logger_log_sds(
             &mut options.logger.borrow_mut(),
@@ -456,18 +451,18 @@ pub fn consolidate_anchor_ref(
         );
     }
     let rrx: VQ = vq_point_linear_tfm(
-        outer_x.clone(),
+        outer.x.clone(),
         -(rr.a as Pos),
-        inner_x.clone(),
+        inner.x.clone(),
         -(rr.b as Pos),
-        inner_y.clone(),
+        inner.y.clone(),
     );
     let rry: VQ = vq_point_linear_tfm(
-        outer_y.clone(),
+        outer.y.clone(),
         -(rr.c as Pos),
-        inner_x.clone(),
+        inner.x.clone(),
         -(rr.d as Pos),
-        inner_y.clone(),
+        inner.y.clone(),
     );
     if rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingAnchor {
         rr.x.replace(rrx);
@@ -499,10 +494,9 @@ pub fn consolidate_anchor_ref(
         }
         rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     }
-    // `rr1`/`inner_x`/`inner_y`/`outer_x`/`outer_y` (and, in this branch,
-    // `rrx`/`rry`) are all plain owned locals that were never moved out --
-    // they auto-drop at the `return false` below, so no explicit dispose
-    // calls are needed.
+    // `rr1`/`inner`/`outer` (and, in this branch, `rrx`/`rry`) are all plain
+    // owned locals that were never moved out -- they auto-drop at the
+    // `return false` below, so no explicit dispose calls are needed.
     return false;
 }
 pub fn consolidate_glyf(font: &mut Font, options: &Options) {
@@ -1415,25 +1409,18 @@ mod composite_reference_cycle_tests {
             let table = cyclic_glyf_table();
             let options = Options::default();
             let gr = reference_to(0);
-            let mut stated: ShapeId = 0;
-            let mut x = vq_neutral();
-            let mut y = vq_neutral();
+            let mut search = PointSearch {
+                stated: 0,
+                x: vq_neutral(),
+                y: vq_neutral(),
+            };
             // Point index 999 doesn't exist anywhere in this table, so a
             // correctly-terminating search must walk every reachable
             // reference (following the cycle up to the depth budget) and
             // then report "not found" -- reaching this assertion at all,
             // rather than the test process crashing, is the regression
             // signal.
-            let found = get_point_coordinates(
-                &table,
-                &gr,
-                999,
-                &mut stated,
-                &mut x,
-                &mut y,
-                &options,
-                0,
-            );
+            let found = get_point_coordinates(&table, &gr, 999, &mut search, &options, 0);
             assert!(!found);
         }
     }
