@@ -4,7 +4,7 @@ use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
 use crate::font::caryll_font::{Font, FontSubtype};
 use crate::support::options::Options;
-use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, ShapeId};
+use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale};
 
 use crate::table::cff::CffFontMatrix;
 
@@ -13,7 +13,7 @@ use crate::table::ltsh::LtshTable;
 use crate::table::vorg::{VorgEntry, VorgTable};
 
 use crate::table::glyf::{
-    ComponentReference, Contour, GlyfTable, Glyph, GlyphStat, Point, RefAnchorStatus,
+    ComponentReference, GlyfTable, Glyph, GlyphStat, RefAnchorStatus, iter_glyphs,
 };
 
 use crate::table::hmtx::{HmtxTable, HorizontalMetric};
@@ -23,7 +23,7 @@ use crate::table::otl::{
     GsubLigatureSubtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_MARK_TO_BASE,
     OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
     OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_REVERSE, OtlTable, Subtable,
-    subtable_at,
+    iter_subtables,
 };
 
 use crate::table::vmtx::{VerticalMetric, VmtxTable};
@@ -90,10 +90,8 @@ pub fn stat_single_glyph(
     let mut n_points: u16 = 0_u16;
     let mut n_composite_points: u16;
     let mut n_composite_contours: u16;
-    for c in 0..g.contours.len() as ShapeId {
-        let contour: &Contour = &g.contours[c as usize];
-        for pj in 0..contour.len() as ShapeId {
-            let p: &Point = &contour[pj as usize];
+    for contour in &g.contours {
+        for p in contour {
             // `f64::round` rounds half away from zero, the exact contract
             // C99's `round` specifies (and propagates NaN/preserves
             // +/-infinity/+/-0.0 identically) -- a direct replacement for
@@ -124,7 +122,7 @@ pub fn stat_single_glyph(
     }
     n_composite_points = n_points;
     n_composite_contours = g.contours.len() as u16;
-    for r in 0..g.references.len() as ShapeId {
+    for rr in &g.references {
         let mut ref_0: ComponentReference = ComponentReference {
             x: std::cell::RefCell::new(VQ {
                 kernel: 0.,
@@ -150,7 +148,6 @@ pub fn stat_single_glyph(
             outer: 0,
         };
         glyf_component_reference_init(&mut ref_0);
-        let rr: &ComponentReference = &g.references[r as usize];
         ref_0.glyph = handle_from_index(rr.glyph.index);
         ref_0.a = gr.a * rr.a + rr.b * gr.c;
         ref_0.b = rr.a * gr.b + rr.b * gr.d;
@@ -370,8 +367,8 @@ fn stat_hmtx(font: &mut Font) {
     let mut min_rsb: Pos = 0x7fff_i32 as Pos;
     let mut max_extent: Pos = -0x8000_i32 as Pos;
     let mut max_width: Length = 0_i32 as Length;
-    for j in 0..glyf.len() as GlyphId {
-        let g = glyf[j as usize].as_mut().unwrap();
+    for (j, slot) in glyf.iter_mut().enumerate() {
+        let g = slot.as_mut().unwrap();
         if vq_is_zero(g.horizontal_origin.clone(), 1.0f64 / 1000.0f64) {
             g.horizontal_origin = vq_neutral();
         } else {
@@ -381,7 +378,7 @@ fn stat_hmtx(font: &mut Font) {
         let advw: Pos = vq_get_still(g.advance_width.clone()) as Pos;
         let lsb: Pos = g.stat.x_min - hori;
         let rsb: Pos = advw + hori - g.stat.x_max;
-        if (j as i32) < count_a as i32 {
+        if j < count_a as usize {
             metrics.push(HorizontalMetric {
                 advance_width: advw as Length,
                 lsb,
@@ -455,13 +452,13 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
     let mut min_bsb: Pos = 0x7fff_i32 as Pos;
     let mut max_extent: Pos = -0x8000_i32 as Pos;
     let mut max_height: Length = 0_i32 as Length;
-    for j in 0..glyf.len() as GlyphId {
-        let g = glyf[j as usize].as_deref().unwrap();
+    for (j, slot) in glyf.iter().enumerate() {
+        let g = slot.as_deref().unwrap();
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
         let advh: Pos = vq_get_still(g.advance_height.clone()) as Pos;
         let tsb: Pos = vori - g.stat.y_max;
         let bsb: Pos = g.stat.y_min - vori + advh;
-        if (j as i32) < count_a as i32 {
+        if j < count_a as usize {
             metrics.push(VerticalMetric {
                 advance_height: advh as Length,
                 tsb,
@@ -979,14 +976,8 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     // `.glyf.is_some()` guard.
     let glyf = font.glyf.as_ref().unwrap();
     let mut total_width: u32 = 0_u32;
-    for j in 0..glyf.len() as GlyphId {
-        let adw: Pos = vq_get_still(
-            glyf[j as usize]
-                .as_deref()
-                .unwrap()
-                .advance_width
-                .clone(),
-        ) as Pos;
+    for slot in glyf.iter() {
+        let adw: Pos = vq_get_still(slot.as_deref().unwrap().advance_width.clone()) as Pos;
         if adw > 0_i32 as Pos {
             total_width = (total_width as Pos + adw) as u32;
         }
@@ -1023,12 +1014,11 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
                 }
             }
             OTL_TYPE_GSUB_LIGATURE => {
-                for si in 0..lookup.subtables.len() {
-                    // `subtable_at` now returns a plain `&Subtable` (Stage
-                    // M-24) -- every arm here only ever reads, so no
-                    // `unsafe` is needed to get at the payload any more.
-                    let Subtable::GsubLigature(entries) = subtable_at(&lookup.subtables, si)
-                    else {
+                for subtable in iter_subtables(&lookup.subtables) {
+                    // `iter_subtables` yields plain `&Subtable`s (Stage M-24) --
+                    // every arm here only ever reads, so no `unsafe` is
+                    // needed to get at the payload any more.
+                    let Subtable::GsubLigature(entries) = subtable else {
                         unreachable!()
                     };
                     let entries: &GsubLigatureSubtable = entries;
@@ -1040,14 +1030,14 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
                 }
             }
             OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
-                for si in 0..lookup.subtables.len() {
+                for subtable in iter_subtables(&lookup.subtables) {
                     // See the comment on the GSUB_LIGATURE arm above. Only
                     // `.match_count` is read here, so `chaining_rule_const`
                     // (a safe `&ChainingRule`) is all this needs -- the old
                     // code reached for `chaining_rule_mut` only because
-                    // `subtable_at` handed back a raw pointer it had to
-                    // reborrow as `&mut` to call anything on it at all.
-                    let Subtable::Chaining(subtable) = subtable_at(&lookup.subtables, si) else {
+                    // the accessor it used handed back a raw pointer it had
+                    // to reborrow as `&mut` to call anything on it at all.
+                    let Subtable::Chaining(subtable) = subtable else {
                         unreachable!()
                     };
                     let match_count = chaining_rule_const(subtable).match_count;
@@ -1057,10 +1047,9 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
                 }
             }
             OTL_TYPE_GSUB_REVERSE => {
-                for si in 0..lookup.subtables.len() {
+                for subtable in iter_subtables(&lookup.subtables) {
                     // See the comment on the GSUB_LIGATURE arm above.
-                    let Subtable::GsubReverse(subtable) = subtable_at(&lookup.subtables, si)
-                    else {
+                    let Subtable::GsubReverse(subtable) = subtable else {
                         unreachable!()
                     };
                     let match_count = subtable.match_count;
@@ -1104,36 +1093,24 @@ fn stat_cff_widths(font: &mut Font) {
     // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
     // `free`.
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
-    for j in 0..glyf.len() as GlyphId {
-        let int_width: u16 = vq_get_still(
-            glyf[j as usize]
-                .as_deref()
-                .unwrap()
-                .advance_width
-                .clone(),
-        ) as u16;
+    for g in iter_glyphs(glyf) {
+        let int_width: u16 = vq_get_still(g.advance_width.clone()) as u16;
         if (int_width as i32) < MAX_STAT_METRIC {
             frequency[int_width as usize] = frequency[int_width as usize].wrapping_add(1_u32);
         }
     }
     let mut maxfreq: u16 = 0_u16;
     let mut maxj: u16 = 0_u16;
-    for j_0 in 0..MAX_STAT_METRIC as u16 {
-        if frequency[j_0 as usize] > maxfreq as u32 {
-            maxfreq = frequency[j_0 as usize] as u16;
-            maxj = j_0;
+    for (width, &count) in frequency.iter().enumerate() {
+        if count > maxfreq as u32 {
+            maxfreq = count as u16;
+            maxj = width as u16;
         }
     }
     let mut nn: u16 = 0_u16;
     let mut nnsum: u32 = 0_u32;
-    for j_1 in 0..glyf.len() as GlyphId {
-        let adw: Pos = vq_get_still(
-            glyf[j_1 as usize]
-                .as_deref()
-                .unwrap()
-                .advance_width
-                .clone(),
-        ) as Pos;
+    for g in iter_glyphs(glyf) {
+        let adw: Pos = vq_get_still(g.advance_width.clone()) as Pos;
         if adw != maxj as i32 as Pos {
             nn = (nn as i32 + 1_i32) as u16;
             nnsum = (nnsum as Pos + adw) as u32;
@@ -1168,14 +1145,8 @@ fn stat_vorg(font: &mut Font) {
     // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
     // `free`.
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
-    for j in 0..glyf.len() as GlyphId {
-        let vori: Pos = vq_get_still(
-            glyf[j as usize]
-                .as_deref()
-                .unwrap()
-                .vertical_origin
-                .clone(),
-        ) as Pos;
+    for g in iter_glyphs(glyf) {
+        let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
         if vori >= 0_i32 as Pos && vori < MAX_STAT_METRIC as Pos {
             frequency[vori as u16 as usize] =
                 frequency[vori as u16 as usize].wrapping_add(1_u32);
@@ -1183,39 +1154,27 @@ fn stat_vorg(font: &mut Font) {
     }
     let mut maxfreq: u32 = 0_u32;
     let mut maxj: GlyphId = 0 as GlyphId;
-    for j_0 in 0..MAX_STAT_METRIC as GlyphId {
-        if frequency[j_0 as usize] > maxfreq {
-            maxfreq = frequency[j_0 as usize];
-            maxj = j_0;
+    for (origin, &count) in frequency.iter().enumerate() {
+        if count > maxfreq {
+            maxfreq = count;
+            maxj = origin as GlyphId;
         }
     }
     let default_vertical_origin = maxj as Pos;
     let mut n_vert_origs: GlyphId = 0 as GlyphId;
-    for j_1 in 0..glyf.len() as GlyphId {
-        let vori_0: Pos = vq_get_still(
-            glyf[j_1 as usize]
-                .as_deref()
-                .unwrap()
-                .vertical_origin
-                .clone(),
-        ) as Pos;
+    for g in iter_glyphs(glyf) {
+        let vori_0: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
         if vori_0 != maxj as i32 as Pos {
             n_vert_origs =
                 (n_vert_origs as i32 + 1_i32) as GlyphId;
         }
     }
     let mut entries: Vec<VorgEntry> = Vec::with_capacity(n_vert_origs as usize);
-    for j_2 in 0..glyf.len() as GlyphId {
-        let vori_1: Pos = vq_get_still(
-            glyf[j_2 as usize]
-                .as_deref()
-                .unwrap()
-                .vertical_origin
-                .clone(),
-        ) as Pos;
+    for (gid, g) in iter_glyphs(glyf).enumerate() {
+        let vori_1: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
         if vori_1 != maxj as i32 as Pos {
             entries.push(VorgEntry {
-                gid: j_2,
+                gid: gid as GlyphId,
                 vertical_origin: vori_1 as i16,
             });
         }
@@ -1231,20 +1190,11 @@ fn stat_ltsh(font: &mut Font) {
         return;
     }
     let glyf = font.glyf.as_ref().unwrap();
-    let mut need_ltsh: bool = false;
-    for j in 0..glyf.len() as GlyphId {
-        if glyf[j as usize].as_deref().unwrap().y_pel as i32 > 1_i32 {
-            need_ltsh = true;
-        }
-    }
-    if !need_ltsh {
+    if !iter_glyphs(glyf).any(|g| g.y_pel > 1) {
         return;
     }
     let num_glyphs = glyf.len() as GlyphId;
-    let mut y_pels: Vec<u8> = Vec::with_capacity(num_glyphs as usize);
-    for j_0 in 0..glyf.len() as GlyphId {
-        y_pels.push(glyf[j_0 as usize].as_deref().unwrap().y_pel);
-    }
+    let y_pels: Vec<u8> = iter_glyphs(glyf).map(|g| g.y_pel).collect();
     font.ltsh = Some(Box::new(LtshTable {
         version: 0,
         num_glyphs,

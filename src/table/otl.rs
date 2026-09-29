@@ -433,28 +433,26 @@ pub struct Lookup {
 // that function once `Box` made the ownership self-describing.
 // 所有する `Box` 配列。各要素は `None` にもなり得る（consolidate 中の一時的な
 // 「取り除かれた」穴、または extend 展開の型不一致エラー経路で残る穴）。
-// `stat.rs`（唯一の呼び出し元。下の doc comment 参照）など、読み取り時点で
-// 穴が無いと分かっている箇所は `subtable_at`（下記）で `.expect()` して
-// 安全な参照に戻す。
+// `stat.rs` や `build.rs` など、読み取り時点で穴が無いと分かっている箇所は
+// `iter_subtables`（下記）で各要素を `.expect()` して安全な参照として順に読む。
 pub type SubtableList = Vec<Option<Box<Subtable>>>;
-/// Read a `SubtableList` element as a shared reference, panicking if the
-/// slot is empty. Every caller already assumed a slot could not be empty at
-/// the point it reads one -- before `Box` made a hole `None` instead of a
-/// dangling pointer, that assumption being wrong meant a silent
-/// out-of-bounds-shaped dereference. Now it is a clean panic.
+/// Iterate a `SubtableList` as shared references, panicking on the first
+/// empty slot reached. Every caller already assumed a slot could not be
+/// empty at the point it reads one -- before `Box` made a hole `None`
+/// instead of a dangling pointer, that assumption being wrong meant a
+/// silent out-of-bounds-shaped dereference. Now it is a clean panic.
 ///
-/// This used to return `SubtablePtr` (`*mut Subtable`), forcing every call
-/// site to wrap its use in `unsafe {}` even though none of them ever wrote
-/// through it. Re-checked fresh (the previous doc comment's "build.rs/
-/// dump.rs/.../the chaining classifier all read... " no longer matches: a
-/// grep for `subtable_at` across `src/` turns up exactly one caller left,
-/// `otf_writer/stat.rs`, and only for reads) -- `&Subtable` says exactly
-/// what every remaining caller needs, with no raw-pointer boundary left to
-/// preserve.
-pub(crate) fn subtable_at(list: &SubtableList, idx: usize) -> &Subtable {
-    list[idx]
-        .as_deref()
-        .expect("subtable slot should not be empty at this point")
+/// Replaces the old `subtable_at(list, idx)` (itself the safe successor to
+/// a `SubtablePtr`/`*mut Subtable` accessor): every one of its remaining
+/// callers was a `for i in 0..list.len()` loop reading each slot in order,
+/// so the iterator says that directly. It stays lazy -- the empty-slot
+/// panic fires when iteration reaches that slot, not up front -- exactly
+/// like the indexed loops it replaces.
+pub(crate) fn iter_subtables(list: &SubtableList) -> impl Iterator<Item = &Subtable> {
+    list.iter().map(|slot| {
+        slot.as_deref()
+            .expect("subtable slot should not be empty at this point")
+    })
 }
 /// A stable slot index into `OtlTable.lookups`, replacing the old borrowed
 /// `*const Lookup` cross-reference (`LookupRef`). Every construction site

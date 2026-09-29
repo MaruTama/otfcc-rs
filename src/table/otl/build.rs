@@ -25,7 +25,7 @@ use crate::table::otl::{
     OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
     OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
     OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE,
-    OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable, Subtable, subtable_at,
+    OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable, Subtable, iter_subtables,
 };
 /// Maps each *storage* index into `OtlTable.lookups`/`.features`
 /// (`LookupIdx.0`/`FeatureIdx.0` as `usize`) to its *dense* position in the
@@ -116,14 +116,12 @@ fn _declare_lookup_writer(
         ctx.subtables.reserve(lookup.subtables.len());
         let mut total_buf_size_short: usize = 0_usize;
         let mut total_buf_size_ext: usize = 0_usize;
-        for j in 0..lookup.subtables.len() {
-            // `subtable_at` returns a plain `&Subtable` (Stage M-24) -- no
+        for subtable in iter_subtables(&lookup.subtables) {
+            // `iter_subtables` yields plain `&Subtable`s (Stage M-24) -- no
             // raw-pointer bridge left to reborrow here. `fn_0` itself is a
             // safe fn as of Stage D.
-            let buf: Buffer = fn_0.expect("non-null function pointer")(
-                subtable_at(&lookup.subtables, j),
-                ctx.heuristics,
-            );
+            let buf: Buffer =
+                fn_0.expect("non-null function pointer")(subtable, ctx.heuristics);
             total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
             ctx.subtables.push(buf);
             total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
@@ -148,12 +146,10 @@ fn _declare_lookup_writer_split(
     if lookup.type_0 == type_0 {
         ctx.subtables.clear();
         let mut total_buf_size_short: usize = 0_usize;
-        for j in 0..lookup.subtables.len() {
+        for subtable in iter_subtables(&lookup.subtables) {
             // Same as `_declare_lookup_writer` above.
-            let part: Vec<Buffer> = fn_0.expect("non-null function pointer")(
-                subtable_at(&lookup.subtables, j),
-                ctx.heuristics,
-            );
+            let part: Vec<Buffer> =
+                fn_0.expect("non-null function pointer")(subtable, ctx.heuristics);
             for buf in part {
                 total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
                 ctx.subtables.push(buf);
