@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 
-use crate::logger::{LOG_VL_NOTICE, LoggerType, logger_log_sds};
+use crate::logger::{LOG_VL_CRITICAL, LOG_VL_NOTICE, LoggerType, logger_log_sds};
 use crate::support::parsed_json::ParsedValue;
 
 use crate::font::caryll_font::{Font, FontSubtype};
@@ -193,6 +193,9 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
     order_glyphs(go);
     return Some(go_box);
 }
+/// The most glyphs one font can hold: `GlyphId` is a `u16`, and so is
+/// `maxp.numGlyphs`.
+const MAX_GLYPHS: usize = GlyphId::MAX as usize;
 /// Builds a font from an already-parsed JSON tree.
 ///
 /// Was a `FontBuilder` impl on a zero-sized `JsonReader` marker struct
@@ -224,6 +227,38 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
 /// "Stage 7-4 plan" set out to make safe (M-31 through this, its own
 /// planned M-34).
 pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>> {
+    // Glyph IDs are `u16` everywhere in this crate (`GlyphId`), and OpenType
+    // itself cannot number more than `u16::MAX` glyphs (`maxp.numGlyphs`).
+    // A `glyf` object with more entries than that has no valid glyph-ID
+    // assignment: `order_glyphs`' gid counter wraps, and `consolidate_glyf`
+    // walks the table with a `u16` counter that can then never reach its
+    // length, so `otfccbuild` used to spin forever (and grow the logger)
+    // instead of ever finishing. Reject it here, before any glyph-order or
+    // glyph work, the same way any other JSON that cannot become a font is
+    // rejected -- `None` is what `otfccbuild` reports as "Cannot parse JSON
+    // file ... as a font" and what `otfccbuild_json_otf` turns into a null
+    // buffer. Only the `glyf` object's size matters: extra names in
+    // `glyph_order`/`cmap` that no glyph uses are ignored, not a hang, and
+    // rejecting them would break inputs that work today.
+    let glyph_count = root
+        .get_typed(b"glyf", JsonType::Object)
+        .and_then(ParsedValue::as_object)
+        .map_or(0, |fields| fields.len());
+    if glyph_count > MAX_GLYPHS {
+        logger_log_sds(
+            &mut options.logger.borrow_mut(),
+            LOG_VL_CRITICAL,
+            LoggerType::Error,
+            crate::bytesbuild!(
+                b"Too many glyphs in \"glyf\": ",
+                glyph_count as u32,
+                b" (at most ",
+                MAX_GLYPHS as u32,
+                b" are supported; OpenType glyph IDs are 16-bit).\n",
+            ),
+        );
+        return None;
+    }
     let mut font: Box<Font> = Box::default();
     font.subtype = otfcc_decide_font_subtype_from_json(root);
     font.glyph_order = parse_glyph_order(root, options);
@@ -283,4 +318,55 @@ pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>>
     );
     font.tsi5 = otfcc_parse_tsi5(root);
     Some(font)
+}
+
+#[cfg(test)]
+mod glyph_count_limit_tests {
+    use super::*;
+    use crate::support::parsed_json::parse_json;
+
+    /// `{"glyf":{"g0":{},"g1":{},...}}` with `count` empty glyph objects.
+    fn font_json_with_glyph_count(count: usize) -> Vec<u8> {
+        let mut json = String::from("{\"glyf\":{");
+        for i in 0..count {
+            if i != 0 {
+                json.push(',');
+            }
+            json.push_str(&format!("\"g{i}\":{{}}"));
+        }
+        json.push_str("}}");
+        json.into_bytes()
+    }
+
+    fn read(count: usize) -> Option<Box<Font>> {
+        let mut root = parse_json(&font_json_with_glyph_count(count)).expect("test JSON parses");
+        read_json(&mut root, &Options::default())
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs a genuine 65,536-entry glyf object to hit the limit")]
+    fn glyf_object_past_the_16_bit_glyph_limit_is_rejected_instead_of_hanging() {
+        // Before the limit existed, `read_json` accepted this input and
+        // `otfccbuild` then spun forever in `consolidate_glyf` (a `u16`
+        // counter that can never reach a length of 65,536). The hang is a
+        // stage later than what this test can reach, so what it pins is the
+        // rejection that now happens first.
+        assert!(read(MAX_GLYPHS + 1).is_none());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs a genuine 65,535-entry glyf object to sit exactly on the limit")]
+    fn glyf_object_exactly_at_the_16_bit_glyph_limit_is_accepted() {
+        // Pins the off-by-one: 65,535 glyphs is what `maxp.numGlyphs` (a
+        // `u16`) can hold, and what the `FDArrayTest65535.otf` fixture
+        // already exercises through the binary reader, so it must still load.
+        let font = read(MAX_GLYPHS).expect("65,535 glyphs is within the limit");
+        assert_eq!(font.glyf.as_ref().map(|g| g.len()), Some(MAX_GLYPHS));
+    }
+
+    #[test]
+    fn a_font_with_no_glyf_object_is_not_affected_by_the_limit() {
+        let mut root = parse_json(b"{}").expect("test JSON parses");
+        assert!(read_json(&mut root, &Options::default()).is_some());
+    }
 }
