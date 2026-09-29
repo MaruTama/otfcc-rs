@@ -161,6 +161,14 @@ pub struct Glyph {
 /// fresh empty glyph. `Box<Glyph>` cannot represent "no glyph here" (a
 /// `Box` is never null), so the element type stays `Option<Box<Glyph>>`.
 pub type GlyfTable = Vec<Option<Box<Glyph>>>;
+/// Iterate a fully populated `GlyfTable` as `&Glyph`s in GID order,
+/// panicking on the first unset slot reached (lazily, like the indexed
+/// `glyf[j].as_deref().unwrap()` loops this replaces). For the passes that
+/// run after `consolidate_glyf` has patched every hole -- not for a
+/// hole-tolerant scan, which wants `.iter().flatten()` instead.
+pub(crate) fn iter_glyphs(glyf: &GlyfTable) -> impl Iterator<Item = &Glyph> {
+    glyf.iter().map(|slot| slot.as_deref().unwrap())
+}
 // No longer `Copy`/`Clone`: `fvar` is a real `&'a mut FvarTable` now (see
 // below), and `&mut` is neither. Every construction site builds exactly one
 // `GlyfIOContext` and either shares it by `&` (the whole dump side, which

@@ -1031,21 +1031,22 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
         });
         let go: &mut GlyphOrder = go_box.as_mut();
         let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
-        for j in 0..glyf.len() as GlyphId {
-            let name: Vec<u8>;
-            let glyf_name_empty: bool = glyf[j as usize].as_deref().unwrap().name.is_empty();
-            if !glyf_name_empty {
-                name = glyf[j as usize].as_deref().unwrap().name.clone();
+        for (gid, slot) in glyf.iter_mut().enumerate() {
+            let g = slot.as_mut().unwrap();
+            let gid = gid as GlyphId;
+            let name: Vec<u8> = if g.name.is_empty() {
+                let name = crate::bytesbuild!(b"$$gid", gid as i32);
+                g.name = name.clone();
+                name
             } else {
-                name = crate::bytesbuild!(b"$$gid", j as i32);
-                glyf[j as usize].as_mut().unwrap().name = name.clone();
-            }
+                g.name.clone()
+            };
             // `.clone()`, not a move: `otfcc_set_glyph_order_by_name` always
             // consumes its own copy (no ownership contract to track any
             // more -- see its doc comment), but `name` is still needed
             // below regardless of whether this call succeeds or fails, for
             // the log message and/or the retry loop.
-            if !otfcc_set_glyph_order_by_name(go, name.clone(), j) {
+            if !otfcc_set_glyph_order_by_name(go, name.clone(), gid) {
                 logger_log_sds(
                     &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
@@ -1056,7 +1057,7 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
                 let mut success: bool;
                 loop {
                     let newname: Vec<u8> = crate::bytesbuild!(&name, b"_", suffix);
-                    success = otfcc_set_glyph_order_by_name(go, newname.clone(), j);
+                    success = otfcc_set_glyph_order_by_name(go, newname.clone(), gid);
                     if !success {
                         suffix = suffix.wrapping_add(1_u32);
                     } else {
@@ -1072,7 +1073,7 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
                                 b".",
                             ),
                         );
-                        glyf[j as usize].as_mut().unwrap().name = newname;
+                        g.name = newname;
                     }
                     if success {
                         break;

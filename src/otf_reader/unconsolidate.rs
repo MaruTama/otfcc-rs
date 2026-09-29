@@ -5,7 +5,7 @@ use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos};
 use crate::support::fmt::{Hex2Upper, Hex4Upper, SdsPart};
 
-use crate::table::glyf::{GlyfTable, Glyph};
+use crate::table::glyf::{GlyfTable, Glyph, PostscriptHintMask};
 
 use crate::table::otl::{
     ChainingRule, ChainingSubtable, Lookup, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING,
@@ -52,6 +52,21 @@ fn hash_vq(buf: &mut Buffer, x: VQ) {
     buf.write_u32be(x.shift.len() as u32);
     for s in &x.shift {
         hash_vqs(buf, s);
+    }
+}
+/// Hash one hint/contour mask: its position, then the first `n_stem_h`/
+/// `n_stem_v` bits of each axis (the glyph's own stem counts, not the fixed
+/// 256-slot arrays' full length). Slicing rather than iterating the whole
+/// array keeps the old indexed loops' behavior: a stem count past the array
+/// still panics, and any bits beyond the count are ignored.
+fn hash_mask(buf: &mut Buffer, mask: &PostscriptHintMask, n_stem_h: usize, n_stem_v: usize) {
+    buf.write_u16be(mask.contours_before);
+    buf.write_u16be(mask.points_before);
+    for &bit in &mask.mask_h[..n_stem_h] {
+        buf.write_u8(bit as u8);
+    }
+    for &bit in &mask.mask_v[..n_stem_v] {
+        buf.write_u8(bit as u8);
     }
 }
 pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
@@ -110,28 +125,14 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
     buf.write_u8('H' as i32 as u8);
     buf.write_u8('(' as i32 as u8);
     for mask in g.hint_masks.iter() {
-        buf.write_u16be(mask.contours_before);
-        buf.write_u16be(mask.points_before);
-        for k in 0..g.stem_h.len() {
-            buf.write_u8(mask.mask_h[k] as u8);
-        }
-        for k in 0..g.stem_v.len() {
-            buf.write_u8(mask.mask_v[k] as u8);
-        }
+        hash_mask(buf, mask, g.stem_h.len(), g.stem_v.len());
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('m' as i32 as u8);
     buf.write_u8('C' as i32 as u8);
     buf.write_u8('(' as i32 as u8);
     for mask in g.contour_masks.iter() {
-        buf.write_u16be(mask.contours_before);
-        buf.write_u16be(mask.points_before);
-        for k in 0..g.stem_h.len() {
-            buf.write_u8(mask.mask_h[k] as u8);
-        }
-        for k in 0..g.stem_v.len() {
-            buf.write_u8(mask.mask_v[k] as u8);
-        }
+        hash_mask(buf, mask, g.stem_h.len(), g.stem_v.len());
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('I' as i32 as u8);
@@ -268,10 +269,10 @@ fn name_glyphs(font: &mut Font, gord: &GlyphOrder) {
     // Only ever called (from `otfcc_unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
     let glyf = font.glyf.as_mut().unwrap();
-    for j in 0..glyf.len() as GlyphId {
-        let g = glyf[j as usize].as_mut().unwrap();
+    for (gid, slot) in glyf.iter_mut().enumerate() {
+        let g = slot.as_mut().unwrap();
         let mut glyph_name: Vec<u8> = Vec::new();
-        otfcc_gord_name_a_field_shared(gord, j, &mut glyph_name);
+        otfcc_gord_name_a_field_shared(gord, gid as GlyphId, &mut glyph_name);
         g.name = glyph_name;
     }
 }
@@ -296,7 +297,7 @@ fn unconsolidate_chaining(lookup: &mut Lookup) {
     // inspection: the loop body only reads subtable fields into a local
     // accumulator with no other side effects. Omitted here.
     let mut newsts: SubtableList = Vec::new();
-    'subtables: for j in 0..lookup.subtables.len() {
+    'subtables: for slot in lookup.subtables.iter_mut() {
         if newsts.len() >= MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP {
             break 'subtables;
         }
@@ -307,7 +308,7 @@ fn unconsolidate_chaining(lookup: &mut Lookup) {
         // need. `sub_box` itself drops normally at the end of each
         // iteration, cleaning up whatever's left behind (empty after the
         // `mem::take`s below).
-        let Some(mut sub_box) = lookup.subtables[j].take() else {
+        let Some(mut sub_box) = slot.take() else {
             continue;
         };
         let Subtable::Chaining(sub_chaining) = &mut *sub_box else {
@@ -399,18 +400,19 @@ fn merge_hmtx(font: &mut Font) {
     let count_a: u32 = font.hhea.as_deref().unwrap().number_of_metrics as u32;
     let hmtx = font.hmtx.take().unwrap();
     let glyf = font.glyf.as_mut().unwrap();
-    for j in 0..glyf.len() as GlyphId {
-        let g = glyf[j as usize].as_mut().unwrap();
-        let adw: Pos = hmtx.metrics[(if (j as u32) < count_a {
-            j as u32
+    let count_a = count_a as usize;
+    for (j, slot) in glyf.iter_mut().enumerate() {
+        let g = slot.as_mut().unwrap();
+        // The first `count_a` glyphs have a full metric each; every glyph
+        // past them shares the last metric's advance width and takes its
+        // left side bearing from the trailing `left_side_bearing` array.
+        let (adw, lsb): (Pos, Pos) = if j < count_a {
+            (hmtx.metrics[j].advance_width as Pos, hmtx.metrics[j].lsb)
         } else {
-            count_a.wrapping_sub(1_u32)
-        }) as usize]
-            .advance_width as Pos;
-        let lsb: Pos = if (j as u32) < count_a {
-            hmtx.metrics[j as usize].lsb
-        } else {
-            hmtx.left_side_bearing[(j as u32).wrapping_sub(count_a) as usize]
+            (
+                hmtx.metrics[count_a.wrapping_sub(1)].advance_width as Pos,
+                hmtx.left_side_bearing[j - count_a],
+            )
         };
         vq_inplace_plus(&mut g.advance_width, vq_create_still(adw));
         vq_inplace_plus(
@@ -429,8 +431,7 @@ fn merge_vmtx(font: &mut Font) {
     if let Some(vorg) = font.vorg.take() {
         let glyf_len = font.glyf.as_ref().unwrap().len();
         let mut v: Vec<Pos> = vec![vorg.default_vertical_origin; glyf_len];
-        for j_0 in 0..vorg.num_vert_origin_y_metrics as GlyphId {
-            let entry = vorg.entries[j_0 as usize];
+        for entry in &vorg.entries[..vorg.num_vert_origin_y_metrics as usize] {
             if (entry.gid as usize) < glyf_len {
                 v[entry.gid as usize] = entry.vertical_origin as Pos;
             }
@@ -438,24 +439,23 @@ fn merge_vmtx(font: &mut Font) {
         vorgs = Some(v);
     }
     let glyf = font.glyf.as_mut().unwrap();
-    for j_1 in 0..glyf.len() as GlyphId {
-        let g = glyf[j_1 as usize].as_mut().unwrap();
-        let adh: Pos = vmtx.metrics[(if (j_1 as u32) < count_a {
-            j_1 as u32
+    let count_a = count_a as usize;
+    for (j, slot) in glyf.iter_mut().enumerate() {
+        let g = slot.as_mut().unwrap();
+        // Same long-metric / shared-last-metric split as `merge_hmtx`.
+        let (adh, tsb): (Pos, Pos) = if j < count_a {
+            (vmtx.metrics[j].advance_height as Pos, vmtx.metrics[j].tsb)
         } else {
-            count_a.wrapping_sub(1_u32)
-        }) as usize]
-            .advance_height as Pos;
-        let tsb: Pos = if (j_1 as u32) < count_a {
-            vmtx.metrics[j_1 as usize].tsb
-        } else {
-            vmtx.top_side_bearing[(j_1 as u32).wrapping_sub(count_a) as usize]
+            (
+                vmtx.metrics[count_a.wrapping_sub(1)].advance_height as Pos,
+                vmtx.top_side_bearing[j - count_a],
+            )
         };
         vq_inplace_plus(&mut g.advance_height, vq_create_still(adh));
         vq_inplace_plus(
             &mut g.vertical_origin,
             vq_create_still(if let Some(v) = &vorgs {
-                v[j_1 as usize]
+                v[j]
             } else {
                 tsb + g.stat.y_max
             }),
@@ -465,9 +465,9 @@ fn merge_vmtx(font: &mut Font) {
 fn merge_ltsh(font: &mut Font) {
     if let Some(glyf) = font.glyf.as_mut()
         && let Some(ltsh) = &font.ltsh {
-            let n = (glyf.len() as GlyphId).min(ltsh.num_glyphs);
-            for j in 0..n {
-                glyf[j as usize].as_mut().unwrap().y_pel = ltsh.y_pels[j as usize];
+            let n = (glyf.len() as GlyphId).min(ltsh.num_glyphs) as usize;
+            for (slot, &y_pel) in glyf.iter_mut().zip(&ltsh.y_pels[..n]) {
+                slot.as_mut().unwrap().y_pel = y_pel;
             }
         }
 }
