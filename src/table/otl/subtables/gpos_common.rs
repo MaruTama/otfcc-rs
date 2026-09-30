@@ -134,11 +134,7 @@ pub fn otl_parse_mark_array(
     };
     for (key, anchor_record) in fields {
         let mut mark: MarkRecord = MarkRecord {
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: Vec::new(),
-            },
+            glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
             mark_class: 0,
             anchor: Anchor {
                 present: false,

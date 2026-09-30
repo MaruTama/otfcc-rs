@@ -190,11 +190,7 @@ fn parse_bases(
     for (key, base_record) in fields {
         let gname = &key[..key.len() - 1];
         let mut base: BaseRecord = BaseRecord {
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: Vec::new(),
-            },
+            glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
             anchors: Vec::new(),
         };
         base.glyph = handle_from_name(Some(gname.to_vec())) as GlyphHandle;

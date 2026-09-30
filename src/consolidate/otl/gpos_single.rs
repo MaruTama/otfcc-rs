@@ -65,11 +65,7 @@ pub fn consolidate_gpos_single(
     dispose_gpos_single_subtable(subtable);
     for (fromid, (fromname, v)) in seen {
         subtable.push(GposSingleEntry {
-            target: Handle {
-                state: HandleState::Consolidated,
-                index: fromid as GlyphId,
-                name: fromname,
-            } as GlyphHandle,
+            target: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,
             value: v,
         });
     }

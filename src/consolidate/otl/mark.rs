@@ -90,11 +90,7 @@ fn consolidate_mark_array(
     // trip, no `sdsfree` afterward.
     for (gid, entry) in h.into_iter() {
         mark_array.push(MarkRecord {
-            glyph: Handle {
-                state: HandleState::Consolidated,
-                index: gid,
-                name: entry.name,
-            } as GlyphHandle,
+            glyph: Handle::new(HandleState::Consolidated, gid, entry.name) as GlyphHandle,
             mark_class: entry.mark_class,
             anchor: entry.anchor,
         });
@@ -144,11 +140,7 @@ fn consolidate_base_array(
     dispose_base_array(base_array);
     for (gid, entry) in h.into_iter() {
         base_array.push(BaseRecord {
-            glyph: Handle {
-                state: HandleState::Consolidated,
-                index: gid,
-                name: entry.name,
-            } as GlyphHandle,
+            glyph: Handle::new(HandleState::Consolidated, gid, entry.name) as GlyphHandle,
             anchors: entry.anchors,
         });
     }
@@ -202,11 +194,7 @@ fn consolidate_lig_array(
     dispose_lig_array(lig_array);
     for (gid, entry) in h.into_iter() {
         lig_array.push(LigatureBaseRecord {
-            glyph: Handle {
-                state: HandleState::Consolidated,
-                index: gid,
-                name: entry.name,
-            } as GlyphHandle,
+            glyph: Handle::new(HandleState::Consolidated, gid, entry.name) as GlyphHandle,
             component_count: entry.component_count,
             anchors: entry.anchors,
         });

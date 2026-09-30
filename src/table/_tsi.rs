@@ -136,11 +136,7 @@ pub fn otfcc_read_tsi(
             };
             let mut tsi_entry: TsiEntry = TsiEntry {
                 type_0: TsiEntryType::Glyph,
-                glyph: Handle {
-                    state: HandleState::Empty,
-                    index: 0,
-                    name: Vec::new(),
-                },
+                glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
                 content,
             };
             match entry.gid as i32 {

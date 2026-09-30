@@ -90,16 +90,8 @@ pub fn consolidate_gsub_reverse(
     subtable.match_0[input_index] = Vec::new();
     subtable.to = Vec::new();
     for (fromid, (fromname, toid, toname)) in seen {
-        subtable.match_0[input_index].push(Handle {
-            state: HandleState::Consolidated,
-            index: fromid as GlyphId,
-            name: fromname,
-        } as GlyphHandle);
-        subtable.to.push(Handle {
-            state: HandleState::Consolidated,
-            index: toid as GlyphId,
-            name: toname,
-        } as GlyphHandle);
+        subtable.match_0[input_index].push(Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle);
+        subtable.to.push(Handle::new(HandleState::Consolidated, toid as GlyphId, toname) as GlyphHandle);
     }
     return false;
 }

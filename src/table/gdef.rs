@@ -87,11 +87,7 @@ fn read_caret_value(data: &[u8], offset: usize) -> CaretValue {
 }
 fn read_lig_caret_record(data: &[u8], offset: usize) -> CaretValueRecord {
     let mut g: CaretValueRecord = CaretValueRecord {
-        glyph: Handle {
-            state: HandleState::Empty,
-            index: 0,
-            name: Vec::new(),
-        },
+        glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
         carets: Vec::new(),
     };
     let Ok(mut r) = FontReader::new(data).at(offset) else {
@@ -225,11 +221,7 @@ fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
             continue;
         };
         let mut v: CaretValueRecord = CaretValueRecord {
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: Vec::new(),
-            },
+            glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
             carets: Vec::new(),
         };
         v.glyph = handle_from_name(Some(key[..key.len() - 1].to_vec()));

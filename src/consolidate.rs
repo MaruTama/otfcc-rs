@@ -195,19 +195,11 @@ fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, options: &Opt
             h.index = 0 as GlyphId;
         }
         let idx = h.index;
-        *h = Handle {
-            state: HandleState::Consolidated,
-            index: idx,
-            name: fd_array[idx as usize].font_name.clone(),
-        } as FdHandle;
+        *h = Handle::new(HandleState::Consolidated, idx, fd_array[idx as usize].font_name.clone()) as FdHandle;
     } else if !h.name.is_empty() {
         let found = fd_array.iter().position(|fd| handle_name_eq_bytes(&h.name, &fd.font_name));
         if let Some(j) = found {
-            *h = Handle {
-                state: HandleState::Consolidated,
-                index: j as GlyphId,
-                name: fd_array[j].font_name.clone(),
-            };
+            *h = Handle::new(HandleState::Consolidated, j as GlyphId, fd_array[j].font_name.clone());
         } else {
             logger_log_sds(
                 &mut options.logger.borrow_mut(),
@@ -981,11 +973,7 @@ fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<
     for (j, entry) in gid_entries.iter_mut().enumerate() {
         let mut e_0: TsiEntry = TsiEntry {
             type_0: TsiEntryType::Glyph,
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: Vec::new(),
-            },
+            glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
             content: Vec::new(),
         };
         e_0.type_0 = TsiEntryType::Glyph;
@@ -1290,11 +1278,7 @@ mod consolidate_otl_table_tests {
     fn chaining_rule_naming_its_own_lookup_by_name_resolves_instead_of_being_invalidated() {
         let lookup = self_referencing_chaining_lookup(
             OTL_TYPE_GSUB_CHAINING,
-            Handle {
-                state: HandleState::Name,
-                index: 0,
-                name: b"self_ref_lookup".to_vec(),
-            },
+            Handle::new(HandleState::Name, 0, b"self_ref_lookup".to_vec()),
         );
         let mut table = Box::new(OtlTable {
             lookups: vec![Some(lookup)],
@@ -1337,11 +1321,7 @@ mod consolidate_otl_table_tests {
     fn chaining_rule_naming_its_own_lookup_by_index_resolves_instead_of_being_invalidated() {
         let mut lookup = self_referencing_chaining_lookup(
             OTL_TYPE_GPOS_CHAINING,
-            Handle {
-                state: HandleState::Index,
-                index: 1,
-                name: Vec::new(),
-            },
+            Handle::new(HandleState::Index, 1, Vec::new()),
         );
         lookup.subtables[0]
             .as_deref_mut()
