@@ -287,11 +287,7 @@ pub fn glyf_component_reference_empty() -> ComponentReference {
         }),
         round_to_grid: false,
         use_my_metrics: false,
-        glyph: Handle {
-            state: HandleState::Empty,
-            index: 0,
-            name: Vec::new(),
-        },
+        glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
         a: 0.,
         b: 0.,
         c: 0.,

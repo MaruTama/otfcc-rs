@@ -1,594 +1,623 @@
 #![forbid(unsafe_code)]
 
-use crate::support::glyph_order::GlyphOrder;
-use crate::support::glyph_order::otfcc_set_glyph_order_by_gid;
-use crate::support::primitives::GlyphId;
+/// The Adobe Glyph List For New Fonts: the canonical glyph name for each
+/// Unicode BMP code point it covers, sorted by code point so
+/// `aglfn_name` can binary-search it.
+static AGLFN: &[(u16, &[u8])] = &[
+    (0x20, b"space"),
+    (0x21, b"exclam"),
+    (0x22, b"quotedbl"),
+    (0x23, b"numbersign"),
+    (0x24, b"dollar"),
+    (0x25, b"percent"),
+    (0x26, b"ampersand"),
+    (0x27, b"quotesingle"),
+    (0x28, b"parenleft"),
+    (0x29, b"parenright"),
+    (0x2a, b"asterisk"),
+    (0x2b, b"plus"),
+    (0x2c, b"comma"),
+    (0x2d, b"hyphen"),
+    (0x2e, b"period"),
+    (0x2f, b"slash"),
+    (0x30, b"zero"),
+    (0x31, b"one"),
+    (0x32, b"two"),
+    (0x33, b"three"),
+    (0x34, b"four"),
+    (0x35, b"five"),
+    (0x36, b"six"),
+    (0x37, b"seven"),
+    (0x38, b"eight"),
+    (0x39, b"nine"),
+    (0x3a, b"colon"),
+    (0x3b, b"semicolon"),
+    (0x3c, b"less"),
+    (0x3d, b"equal"),
+    (0x3e, b"greater"),
+    (0x3f, b"question"),
+    (0x40, b"at"),
+    (0x41, b"A"),
+    (0x42, b"B"),
+    (0x43, b"C"),
+    (0x44, b"D"),
+    (0x45, b"E"),
+    (0x46, b"F"),
+    (0x47, b"G"),
+    (0x48, b"H"),
+    (0x49, b"I"),
+    (0x4a, b"J"),
+    (0x4b, b"K"),
+    (0x4c, b"L"),
+    (0x4d, b"M"),
+    (0x4e, b"N"),
+    (0x4f, b"O"),
+    (0x50, b"P"),
+    (0x51, b"Q"),
+    (0x52, b"R"),
+    (0x53, b"S"),
+    (0x54, b"T"),
+    (0x55, b"U"),
+    (0x56, b"V"),
+    (0x57, b"W"),
+    (0x58, b"X"),
+    (0x59, b"Y"),
+    (0x5a, b"Z"),
+    (0x5b, b"bracketleft"),
+    (0x5c, b"backslash"),
+    (0x5d, b"bracketright"),
+    (0x5e, b"asciicircum"),
+    (0x5f, b"underscore"),
+    (0x60, b"grave"),
+    (0x61, b"a"),
+    (0x62, b"b"),
+    (0x63, b"c"),
+    (0x64, b"d"),
+    (0x65, b"e"),
+    (0x66, b"f"),
+    (0x67, b"g"),
+    (0x68, b"h"),
+    (0x69, b"i"),
+    (0x6a, b"j"),
+    (0x6b, b"k"),
+    (0x6c, b"l"),
+    (0x6d, b"m"),
+    (0x6e, b"n"),
+    (0x6f, b"o"),
+    (0x70, b"p"),
+    (0x71, b"q"),
+    (0x72, b"r"),
+    (0x73, b"s"),
+    (0x74, b"t"),
+    (0x75, b"u"),
+    (0x76, b"v"),
+    (0x77, b"w"),
+    (0x78, b"x"),
+    (0x79, b"y"),
+    (0x7a, b"z"),
+    (0x7b, b"braceleft"),
+    (0x7c, b"bar"),
+    (0x7d, b"braceright"),
+    (0x7e, b"asciitilde"),
+    (0xa1, b"exclamdown"),
+    (0xa2, b"cent"),
+    (0xa3, b"sterling"),
+    (0xa4, b"currency"),
+    (0xa5, b"yen"),
+    (0xa6, b"brokenbar"),
+    (0xa7, b"section"),
+    (0xa8, b"dieresis"),
+    (0xa9, b"copyright"),
+    (0xaa, b"ordfeminine"),
+    (0xab, b"guillemotleft"),
+    (0xac, b"logicalnot"),
+    (0xae, b"registered"),
+    (0xaf, b"macron"),
+    (0xb0, b"degree"),
+    (0xb1, b"plusminus"),
+    (0xb4, b"acute"),
+    (0xb5, b"mu"),
+    (0xb6, b"paragraph"),
+    (0xb7, b"periodcentered"),
+    (0xb8, b"cedilla"),
+    (0xba, b"ordmasculine"),
+    (0xbb, b"guillemotright"),
+    (0xbc, b"onequarter"),
+    (0xbd, b"onehalf"),
+    (0xbe, b"threequarters"),
+    (0xbf, b"questiondown"),
+    (0xc0, b"Agrave"),
+    (0xc1, b"Aacute"),
+    (0xc2, b"Acircumflex"),
+    (0xc3, b"Atilde"),
+    (0xc4, b"Adieresis"),
+    (0xc5, b"Aring"),
+    (0xc6, b"AE"),
+    (0xc7, b"Ccedilla"),
+    (0xc8, b"Egrave"),
+    (0xc9, b"Eacute"),
+    (0xca, b"Ecircumflex"),
+    (0xcb, b"Edieresis"),
+    (0xcc, b"Igrave"),
+    (0xcd, b"Iacute"),
+    (0xce, b"Icircumflex"),
+    (0xcf, b"Idieresis"),
+    (0xd0, b"Eth"),
+    (0xd1, b"Ntilde"),
+    (0xd2, b"Ograve"),
+    (0xd3, b"Oacute"),
+    (0xd4, b"Ocircumflex"),
+    (0xd5, b"Otilde"),
+    (0xd6, b"Odieresis"),
+    (0xd7, b"multiply"),
+    (0xd8, b"Oslash"),
+    (0xd9, b"Ugrave"),
+    (0xda, b"Uacute"),
+    (0xdb, b"Ucircumflex"),
+    (0xdc, b"Udieresis"),
+    (0xdd, b"Yacute"),
+    (0xde, b"Thorn"),
+    (0xdf, b"germandbls"),
+    (0xe0, b"agrave"),
+    (0xe1, b"aacute"),
+    (0xe2, b"acircumflex"),
+    (0xe3, b"atilde"),
+    (0xe4, b"adieresis"),
+    (0xe5, b"aring"),
+    (0xe6, b"ae"),
+    (0xe7, b"ccedilla"),
+    (0xe8, b"egrave"),
+    (0xe9, b"eacute"),
+    (0xea, b"ecircumflex"),
+    (0xeb, b"edieresis"),
+    (0xec, b"igrave"),
+    (0xed, b"iacute"),
+    (0xee, b"icircumflex"),
+    (0xef, b"idieresis"),
+    (0xf0, b"eth"),
+    (0xf1, b"ntilde"),
+    (0xf2, b"ograve"),
+    (0xf3, b"oacute"),
+    (0xf4, b"ocircumflex"),
+    (0xf5, b"otilde"),
+    (0xf6, b"odieresis"),
+    (0xf7, b"divide"),
+    (0xf8, b"oslash"),
+    (0xf9, b"ugrave"),
+    (0xfa, b"uacute"),
+    (0xfb, b"ucircumflex"),
+    (0xfc, b"udieresis"),
+    (0xfd, b"yacute"),
+    (0xfe, b"thorn"),
+    (0xff, b"ydieresis"),
+    (0x100, b"Amacron"),
+    (0x101, b"amacron"),
+    (0x102, b"Abreve"),
+    (0x103, b"abreve"),
+    (0x104, b"Aogonek"),
+    (0x105, b"aogonek"),
+    (0x106, b"Cacute"),
+    (0x107, b"cacute"),
+    (0x108, b"Ccircumflex"),
+    (0x109, b"ccircumflex"),
+    (0x10a, b"Cdotaccent"),
+    (0x10b, b"cdotaccent"),
+    (0x10c, b"Ccaron"),
+    (0x10d, b"ccaron"),
+    (0x10e, b"Dcaron"),
+    (0x10f, b"dcaron"),
+    (0x110, b"Dcroat"),
+    (0x111, b"dcroat"),
+    (0x112, b"Emacron"),
+    (0x113, b"emacron"),
+    (0x114, b"Ebreve"),
+    (0x115, b"ebreve"),
+    (0x116, b"Edotaccent"),
+    (0x117, b"edotaccent"),
+    (0x118, b"Eogonek"),
+    (0x119, b"eogonek"),
+    (0x11a, b"Ecaron"),
+    (0x11b, b"ecaron"),
+    (0x11c, b"Gcircumflex"),
+    (0x11d, b"gcircumflex"),
+    (0x11e, b"Gbreve"),
+    (0x11f, b"gbreve"),
+    (0x120, b"Gdotaccent"),
+    (0x121, b"gdotaccent"),
+    (0x124, b"Hcircumflex"),
+    (0x125, b"hcircumflex"),
+    (0x126, b"Hbar"),
+    (0x127, b"hbar"),
+    (0x128, b"Itilde"),
+    (0x129, b"itilde"),
+    (0x12a, b"Imacron"),
+    (0x12b, b"imacron"),
+    (0x12c, b"Ibreve"),
+    (0x12d, b"ibreve"),
+    (0x12e, b"Iogonek"),
+    (0x12f, b"iogonek"),
+    (0x130, b"Idotaccent"),
+    (0x131, b"dotlessi"),
+    (0x132, b"IJ"),
+    (0x133, b"ij"),
+    (0x134, b"Jcircumflex"),
+    (0x135, b"jcircumflex"),
+    (0x138, b"kgreenlandic"),
+    (0x139, b"Lacute"),
+    (0x13a, b"lacute"),
+    (0x13d, b"Lcaron"),
+    (0x13e, b"lcaron"),
+    (0x13f, b"Ldot"),
+    (0x140, b"ldot"),
+    (0x141, b"Lslash"),
+    (0x142, b"lslash"),
+    (0x143, b"Nacute"),
+    (0x144, b"nacute"),
+    (0x147, b"Ncaron"),
+    (0x148, b"ncaron"),
+    (0x149, b"napostrophe"),
+    (0x14a, b"Eng"),
+    (0x14b, b"eng"),
+    (0x14c, b"Omacron"),
+    (0x14d, b"omacron"),
+    (0x14e, b"Obreve"),
+    (0x14f, b"obreve"),
+    (0x150, b"Ohungarumlaut"),
+    (0x151, b"ohungarumlaut"),
+    (0x152, b"OE"),
+    (0x153, b"oe"),
+    (0x154, b"Racute"),
+    (0x155, b"racute"),
+    (0x158, b"Rcaron"),
+    (0x159, b"rcaron"),
+    (0x15a, b"Sacute"),
+    (0x15b, b"sacute"),
+    (0x15c, b"Scircumflex"),
+    (0x15d, b"scircumflex"),
+    (0x15e, b"Scedilla"),
+    (0x15f, b"scedilla"),
+    (0x160, b"Scaron"),
+    (0x161, b"scaron"),
+    (0x164, b"Tcaron"),
+    (0x165, b"tcaron"),
+    (0x166, b"Tbar"),
+    (0x167, b"tbar"),
+    (0x168, b"Utilde"),
+    (0x169, b"utilde"),
+    (0x16a, b"Umacron"),
+    (0x16b, b"umacron"),
+    (0x16c, b"Ubreve"),
+    (0x16d, b"ubreve"),
+    (0x16e, b"Uring"),
+    (0x16f, b"uring"),
+    (0x170, b"Uhungarumlaut"),
+    (0x171, b"uhungarumlaut"),
+    (0x172, b"Uogonek"),
+    (0x173, b"uogonek"),
+    (0x174, b"Wcircumflex"),
+    (0x175, b"wcircumflex"),
+    (0x176, b"Ycircumflex"),
+    (0x177, b"ycircumflex"),
+    (0x178, b"Ydieresis"),
+    (0x179, b"Zacute"),
+    (0x17a, b"zacute"),
+    (0x17b, b"Zdotaccent"),
+    (0x17c, b"zdotaccent"),
+    (0x17d, b"Zcaron"),
+    (0x17e, b"zcaron"),
+    (0x17f, b"longs"),
+    (0x192, b"florin"),
+    (0x1a0, b"Ohorn"),
+    (0x1a1, b"ohorn"),
+    (0x1af, b"Uhorn"),
+    (0x1b0, b"uhorn"),
+    (0x1e6, b"Gcaron"),
+    (0x1e7, b"gcaron"),
+    (0x1fa, b"Aringacute"),
+    (0x1fb, b"aringacute"),
+    (0x1fc, b"AEacute"),
+    (0x1fd, b"aeacute"),
+    (0x1fe, b"Oslashacute"),
+    (0x1ff, b"oslashacute"),
+    (0x2c6, b"circumflex"),
+    (0x2c7, b"caron"),
+    (0x2d8, b"breve"),
+    (0x2d9, b"dotaccent"),
+    (0x2da, b"ring"),
+    (0x2db, b"ogonek"),
+    (0x2dc, b"tilde"),
+    (0x2dd, b"hungarumlaut"),
+    (0x300, b"gravecomb"),
+    (0x301, b"acutecomb"),
+    (0x303, b"tildecomb"),
+    (0x309, b"hookabovecomb"),
+    (0x323, b"dotbelowcomb"),
+    (0x384, b"tonos"),
+    (0x385, b"dieresistonos"),
+    (0x386, b"Alphatonos"),
+    (0x387, b"anoteleia"),
+    (0x388, b"Epsilontonos"),
+    (0x389, b"Etatonos"),
+    (0x38a, b"Iotatonos"),
+    (0x38c, b"Omicrontonos"),
+    (0x38e, b"Upsilontonos"),
+    (0x38f, b"Omegatonos"),
+    (0x390, b"iotadieresistonos"),
+    (0x391, b"Alpha"),
+    (0x392, b"Beta"),
+    (0x393, b"Gamma"),
+    (0x395, b"Epsilon"),
+    (0x396, b"Zeta"),
+    (0x397, b"Eta"),
+    (0x398, b"Theta"),
+    (0x399, b"Iota"),
+    (0x39a, b"Kappa"),
+    (0x39b, b"Lambda"),
+    (0x39c, b"Mu"),
+    (0x39d, b"Nu"),
+    (0x39e, b"Xi"),
+    (0x39f, b"Omicron"),
+    (0x3a0, b"Pi"),
+    (0x3a1, b"Rho"),
+    (0x3a3, b"Sigma"),
+    (0x3a4, b"Tau"),
+    (0x3a5, b"Upsilon"),
+    (0x3a6, b"Phi"),
+    (0x3a7, b"Chi"),
+    (0x3a8, b"Psi"),
+    (0x3aa, b"Iotadieresis"),
+    (0x3ab, b"Upsilondieresis"),
+    (0x3ac, b"alphatonos"),
+    (0x3ad, b"epsilontonos"),
+    (0x3ae, b"etatonos"),
+    (0x3af, b"iotatonos"),
+    (0x3b0, b"upsilondieresistonos"),
+    (0x3b1, b"alpha"),
+    (0x3b2, b"beta"),
+    (0x3b3, b"gamma"),
+    (0x3b4, b"delta"),
+    (0x3b5, b"epsilon"),
+    (0x3b6, b"zeta"),
+    (0x3b7, b"eta"),
+    (0x3b8, b"theta"),
+    (0x3b9, b"iota"),
+    (0x3ba, b"kappa"),
+    (0x3bb, b"lambda"),
+    (0x3bd, b"nu"),
+    (0x3be, b"xi"),
+    (0x3bf, b"omicron"),
+    (0x3c0, b"pi"),
+    (0x3c1, b"rho"),
+    (0x3c2, b"sigma1"),
+    (0x3c3, b"sigma"),
+    (0x3c4, b"tau"),
+    (0x3c5, b"upsilon"),
+    (0x3c6, b"phi"),
+    (0x3c7, b"chi"),
+    (0x3c8, b"psi"),
+    (0x3c9, b"omega"),
+    (0x3ca, b"iotadieresis"),
+    (0x3cb, b"upsilondieresis"),
+    (0x3cc, b"omicrontonos"),
+    (0x3cd, b"upsilontonos"),
+    (0x3ce, b"omegatonos"),
+    (0x3d1, b"theta1"),
+    (0x3d2, b"Upsilon1"),
+    (0x3d5, b"phi1"),
+    (0x3d6, b"omega1"),
+    (0x1e80, b"Wgrave"),
+    (0x1e81, b"wgrave"),
+    (0x1e82, b"Wacute"),
+    (0x1e83, b"wacute"),
+    (0x1e84, b"Wdieresis"),
+    (0x1e85, b"wdieresis"),
+    (0x1ef2, b"Ygrave"),
+    (0x1ef3, b"ygrave"),
+    (0x2012, b"figuredash"),
+    (0x2013, b"endash"),
+    (0x2014, b"emdash"),
+    (0x2017, b"underscoredbl"),
+    (0x2018, b"quoteleft"),
+    (0x2019, b"quoteright"),
+    (0x201a, b"quotesinglbase"),
+    (0x201b, b"quotereversed"),
+    (0x201c, b"quotedblleft"),
+    (0x201d, b"quotedblright"),
+    (0x201e, b"quotedblbase"),
+    (0x2020, b"dagger"),
+    (0x2021, b"daggerdbl"),
+    (0x2022, b"bullet"),
+    (0x2024, b"onedotenleader"),
+    (0x2025, b"twodotenleader"),
+    (0x2026, b"ellipsis"),
+    (0x2030, b"perthousand"),
+    (0x2032, b"minute"),
+    (0x2033, b"second"),
+    (0x2039, b"guilsinglleft"),
+    (0x203a, b"guilsinglright"),
+    (0x203c, b"exclamdbl"),
+    (0x2044, b"fraction"),
+    (0x20a1, b"colonmonetary"),
+    (0x20a3, b"franc"),
+    (0x20a4, b"lira"),
+    (0x20a7, b"peseta"),
+    (0x20ab, b"dong"),
+    (0x20ac, b"Euro"),
+    (0x2111, b"Ifraktur"),
+    (0x2118, b"weierstrass"),
+    (0x211c, b"Rfraktur"),
+    (0x211e, b"prescription"),
+    (0x2122, b"trademark"),
+    (0x2126, b"Omega"),
+    (0x212e, b"estimated"),
+    (0x2135, b"aleph"),
+    (0x2153, b"onethird"),
+    (0x2154, b"twothirds"),
+    (0x215b, b"oneeighth"),
+    (0x215c, b"threeeighths"),
+    (0x215d, b"fiveeighths"),
+    (0x215e, b"seveneighths"),
+    (0x2190, b"arrowleft"),
+    (0x2191, b"arrowup"),
+    (0x2192, b"arrowright"),
+    (0x2193, b"arrowdown"),
+    (0x2194, b"arrowboth"),
+    (0x2195, b"arrowupdn"),
+    (0x21a8, b"arrowupdnbse"),
+    (0x21b5, b"carriagereturn"),
+    (0x21d0, b"arrowdblleft"),
+    (0x21d1, b"arrowdblup"),
+    (0x21d2, b"arrowdblright"),
+    (0x21d3, b"arrowdbldown"),
+    (0x21d4, b"arrowdblboth"),
+    (0x2200, b"universal"),
+    (0x2202, b"partialdiff"),
+    (0x2203, b"existential"),
+    (0x2205, b"emptyset"),
+    (0x2206, b"Delta"),
+    (0x2207, b"gradient"),
+    (0x2208, b"element"),
+    (0x2209, b"notelement"),
+    (0x220b, b"suchthat"),
+    (0x220f, b"product"),
+    (0x2211, b"summation"),
+    (0x2212, b"minus"),
+    (0x2217, b"asteriskmath"),
+    (0x221a, b"radical"),
+    (0x221d, b"proportional"),
+    (0x221e, b"infinity"),
+    (0x221f, b"orthogonal"),
+    (0x2220, b"angle"),
+    (0x2227, b"logicaland"),
+    (0x2228, b"logicalor"),
+    (0x2229, b"intersection"),
+    (0x222a, b"union"),
+    (0x222b, b"integral"),
+    (0x2234, b"therefore"),
+    (0x223c, b"similar"),
+    (0x2245, b"congruent"),
+    (0x2248, b"approxequal"),
+    (0x2260, b"notequal"),
+    (0x2261, b"equivalence"),
+    (0x2264, b"lessequal"),
+    (0x2265, b"greaterequal"),
+    (0x2282, b"propersubset"),
+    (0x2283, b"propersuperset"),
+    (0x2284, b"notsubset"),
+    (0x2286, b"reflexsubset"),
+    (0x2287, b"reflexsuperset"),
+    (0x2295, b"circleplus"),
+    (0x2297, b"circlemultiply"),
+    (0x22a5, b"perpendicular"),
+    (0x22c5, b"dotmath"),
+    (0x2302, b"house"),
+    (0x2310, b"revlogicalnot"),
+    (0x2320, b"integraltp"),
+    (0x2321, b"integralbt"),
+    (0x2329, b"angleleft"),
+    (0x232a, b"angleright"),
+    (0x2500, b"SF100000"),
+    (0x2502, b"SF110000"),
+    (0x250c, b"SF010000"),
+    (0x2510, b"SF030000"),
+    (0x2514, b"SF020000"),
+    (0x2518, b"SF040000"),
+    (0x251c, b"SF080000"),
+    (0x2524, b"SF090000"),
+    (0x252c, b"SF060000"),
+    (0x2534, b"SF070000"),
+    (0x253c, b"SF050000"),
+    (0x2550, b"SF430000"),
+    (0x2551, b"SF240000"),
+    (0x2552, b"SF510000"),
+    (0x2553, b"SF520000"),
+    (0x2554, b"SF390000"),
+    (0x2555, b"SF220000"),
+    (0x2556, b"SF210000"),
+    (0x2557, b"SF250000"),
+    (0x2558, b"SF500000"),
+    (0x2559, b"SF490000"),
+    (0x255a, b"SF380000"),
+    (0x255b, b"SF280000"),
+    (0x255c, b"SF270000"),
+    (0x255d, b"SF260000"),
+    (0x255e, b"SF360000"),
+    (0x255f, b"SF370000"),
+    (0x2560, b"SF420000"),
+    (0x2561, b"SF190000"),
+    (0x2562, b"SF200000"),
+    (0x2563, b"SF230000"),
+    (0x2564, b"SF470000"),
+    (0x2565, b"SF480000"),
+    (0x2566, b"SF410000"),
+    (0x2567, b"SF450000"),
+    (0x2568, b"SF460000"),
+    (0x2569, b"SF400000"),
+    (0x256a, b"SF540000"),
+    (0x256b, b"SF530000"),
+    (0x256c, b"SF440000"),
+    (0x2580, b"upblock"),
+    (0x2584, b"dnblock"),
+    (0x2588, b"block"),
+    (0x258c, b"lfblock"),
+    (0x2590, b"rtblock"),
+    (0x2591, b"ltshade"),
+    (0x2592, b"shade"),
+    (0x2593, b"dkshade"),
+    (0x25a0, b"filledbox"),
+    (0x25a1, b"H22073"),
+    (0x25aa, b"H18543"),
+    (0x25ab, b"H18551"),
+    (0x25ac, b"filledrect"),
+    (0x25b2, b"triagup"),
+    (0x25ba, b"triagrt"),
+    (0x25bc, b"triagdn"),
+    (0x25c4, b"triaglf"),
+    (0x25ca, b"lozenge"),
+    (0x25cb, b"circle"),
+    (0x25cf, b"H18533"),
+    (0x25d8, b"invbullet"),
+    (0x25d9, b"invcircle"),
+    (0x25e6, b"openbullet"),
+    (0x263a, b"smileface"),
+    (0x263b, b"invsmileface"),
+    (0x263c, b"sun"),
+    (0x2640, b"female"),
+    (0x2642, b"male"),
+    (0x2660, b"spade"),
+    (0x2663, b"club"),
+    (0x2665, b"heart"),
+    (0x2666, b"diamond"),
+    (0x266a, b"musicalnote"),
+    (0x266b, b"musicalnotedbl"),
+];
 
-pub fn aglfn_setup_names(map: &mut GlyphOrder) {
-    otfcc_set_glyph_order_by_gid(map, 0x41 as GlyphId, b"A".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc6 as GlyphId, b"AE".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1fc as GlyphId, b"AEacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc1 as GlyphId, b"Aacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x102 as GlyphId, b"Abreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc2 as GlyphId, b"Acircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc4 as GlyphId, b"Adieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc0 as GlyphId, b"Agrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x391 as GlyphId, b"Alpha".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x386 as GlyphId, b"Alphatonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x100 as GlyphId, b"Amacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x104 as GlyphId, b"Aogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc5 as GlyphId, b"Aring".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1fa as GlyphId, b"Aringacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc3 as GlyphId, b"Atilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x42 as GlyphId, b"B".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x392 as GlyphId, b"Beta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x43 as GlyphId, b"C".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x106 as GlyphId, b"Cacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x10c as GlyphId, b"Ccaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc7 as GlyphId, b"Ccedilla".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x108 as GlyphId, b"Ccircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x10a as GlyphId, b"Cdotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a7 as GlyphId, b"Chi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x44 as GlyphId, b"D".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x10e as GlyphId, b"Dcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x110 as GlyphId, b"Dcroat".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2206 as GlyphId, b"Delta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x45 as GlyphId, b"E".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc9 as GlyphId, b"Eacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x114 as GlyphId, b"Ebreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x11a as GlyphId, b"Ecaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xca as GlyphId, b"Ecircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xcb as GlyphId, b"Edieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x116 as GlyphId, b"Edotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xc8 as GlyphId, b"Egrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x112 as GlyphId, b"Emacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x14a as GlyphId, b"Eng".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x118 as GlyphId, b"Eogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x395 as GlyphId, b"Epsilon".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x388 as GlyphId, b"Epsilontonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x397 as GlyphId, b"Eta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x389 as GlyphId, b"Etatonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd0 as GlyphId, b"Eth".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x20ac as GlyphId, b"Euro".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x46 as GlyphId, b"F".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x47 as GlyphId, b"G".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x393 as GlyphId, b"Gamma".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x11e as GlyphId, b"Gbreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1e6 as GlyphId, b"Gcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x11c as GlyphId, b"Gcircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x120 as GlyphId, b"Gdotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x48 as GlyphId, b"H".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25cf as GlyphId, b"H18533".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25aa as GlyphId, b"H18543".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25ab as GlyphId, b"H18551".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25a1 as GlyphId, b"H22073".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x126 as GlyphId, b"Hbar".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x124 as GlyphId, b"Hcircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x49 as GlyphId, b"I".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x132 as GlyphId, b"IJ".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xcd as GlyphId, b"Iacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x12c as GlyphId, b"Ibreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xce as GlyphId, b"Icircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xcf as GlyphId, b"Idieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x130 as GlyphId, b"Idotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2111 as GlyphId, b"Ifraktur".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xcc as GlyphId, b"Igrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x12a as GlyphId, b"Imacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x12e as GlyphId, b"Iogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x399 as GlyphId, b"Iota".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3aa as GlyphId, b"Iotadieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x38a as GlyphId, b"Iotatonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x128 as GlyphId, b"Itilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x4a as GlyphId, b"J".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x134 as GlyphId, b"Jcircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x4b as GlyphId, b"K".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x39a as GlyphId, b"Kappa".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x4c as GlyphId, b"L".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x139 as GlyphId, b"Lacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x39b as GlyphId, b"Lambda".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x13d as GlyphId, b"Lcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x13f as GlyphId, b"Ldot".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x141 as GlyphId, b"Lslash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x4d as GlyphId, b"M".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x39c as GlyphId, b"Mu".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x4e as GlyphId, b"N".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x143 as GlyphId, b"Nacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x147 as GlyphId, b"Ncaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd1 as GlyphId, b"Ntilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x39d as GlyphId, b"Nu".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x4f as GlyphId, b"O".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x152 as GlyphId, b"OE".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd3 as GlyphId, b"Oacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x14e as GlyphId, b"Obreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd4 as GlyphId, b"Ocircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd6 as GlyphId, b"Odieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd2 as GlyphId, b"Ograve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1a0 as GlyphId, b"Ohorn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x150 as GlyphId, b"Ohungarumlaut".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x14c as GlyphId, b"Omacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2126 as GlyphId, b"Omega".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x38f as GlyphId, b"Omegatonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x39f as GlyphId, b"Omicron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x38c as GlyphId, b"Omicrontonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd8 as GlyphId, b"Oslash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1fe as GlyphId, b"Oslashacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd5 as GlyphId, b"Otilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x50 as GlyphId, b"P".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a6 as GlyphId, b"Phi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a0 as GlyphId, b"Pi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a8 as GlyphId, b"Psi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x51 as GlyphId, b"Q".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x52 as GlyphId, b"R".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x154 as GlyphId, b"Racute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x158 as GlyphId, b"Rcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x211c as GlyphId, b"Rfraktur".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a1 as GlyphId, b"Rho".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x53 as GlyphId, b"S".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x250c as GlyphId, b"SF010000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2514 as GlyphId, b"SF020000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2510 as GlyphId, b"SF030000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2518 as GlyphId, b"SF040000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x253c as GlyphId, b"SF050000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x252c as GlyphId, b"SF060000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2534 as GlyphId, b"SF070000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x251c as GlyphId, b"SF080000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2524 as GlyphId, b"SF090000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2500 as GlyphId, b"SF100000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2502 as GlyphId, b"SF110000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2561 as GlyphId, b"SF190000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2562 as GlyphId, b"SF200000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2556 as GlyphId, b"SF210000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2555 as GlyphId, b"SF220000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2563 as GlyphId, b"SF230000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2551 as GlyphId, b"SF240000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2557 as GlyphId, b"SF250000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x255d as GlyphId, b"SF260000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x255c as GlyphId, b"SF270000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x255b as GlyphId, b"SF280000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x255e as GlyphId, b"SF360000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x255f as GlyphId, b"SF370000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x255a as GlyphId, b"SF380000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2554 as GlyphId, b"SF390000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2569 as GlyphId, b"SF400000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2566 as GlyphId, b"SF410000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2560 as GlyphId, b"SF420000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2550 as GlyphId, b"SF430000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x256c as GlyphId, b"SF440000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2567 as GlyphId, b"SF450000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2568 as GlyphId, b"SF460000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2564 as GlyphId, b"SF470000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2565 as GlyphId, b"SF480000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2559 as GlyphId, b"SF490000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2558 as GlyphId, b"SF500000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2552 as GlyphId, b"SF510000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2553 as GlyphId, b"SF520000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x256b as GlyphId, b"SF530000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x256a as GlyphId, b"SF540000".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x15a as GlyphId, b"Sacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x160 as GlyphId, b"Scaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x15e as GlyphId, b"Scedilla".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x15c as GlyphId, b"Scircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a3 as GlyphId, b"Sigma".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x54 as GlyphId, b"T".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a4 as GlyphId, b"Tau".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x166 as GlyphId, b"Tbar".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x164 as GlyphId, b"Tcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x398 as GlyphId, b"Theta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xde as GlyphId, b"Thorn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x55 as GlyphId, b"U".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xda as GlyphId, b"Uacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x16c as GlyphId, b"Ubreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xdb as GlyphId, b"Ucircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xdc as GlyphId, b"Udieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd9 as GlyphId, b"Ugrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1af as GlyphId, b"Uhorn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x170 as GlyphId, b"Uhungarumlaut".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x16a as GlyphId, b"Umacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x172 as GlyphId, b"Uogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a5 as GlyphId, b"Upsilon".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3d2 as GlyphId, b"Upsilon1".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3ab as GlyphId, b"Upsilondieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x38e as GlyphId, b"Upsilontonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x16e as GlyphId, b"Uring".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x168 as GlyphId, b"Utilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x56 as GlyphId, b"V".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x57 as GlyphId, b"W".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1e82 as GlyphId, b"Wacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x174 as GlyphId, b"Wcircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1e84 as GlyphId, b"Wdieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1e80 as GlyphId, b"Wgrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x58 as GlyphId, b"X".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x39e as GlyphId, b"Xi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x59 as GlyphId, b"Y".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xdd as GlyphId, b"Yacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x176 as GlyphId, b"Ycircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x178 as GlyphId, b"Ydieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1ef2 as GlyphId, b"Ygrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x5a as GlyphId, b"Z".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x179 as GlyphId, b"Zacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x17d as GlyphId, b"Zcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x17b as GlyphId, b"Zdotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x396 as GlyphId, b"Zeta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x61 as GlyphId, b"a".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe1 as GlyphId, b"aacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x103 as GlyphId, b"abreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe2 as GlyphId, b"acircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xb4 as GlyphId, b"acute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x301 as GlyphId, b"acutecomb".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe4 as GlyphId, b"adieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe6 as GlyphId, b"ae".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1fd as GlyphId, b"aeacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe0 as GlyphId, b"agrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2135 as GlyphId, b"aleph".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b1 as GlyphId, b"alpha".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3ac as GlyphId, b"alphatonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x101 as GlyphId, b"amacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x26 as GlyphId, b"ampersand".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2220 as GlyphId, b"angle".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2329 as GlyphId, b"angleleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x232a as GlyphId, b"angleright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x387 as GlyphId, b"anoteleia".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x105 as GlyphId, b"aogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2248 as GlyphId, b"approxequal".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe5 as GlyphId, b"aring".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1fb as GlyphId, b"aringacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2194 as GlyphId, b"arrowboth".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x21d4 as GlyphId, b"arrowdblboth".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x21d3 as GlyphId, b"arrowdbldown".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x21d0 as GlyphId, b"arrowdblleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x21d2 as GlyphId, b"arrowdblright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x21d1 as GlyphId, b"arrowdblup".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2193 as GlyphId, b"arrowdown".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2190 as GlyphId, b"arrowleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2192 as GlyphId, b"arrowright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2191 as GlyphId, b"arrowup".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2195 as GlyphId, b"arrowupdn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x21a8 as GlyphId, b"arrowupdnbse".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x5e as GlyphId, b"asciicircum".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x7e as GlyphId, b"asciitilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2a as GlyphId, b"asterisk".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2217 as GlyphId, b"asteriskmath".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x40 as GlyphId, b"at".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe3 as GlyphId, b"atilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x62 as GlyphId, b"b".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x5c as GlyphId, b"backslash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x7c as GlyphId, b"bar".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b2 as GlyphId, b"beta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2588 as GlyphId, b"block".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x7b as GlyphId, b"braceleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x7d as GlyphId, b"braceright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x5b as GlyphId, b"bracketleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x5d as GlyphId, b"bracketright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2d8 as GlyphId, b"breve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa6 as GlyphId, b"brokenbar".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2022 as GlyphId, b"bullet".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x63 as GlyphId, b"c".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x107 as GlyphId, b"cacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2c7 as GlyphId, b"caron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x21b5 as GlyphId, b"carriagereturn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x10d as GlyphId, b"ccaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe7 as GlyphId, b"ccedilla".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x109 as GlyphId, b"ccircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x10b as GlyphId, b"cdotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xb8 as GlyphId, b"cedilla".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa2 as GlyphId, b"cent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c7 as GlyphId, b"chi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25cb as GlyphId, b"circle".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2297 as GlyphId, b"circlemultiply".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2295 as GlyphId, b"circleplus".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2c6 as GlyphId, b"circumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2663 as GlyphId, b"club".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3a as GlyphId, b"colon".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x20a1 as GlyphId, b"colonmonetary".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2c as GlyphId, b"comma".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2245 as GlyphId, b"congruent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa9 as GlyphId, b"copyright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa4 as GlyphId, b"currency".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x64 as GlyphId, b"d".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2020 as GlyphId, b"dagger".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2021 as GlyphId, b"daggerdbl".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x10f as GlyphId, b"dcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x111 as GlyphId, b"dcroat".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xb0 as GlyphId, b"degree".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b4 as GlyphId, b"delta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2666 as GlyphId, b"diamond".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa8 as GlyphId, b"dieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x385 as GlyphId, b"dieresistonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf7 as GlyphId, b"divide".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2593 as GlyphId, b"dkshade".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2584 as GlyphId, b"dnblock".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x24 as GlyphId, b"dollar".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x20ab as GlyphId, b"dong".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2d9 as GlyphId, b"dotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x323 as GlyphId, b"dotbelowcomb".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x131 as GlyphId, b"dotlessi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x22c5 as GlyphId, b"dotmath".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x65 as GlyphId, b"e".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe9 as GlyphId, b"eacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x115 as GlyphId, b"ebreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x11b as GlyphId, b"ecaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xea as GlyphId, b"ecircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xeb as GlyphId, b"edieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x117 as GlyphId, b"edotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xe8 as GlyphId, b"egrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x38 as GlyphId, b"eight".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2208 as GlyphId, b"element".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2026 as GlyphId, b"ellipsis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x113 as GlyphId, b"emacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2014 as GlyphId, b"emdash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2205 as GlyphId, b"emptyset".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2013 as GlyphId, b"endash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x14b as GlyphId, b"eng".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x119 as GlyphId, b"eogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b5 as GlyphId, b"epsilon".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3ad as GlyphId, b"epsilontonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3d as GlyphId, b"equal".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2261 as GlyphId, b"equivalence".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x212e as GlyphId, b"estimated".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b7 as GlyphId, b"eta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3ae as GlyphId, b"etatonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf0 as GlyphId, b"eth".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x21 as GlyphId, b"exclam".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x203c as GlyphId, b"exclamdbl".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa1 as GlyphId, b"exclamdown".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2203 as GlyphId, b"existential".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x66 as GlyphId, b"f".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2640 as GlyphId, b"female".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2012 as GlyphId, b"figuredash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25a0 as GlyphId, b"filledbox".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25ac as GlyphId, b"filledrect".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x35 as GlyphId, b"five".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x215d as GlyphId, b"fiveeighths".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x192 as GlyphId, b"florin".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x34 as GlyphId, b"four".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2044 as GlyphId, b"fraction".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x20a3 as GlyphId, b"franc".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x67 as GlyphId, b"g".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b3 as GlyphId, b"gamma".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x11f as GlyphId, b"gbreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1e7 as GlyphId, b"gcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x11d as GlyphId, b"gcircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x121 as GlyphId, b"gdotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xdf as GlyphId, b"germandbls".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2207 as GlyphId, b"gradient".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x60 as GlyphId, b"grave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x300 as GlyphId, b"gravecomb".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3e as GlyphId, b"greater".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2265 as GlyphId, b"greaterequal".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xab as GlyphId, b"guillemotleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xbb as GlyphId, b"guillemotright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2039 as GlyphId, b"guilsinglleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x203a as GlyphId, b"guilsinglright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x68 as GlyphId, b"h".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x127 as GlyphId, b"hbar".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x125 as GlyphId, b"hcircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2665 as GlyphId, b"heart".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x309 as GlyphId, b"hookabovecomb".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2302 as GlyphId, b"house".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2dd as GlyphId, b"hungarumlaut".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2d as GlyphId, b"hyphen".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x69 as GlyphId, b"i".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xed as GlyphId, b"iacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x12d as GlyphId, b"ibreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xee as GlyphId, b"icircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xef as GlyphId, b"idieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xec as GlyphId, b"igrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x133 as GlyphId, b"ij".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x12b as GlyphId, b"imacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x221e as GlyphId, b"infinity".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x222b as GlyphId, b"integral".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2321 as GlyphId, b"integralbt".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2320 as GlyphId, b"integraltp".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2229 as GlyphId, b"intersection".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25d8 as GlyphId, b"invbullet".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25d9 as GlyphId, b"invcircle".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x263b as GlyphId, b"invsmileface".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x12f as GlyphId, b"iogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b9 as GlyphId, b"iota".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3ca as GlyphId, b"iotadieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x390 as GlyphId, b"iotadieresistonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3af as GlyphId, b"iotatonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x129 as GlyphId, b"itilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x6a as GlyphId, b"j".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x135 as GlyphId, b"jcircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x6b as GlyphId, b"k".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3ba as GlyphId, b"kappa".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x138 as GlyphId, b"kgreenlandic".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x6c as GlyphId, b"l".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x13a as GlyphId, b"lacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3bb as GlyphId, b"lambda".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x13e as GlyphId, b"lcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x140 as GlyphId, b"ldot".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c as GlyphId, b"less".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2264 as GlyphId, b"lessequal".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x258c as GlyphId, b"lfblock".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x20a4 as GlyphId, b"lira".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2227 as GlyphId, b"logicaland".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xac as GlyphId, b"logicalnot".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2228 as GlyphId, b"logicalor".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x17f as GlyphId, b"longs".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25ca as GlyphId, b"lozenge".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x142 as GlyphId, b"lslash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2591 as GlyphId, b"ltshade".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x6d as GlyphId, b"m".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xaf as GlyphId, b"macron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2642 as GlyphId, b"male".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2212 as GlyphId, b"minus".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2032 as GlyphId, b"minute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xb5 as GlyphId, b"mu".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xd7 as GlyphId, b"multiply".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x266a as GlyphId, b"musicalnote".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x266b as GlyphId, b"musicalnotedbl".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x6e as GlyphId, b"n".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x144 as GlyphId, b"nacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x149 as GlyphId, b"napostrophe".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x148 as GlyphId, b"ncaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x39 as GlyphId, b"nine".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2209 as GlyphId, b"notelement".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2260 as GlyphId, b"notequal".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2284 as GlyphId, b"notsubset".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf1 as GlyphId, b"ntilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3bd as GlyphId, b"nu".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x23 as GlyphId, b"numbersign".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x6f as GlyphId, b"o".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf3 as GlyphId, b"oacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x14f as GlyphId, b"obreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf4 as GlyphId, b"ocircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf6 as GlyphId, b"odieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x153 as GlyphId, b"oe".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2db as GlyphId, b"ogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf2 as GlyphId, b"ograve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1a1 as GlyphId, b"ohorn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x151 as GlyphId, b"ohungarumlaut".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x14d as GlyphId, b"omacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c9 as GlyphId, b"omega".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3d6 as GlyphId, b"omega1".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3ce as GlyphId, b"omegatonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3bf as GlyphId, b"omicron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3cc as GlyphId, b"omicrontonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x31 as GlyphId, b"one".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2024 as GlyphId, b"onedotenleader".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x215b as GlyphId, b"oneeighth".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xbd as GlyphId, b"onehalf".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xbc as GlyphId, b"onequarter".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2153 as GlyphId, b"onethird".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25e6 as GlyphId, b"openbullet".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xaa as GlyphId, b"ordfeminine".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xba as GlyphId, b"ordmasculine".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x221f as GlyphId, b"orthogonal".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf8 as GlyphId, b"oslash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1ff as GlyphId, b"oslashacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf5 as GlyphId, b"otilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x70 as GlyphId, b"p".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xb6 as GlyphId, b"paragraph".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x28 as GlyphId, b"parenleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x29 as GlyphId, b"parenright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2202 as GlyphId, b"partialdiff".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25 as GlyphId, b"percent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2e as GlyphId, b"period".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xb7 as GlyphId, b"periodcentered".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x22a5 as GlyphId, b"perpendicular".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2030 as GlyphId, b"perthousand".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x20a7 as GlyphId, b"peseta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c6 as GlyphId, b"phi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3d5 as GlyphId, b"phi1".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c0 as GlyphId, b"pi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2b as GlyphId, b"plus".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xb1 as GlyphId, b"plusminus".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x211e as GlyphId, b"prescription".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x220f as GlyphId, b"product".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2282 as GlyphId, b"propersubset".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2283 as GlyphId, b"propersuperset".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x221d as GlyphId, b"proportional".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c8 as GlyphId, b"psi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x71 as GlyphId, b"q".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3f as GlyphId, b"question".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xbf as GlyphId, b"questiondown".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x22 as GlyphId, b"quotedbl".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x201e as GlyphId, b"quotedblbase".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x201c as GlyphId, b"quotedblleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x201d as GlyphId, b"quotedblright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2018 as GlyphId, b"quoteleft".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x201b as GlyphId, b"quotereversed".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2019 as GlyphId, b"quoteright".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x201a as GlyphId, b"quotesinglbase".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x27 as GlyphId, b"quotesingle".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x72 as GlyphId, b"r".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x155 as GlyphId, b"racute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x221a as GlyphId, b"radical".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x159 as GlyphId, b"rcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2286 as GlyphId, b"reflexsubset".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2287 as GlyphId, b"reflexsuperset".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xae as GlyphId, b"registered".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2310 as GlyphId, b"revlogicalnot".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c1 as GlyphId, b"rho".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2da as GlyphId, b"ring".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2590 as GlyphId, b"rtblock".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x73 as GlyphId, b"s".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x15b as GlyphId, b"sacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x161 as GlyphId, b"scaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x15f as GlyphId, b"scedilla".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x15d as GlyphId, b"scircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2033 as GlyphId, b"second".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa7 as GlyphId, b"section".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b as GlyphId, b"semicolon".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x37 as GlyphId, b"seven".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x215e as GlyphId, b"seveneighths".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2592 as GlyphId, b"shade".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c3 as GlyphId, b"sigma".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c2 as GlyphId, b"sigma1".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x223c as GlyphId, b"similar".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x36 as GlyphId, b"six".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2f as GlyphId, b"slash".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x263a as GlyphId, b"smileface".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x20 as GlyphId, b"space".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2660 as GlyphId, b"spade".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa3 as GlyphId, b"sterling".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x220b as GlyphId, b"suchthat".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2211 as GlyphId, b"summation".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x263c as GlyphId, b"sun".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x74 as GlyphId, b"t".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c4 as GlyphId, b"tau".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x167 as GlyphId, b"tbar".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x165 as GlyphId, b"tcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2234 as GlyphId, b"therefore".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b8 as GlyphId, b"theta".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3d1 as GlyphId, b"theta1".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xfe as GlyphId, b"thorn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x33 as GlyphId, b"three".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x215c as GlyphId, b"threeeighths".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xbe as GlyphId, b"threequarters".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2dc as GlyphId, b"tilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x303 as GlyphId, b"tildecomb".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x384 as GlyphId, b"tonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2122 as GlyphId, b"trademark".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25bc as GlyphId, b"triagdn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25c4 as GlyphId, b"triaglf".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25ba as GlyphId, b"triagrt".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x25b2 as GlyphId, b"triagup".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x32 as GlyphId, b"two".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2025 as GlyphId, b"twodotenleader".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2154 as GlyphId, b"twothirds".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x75 as GlyphId, b"u".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xfa as GlyphId, b"uacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x16d as GlyphId, b"ubreve".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xfb as GlyphId, b"ucircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xfc as GlyphId, b"udieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xf9 as GlyphId, b"ugrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1b0 as GlyphId, b"uhorn".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x171 as GlyphId, b"uhungarumlaut".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x16b as GlyphId, b"umacron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x5f as GlyphId, b"underscore".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2017 as GlyphId, b"underscoredbl".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x222a as GlyphId, b"union".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2200 as GlyphId, b"universal".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x173 as GlyphId, b"uogonek".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2580 as GlyphId, b"upblock".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3c5 as GlyphId, b"upsilon".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3cb as GlyphId, b"upsilondieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b0 as GlyphId, b"upsilondieresistonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3cd as GlyphId, b"upsilontonos".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x16f as GlyphId, b"uring".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x169 as GlyphId, b"utilde".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x76 as GlyphId, b"v".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x77 as GlyphId, b"w".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1e83 as GlyphId, b"wacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x175 as GlyphId, b"wcircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1e85 as GlyphId, b"wdieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x2118 as GlyphId, b"weierstrass".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1e81 as GlyphId, b"wgrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x78 as GlyphId, b"x".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3be as GlyphId, b"xi".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x79 as GlyphId, b"y".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xfd as GlyphId, b"yacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x177 as GlyphId, b"ycircumflex".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xff as GlyphId, b"ydieresis".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0xa5 as GlyphId, b"yen".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x1ef3 as GlyphId, b"ygrave".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x7a as GlyphId, b"z".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x17a as GlyphId, b"zacute".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x17e as GlyphId, b"zcaron".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x17c as GlyphId, b"zdotaccent".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x30 as GlyphId, b"zero".to_vec());
-    otfcc_set_glyph_order_by_gid(map, 0x3b6 as GlyphId, b"zeta".to_vec());
+/// The AGLFN name for `unicode`, if it has one.
+pub fn aglfn_name(unicode: u32) -> Option<&'static [u8]> {
+    let unicode = u16::try_from(unicode).ok()?;
+    AGLFN
+        .binary_search_by_key(&unicode, |&(code, _)| code)
+        .ok()
+        .map(|i| AGLFN[i].1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn table_is_sorted_and_unique_by_code_point_and_name() {
+        assert!(AGLFN.windows(2).all(|w| w[0].0 < w[1].0));
+        let mut names: Vec<_> = AGLFN.iter().map(|e| e.1).collect();
+        names.sort();
+        assert!(names.windows(2).all(|w| w[0] != w[1]));
+    }
+
+    #[test]
+    fn looks_up_known_and_unknown_code_points() {
+        assert_eq!(aglfn_name(0x41), Some(&b"A"[..]));
+        assert_eq!(aglfn_name(0x1fc), Some(&b"AEacute"[..]));
+        assert_eq!(aglfn_name(0x10041), None);
+        assert_eq!(aglfn_name(0xe000), None);
+    }
 }

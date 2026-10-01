@@ -175,11 +175,7 @@ pub(crate) fn otfcc_gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle
         let name_bytes = h.name.clone();
         if let Some(&entry_idx) = go.by_name.get(&name_bytes) {
             let entry = &go.entries[entry_idx];
-            *h = Handle {
-                state: HandleState::Consolidated,
-                index: entry.gid,
-                name: entry.name.clone(),
-            } as GlyphHandle;
+            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone()) as GlyphHandle;
             return true;
         }
         // Original C (glyph-order.c:83) passed the wrong hash-handle
@@ -193,22 +189,14 @@ pub(crate) fn otfcc_gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle
         // already-correct search. Fixed here.
         if let Some(&entry_idx) = go.by_gid.get(&h.index) {
             let entry = &go.entries[entry_idx];
-            *h = Handle {
-                state: HandleState::Consolidated,
-                index: entry.gid,
-                name: entry.name.clone(),
-            } as GlyphHandle;
+            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone()) as GlyphHandle;
             return true;
         }
     } else if h.state == HandleState::Name {
         let name_bytes = h.name.clone();
         if let Some(&entry_idx) = go.by_name.get(&name_bytes) {
             let entry = &go.entries[entry_idx];
-            *h = Handle {
-                state: HandleState::Consolidated,
-                index: entry.gid,
-                name: entry.name.clone(),
-            } as GlyphHandle;
+            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone()) as GlyphHandle;
             return true;
         }
     } else if h.state == HandleState::Index {
@@ -216,11 +204,7 @@ pub(crate) fn otfcc_gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle
         otfcc_gord_name_a_field_shared(go, h.index, &mut name);
         if !name.is_empty() {
             let idx = h.index;
-            *h = Handle {
-                state: HandleState::Consolidated,
-                index: idx,
-                name,
-            } as GlyphHandle;
+            *h = Handle::new(HandleState::Consolidated, idx, name) as GlyphHandle;
             return true;
         }
     }

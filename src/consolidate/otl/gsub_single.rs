@@ -86,16 +86,8 @@ pub fn consolidate_gsub_single(
     dispose_gsub_single_subtable(subtable);
     for (fromid, (fromname, toid, toname)) in seen {
         subtable.push(GsubSingleEntry {
-            from: Handle {
-                state: HandleState::Consolidated,
-                index: fromid as GlyphId,
-                name: fromname,
-            } as GlyphHandle,
-            to: Handle {
-                state: HandleState::Consolidated,
-                index: toid as GlyphId,
-                name: toname,
-            } as GlyphHandle,
+            from: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,
+            to: Handle::new(HandleState::Consolidated, toid as GlyphId, toname) as GlyphHandle,
         });
     }
     subtable.is_empty()

@@ -66,11 +66,7 @@ pub fn consolidate_gpos_cursive(
     dispose_gpos_cursive_subtable(subtable);
     for (fromid, (fromname, enter, exit)) in seen {
         subtable.push(GposCursiveEntry {
-            target: Handle {
-                state: HandleState::Consolidated,
-                index: fromid as GlyphId,
-                name: fromname,
-            } as GlyphHandle,
+            target: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,
             enter,
             exit,
         });

@@ -2,7 +2,7 @@ use crate::font::caryll_font::Font;
 use crate::support::buffer::Buffer;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, Pos};
+use crate::support::primitives::{GlyphId, Pos, glyph_count};
 use crate::support::fmt::{Hex2Upper, Hex4Upper, SdsPart};
 
 use crate::table::glyf::{GlyfTable, Glyph, PostscriptHintMask};
@@ -12,7 +12,7 @@ use crate::table::otl::{
     Subtable, SubtableList,
 };
 
-use crate::support::unicode::aglfn::aglfn_setup_names;
+use crate::support::unicode::aglfn::aglfn_name;
 use crate::support::glyph_order::{
     gord_lookup_name, otfcc_gord_name_a_field_shared, otfcc_set_glyph_order_by_gid,
 };
@@ -153,7 +153,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
     };
     // Only ever called (from `otfcc_unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
-    let num_glyphs: GlyphId = font.glyf.as_ref().unwrap().len() as GlyphId;
+    let num_glyphs: GlyphId = glyph_count(font.glyf.as_ref().unwrap().len());
     let prefix: Vec<u8> = options.glyph_name_prefix.clone().unwrap_or_default();
     for j in 0..num_glyphs {
         // Each iteration reads glyph `j` fully (`name_glyph_by_hash`/the
@@ -221,28 +221,20 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
             }
         }
     if let Some(cmap) = font.cmap.as_ref().filter(|_| !options.name_glyphs_by_gid) {
-        let mut aglfn = GlyphOrder {
-            entries: Vec::new(),
-            by_gid: std::collections::BTreeMap::new(),
-            by_name: std::collections::HashMap::new(),
-        };
-        aglfn_setup_names(&mut aglfn);
         for (&unicode, glyph) in cmap.unicodes.iter() {
             if glyph.index as i32 > 0_i32 {
-                let mut name_bytes: Vec<u8> = Vec::new();
-                if unicode > 0_i32 && unicode < 0xffff_i32 {
-                    otfcc_gord_name_a_field_shared(&aglfn, unicode as GlyphId, &mut name_bytes);
-                }
-                let name: Vec<u8> = if name_bytes.is_empty() {
-                    crate::bytesbuild!(&prefix, b"uni", Hex4Upper(unicode as u32))
+                let aglfn_name = if unicode > 0_i32 && unicode < 0xffff_i32 {
+                    aglfn_name(unicode as u32)
                 } else {
-                    crate::bytesbuild!(&prefix, &name_bytes)
+                    None
+                };
+                let name: Vec<u8> = match aglfn_name {
+                    Some(n) => crate::bytesbuild!(&prefix, n),
+                    None => crate::bytesbuild!(&prefix, b"uni", Hex4Upper(unicode as u32)),
                 };
                 otfcc_set_glyph_order_by_gid(&mut glyph_order, glyph.index, name);
             }
         }
-        // `aglfn` is a plain local value now -- it drops here on its own,
-        // no `otfcc_glyph_order_free` call needed.
     }
     let glyf = font.glyf.as_ref().unwrap();
     for j_1 in 0..num_glyphs {
@@ -465,7 +457,7 @@ fn merge_vmtx(font: &mut Font) {
 fn merge_ltsh(font: &mut Font) {
     if let Some(glyf) = font.glyf.as_mut()
         && let Some(ltsh) = &font.ltsh {
-            let n = (glyf.len() as GlyphId).min(ltsh.num_glyphs) as usize;
+            let n = (glyph_count(glyf.len())).min(ltsh.num_glyphs) as usize;
             for (slot, &y_pel) in glyf.iter_mut().zip(&ltsh.y_pels[..n]) {
                 slot.as_mut().unwrap().y_pel = y_pel;
             }

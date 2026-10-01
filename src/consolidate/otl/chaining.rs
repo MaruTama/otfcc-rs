@@ -102,11 +102,7 @@ pub(crate) fn consolidate_chaining(
                 };
                 if exists && handle_name_eq_bytes(&app.lookup.name, name) {
                     found_lookup = true;
-                    app.lookup = Handle {
-                        state: HandleState::Consolidated,
-                        index: k,
-                        name: name.to_vec(),
-                    } as LookupHandle;
+                    app.lookup = Handle::new(HandleState::Consolidated, k, name.to_vec()) as LookupHandle;
                 }
             }
             if !found_lookup {
@@ -176,11 +172,7 @@ pub(crate) fn consolidate_chaining(
                     .and_then(Option::as_deref)
                     .map_or_else(Vec::new, |lookup| lookup.name.clone())
             };
-            app.lookup = Handle {
-                state: HandleState::Consolidated,
-                index: idx,
-                name,
-            } as LookupHandle;
+            app.lookup = Handle::new(HandleState::Consolidated, idx, name) as LookupHandle;
         }
     }
     if !rule.apply.is_empty() {

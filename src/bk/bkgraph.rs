@@ -553,18 +553,20 @@ fn estimate_size_of_graph(graph: &BkGraph) -> usize {
 pub fn bk_estimate_size_of_graph(f: &BkGraph) -> usize {
     estimate_size_of_graph(f)
 }
+/// How many times `untangle_graph` will try to fix 16-bit offsets that no
+/// longer fit before giving up and building the graph as-is.
+const MAX_UNTANGLE_PASSES: usize = 16;
 fn untangle_graph(graph: &mut BkGraph) {
-    let mut passes: u16 = 0;
     attract_bkgraph(graph);
-    loop {
-        let tangled = try_untangle(graph);
-        if tangled {
-            attract_bkgraph(graph);
-        }
-        passes = passes.wrapping_add(1);
-        if !(tangled && passes < 16) {
+    for _ in 0..MAX_UNTANGLE_PASSES {
+        if !try_untangle(graph) {
             break;
         }
+        // `try_untangle` appended "twin" blocks to make an out-of-range
+        // offset fit, so re-derive the block order before the next pass --
+        // including after the last pass, which is why this sits inside the
+        // loop rather than being skipped on the final iteration.
+        attract_bkgraph(graph);
     }
 }
 pub fn bk_untangle_graph(f: &mut BkGraph) {

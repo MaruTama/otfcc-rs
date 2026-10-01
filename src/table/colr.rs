@@ -76,11 +76,7 @@ fn parse_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
         let first_layer_index = br.u16()?;
         let num_layers = br.u16()?;
         let mut mapping: ColrMapping = ColrMapping {
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: Vec::new(),
-            },
+            glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
             layers: Vec::new(),
         };
         mapping.glyph = handle_from_index(gid as GlyphId);
@@ -154,11 +150,7 @@ pub fn otfcc_parse_colr(root: &ParsedValue, options: &Options) -> Option<ColrTab
             let layers_val = mapping.get_typed(b"to", JsonType::Array);
             if let (Some(baseglyph), Some(layers_val)) = (baseglyph, layers_val) {
                 let mut m: ColrMapping = ColrMapping {
-                    glyph: Handle {
-                        state: HandleState::Empty,
-                        index: 0,
-                        name: Vec::new(),
-                    },
+                    glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
                     layers: Vec::new(),
                 };
                 m.glyph = handle_from_name(baseglyph.as_str_bytes().map(|b| b.to_vec()));
