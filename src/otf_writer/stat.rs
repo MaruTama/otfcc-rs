@@ -4,7 +4,7 @@ use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
 use crate::font::caryll_font::{Font, FontSubtype};
 use crate::support::options::Options;
-use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, glyph_count};
+use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, count_u16};
 
 use crate::table::cff::CffFontMatrix;
 
@@ -223,7 +223,7 @@ pub fn stat_glyf(font: &mut Font, options: &Options) {
     let mut xmax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
     let mut ymin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
     let mut ymax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
-    for j in 0..glyph_count(glyf.len()) {
+    for j in 0..count_u16(glyf.len()) {
         let mut gr: ComponentReference = ComponentReference {
             x: std::cell::RefCell::new(VQ {
                 kernel: 0.,
@@ -326,7 +326,7 @@ fn stat_hmtx(font: &mut Font) {
     // Only ever called (from `otfcc_stat_font`) under a `.hhea.is_some()`
     // guard; `.head` is set unconditionally by the pipeline before this
     // point (used below to update `.flags`).
-    let mut count_a: GlyphId = glyph_count(glyf.len());
+    let mut count_a: GlyphId = count_u16(glyf.len());
     let mut count_k: GlyphId = 0 as GlyphId;
     let mut lsb_at_x_0: bool = true;
     if font.subtype != FontSubtype::Cff {
@@ -347,7 +347,7 @@ fn stat_hmtx(font: &mut Font) {
         {
             count_a = count_a.wrapping_sub(1);
         }
-        count_k = glyph_count(glyf.len().wrapping_sub(count_a as usize));
+        count_k = count_u16(glyf.len().wrapping_sub(count_a as usize));
     }
     // Both arrays fill sequentially within the one loop below (`j < count_a`
     // covers `metrics`, the rest covers `left_side_bearing` in order), so a
@@ -414,7 +414,7 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
         return;
     }
     let glyf = font.glyf.as_mut().unwrap();
-    let mut count_a: GlyphId = glyph_count(glyf.len());
+    let mut count_a: GlyphId = count_u16(glyf.len());
     let mut count_k: GlyphId = 0 as GlyphId;
     if !(font.subtype == FontSubtype::Cff && !options.cff_short_vmtx) {
         while count_a as i32 > 2_i32
@@ -434,7 +434,7 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
         {
             count_a = count_a.wrapping_sub(1);
         }
-        count_k = glyph_count(glyf.len().wrapping_sub(count_a as usize));
+        count_k = count_u16(glyf.len().wrapping_sub(count_a as usize));
     }
     // Same "Vec absorbs both sequential halves of the loop" shape as
     // `stat_hmtx`'s `metrics`/`left_side_bearing`.
@@ -1185,7 +1185,7 @@ fn stat_ltsh(font: &mut Font) {
     if !iter_glyphs(glyf).any(|g| g.y_pel > 1) {
         return;
     }
-    let num_glyphs = glyph_count(glyf.len());
+    let num_glyphs = count_u16(glyf.len());
     let y_pels: Vec<u8> = iter_glyphs(glyf).map(|g| g.y_pel).collect();
     font.ltsh = Some(Box::new(LtshTable {
         version: 0,

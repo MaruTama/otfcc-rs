@@ -12,7 +12,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphClass, GlyphId};
+use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
@@ -183,7 +183,7 @@ fn parse_bases(
     h: &std::collections::BTreeMap<Vec<u8>, GlyphClass>,
     options: &Options,
 ) {
-    let class_count: GlyphClass = h.len() as GlyphClass;
+    let class_count: GlyphClass = count_u16(h.len());
     let Some(fields) = bases.and_then(ParsedValue::as_object) else {
         return;
     };
@@ -241,7 +241,7 @@ pub fn otl_gpos_parse_mark_to_single(
     };
     let mut mark_array: MarkArray = Vec::new();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    let class_count = otl_parse_mark_array(Some(marks), &mut mark_array, &mut h)?;
+    let class_count = otl_parse_mark_array(Some(marks), &mut mark_array, &mut h);
     let mut base_array: BaseArray = Vec::new();
     parse_bases(Some(bases), &mut base_array, &h, options);
     Some(Subtable::GposMarkToSingle(GposMarkToSingleSubtable {

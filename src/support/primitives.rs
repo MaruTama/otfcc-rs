@@ -18,16 +18,22 @@ pub type F16Dot16 = i32;
 
 /// Glyph index.
 pub type GlyphId = u16;
-/// The length of a per-glyph collection as a `GlyphId`-sized count.
+/// A collection length as the 16-bit count the font format stores.
 ///
-/// OpenType counts glyphs in 16 bits (`maxp.numGlyphs`), the binary reader
-/// cannot produce more, and `read_json` rejects a `glyf` object past that
-/// limit, so a longer collection means an invariant was broken upstream.
-/// Fail loudly there rather than truncate with `as` and emit a table whose
+/// Every count in an OpenType table is 16 bits, and the two ways a count
+/// reaches the writers keep it there: the JSON reader rejects any collection
+/// past 65,535 members before parsing anything (`support::json_limits`), and
+/// the binary reader only ever produces collections it sized from a 16-bit
+/// field. A longer collection therefore means that invariant broke upstream.
+/// Fail loudly here rather than truncate with `as` and emit a table whose
 /// count disagrees with its contents.
+///
+/// Use it where the length is a count of *that* kind. A length that can be
+/// legitimately larger -- e.g. points in a contour read from a binary font,
+/// which can be 65,536 -- must not go through it.
 #[track_caller]
-pub fn glyph_count(len: usize) -> GlyphId {
-    GlyphId::try_from(len).expect("glyph count exceeds the 16-bit OpenType limit")
+pub fn count_u16(len: usize) -> GlyphId {
+    GlyphId::try_from(len).expect("count exceeds the 16-bit limit of the font format")
 }
 /// Glyph class.
 pub type GlyphClass = u16;
@@ -119,18 +125,18 @@ pub fn otfcc_f1616_divide(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
 }
 
 #[cfg(test)]
-mod glyph_count_tests {
+mod count_u16_tests {
     use super::*;
 
     #[test]
     fn counts_up_to_the_16_bit_limit_convert_exactly() {
-        assert_eq!(glyph_count(0), 0);
-        assert_eq!(glyph_count(usize::from(GlyphId::MAX)), GlyphId::MAX);
+        assert_eq!(count_u16(0), 0);
+        assert_eq!(count_u16(usize::from(GlyphId::MAX)), GlyphId::MAX);
     }
 
     #[test]
-    #[should_panic(expected = "16-bit OpenType limit")]
+    #[should_panic(expected = "16-bit limit")]
     fn one_past_the_limit_panics_instead_of_wrapping_to_zero() {
-        glyph_count(usize::from(GlyphId::MAX) + 1);
+        count_u16(usize::from(GlyphId::MAX) + 1);
     }
 }
