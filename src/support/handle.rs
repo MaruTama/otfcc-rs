@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 use crate::support::primitives::GlyphId;
+use ::core::marker::PhantomData;
 
 /// Which of `Handle`'s fields is meaningful.
 ///
@@ -29,33 +30,67 @@ pub enum HandleState {
 /// correctly on its own -- the manual `Clone`/`Drop` impls this struct
 /// used to need (wrapping `sdsdup`/`sdsfree`) are gone; `Vec<u8>` already
 /// has both.
-#[derive(Clone, Debug)]
-pub struct Handle {
+pub struct Handle<K = GlyphKind> {
     pub state: HandleState,
     pub index: GlyphId,
     pub name: Vec<u8>,
+    kind: PhantomData<K>,
 }
-pub type GlyphHandle = Handle;
-pub type LookupHandle = Handle;
-impl Default for Handle {
+/// What a `Handle` refers to. Glyph, lookup and CFF font-dict handles share
+/// one representation (state + index + name) but index different tables, so
+/// the kind is part of the type: a lookup handle cannot be compared with, or
+/// assigned to, a glyph handle. `Handle` without a parameter is a glyph handle.
+#[derive(Copy, Clone, Debug)]
+pub enum GlyphKind {}
+#[derive(Copy, Clone, Debug)]
+pub enum LookupKind {}
+#[derive(Copy, Clone, Debug)]
+pub enum FdKind {}
+// Manual impls: deriving would bound `K: Clone + Debug`, which the marker
+// types satisfy but which says nothing about what a handle needs.
+impl<K> Clone for Handle<K> {
+    fn clone(&self) -> Self {
+        Handle {
+            state: self.state,
+            index: self.index,
+            name: self.name.clone(),
+            kind: PhantomData,
+        }
+    }
+}
+impl<K> ::core::fmt::Debug for Handle<K> {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Handle")
+            .field("state", &self.state)
+            .field("index", &self.index)
+            .field("name", &self.name)
+            .finish()
+    }
+}
+impl<K> Handle<K> {
+    pub fn new(state: HandleState, index: GlyphId, name: Vec<u8>) -> Self {
+        Handle { state, index, name, kind: PhantomData }
+    }
+}
+pub type GlyphHandle = Handle<GlyphKind>;
+pub type LookupHandle = Handle<LookupKind>;
+pub type FdHandle = Handle<FdKind>;
+impl<K> Default for Handle<K> {
     fn default() -> Self {
         Handle {
             state: HandleState::Empty,
             index: 0,
             name: Vec::new(),
+            kind: PhantomData,
         }
     }
 }
 #[inline]
-pub(crate) fn otfcc_handle_empty() -> Handle {
+pub(crate) fn otfcc_handle_empty<K>() -> Handle<K> {
     Handle::default()
 }
-pub(crate) fn handle_from_index(id: GlyphId) -> Handle {
-    let h: Handle = Handle {
-        state: HandleState::Index,
-        index: id,
-        name: Vec::new(),
-    };
+pub(crate) fn handle_from_index<K>(id: GlyphId) -> Handle<K> {
+    let h = Handle::new(HandleState::Index, id, Vec::new());
     return h;
 }
 /// NUL-truncating comparison for two `Vec<u8>`-shaped names (e.g. comparing
@@ -81,19 +116,14 @@ pub(crate) fn handle_name_eq_bytes(a: &[u8], b: &[u8]) -> bool {
 // present name is a different state from no name at all, and collapsing
 // the two by testing `v.is_empty()` instead would be an observable (if
 // exotic -- an empty-string glyph name) behavior change.
-pub(crate) fn handle_from_name(s: Option<Vec<u8>>) -> Handle {
-    let mut h: Handle = Handle {
-        state: HandleState::Empty,
-        index: 0 as GlyphId,
-        name: Vec::new(),
-    };
+pub(crate) fn handle_from_name<K>(s: Option<Vec<u8>>) -> Handle<K> {
+    let mut h = Handle::new(HandleState::Empty, 0, Vec::new());
     if let Some(name) = s {
         h.state = HandleState::Name;
         h.name = name;
     }
     return h;
 }
-pub type FdHandle = Handle;
 
 #[cfg(test)]
 mod tests {
@@ -121,7 +151,7 @@ mod tests {
 
     #[test]
     fn a_fresh_handle_is_empty() {
-        let h = otfcc_handle_empty();
+        let h: GlyphHandle = otfcc_handle_empty();
         assert_eq!(h.state, HandleState::Empty);
         assert_eq!(h.index, 0);
         assert!(h.name.is_empty());
@@ -129,7 +159,7 @@ mod tests {
 
     #[test]
     fn from_index_records_the_index_and_no_name() {
-        let h = handle_from_index(42);
+        let h: GlyphHandle = handle_from_index(42);
         assert_eq!(h.state, HandleState::Index);
         assert_eq!(h.index, 42);
         assert!(h.name.is_empty());

@@ -66,11 +66,7 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
     dispose_gsub_multi_subtable(subtable);
     for (fromid, (fromname, to)) in seen {
         subtable.push(GsubMultiEntry {
-            from: Handle {
-                state: HandleState::Consolidated,
-                index: fromid as GlyphId,
-                name: fromname,
-            } as GlyphHandle,
+            from: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,
             to,
         });
     }

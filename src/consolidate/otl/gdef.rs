@@ -88,11 +88,7 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
         clear_lig_carets(&mut gdef.lig_carets);
         for (gid, (gname, carets)) in seen {
             gdef.lig_carets.push(CaretValueRecord {
-                glyph: Handle {
-                    state: HandleState::Consolidated,
-                    index: gid as GlyphId,
-                    name: gname,
-                } as GlyphHandle,
+                glyph: Handle::new(HandleState::Consolidated, gid as GlyphId, gname) as GlyphHandle,
                 carets,
             });
         }

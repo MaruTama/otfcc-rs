@@ -220,11 +220,7 @@ fn parse_bases(
     for (key, base_record) in fields {
         let gname = &key[..key.len() - 1];
         let mut lig: LigatureBaseRecord = LigatureBaseRecord {
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: Vec::new(),
-            },
+            glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
             component_count: 0,
             anchors: Vec::new(),
         };

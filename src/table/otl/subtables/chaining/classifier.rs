@@ -175,11 +175,7 @@ fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> Box<Cla
     for (&gid, v) in h.iter() {
         push_class_def(
             &mut cd,
-            Handle {
-                state: HandleState::Consolidated,
-                index: gid,
-                name: v.gname.clone(),
-            } as GlyphHandle,
+            Handle::new(HandleState::Consolidated, gid, v.gname.clone()) as GlyphHandle,
             v.cls as GlyphClass,
         );
     }
