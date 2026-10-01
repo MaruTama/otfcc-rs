@@ -128,9 +128,9 @@ pub fn otl_parse_mark_array(
     marks: Option<&ParsedValue>,
     array: &mut MarkArray,
     h: &mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
-) {
+) -> Option<GlyphClass> {
     let Some(fields) = marks.and_then(ParsedValue::as_object) else {
-        return;
+        return Some(0);
     };
     for (key, anchor_record) in fields {
         let mut mark: MarkRecord = MarkRecord {
@@ -176,6 +176,10 @@ pub fn otl_parse_mark_array(
     // `strcmp` exactly on NUL-free byte sequences), so no separate sort
     // step is needed here -- just walk the already-sorted map and
     // replace each placeholder id with its final, alphabetical-rank one.
+    // Class ids and the class count are 16-bit; more distinct classes than
+    // that would wrap the ids (aliasing classes) and the count (which the
+    // base/ligature parsers index by), so refuse the subtable instead.
+    let class_count = GlyphClass::try_from(h.len()).ok()?;
     for (rank, id) in h.values_mut().enumerate() {
         *id = rank as GlyphClass;
     }
@@ -202,6 +206,7 @@ pub fn otl_parse_mark_array(
             };
         }
     }
+    Some(class_count)
 }
 pub fn otl_anchor_absent() -> Anchor {
     let anchor: Anchor = Anchor {

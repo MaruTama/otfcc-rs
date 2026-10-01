@@ -303,8 +303,7 @@ pub fn otl_gpos_parse_mark_to_ligature(
     };
     let mut mark_array: MarkArray = Vec::new();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(Some(marks), &mut mark_array, &mut h);
-    let class_count = h.len() as GlyphClass;
+    let class_count = otl_parse_mark_array(Some(marks), &mut mark_array, &mut h)?;
     let mut lig_array: LigatureArray = Vec::new();
     parse_bases(Some(bases), &mut lig_array, &h, options);
     Some(Subtable::GposMarkToLigature(GposMarkToLigatureSubtable {
@@ -599,5 +598,27 @@ mod otl_parse_gpos_mark_to_ligature_tests {
     fn a_ligature_with_more_components_than_fit_in_16_bits_is_dropped_not_truncated() {
         assert_eq!(ligature_counts(parse_with_components(usize::from(GlyphId::MAX))), [65535]);
         assert!(ligature_counts(parse_with_components(usize::from(GlyphId::MAX) + 1)).is_empty());
+    }
+
+    /// `{"marks":{"g0":{"class":"c0",..},..},"bases":{"A":[{}]}}` with `classes`
+    /// distinct mark classes.
+    fn parse_with_mark_classes(classes: usize) -> Option<Subtable> {
+        let mut json = String::from(r#"{"marks":{"#);
+        for i in 0..classes {
+            if i != 0 {
+                json.push(',');
+            }
+            json.push_str(&format!(r#""g{i}":{{"class":"c{i}","x":0,"y":0}}"#));
+        }
+        json.push_str(r#"},"bases":{"A":[{"c0":{"x":0,"y":0}}]}}"#);
+        let root = parse_json(json.as_bytes()).expect("test JSON parses");
+        otl_gpos_parse_mark_to_ligature(Some(&root), &Options::default())
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "needs a genuine 65,536-entry marks object")]
+    fn more_mark_classes_than_fit_in_16_bits_is_rejected_not_wrapped() {
+        assert!(parse_with_mark_classes(usize::from(GlyphClass::MAX)).is_some());
+        assert!(parse_with_mark_classes(usize::from(GlyphClass::MAX) + 1).is_none());
     }
 }

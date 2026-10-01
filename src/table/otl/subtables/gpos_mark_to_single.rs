@@ -241,8 +241,7 @@ pub fn otl_gpos_parse_mark_to_single(
     };
     let mut mark_array: MarkArray = Vec::new();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(Some(marks), &mut mark_array, &mut h);
-    let class_count = h.len() as GlyphClass;
+    let class_count = otl_parse_mark_array(Some(marks), &mut mark_array, &mut h)?;
     let mut base_array: BaseArray = Vec::new();
     parse_bases(Some(bases), &mut base_array, &h, options);
     Some(Subtable::GposMarkToSingle(GposMarkToSingleSubtable {
