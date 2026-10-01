@@ -1427,13 +1427,26 @@ mod reference_count_tests {
     use crate::support::parsed_json::parse_json;
 
     /// A font whose glyph `a` is a composite of `count` references to `b`.
+    ///
+    /// `read_json` rejects a collection past 65,535 members, so the extra
+    /// references are added after reading: the consolidation loops must
+    /// terminate on their own, not only because the JSON reader keeps such a
+    /// glyph out.
     fn font_with_reference_count(count: usize) -> Box<Font> {
-        let refs = vec![r#"{"glyph":"b","x":0,"y":0}"#; count].join(",");
-        let json = format!(
-            r#"{{"glyf":{{"a":{{"advanceWidth":1,"references":[{refs}]}},"b":{{"advanceWidth":1}}}}}}"#
-        );
+        let json = r#"{"glyf":{"a":{"advanceWidth":1,"references":[{"glyph":"b","x":0,"y":0}]},"b":{"advanceWidth":1}}}"#;
         let mut root = parse_json(json.as_bytes()).expect("test JSON parses");
-        read_json(&mut root, &Options::default()).expect("font reads")
+        let mut font = read_json(&mut root, &Options::default()).expect("font reads");
+        let a = font
+            .glyf
+            .as_mut()
+            .expect("glyf")
+            .iter_mut()
+            .flatten()
+            .find(|g| g.name == b"a")
+            .expect("glyph a");
+        let first = a.references[0].clone();
+        a.references.resize(count, first);
+        font
     }
 
     // `consolidate_glyf` used to walk a glyph's references with a `u16`
@@ -1441,7 +1454,7 @@ mod reference_count_tests {
     // made it spin forever (and 65,535 did not). If this regresses it hangs
     // instead of failing, like the glyph-count limit test.
     #[test]
-    #[cfg_attr(miri, ignore = "needs a genuine 65,536-element array")]
+    #[cfg_attr(miri, ignore = "needs a genuine 65,536-element list")]
     fn a_glyph_with_65536_references_consolidates_instead_of_hanging() {
         for count in [65_535, 65_536] {
             let mut font = font_with_reference_count(count);
@@ -1456,3 +1469,4 @@ mod reference_count_tests {
         }
     }
 }
+
