@@ -362,3 +362,43 @@ mod glyph_count_limit_tests {
         assert!(read_json(&mut root, &Options::default()).is_some());
     }
 }
+
+#[cfg(test)]
+mod layout_collection_limit_tests {
+    use super::*;
+    use crate::support::parsed_json::parse_json;
+
+    fn read(json: &str) -> Option<Box<Font>> {
+        let mut root = parse_json(json.as_bytes()).expect("test JSON parses");
+        read_json(&mut root, &Options::default())
+    }
+
+    // Two layout-table shapes that used to get past `read_json` and fail
+    // later: a ligature with 65,536 components truncated its 16-bit count while
+    // keeping every anchor, and 65,536 distinct mark classes wrapped the class
+    // count to 0 and panicked indexing by class id. Both are now stopped by the
+    // one shape rule in `support::json_limits`, before any table parser runs.
+    #[test]
+    #[cfg_attr(miri, ignore = "needs a genuine 65,536-element array")]
+    fn a_mark_to_ligature_with_65536_components_is_rejected() {
+        let components = vec!["{}"; MAX_ENTRIES + 1].join(",");
+        let json = format!(
+            r#"{{"GPOS":{{"lookups":{{"l":{{"type":"gpos_mark_to_ligature","subtables":[{{"marks":{{}},"bases":{{"A":[{components}]}}}}]}}}}}}}}"#
+        );
+        assert!(read(&json).is_none());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "needs a genuine 65,536-entry marks object")]
+    fn a_mark_subtable_with_65536_mark_classes_is_rejected() {
+        let marks: Vec<String> = (0..=MAX_ENTRIES)
+            .map(|i| format!(r#""g{i}":{{"class":"c{i}","x":0,"y":0}}"#))
+            .collect();
+        let json = format!(
+            r#"{{"GPOS":{{"lookups":{{"l":{{"type":"gpos_mark_to_base","subtables":[{{"marks":{{{}}},"bases":{{}}}}]}}}}}}}}"#,
+            marks.join(",")
+        );
+        assert!(read(&json).is_none());
+    }
+}
+

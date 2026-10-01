@@ -2,7 +2,7 @@ pub mod stat;
 
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, glyph_count};
+use crate::support::primitives::{GlyphId, count_u16};
 
 use crate::font::caryll_font::{Font, FontSubtype};
 use crate::font::caryll_sfnt_builder::SfntBuilder;
@@ -252,7 +252,7 @@ pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         otfcc_sfnt_builder_push_table(
             &mut builder,
             crate::tag::TAG_TSI5,
-            otfcc_build_tsi5(font.tsi5.as_deref(), glyph_count(glyf.len())),
+            otfcc_build_tsi5(font.tsi5.as_deref(), count_u16(glyf.len())),
         );
     }
     if options.dummy_dsig {

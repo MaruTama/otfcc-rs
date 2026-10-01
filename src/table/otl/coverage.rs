@@ -4,7 +4,7 @@ use crate::support::parsed_json::ParsedValue;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
-use crate::support::primitives::{GlyphId, glyph_count};
+use crate::support::primitives::{GlyphId, count_u16};
 /// A glyph coverage set: C by way of c2rust had this as a hand-rolled
 /// `malloc`/`realloc` array (`num_glyphs`/`capacity`/`glyphs: *mut
 /// GlyphHandle`); it was never anything but a growable array of
@@ -236,7 +236,7 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     // return points instead of needing a matching `free` at each.
     let mut r: Vec<GlyphId> = coverage.iter().map(|h| h.index).collect();
     r.sort_by_key(|&gid| gid);
-    let jj: GlyphId = glyph_count(r.len());
+    let jj: GlyphId = count_u16(r.len());
     let mut format1 = Buffer::new();
     format1.write_u16be(1_u16);
     format1.write_u16be(jj as u16);

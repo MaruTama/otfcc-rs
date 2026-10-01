@@ -5,7 +5,7 @@ use crate::table::otl::coverage::Coverage;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
-use crate::support::primitives::{GlyphClass, GlyphId, glyph_count};
+use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 /// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel
 /// arrays (grown, pushed to, and truncated only ever together -- confirmed
 /// by survey before this conversion), now `Vec<GlyphHandle>`/
@@ -160,7 +160,7 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
             });
         }
     }
-    let jj: GlyphId = glyph_count(r.len());
+    let jj: GlyphId = count_u16(r.len());
     if jj == 0 {
         buf.write_u16be(0_u16);
         return buf;

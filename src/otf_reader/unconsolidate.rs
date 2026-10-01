@@ -2,7 +2,7 @@ use crate::font::caryll_font::Font;
 use crate::support::buffer::Buffer;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, Pos, glyph_count};
+use crate::support::primitives::{GlyphId, Pos, count_u16};
 use crate::support::fmt::{Hex2Upper, Hex4Upper, SdsPart};
 
 use crate::table::glyf::{GlyfTable, Glyph, PostscriptHintMask};
@@ -153,7 +153,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
     };
     // Only ever called (from `otfcc_unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
-    let num_glyphs: GlyphId = glyph_count(font.glyf.as_ref().unwrap().len());
+    let num_glyphs: GlyphId = count_u16(font.glyf.as_ref().unwrap().len());
     let prefix: Vec<u8> = options.glyph_name_prefix.clone().unwrap_or_default();
     for j in 0..num_glyphs {
         // Each iteration reads glyph `j` fully (`name_glyph_by_hash`/the
@@ -457,7 +457,7 @@ fn merge_vmtx(font: &mut Font) {
 fn merge_ltsh(font: &mut Font) {
     if let Some(glyf) = font.glyf.as_mut()
         && let Some(ltsh) = &font.ltsh {
-            let n = (glyph_count(glyf.len())).min(ltsh.num_glyphs) as usize;
+            let n = (count_u16(glyf.len())).min(ltsh.num_glyphs) as usize;
             for (slot, &y_pel) in glyf.iter_mut().zip(&ltsh.y_pels[..n]) {
                 slot.as_mut().unwrap().y_pel = y_pel;
             }
