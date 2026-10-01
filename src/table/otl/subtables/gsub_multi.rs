@@ -9,7 +9,7 @@ use crate::support::font_reader::FontReader;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::GlyphId;
+use crate::support::primitives::{GlyphId, glyph_count};
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
@@ -111,7 +111,7 @@ pub fn otl_gsub_dump_multi(_subtable: &Subtable) -> BuiltValue {
         unreachable!()
     };
     let mut st = BuiltValue::new_object(subtable.len());
-    for j in 0..subtable.len() as GlyphId {
+    for j in 0..glyph_count(subtable.len()) {
         let entry = &subtable[j as usize];
         st.push_field_bytes_key(&entry.from.name, dump_coverage(&entry.to));
     }

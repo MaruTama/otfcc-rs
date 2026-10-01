@@ -236,7 +236,25 @@ fn parse_bases(
                 lig_array.push(lig);
             }
             Some(components) => {
-                lig.component_count = components.len() as GlyphId;
+                let Ok(component_count) = GlyphId::try_from(components.len()) else {
+                    // The count is a 16-bit field in the font; truncating it
+                    // would emit a ligature whose count disagrees with its
+                    // anchors.
+                    logger_log_sds(
+                        &mut options.logger.borrow_mut(),
+                        LOG_VL_IMPORTANT,
+                        LoggerType::Warning,
+                        crate::bytesbuild!(
+                            b"[OTFCC-fea] Too many components (",
+                            components.len() as i32,
+                            b") for /",
+                            gname,
+                            b". This ligature is ignored.\n",
+                        ),
+                    );
+                    continue;
+                };
+                lig.component_count = component_count;
                 lig.anchors = Vec::with_capacity(lig.component_count as usize);
                 for (k, component_record) in components.iter().enumerate() {
                     // Indexed by `class_id` below, out of JSON key order --
@@ -553,5 +571,37 @@ mod otl_read_gpos_mark_to_ligature_tests {
             .sum();
         assert!(total_anchors <= MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE as u64);
         reset_mark_attach_anchor_budget();
+    }
+}
+
+#[cfg(test)]
+mod otl_parse_gpos_mark_to_ligature_tests {
+    use super::*;
+    use crate::support::parsed_json::parse_json;
+
+    /// A mark-to-ligature subtable whose single ligature `A` has `components`
+    /// empty components.
+    fn parse_with_components(components: usize) -> Option<Subtable> {
+        let mut json = String::from(r#"{"marks":{"m":{"class":"c","x":0,"y":0}},"bases":{"A":["#);
+        json.push_str(&vec!["{}"; components].join(","));
+        json.push_str("]}}");
+        let root = parse_json(json.as_bytes()).expect("test JSON parses");
+        otl_gpos_parse_mark_to_ligature(Some(&root), &Options::default())
+    }
+
+    fn ligature_counts(subtable: Option<Subtable>) -> Vec<usize> {
+        match &subtable {
+            Some(Subtable::GposMarkToLigature(s)) => {
+                s.lig_array.iter().map(|l| l.component_count as usize).collect()
+            }
+            _ => panic!("expected a mark-to-ligature subtable"),
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "needs a genuine 65,536-element array")]
+    fn a_ligature_with_more_components_than_fit_in_16_bits_is_dropped_not_truncated() {
+        assert_eq!(ligature_counts(parse_with_components(usize::from(GlyphId::MAX))), [65535]);
+        assert!(ligature_counts(parse_with_components(usize::from(GlyphId::MAX) + 1)).is_empty());
     }
 }

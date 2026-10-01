@@ -2,7 +2,7 @@
 pub mod unconsolidate;
 
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, ShapeId};
+use crate::support::primitives::{GlyphId, ShapeId, glyph_count};
 
 use crate::font::caryll_font::{Font, FontSubtype};
 use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
@@ -157,7 +157,7 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
             }
         }
         if let Some(glyf) = font.glyf.as_ref() {
-            let num_glyphs = glyf.len() as GlyphId;
+            let num_glyphs = glyph_count(glyf.len());
             font.gsub = otfcc_read_otl(packet, options, crate::tag::TAG_GSUB, num_glyphs);
             font.gpos = otfcc_read_otl(packet, options, crate::tag::TAG_GPOS, num_glyphs);
             font.gdef = otfcc_read_gdef(packet);
