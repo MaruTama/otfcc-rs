@@ -549,8 +549,13 @@ pub fn otfcc_build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder
         }
         for &idx in glyphorder.by_gid.values() {
             let entry = &glyphorder.entries[idx];
-            buf.write_u8(entry.name.len() as u8);
-            buf.write_bytes(&entry.name);
+            // A Pascal string: one length byte, so at most 255 bytes. Cut the
+            // name itself rather than only the length, or the length byte
+            // wraps while every byte is still written and every following
+            // name is read from the wrong offset.
+            let name = &entry.name[..entry.name.len().min(usize::from(u8::MAX))];
+            buf.write_u8(name.len() as u8);
+            buf.write_bytes(name);
         }
     }
     Some(buf)
@@ -663,5 +668,56 @@ mod parse_post_tests {
         let mut data = header(0x00020000, 0, 0);
         data.extend_from_slice(&0xFFFFu16.to_be_bytes());
         assert!(parse_post(&data).is_err());
+    }
+}
+
+#[cfg(test)]
+mod build_post_tests {
+    use super::*;
+    use crate::support::glyph_order::otfcc_set_glyph_order_by_gid;
+
+    fn post_v2() -> PostTable {
+        PostTable {
+            version: 0x20000 as F16Dot16,
+            italic_angle: 0,
+            underline_position: 0,
+            underline_thickness: 0,
+            is_fixed_pitch: 0,
+            min_mem_type42: 0,
+            max_mem_type42: 0,
+            min_mem_type1: 0,
+            max_mem_type1: 0,
+            post_name_map: None,
+        }
+    }
+
+    fn glyph_order(names: &[Vec<u8>]) -> GlyphOrder {
+        let mut go = GlyphOrder {
+            entries: Vec::new(),
+            by_gid: std::collections::BTreeMap::new(),
+            by_name: std::collections::HashMap::new(),
+        };
+        for (gid, name) in names.iter().enumerate() {
+            otfcc_set_glyph_order_by_gid(&mut go, gid as u16, name.clone());
+        }
+        go
+    }
+
+    // Names are Pascal strings in a version-2.0 `post` table. A name longer
+    // than 255 bytes used to write a wrapped length byte followed by *all*
+    // of its bytes, so every later name was read from the wrong offset.
+    #[test]
+    fn a_glyph_name_longer_than_255_bytes_does_not_misalign_the_names_after_it() {
+        let long = vec![b'a'; 300];
+        let go = glyph_order(&[long, b"b".to_vec()]);
+        let buf = otfcc_build_post(Some(&post_v2()), Some(&go)).unwrap();
+        let data = &buf.data;
+        // 32-byte header, u16 count, two u16 name indices, then the names.
+        let names = &data[32 + 2 + 2 * 2..];
+        assert_eq!(names[0], 255);
+        assert_eq!(&names[1..256], &vec![b'a'; 255][..]);
+        assert_eq!(names[256], 1);
+        assert_eq!(names[257], b'b');
+        assert_eq!(names.len(), 258);
     }
 }

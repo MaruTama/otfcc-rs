@@ -20,7 +20,7 @@ use crate::table::colr::{ColrMapping, ColrTable};
 use crate::table::_tsi::{TsiEntry, TsiEntryType, TsiTable};
 
 use crate::table::glyf::{
-    ComponentReference, GlyfTable, Glyph, Point, PostscriptHintMask, PostscriptStemDef,
+    ComponentReference, GlyfTable, Glyph, PostscriptHintMask, PostscriptStemDef,
     RefAnchorStatus,
 };
 
@@ -290,39 +290,33 @@ pub fn get_point_coordinates(
     }
     let j: GlyphId = gr.glyph.index;
     let g: &Glyph = table[j as usize].as_deref().unwrap();
-    let mut c: ShapeId = 0 as ShapeId;
-    while (c as usize) < g.contours.len() {
-        let mut pj: ShapeId = 0 as ShapeId;
-        while (pj as usize) < g.contours[c as usize].len() {
-            if search.stated as i32 == n as i32 {
-                let p: &Point = &g.contours[c as usize][pj as usize];
-                search.x = vq_point_linear_tfm(
-                    gr.x.borrow().clone(),
-                    gr.a as Pos,
-                    p.x.clone(),
-                    gr.b as Pos,
-                    p.y.clone(),
-                );
-                search.y = vq_point_linear_tfm(
-                    gr.y.borrow().clone(),
-                    gr.c as Pos,
-                    p.x.clone(),
-                    gr.d as Pos,
-                    p.y.clone(),
-                );
-                return true;
-            }
-            search.stated = (search.stated as i32 + 1_i32) as ShapeId;
-            pj = pj.wrapping_add(1);
+    // Plain iteration, not `u16` index counters: a contour or reference list
+    // is not bounded to 16 bits here, and a counter that wraps at 65,536 can
+    // never reach a length of 65,536 (the same shape as the `glyf` hang).
+    for p in g.contours.iter().flatten() {
+        if search.stated as i32 == n as i32 {
+            search.x = vq_point_linear_tfm(
+                gr.x.borrow().clone(),
+                gr.a as Pos,
+                p.x.clone(),
+                gr.b as Pos,
+                p.y.clone(),
+            );
+            search.y = vq_point_linear_tfm(
+                gr.y.borrow().clone(),
+                gr.c as Pos,
+                p.x.clone(),
+                gr.d as Pos,
+                p.y.clone(),
+            );
+            return true;
         }
-        c = c.wrapping_add(1);
+        search.stated = (search.stated as i32 + 1_i32) as ShapeId;
     }
-    let mut r: ShapeId = 0 as ShapeId;
-    while (r as usize) < g.references.len() {
-        let rr: &ComponentReference = &g.references[r as usize];
+    for rr in &g.references {
         consolidate_anchor_ref(table, gr, rr, options, depth + 1);
         let mut ref_0: ComponentReference = (glyf_component_reference_empty)();
-        ref_0.glyph = handle_from_index(g.references[r as usize].glyph.index) as GlyphHandle;
+        ref_0.glyph = handle_from_index(rr.glyph.index) as GlyphHandle;
         ref_0.a = gr.a * rr.a + rr.b * gr.c;
         ref_0.b = rr.a * gr.b + rr.b * gr.d;
         ref_0.c = gr.a * rr.c + gr.c * rr.d;
@@ -348,7 +342,6 @@ pub fn get_point_coordinates(
         if success {
             return true;
         }
-        r = r.wrapping_add(1);
     }
     return false;
 }
@@ -520,11 +513,8 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
         logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(&g.name));
         let mut gr: ComponentReference = (glyf_component_reference_empty)();
         gr.glyph = handle_from_index(j_0) as GlyphHandle;
-        let mut r: ShapeId = 0 as ShapeId;
-        while (r as usize) < g.references.len() {
-            let rr: &ComponentReference = &g.references[r as usize];
+        for rr in &g.references {
             consolidate_anchor_ref(table, &gr, rr, options, 0);
-            r = r.wrapping_add(1);
         }
         // `gr` is a plain owned local; every field auto-drops when it
         // goes out of scope at the end of this iteration, so no
@@ -1426,6 +1416,43 @@ mod composite_reference_cycle_tests {
             let resolved = consolidate_anchor_ref(&table, &gr, &rr, &options, 0);
             assert!(!resolved);
             assert_eq!(rr.is_anchored.get(), RefAnchorStatus::AnchorConsolidated);
+        }
+    }
+}
+
+#[cfg(test)]
+mod reference_count_tests {
+    use super::*;
+    use crate::json_reader::read_json;
+    use crate::support::parsed_json::parse_json;
+
+    /// A font whose glyph `a` is a composite of `count` references to `b`.
+    fn font_with_reference_count(count: usize) -> Box<Font> {
+        let refs = vec![r#"{"glyph":"b","x":0,"y":0}"#; count].join(",");
+        let json = format!(
+            r#"{{"glyf":{{"a":{{"advanceWidth":1,"references":[{refs}]}},"b":{{"advanceWidth":1}}}}}}"#
+        );
+        let mut root = parse_json(json.as_bytes()).expect("test JSON parses");
+        read_json(&mut root, &Options::default()).expect("font reads")
+    }
+
+    // `consolidate_glyf` used to walk a glyph's references with a `u16`
+    // counter, which can never reach a length of 65,536: 65,536 references
+    // made it spin forever (and 65,535 did not). If this regresses it hangs
+    // instead of failing, like the glyph-count limit test.
+    #[test]
+    #[cfg_attr(miri, ignore = "needs a genuine 65,536-element array")]
+    fn a_glyph_with_65536_references_consolidates_instead_of_hanging() {
+        for count in [65_535, 65_536] {
+            let mut font = font_with_reference_count(count);
+            consolidate_glyf(&mut font, &Options::default());
+            let glyf = font.glyf.as_ref().expect("glyf survives");
+            let a = glyf
+                .iter()
+                .flatten()
+                .find(|g| g.name == b"a")
+                .expect("glyph a survives");
+            assert_eq!(a.references.len(), count);
         }
     }
 }
