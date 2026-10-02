@@ -35,6 +35,25 @@ struct Subroutines<'a> {
     lsubr_bias: u16,
 }
 
+/// Operand access for the operators below. `index` is the number of
+/// operands pushed; every caller checks it covers the slots it reads.
+impl CffStack {
+    /// The operand at `i`, counting from the bottom of the stack.
+    fn num(&self, i: Arity) -> f64 {
+        cffnum(self.stack[i as usize])
+    }
+
+    /// The operand `n` places from the top: `top(1)` was pushed last.
+    fn top(&self, n: Arity) -> f64 {
+        cffnum(self.stack[(self.index - n) as usize])
+    }
+
+    /// Pops every operand (path and hint operators consume the whole stack).
+    fn clear(&mut self) {
+        self.index = 0;
+    }
+}
+
 // `methods: CffIOutlineBuilder` parameter dropped: this was called from
 // exactly one call site (`table/cff.rs`), always passing the single static
 // `DRAW_PASS` -- degenerate polymorphism like every other collapsed
@@ -300,93 +319,50 @@ fn op_hint_mask(stack: &mut CffStack, outline: &mut OutlineBuilderContext, op: i
 }
 
 fn op_vmoveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 1 as Arity {
+    if stack.index < 1 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_vmoveto"), OP_VMOVETO.0 as u32);
     } else {
-        if stack.index > 1 as Arity {
-            callback_draw_setwidth(
-                outline,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-                ),
-            );
+        if stack.index > 1 {
+            callback_draw_setwidth(outline, stack.top(2));
         }
         callback_draw_next_contour(outline);
-        callback_draw_lineto(
-            outline,
-            0.0f64,
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-            ),
-        );
-        stack.index = 0 as Arity;
+        callback_draw_lineto(outline, 0.0, stack.top(1));
+        stack.clear();
     }
     Flow::Continue
 }
 
 fn op_rmoveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 2 as Arity {
+    if stack.index < 2 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_rmoveto"), OP_RMOVETO.0 as u32);
     } else {
-        if stack.index > 2 as Arity {
-            callback_draw_setwidth(
-                outline,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(3 as Arity) as isize) as usize],
-                ),
-            );
+        if stack.index > 2 {
+            callback_draw_setwidth(outline, stack.top(3));
         }
         callback_draw_next_contour(outline);
-        callback_draw_lineto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-            ),
-        );
-        stack.index = 0 as Arity;
+        callback_draw_lineto(outline, stack.top(2), stack.top(1));
+        stack.clear();
     }
     Flow::Continue
 }
 
 fn op_hmoveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 1 as Arity {
+    if stack.index < 1 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hmoveto"), OP_HMOVETO.0 as u32);
     } else {
-        if stack.index > 1 as Arity {
-            callback_draw_setwidth(
-                outline,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-                ),
-            );
+        if stack.index > 1 {
+            callback_draw_setwidth(outline, stack.top(2));
         }
         callback_draw_next_contour(outline);
-        callback_draw_lineto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-            ),
-            0.0f64,
-        );
-        stack.index = 0 as Arity;
+        callback_draw_lineto(outline, stack.top(1), 0.0);
+        stack.clear();
     }
     Flow::Continue
 }
 
 fn op_endchar(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index > 0 as Arity {
-        callback_draw_setwidth(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-            ),
-        );
+    if stack.index > 0 {
+        callback_draw_setwidth(outline, stack.top(1));
     }
     Flow::Continue
 }
@@ -400,790 +376,255 @@ fn complete_groups_end(index: Arity, group: Arity) -> Arity {
     index - index % group
 }
 
+/// `{dxa dya}+ rlineto`
 fn op_rlineto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     for i in (0..complete_groups_end(stack.index, 2)).step_by(2) {
-        callback_draw_lineto(
-            outline,
-            cffnum((&mut stack.stack)[(i as isize) as usize]),
-            cffnum(
-                (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-            ),
-        );
+        callback_draw_lineto(outline, stack.num(i), stack.num(i + 1));
     }
-    stack.index = 0 as Arity;
+    stack.clear();
     Flow::Continue
 }
 
+/// Alternating vertical and horizontal lines, the first one vertical
+/// (`vlineto`) or horizontal (`hlineto`): one operand per line.
+fn alternating_lines(stack: &mut CffStack, outline: &mut OutlineBuilderContext, first_vertical: bool) {
+    let line = |outline: &mut OutlineBuilderContext, d: f64, vertical: bool| {
+        if vertical {
+            callback_draw_lineto(outline, 0.0, d);
+        } else {
+            callback_draw_lineto(outline, d, 0.0);
+        }
+    };
+    // An odd count starts with a lone line; the rest come in pairs.
+    let mut vertical = first_vertical;
+    let mut start = 0;
+    if stack.index % 2 == 1 {
+        line(outline, stack.num(0), vertical);
+        vertical = !vertical;
+        start = 1;
+    }
+    for i in (start..stack.index).step_by(2) {
+        line(outline, stack.num(i), vertical);
+        line(outline, stack.num(i + 1), !vertical);
+    }
+    stack.clear();
+}
+
+/// `dy1 {dxa dyb}* vlineto` or `{dya dxb}+ vlineto`
 fn op_vlineto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index.wrapping_rem(2 as Arity) == 1 as Arity {
-        callback_draw_lineto(
-            outline,
-            0.0f64,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-        );
-        for i in (1..stack.index).step_by(2) {
-            callback_draw_lineto(
-                outline,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-                0.0f64,
-            );
-            callback_draw_lineto(
-                outline,
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-            );
-        }
-    } else {
-        for i in (0..stack.index).step_by(2) {
-            callback_draw_lineto(
-                outline,
-                0.0f64,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-            );
-            callback_draw_lineto(
-                outline,
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-                0.0f64,
-            );
-        }
-    }
-    stack.index = 0 as Arity;
+    alternating_lines(stack, outline, true);
     Flow::Continue
 }
 
+/// `dx1 {dya dxb}* hlineto` or `{dxa dyb}+ hlineto`
 fn op_hlineto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index.wrapping_rem(2 as Arity) == 1 as Arity {
-        callback_draw_lineto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-            0.0f64,
-        );
-        for i in (1..stack.index).step_by(2) {
-            callback_draw_lineto(
-                outline,
-                0.0f64,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-            );
-            callback_draw_lineto(
-                outline,
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-                0.0f64,
-            );
-        }
-    } else {
-        for i in (0..stack.index).step_by(2) {
-            callback_draw_lineto(
-                outline,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-                0.0f64,
-            );
-            callback_draw_lineto(
-                outline,
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-            );
-        }
-    }
-    stack.index = 0 as Arity;
+    alternating_lines(stack, outline, false);
     Flow::Continue
 }
 
+/// Draws the curve whose six operands start at `i`.
+fn curve_at(stack: &CffStack, outline: &mut OutlineBuilderContext, i: Arity) {
+    callback_draw_curveto(
+        outline,
+        stack.num(i),
+        stack.num(i + 1),
+        stack.num(i + 2),
+        stack.num(i + 3),
+        stack.num(i + 4),
+        stack.num(i + 5),
+    );
+}
+
+/// `{dxa dya dxb dyb dxc dyc}+ rrcurveto`
 fn op_rrcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     for i in (0..complete_groups_end(stack.index, 6)).step_by(6) {
-        callback_draw_curveto(
-            outline,
-            cffnum((&mut stack.stack)[(i as isize) as usize]),
-            cffnum(
-                (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(i.wrapping_add(4_u32) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(i.wrapping_add(5_u32) as isize) as usize],
-            ),
-        );
+        curve_at(stack, outline, i);
     }
-    stack.index = 0 as Arity;
+    stack.clear();
     Flow::Continue
 }
 
+/// `{dxa dya dxb dyb dxc dyc}+ dxd dyd rcurveline`
 fn op_rcurveline(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 2 as Arity {
+    if stack.index < 2 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for op_rcurveline (24). This operation is ignored.\n");
     } else {
         for i in (0..complete_groups_end(stack.index - 2, 6)).step_by(6) {
-            callback_draw_curveto(
-                outline,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(4_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(5_u32) as isize) as usize],
-                ),
-            );
+            curve_at(stack, outline, i);
         }
-        callback_draw_lineto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-            ),
-        );
+        callback_draw_lineto(outline, stack.top(2), stack.top(1));
     }
-    stack.index = 0 as Arity;
+    stack.clear();
     Flow::Continue
 }
 
+/// `{dxa dya}+ dxb dyb dxc dyc dxd dyd rlinecurve`
 fn op_rlinecurve(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 6 as Arity {
+    if stack.index < 6 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for op_rlinecurve (25). This operation is ignored.\n");
     } else {
-        for i in (0..stack.index.wrapping_sub(6 as Arity)).step_by(2) {
-            callback_draw_lineto(
-                outline,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-            );
+        let curve = stack.index - 6;
+        for i in (0..curve).step_by(2) {
+            callback_draw_lineto(outline, stack.num(i), stack.num(i + 1));
         }
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(6 as Arity) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(5 as Arity) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(4 as Arity) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(3 as Arity) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-            ),
-        );
+        curve_at(stack, outline, curve);
     }
-    stack.index = 0 as Arity;
+    stack.clear();
     Flow::Continue
+}
+
+/// `dx1? {dya dxb dyb dyc}+ vvcurveto` (`vertical`) or
+/// `dy1? {dxa dxb dyb dxc}+ hhcurveto`: curves that start and end in the
+/// same direction, four operands each. An odd leading operand offsets the
+/// first curve's start across that direction.
+fn same_direction_curves(stack: &mut CffStack, outline: &mut OutlineBuilderContext, vertical: bool) {
+    let curve = |outline: &mut OutlineBuilderContext, across: f64, i: Arity| {
+        let (d1, x2, y2, d3) = (stack.num(i), stack.num(i + 1), stack.num(i + 2), stack.num(i + 3));
+        if vertical {
+            callback_draw_curveto(outline, across, d1, x2, y2, 0.0, d3);
+        } else {
+            callback_draw_curveto(outline, d1, across, x2, y2, d3, 0.0);
+        }
+    };
+    let mut start = 0;
+    if stack.index % 4 == 1 {
+        curve(outline, stack.num(0), 1);
+        start = 5;
+    }
+    for i in (start..start + complete_groups_end(stack.index - start, 4)).step_by(4) {
+        curve(outline, 0.0, i);
+    }
+    stack.clear();
 }
 
 fn op_vvcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     // `index == 1` is the leading odd operand with no curve after it:
     // nothing to draw (the curve below reads slots 1..=4).
-    if stack.index == 1 as Arity {
-        stack.index = 0 as Arity;
+    if stack.index == 1 {
+        stack.clear();
         return Flow::Continue;
     }
-    if stack.index.wrapping_rem(4 as Arity) == 1 as Arity {
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(1_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(2_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(3_i32 as isize) as usize],
-            ),
-            0.0f64,
-            cffnum(
-                (&mut stack.stack)[(4_i32 as isize) as usize],
-            ),
-        );
-        for i in (5..stack.index).step_by(4) {
-            callback_draw_curveto(
-                outline,
-                0.0f64,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                ),
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                ),
-            );
-        }
-    } else {
-        for i in (0..complete_groups_end(stack.index, 4)).step_by(4) {
-            callback_draw_curveto(
-                outline,
-                0.0f64,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                ),
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                ),
-            );
-        }
-    }
-    stack.index = 0 as Arity;
+    same_direction_curves(stack, outline, true);
     Flow::Continue
 }
 
 fn op_hhcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     // `index == 1` is the leading odd operand with no curve after it:
     // nothing to draw (the curve below reads slots 1..=4).
-    if stack.index == 1 as Arity {
-        stack.index = 0 as Arity;
+    if stack.index == 1 {
+        stack.clear();
         return Flow::Continue;
     }
-    if stack.index.wrapping_rem(4 as Arity) == 1 as Arity {
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(1_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(2_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(3_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(4_i32 as isize) as usize],
-            ),
-            0.0f64,
-        );
-        for i in (5..stack.index).step_by(4) {
-            callback_draw_curveto(
-                outline,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                ),
-                0.0f64,
-            );
-        }
-    } else {
-        for i in (0..complete_groups_end(stack.index, 4)).step_by(4) {
-            callback_draw_curveto(
-                outline,
-                cffnum((&mut stack.stack)[(i as isize) as usize]),
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                ),
-                0.0f64,
-            );
-        }
-    }
-    stack.index = 0 as Arity;
+    same_direction_curves(stack, outline, false);
     Flow::Continue
 }
 
-fn op_vhcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    let cnt_bezier: u32;
-    // `index % 4 == 1` alone doesn't guarantee enough
-    // operands: the only value satisfying it below 5 is 1
-    // itself, a single lone coordinate with no complete
-    // curve to pair it with. Every read below (the
-    // `index - 5` here and the `% 8 == 1` block's own
-    // `index - 5`/`- 4`/`- 3`) assumes a full curve (4)
-    // plus that odd trailing coordinate (1) are both
-    // actually present, i.e. `index >= 5`.
-    if stack.index.wrapping_rem(4 as Arity) == 1 as Arity
-        && stack.index < 5 as Arity
-    {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for op_vhcurveto (30). This operation is ignored.\n");
-    } else {
-        if stack.index.wrapping_rem(4 as Arity) == 1 as Arity {
-            cnt_bezier = stack
-                .index
-                .wrapping_sub(5 as Arity)
-                .wrapping_div(4 as Arity);
+/// `{dya dxb dyb dxc}+ df?` (`vhcurveto`, first curve starting vertical)
+/// or `{dxa dxb dyb dyc}+ df?` (`hvcurveto`, starting horizontal): curves
+/// that alternate between starting vertical and starting horizontal, four
+/// operands each. An odd trailing operand `df` is the last curve's final
+/// coordinate across its end direction.
+fn alternating_curves(stack: &mut CffStack, outline: &mut OutlineBuilderContext, first_vertical: bool) {
+    let has_final = stack.index % 4 == 1;
+    let curves = (if has_final { stack.index - 5 } else { stack.index }) / 4;
+    let mut vertical = first_vertical;
+    for k in 0..curves {
+        let i = 4 * k;
+        let (d1, x2, y2, d3) = (stack.num(i), stack.num(i + 1), stack.num(i + 2), stack.num(i + 3));
+        if vertical {
+            callback_draw_curveto(outline, 0.0, d1, x2, y2, d3, 0.0);
         } else {
-            cnt_bezier = stack.index.wrapping_div(4 as Arity);
+            callback_draw_curveto(outline, d1, 0.0, x2, y2, 0.0, d3);
         }
-        for i in (0..4_u32.wrapping_mul(cnt_bezier)).step_by(4) {
-            if i.wrapping_div(4_u32).wrapping_rem(2_u32) == 0_u32 {
-                callback_draw_curveto(
-                    outline,
-                    0.0f64,
-                    cffnum((&mut stack.stack)[(i as isize) as usize]),
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                    ),
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                    ),
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                    ),
-                    0.0f64,
-                );
-            } else {
-                callback_draw_curveto(
-                    outline,
-                    cffnum((&mut stack.stack)[(i as isize) as usize]),
-                    0.0f64,
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                    ),
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                    ),
-                    0.0f64,
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                    ),
-                );
-            }
-        }
-        if stack.index.wrapping_rem(8 as Arity) == 5 as Arity {
-            callback_draw_curveto(
-                outline,
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(5 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(4 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(3 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-                ),
-            );
-        }
-        if stack.index.wrapping_rem(8 as Arity) == 1 as Arity {
-            callback_draw_curveto(
-                outline,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(5 as Arity) as isize) as usize],
-                ),
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(4 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(3 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-                ),
-            );
+        vertical = !vertical;
+    }
+    if has_final {
+        let (d1, x2, y2, d3, df) = (stack.top(5), stack.top(4), stack.top(3), stack.top(2), stack.top(1));
+        if vertical {
+            callback_draw_curveto(outline, 0.0, d1, x2, y2, d3, df);
+        } else {
+            callback_draw_curveto(outline, d1, 0.0, x2, y2, df, d3);
         }
     }
-    stack.index = 0 as Arity;
+}
+
+fn op_vhcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
+    // `index % 4 == 1` with `index < 5` means exactly `index == 1`: a lone
+    // coordinate with no complete curve to pair it with.
+    if stack.index == 1 {
+        tracing::warn!("[libcff] Stack cannot provide enough parameters for op_vhcurveto (30). This operation is ignored.\n");
+    } else {
+        alternating_curves(stack, outline, true);
+    }
+    stack.clear();
     Flow::Continue
 }
 
 fn op_hvcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    let cnt_bezier: u32;
-    // Same reasoning as op 30 above: `index % 4 == 1`
-    // with `index < 5` means exactly `index == 1`, a
-    // lone coordinate with no complete curve behind it.
-    if stack.index.wrapping_rem(4 as Arity) == 1 as Arity
-        && stack.index < 5 as Arity
-    {
+    // See `op_vhcurveto`.
+    if stack.index == 1 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for op_hvcurveto (31). This operation is ignored.\n");
     } else {
-        if stack.index.wrapping_rem(4 as Arity) == 1 as Arity {
-            cnt_bezier = stack
-                .index
-                .wrapping_sub(5 as Arity)
-                .wrapping_div(4 as Arity);
-        } else {
-            cnt_bezier = stack.index.wrapping_div(4 as Arity);
-        }
-        for i in (0..4_u32.wrapping_mul(cnt_bezier)).step_by(4) {
-            if i.wrapping_div(4_u32).wrapping_rem(2_u32) == 0_u32 {
-                callback_draw_curveto(
-                    outline,
-                    cffnum((&mut stack.stack)[(i as isize) as usize]),
-                    0.0f64,
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                    ),
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                    ),
-                    0.0f64,
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                    ),
-                );
-            } else {
-                callback_draw_curveto(
-                    outline,
-                    0.0f64,
-                    cffnum((&mut stack.stack)[(i as isize) as usize]),
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(1_u32) as isize) as usize],
-                    ),
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(2_u32) as isize) as usize],
-                    ),
-                    cffnum(
-                        (&mut stack.stack)[(i.wrapping_add(3_u32) as isize) as usize],
-                    ),
-                    0.0f64,
-                );
-            }
-        }
-        if stack.index.wrapping_rem(8 as Arity) == 5 as Arity {
-            callback_draw_curveto(
-                outline,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(5 as Arity) as isize) as usize],
-                ),
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(4 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(3 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-                ),
-            );
-        }
-        if stack.index.wrapping_rem(8 as Arity) == 1 as Arity {
-            callback_draw_curveto(
-                outline,
-                0.0f64,
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(5 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(4 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(3 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-                ),
-                cffnum(
-                    (&mut stack.stack)[(
-                        stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-                ),
-            );
-        }
+        alternating_curves(stack, outline, false);
     }
-    stack.index = 0 as Arity;
+    stack.clear();
     Flow::Continue
 }
 
+/// `dx1 dx2 dy2 dx3 dx4 dx5 dx6 hflex`
 fn op_hflex(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 7 as Arity {
+    if stack.index < 7 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hflex"), OP_HFLEX.0 as u32);
     } else {
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-            0.0f64,
-            cffnum(
-                (&mut stack.stack)[(1_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(2_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(3_i32 as isize) as usize],
-            ),
-            0.0f64,
-        );
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(4_i32 as isize) as usize],
-            ),
-            0.0f64,
-            cffnum(
-                (&mut stack.stack)[(5_i32 as isize) as usize],
-            ),
-            -cffnum(
-                (&mut stack.stack)[(2_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(6_i32 as isize) as usize],
-            ),
-            0.0f64,
-        );
-        stack.index = 0 as Arity;
+        let [dx1, dx2, dy2, dx3, dx4, dx5, dx6] = std::array::from_fn(|i| stack.num(i as Arity));
+        callback_draw_curveto(outline, dx1, 0.0, dx2, dy2, dx3, 0.0);
+        callback_draw_curveto(outline, dx4, 0.0, dx5, -dy2, dx6, 0.0);
+        stack.clear();
     }
     Flow::Continue
 }
 
+/// `dx1 dy1 dx2 dy2 dx3 dy3 dx4 dy4 dx5 dy5 dx6 dy6 fd flex` (`fd`, the
+/// flex depth, is ignored: the curves are always drawn).
 fn op_flex(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 12 as Arity {
+    if stack.index < 12 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_flex"), OP_FLEX.0 as u32);
     } else {
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(1_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(2_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(3_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(4_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(5_i32 as isize) as usize],
-            ),
-        );
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(6_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(7_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(8_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(9_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(10_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(11_i32 as isize) as usize],
-            ),
-        );
-        stack.index = 0 as Arity;
+        curve_at(stack, outline, 0);
+        curve_at(stack, outline, 6);
+        stack.clear();
     }
     Flow::Continue
 }
 
+/// `dx1 dy1 dx2 dy2 dx3 dx4 dx5 dy5 dx6 hflex1`: the curves end at the
+/// starting height.
 fn op_hflex1(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 9 as Arity {
+    if stack.index < 9 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hflex1"), OP_HFLEX1.0 as u32);
     } else {
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(1_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(2_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(3_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(4_i32 as isize) as usize],
-            ),
-            0.0f64,
-        );
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(5_i32 as isize) as usize],
-            ),
-            0.0f64,
-            cffnum(
-                (&mut stack.stack)[(6_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(7_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(8_i32 as isize) as usize],
-            ),
-            -(cffnum(
-                (&mut stack.stack)[(1_i32 as isize) as usize],
-            ) + cffnum(
-                (&mut stack.stack)[(3_i32 as isize) as usize],
-            ) + cffnum(
-                (&mut stack.stack)[(7_i32 as isize) as usize],
-            )),
-        );
-        stack.index = 0 as Arity;
+        let [dx1, dy1, dx2, dy2, dx3, dx4, dx5, dy5, dx6] = std::array::from_fn(|i| stack.num(i as Arity));
+        callback_draw_curveto(outline, dx1, dy1, dx2, dy2, dx3, 0.0);
+        callback_draw_curveto(outline, dx4, 0.0, dx5, dy5, dx6, -(dy1 + dy2 + dy5));
+        stack.clear();
     }
     Flow::Continue
 }
 
+/// `dx1 dy1 dx2 dy2 dx3 dy3 dx4 dy4 dx5 dy5 d6 flex1`: `d6` is the last
+/// point's offset along whichever axis the curves travel further on; it
+/// returns to the start along the other.
 fn op_flex1(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if stack.index < 11 as Arity {
+    if stack.index < 11 {
         tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_flex1"), OP_FLEX1.0 as u32);
     } else {
-        let mut dx: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(0_i32 as isize) as usize],
-        ) + cffnum(
-            (&mut stack.stack)[(2_i32 as isize) as usize],
-        ) + cffnum(
-            (&mut stack.stack)[(4_i32 as isize) as usize],
-        ) + cffnum(
-            (&mut stack.stack)[(6_i32 as isize) as usize],
-        ) + cffnum(
-            (&mut stack.stack)[(8_i32 as isize) as usize],
-        );
-        let mut dy: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(1_i32 as isize) as usize],
-        ) + cffnum(
-            (&mut stack.stack)[(3_i32 as isize) as usize],
-        ) + cffnum(
-            (&mut stack.stack)[(5_i32 as isize) as usize],
-        ) + cffnum(
-            (&mut stack.stack)[(7_i32 as isize) as usize],
-        ) + cffnum(
-            (&mut stack.stack)[(9_i32 as isize) as usize],
-        );
-        if dx.abs() > dy.abs() {
-            dx = cffnum(
-                (&mut stack.stack)[(10_i32 as isize) as usize],
-            );
-            dy = -dy;
-        } else {
-            dx = -dx;
-            dy = cffnum(
-                (&mut stack.stack)[(10_i32 as isize) as usize],
-            );
-        }
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(1_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(2_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(3_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(4_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(5_i32 as isize) as usize],
-            ),
-        );
-        callback_draw_curveto(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(6_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(7_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(8_i32 as isize) as usize],
-            ),
-            cffnum(
-                (&mut stack.stack)[(9_i32 as isize) as usize],
-            ),
-            dx,
-            dy,
-        );
-        stack.index = 0 as Arity;
+        let dx = stack.num(0) + stack.num(2) + stack.num(4) + stack.num(6) + stack.num(8);
+        let dy = stack.num(1) + stack.num(3) + stack.num(5) + stack.num(7) + stack.num(9);
+        let d6 = stack.num(10);
+        let (dx6, dy6) = if dx.abs() > dy.abs() { (d6, -dy) } else { (-dx, d6) };
+        curve_at(stack, outline, 0);
+        callback_draw_curveto(outline, stack.num(6), stack.num(7), stack.num(8), stack.num(9), dx6, dy6);
+        stack.clear();
     }
     Flow::Continue
 }
