@@ -68,7 +68,7 @@ impl SdsPart for &Vec<u8> {
 /// 0x7f into two bytes. `otl/read.rs` builds lookup names out of the four
 /// bytes of an OpenType tag this way, and those names reach the JSON
 /// output.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Byte(pub u8);
 
 impl SdsPart for Byte {
@@ -78,19 +78,19 @@ impl SdsPart for Byte {
 }
 
 /// `%04x`
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Hex4(pub u32);
 /// `%04X`
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Hex4Upper(pub u32);
 /// `%02x`
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Hex2(pub u32);
 /// `%02X`
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Hex2Upper(pub u32);
 /// `%05d`
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Dec5(pub i32);
 
 fn cat_ascii_vec(v: &mut Vec<u8>, digits: &str) {

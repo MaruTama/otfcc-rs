@@ -114,7 +114,6 @@ fn main_0(args: Vec<String>) -> i32 {
     let mut inPath: Option<::std::ffi::CString> = None;
     let mut options: Box<Options> = Box::default();
     options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
-    logger_indent_sds(&mut options.logger.borrow_mut(), b"otfccbuild".to_vec());
     otfcc_options_optimize_to(&mut options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
@@ -234,16 +233,18 @@ fn main_0(args: Vec<String>) -> i32 {
             }
         }
     }
-    logger_set_verbosity(
-        &mut options.logger.borrow_mut(),
-        (if options.quiet as i32 != 0 {
-            0_i32
-        } else if options.verbose as i32 != 0 {
-            0xff_i32
-        } else {
-            1_i32
-        }) as u8,
-    );
+    let verbosity: u8 = (if options.quiet as i32 != 0 {
+        0_i32
+    } else if options.verbose as i32 != 0 {
+        0xff_i32
+    } else {
+        1_i32
+    }) as u8;
+    logger_set_verbosity(&mut options.logger.borrow_mut(), verbosity);
+    // Installed only now that `--quiet`/`--verbose` are known; nothing is
+    // logged before this point (argument errors go straight to stderr).
+    otfcc_rust::logger::install_stderr(verbosity);
+    logger_indent_sds(&mut options.logger.borrow_mut(), b"otfccbuild".to_vec());
     if show_help {
         printInfo();
         printHelp();
