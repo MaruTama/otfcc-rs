@@ -7,7 +7,6 @@ use crate::support::font_reader::FontReader;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 use crate::vendor::json::JsonType;
 
@@ -161,7 +160,6 @@ pub fn otl_gsub_dump_reverse(_subtable: &Subtable) -> BuiltValue {
 }
 pub fn otl_gsub_parse_reverse(
     _subtable: Option<&ParsedValue>,
-    _options: &Options,
 ) -> Option<Subtable> {
     let sv = _subtable?;
     let _match = sv.get_typed(b"match", JsonType::Array)?;

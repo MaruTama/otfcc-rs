@@ -1,12 +1,11 @@
+use crate::logger::ByteStr;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
 use crate::support::glyph_order::GlyphOrder;
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphClass, GlyphId};
 
 use crate::table::otl::{
@@ -38,7 +37,6 @@ struct LigHashValue {
 }
 fn consolidate_mark_array(
     glyph_order: &GlyphOrder,
-    options: &Options,
     mark_array: &mut MarkArray,
     class_count: GlyphClass,
 ) {
@@ -49,12 +47,7 @@ fn consolidate_mark_array(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
-            );
+            tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
         } else {
             let gid: GlyphId = rec.glyph.index;
             let anchor: Anchor = rec.anchor;
@@ -68,15 +61,7 @@ fn consolidate_mark_array(
                     });
                 }
                 _ => {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
-                            &rec.glyph.name,
-                            b".",
-                        ),
-                    );
+                    tracing::warn!("[Consolidate] Ignored invalid or double-mapping mark definition for /{}.", ByteStr(&rec.glyph.name));
                 }
             }
         }
@@ -98,7 +83,6 @@ fn consolidate_mark_array(
 }
 fn consolidate_base_array(
     glyph_order: &GlyphOrder,
-    options: &Options,
     base_array: &mut BaseArray,
 ) {
     let mut h: BTreeMap<GlyphId, BaseHashValue> = BTreeMap::new();
@@ -108,12 +92,7 @@ fn consolidate_base_array(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
-            );
+            tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
         } else {
             let gid: GlyphId = rec.glyph.index;
             match h.entry(gid) {
@@ -123,16 +102,7 @@ fn consolidate_base_array(
                     v.insert(BaseHashValue { name, anchors });
                 }
                 Entry::Occupied(_) => {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Ignored anchor double-definition for /",
-                            &rec.glyph.name,
-                            b".",
-                        ),
-                    );
+                    tracing::warn!("[Consolidate] Ignored anchor double-definition for /{}.", ByteStr(&rec.glyph.name));
                 }
             }
         }
@@ -147,7 +117,6 @@ fn consolidate_base_array(
 }
 fn consolidate_lig_array(
     glyph_order: &GlyphOrder,
-    options: &Options,
     lig_array: &mut LigatureArray,
 ) {
     let mut h: BTreeMap<GlyphId, LigHashValue> = BTreeMap::new();
@@ -157,12 +126,7 @@ fn consolidate_lig_array(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
-            );
+            tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
         } else {
             let gid: GlyphId = rec.glyph.index;
             match h.entry(gid) {
@@ -177,16 +141,7 @@ fn consolidate_lig_array(
                     });
                 }
                 Entry::Occupied(_) => {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Ignored anchor double-definition for /",
-                            &rec.glyph.name,
-                            b".",
-                        ),
-                    );
+                    tracing::warn!("[Consolidate] Ignored anchor double-definition for /{}.", ByteStr(&rec.glyph.name));
                 }
             }
         }
@@ -200,29 +155,27 @@ fn consolidate_lig_array(
         });
     }
 }
-pub fn consolidate_mark_to_single(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
+pub fn consolidate_mark_to_single(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
     let Subtable::GposMarkToSingle(subtable) = _subtable else {
         unreachable!()
     };
     consolidate_mark_array(
         glyph_order,
-        options,
         &mut subtable.mark_array,
         subtable.class_count,
     );
-    consolidate_base_array(glyph_order, options, &mut subtable.base_array);
+    consolidate_base_array(glyph_order, &mut subtable.base_array);
     subtable.mark_array.is_empty() || subtable.base_array.is_empty()
 }
-pub fn consolidate_mark_to_ligature(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
+pub fn consolidate_mark_to_ligature(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
     let Subtable::GposMarkToLigature(subtable) = _subtable else {
         unreachable!()
     };
     consolidate_mark_array(
         glyph_order,
-        options,
         &mut subtable.mark_array,
         subtable.class_count,
     );
-    consolidate_lig_array(glyph_order, options, &mut subtable.lig_array);
+    consolidate_lig_array(glyph_order, &mut subtable.lig_array);
     subtable.mark_array.is_empty() || subtable.lig_array.is_empty()
 }

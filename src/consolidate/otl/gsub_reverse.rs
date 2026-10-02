@@ -1,9 +1,8 @@
+use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
 use crate::support::glyph_order::GlyphOrder;
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 
 use crate::table::otl::Subtable;
@@ -13,7 +12,6 @@ use crate::consolidate::otl::common::fontop_consolidate_coverage;
 pub fn consolidate_gsub_reverse(
     glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
-    options: &Options,
 ) -> bool {
     let Subtable::GsubReverse(subtable) = _subtable else {
         unreachable!()
@@ -24,9 +22,9 @@ pub fn consolidate_gsub_reverse(
     // that, whenever `glyf` is present.
     let match_count = subtable.match_count as usize;
     for cov in subtable.match_0.iter_mut().take(match_count) {
-        fontop_consolidate_coverage(glyph_order, cov, options);
+        fontop_consolidate_coverage(glyph_order, cov);
     }
-    fontop_consolidate_coverage(glyph_order, &mut subtable.to, options);
+    fontop_consolidate_coverage(glyph_order, &mut subtable.to);
     if subtable.input_index as i32 >= subtable.match_count as i32 {
         subtable.input_index = (subtable.match_count as i32 - 1_i32) as TableId;
     }
@@ -64,28 +62,12 @@ pub fn consolidate_gsub_reverse(
             let toname: Vec<u8> = to.name.clone();
             e.insert((fromname, toid, toname));
         } else {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
-                    &from.name,
-                    b".\n",
-                ),
-            );
+            tracing::warn!("[Consolidate] Double-mapping a glyph in a reverse substitution /{}.\n", ByteStr(&from.name));
         }
     }
     let count: usize = seen.len();
     if count != subtable.match_0[input_index].len() || count != subtable.to.len() {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n",
-            ),
-        );
+        tracing::warn!("[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n");
     }
     subtable.match_0[input_index] = Vec::new();
     subtable.to = Vec::new();

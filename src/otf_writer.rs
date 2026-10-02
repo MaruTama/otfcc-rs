@@ -204,7 +204,6 @@ pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         crate::tag::TAG_GSUB,
         otfcc_build_otl(
             font.gsub.as_deref(),
-            options,
             b"GSUB",
         ),
     );
@@ -213,7 +212,6 @@ pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         crate::tag::TAG_GPOS,
         otfcc_build_otl(
             font.gpos.as_deref(),
-            options,
             b"GPOS",
         ),
     );

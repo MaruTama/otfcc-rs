@@ -1,3 +1,4 @@
+use crate::logger::ByteStr;
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
@@ -8,11 +9,9 @@ use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::bk_build_block;
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
@@ -183,7 +182,6 @@ fn parse_bases(
     bases: Option<&ParsedValue>,
     base_array: &mut BaseArray,
     h: &std::collections::BTreeMap<Vec<u8>, GlyphClass>,
-    options: &Options,
 ) {
     let class_count: GlyphClass = count_u16(h.len());
     let Some(fields) = bases.and_then(ParsedValue::as_object) else {
@@ -208,18 +206,7 @@ fn parse_bases(
                     let class_name = &name_key[..name_key.len() - 1];
                     match h.get(class_name) {
                         None => {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[OTFCC-fea] Invalid anchor class name <",
-                                    class_name,
-                                    b"> for /",
-                                    gname,
-                                    b". This base anchor is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[OTFCC-fea] Invalid anchor class name <{}> for /{}. This base anchor is ignored.\n", ByteStr(class_name), ByteStr(gname));
                         }
                         Some(&class_id) => {
                             base.anchors[class_id as usize] =
@@ -234,7 +221,6 @@ fn parse_bases(
 }
 pub fn otl_gpos_parse_mark_to_single(
     _subtable: Option<&ParsedValue>,
-    options: &Options,
 ) -> Option<Subtable> {
     let marks = _subtable.and_then(|v| v.get_typed(b"marks", JsonType::Object));
     let bases = _subtable.and_then(|v| v.get_typed(b"bases", JsonType::Object));
@@ -245,7 +231,7 @@ pub fn otl_gpos_parse_mark_to_single(
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
     let class_count = otl_parse_mark_array(Some(marks), &mut mark_array, &mut h);
     let mut base_array: BaseArray = Vec::new();
-    parse_bases(Some(bases), &mut base_array, &h, options);
+    parse_bases(Some(bases), &mut base_array, &h);
     Some(Subtable::GposMarkToSingle(GposMarkToSingleSubtable {
         class_count,
         mark_array,

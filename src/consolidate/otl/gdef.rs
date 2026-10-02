@@ -1,8 +1,7 @@
+use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
 use crate::support::glyph_order::GlyphOrder;
@@ -13,12 +12,12 @@ use crate::consolidate::otl::common::fontop_consolidate_class_def;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::classdef::shrink_class_def;
 
-pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut GdefTable>, options: &Options) {
+pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut GdefTable>) {
     let (Some(gdef), Some(glyph_order)) = (gdef, glyph_order) else {
         return;
     };
     if let Some(cd) = gdef.glyph_class_def.as_deref_mut() {
-        fontop_consolidate_class_def(Some(glyph_order), Some(cd), options);
+        fontop_consolidate_class_def(Some(glyph_order), Some(cd));
         let cd = gdef.glyph_class_def.as_deref_mut().unwrap();
         shrink_class_def(cd);
         if cd.glyphs.is_empty() {
@@ -29,7 +28,7 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
         }
     }
     if let Some(cd) = gdef.mark_attach_class_def.as_deref_mut() {
-        fontop_consolidate_class_def(Some(glyph_order), Some(cd), options);
+        fontop_consolidate_class_def(Some(glyph_order), Some(cd));
         let cd = gdef.mark_attach_class_def.as_deref_mut().unwrap();
         shrink_class_def(cd);
         if cd.glyphs.is_empty() {
@@ -73,15 +72,7 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
                         e.insert((gname, carets));
                     }
                 } else {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Detected caret value double-mapping about glyph ",
-                            &rec.glyph.name,
-                        ),
-                    );
+                    tracing::warn!("[Consolidate] Detected caret value double-mapping about glyph {}", ByteStr(&rec.glyph.name));
                 }
             }
         }

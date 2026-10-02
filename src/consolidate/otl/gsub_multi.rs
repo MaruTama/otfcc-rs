@@ -1,9 +1,8 @@
+use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 use crate::table::otl::coverage::{Coverage, shrink_coverage};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
 use crate::support::glyph_order::GlyphOrder;
@@ -14,7 +13,7 @@ use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
-pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
+pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
     let Subtable::GsubMulti(subtable) = _subtable else {
         unreachable!()
     };
@@ -34,25 +33,12 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.from) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.from.name, b".\n",),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.from.name));
         } else {
-            fontop_consolidate_coverage(glyph_order, &mut entry.to, options);
+            fontop_consolidate_coverage(glyph_order, &mut entry.to);
             shrink_coverage(&mut entry.to, false);
             if entry.to.is_empty() {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",
-                        &entry.from.name,
-                        b".\n",
-                    ),
-                );
+                tracing::warn!("[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /{}.\n", ByteStr(&entry.from.name));
             } else {
                 let fromid: i32 = entry.from.index as i32;
                 if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
@@ -72,6 +58,6 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
     }
     subtable.is_empty()
 }
-pub fn consolidate_gsub_alternative(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
-    consolidate_gsub_multi(glyph_order, _subtable, options)
+pub fn consolidate_gsub_alternative(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
+    consolidate_gsub_multi(glyph_order, _subtable)
 }

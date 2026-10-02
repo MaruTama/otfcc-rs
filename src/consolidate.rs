@@ -1,18 +1,15 @@
 pub mod otl;
 
+use crate::logger::ByteStr;
 use crate::support::handle::{
     FdHandle, GlyphHandle, Handle, HandleState, handle_from_index, handle_name_eq_bytes,
 };
 
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 
 use crate::font::caryll_font::Font;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
-use crate::support::fmt::Hex4Upper;
 
 use crate::table::cff::CffTable;
 use crate::table::colr::{ColrMapping, ColrTable};
@@ -80,7 +77,7 @@ fn by_mask_pointindex(a: &PostscriptHintMask, b: &PostscriptHintMask) -> i32 {
         a.contours_before as i32 - b.contours_before as i32
     }
 }
-fn consolidate_glyph_contours(g: &mut Glyph, options: &Options) {
+fn consolidate_glyph_contours(g: &mut Glyph) {
     // `Vec::retain` visits every element once, in order, regardless of
     // whether earlier ones were kept -- so `j` here tracks the same
     // "original index" the C-shaped loop counted, and dropped contours are
@@ -91,40 +88,18 @@ fn consolidate_glyph_contours(g: &mut Glyph, options: &Options) {
     g.contours.retain(|contour| {
         let keep = !contour.is_empty();
         if !keep {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Removed empty contour #",
-                    j as i32,
-                    b" in glyph ",
-                    name,
-                    b".\n",
-                ),
-            );
+            tracing::warn!("[Consolidate] Removed empty contour #{} in glyph {}.\n", j as i32, ByteStr(name));
         }
         j = j.wrapping_add(1);
         keep
     });
 }
-fn consolidate_glyph_references(g: &mut Glyph, glyph_order: &GlyphOrder, options: &Options) {
+fn consolidate_glyph_references(g: &mut Glyph, glyph_order: &GlyphOrder) {
     let name = &g.name;
     g.references.retain_mut(|r| {
         let ok = otfcc_gord_consolidate_handle(glyph_order, &mut r.glyph);
         if !ok {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored absent glyph component reference /",
-                    &r.glyph.name,
-                    b" within /",
-                    name,
-                    b".\n",
-                ),
-            );
+            tracing::warn!("[Consolidate] Ignored absent glyph component reference /{} within /{}.\n", ByteStr(&r.glyph.name), ByteStr(name));
             // `retain_mut` drops rejected elements itself -- every
             // `ComponentReference` field auto-drops -- so no explicit
             // dispose call is needed here anymore.
@@ -182,7 +157,7 @@ fn consolidate_glyph_hints(g: &mut Glyph) {
         }
     }
 }
-fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, options: &Options, gname: &[u8]) {
+fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, gname: &[u8]) {
     let Some(cff) = cff else {
         return;
     };
@@ -201,18 +176,7 @@ fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, options: &Opt
         if let Some(j) = found {
             *h = Handle::new(HandleState::Consolidated, j as GlyphId, fd_array[j].font_name.clone());
         } else {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] CID Subfont ",
-                    &h.name,
-                    b" is not defined. (in glyph /",
-                    gname,
-                    b").\n",
-                ),
-            );
+            tracing::warn!("[Consolidate] CID Subfont {} is not defined. (in glyph /{}).\n", ByteStr(&h.name), ByteStr(gname));
             *h = Handle::default();
         }
     } else if !h.name.is_empty() {
@@ -227,12 +191,11 @@ pub fn consolidate_glyph(
     g: &mut Glyph,
     glyph_order: &GlyphOrder,
     cff: Option<&CffTable>,
-    options: &Options,
 ) {
-    consolidate_glyph_contours(g, options);
-    consolidate_glyph_references(g, glyph_order, options);
+    consolidate_glyph_contours(g);
+    consolidate_glyph_references(g, glyph_order);
     consolidate_glyph_hints(g);
-    consolidate_fd_select(&mut g.fd_select, cff, options, &g.name);
+    consolidate_fd_select(&mut g.fd_select, cff, &g.name);
 }
 // `get_point_coordinates` and `consolidate_anchor_ref` (below) are
 // mutually recursive over a composite glyph's `references` graph -- a
@@ -379,14 +342,7 @@ pub fn consolidate_anchor_ref(
     if rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingAnchor
         || rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingXy
     {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"Found circular reference of out-of-range point reference in anchored reference.",
-            ),
-        );
+        tracing::warn!("Found circular reference of out-of-range point reference in anchored reference.");
         rr.is_anchored.set(RefAnchorStatus::Xy);
         return false;
     }
@@ -410,30 +366,10 @@ pub fn consolidate_anchor_ref(
     let s1: bool = get_point_coordinates(table, gr, rr.outer, &mut outer, options, depth + 1);
     let s2: bool = get_point_coordinates(table, &rr1, rr.inner, &mut inner, options, depth + 1);
     if !s1 {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"Failed to access point ",
-                rr.outer as i32,
-                b" in outer glyph.",
-            ),
-        );
+        tracing::warn!("Failed to access point {} in outer glyph.", rr.outer as i32);
     }
     if !s2 {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"Failed to access point ",
-                rr.outer as i32,
-                b" in reference to ",
-                &rr.glyph.name,
-                b".",
-            ),
-        );
+        tracing::warn!("Failed to access point {} in reference to {}.", rr.outer as i32, ByteStr(&rr.glyph.name));
     }
     let rrx: VQ = vq_point_linear_tfm(
         outer.x.clone(),
@@ -466,16 +402,7 @@ pub fn consolidate_anchor_ref(
                 .abs()
                 > 0.5f64
         {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"Anchored reference to ",
-                    &rr.glyph.name,
-                    b" does not match its X/Y offset data.",
-                ),
-            );
+            tracing::warn!("Anchored reference to {} does not match its X/Y offset data.", ByteStr(&rr.glyph.name));
         }
         rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     }
@@ -493,7 +420,7 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
     for slot in glyf.iter_mut() {
         if let Some(glyph) = slot {
-            consolidate_glyph(glyph, glyph_order, cff, options);
+            consolidate_glyph(glyph, glyph_order, cff);
         } else {
             *slot = Some(otfcc_new_glyf_glyph());
         }
@@ -510,7 +437,7 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < table.len() {
         let g: &Glyph = table[j_0 as usize].as_deref().unwrap();
-        logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(&g.name));
+        let stage = crate::logger::stage(ByteStr(&g.name));
         let mut gr: ComponentReference = (glyf_component_reference_empty)();
         gr.glyph = handle_from_index(j_0) as GlyphHandle;
         for rr in &g.references {
@@ -519,11 +446,11 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
         // `gr` is a plain owned local; every field auto-drops when it
         // goes out of scope at the end of this iteration, so no
         // explicit dispose call is needed.
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
         j_0 = j_0.wrapping_add(1);
     }
 }
-pub fn consolidate_cmap(font: &mut Font, options: &Options) {
+pub fn consolidate_cmap(font: &mut Font) {
     let glyph_order: Option<&GlyphOrder> = font.glyph_order.as_deref();
     if let Some(glyph_order) = glyph_order.filter(|_| font.cmap.is_some()) {
         // A failed resolution disposes the entry's `Handle` in place
@@ -532,18 +459,7 @@ pub fn consolidate_cmap(font: &mut Font, options: &Options) {
         // check is what actually hides it later.
         for (&unicode, glyph) in font.cmap.as_mut().unwrap().unicodes.iter_mut() {
             if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Ignored mapping U+",
-                        Hex4Upper(unicode as u32),
-                        b" to non-existent glyph /",
-                        &glyph.name,
-                        b".\n",
-                    ),
-                );
+                tracing::warn!("[Consolidate] Ignored mapping U+{:04X} to non-existent glyph /{}.\n", unicode as u32, ByteStr(&glyph.name));
                 *glyph = Handle::default();
             }
         }
@@ -551,20 +467,7 @@ pub fn consolidate_cmap(font: &mut Font, options: &Options) {
     if let Some(glyph_order) = glyph_order.filter(|_| font.cmap.is_some()) {
         for (key, glyph) in font.cmap.as_mut().unwrap().uvs.iter_mut() {
             if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Ignored UVS mapping [U+",
-                        Hex4Upper(key.unicode),
-                        b" U+",
-                        Hex4Upper(key.selector),
-                        b"] to non-existent glyph /",
-                        &glyph.name,
-                        b".\n",
-                    ),
-                );
+                tracing::warn!("[Consolidate] Ignored UVS mapping [U+{:04X} U+{:04X}] to non-existent glyph /{}.\n", key.unicode, key.selector, ByteStr(&glyph.name));
                 *glyph = Handle::default();
             }
         }
@@ -572,57 +475,26 @@ pub fn consolidate_cmap(font: &mut Font, options: &Options) {
 }
 fn __declare_otl_consolidation(
     type_0: LookupType,
-    fn_0: impl Fn(&GlyphOrder, &mut Subtable, &Options) -> bool,
+    fn_0: impl Fn(&GlyphOrder, &mut Subtable) -> bool,
     glyph_order: &GlyphOrder,
     lookup: &mut Lookup,
-    options: &Options,
 ) {
     if lookup.subtables.is_empty() || lookup.type_0 != type_0 {
         return;
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(&lookup.name),
-    );
-    // Every `logger_log_sds` call below at `LOG_VL_IMPORTANT` is a no-op
-    // whenever `verbosity_limit < LOG_VL_IMPORTANT` (`logger_log_sds`
-    // itself only ever mutates state -- `target.push`/`last_logged_level`
-    // -- inside that same comparison, so skipping the call entirely below
-    // that threshold is observably identical, not a behavior change).
-    // `verbosity_limit` defaults to 0, below `LOG_VL_IMPORTANT` (1), so by
-    // default none of these ever display -- yet each call's `bytesbuild!`
-    // argument was built unconditionally regardless. A lookup can hold up
-    // to `MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000) subtables and a table up
-    // to `MAX_TOTAL_LOOKUPS_PER_TABLE` (300) lookups, so a font whose
-    // subtables mostly fail to parse (e.g. many aliased offsets tripping
-    // `OtlReadBudget::coverage_entries`' table-wide guard) can
-    // drive the "Ignored empty subtable" branch below up to 300,000 times
-    // -- CI fuzz found exactly this shape, and the wasted construction
-    // alone (not any of this function's real per-subtable work) still
-    // added tens of seconds under sanitizer instrumentation. Same
-    // "per-call construction cost, not per-call semantics, is what adds
-    // up" reasoning as `OtlReadBudget::class_coverage_calls`.
-    let show_important =
-        options.logger.borrow().verbosity_limit as i32 >= LOG_VL_IMPORTANT as i32;
+    let stage = crate::logger::stage(ByteStr(&lookup.name));
+    // The "Ignored empty subtable" warning below can fire up to 300,000
+    // times for a font whose subtables mostly fail to parse (a lookup can
+    // hold up to `MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000) subtables and a
+    // table up to `MAX_TOTAL_LOOKUPS_PER_TABLE` (300) lookups); CI fuzz
+    // found exactly this shape. `tracing::warn!` formats nothing when
+    // warnings are not being printed, so that volume costs nothing then.
     for (j, slot) in lookup.subtables.iter_mut().enumerate() {
         if slot.is_none() {
-            if show_important {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Ignored empty subtable ",
-                        j as i32,
-                        b" of lookup ",
-                        &lookup.name,
-                        b".\n",
-                    ),
-                );
-            }
+            tracing::warn!("[Consolidate] Ignored empty subtable {} of lookup {}.\n", j as i32, ByteStr(&lookup.name));
         } else {
             let sub = slot.as_deref_mut().unwrap();
-            let subtable_removed = fn_0(glyph_order, sub, options);
+            let subtable_removed = fn_0(glyph_order, sub);
             if subtable_removed {
                 // Was a `fndel: SubtableRemover` parameter, one
                 // `LookupType`-keyed function pointer per call site
@@ -635,20 +507,7 @@ fn __declare_otl_consolidation(
                 // place) is all that is needed -- no per-type function
                 // pointer, no separate explicit `Box::from_raw`.
                 *slot = None;
-                if show_important {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Ignored empty subtable ",
-                            j as i32,
-                            b" of lookup ",
-                            &lookup.name,
-                            b".\n",
-                        ),
-                    );
-                }
+                tracing::warn!("[Consolidate] Ignored empty subtable {} of lookup {}.\n", j as i32, ByteStr(&lookup.name));
             }
         }
     }
@@ -660,18 +519,9 @@ fn __declare_otl_consolidation(
     // at the same allocation to begin with.
     lookup.subtables.retain(|s| s.is_some());
     if lookup.subtables.is_empty() {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"[Consolidate] Lookup ",
-                &lookup.name,
-                b" is empty and will be removed.\n",
-            ),
-        );
+        tracing::warn!("[Consolidate] Lookup {} is empty and will be removed.\n", ByteStr(&lookup.name));
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
 pub fn otfcc_consolidate_lookup(
     glyph_order: &GlyphOrder,
@@ -681,54 +531,48 @@ pub fn otfcc_consolidate_lookup(
     lookup: &mut Lookup,
     options: &Options,
 ) {
-    __declare_otl_consolidation(OTL_TYPE_GSUB_SINGLE, consolidate_gsub_single, glyph_order, lookup, options);
-    __declare_otl_consolidation(OTL_TYPE_GSUB_MULTIPLE, consolidate_gsub_multi, glyph_order, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_SINGLE, consolidate_gsub_single, glyph_order, lookup);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_MULTIPLE, consolidate_gsub_multi, glyph_order, lookup);
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_ALTERNATE,
         consolidate_gsub_alternative,
         glyph_order,
         lookup,
-        options,
     );
-    __declare_otl_consolidation(OTL_TYPE_GSUB_LIGATURE, consolidate_gsub_ligature, glyph_order, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_LIGATURE, consolidate_gsub_ligature, glyph_order, lookup);
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_CHAINING,
-        |f, sub, o| consolidate_chaining(f, lookups, self_index, self_name, sub, o),
+        |f, sub| consolidate_chaining(f, lookups, self_index, self_name, sub, options),
         glyph_order,
         lookup,
-        options,
     );
-    __declare_otl_consolidation(OTL_TYPE_GSUB_REVERSE, consolidate_gsub_reverse, glyph_order, lookup, options);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_SINGLE, consolidate_gpos_single, glyph_order, lookup, options);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_PAIR, consolidate_gpos_pair, glyph_order, lookup, options);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_CURSIVE, consolidate_gpos_cursive, glyph_order, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_REVERSE, consolidate_gsub_reverse, glyph_order, lookup);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_SINGLE, consolidate_gpos_single, glyph_order, lookup);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_PAIR, consolidate_gpos_pair, glyph_order, lookup);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_CURSIVE, consolidate_gpos_cursive, glyph_order, lookup);
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_CHAINING,
-        |f, sub, o| consolidate_chaining(f, lookups, self_index, self_name, sub, o),
+        |f, sub| consolidate_chaining(f, lookups, self_index, self_name, sub, options),
         glyph_order,
         lookup,
-        options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_BASE,
         consolidate_mark_to_single,
         glyph_order,
         lookup,
-        options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_MARK,
         consolidate_mark_to_single,
         glyph_order,
         lookup,
-        options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_LIGATURE,
         consolidate_mark_to_ligature,
         glyph_order,
         lookup,
-        options,
     );
 }
 // Stage L-7: `table` is a real `&mut OtlTable` now, not a raw pointer --
@@ -834,32 +678,23 @@ fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut Ot
 }
 fn consolidate_otl(font: &mut Font, options: &Options) {
     let glyph_order = font.glyph_order.as_deref();
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"GSUB"),
-    );
+    let stage = crate::logger::stage("GSUB");
     {
         consolidate_otl_table(glyph_order, font.gsub.as_deref_mut(), options);
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"GPOS"),
-    );
+    let stage = crate::logger::stage("GPOS");
     {
         consolidate_otl_table(glyph_order, font.gpos.as_deref_mut(), options);
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"GDEF"),
-    );
+    let stage = crate::logger::stage("GDEF");
     {
-        consolidate_gdef(glyph_order, font.gdef.as_deref_mut(), options);
-        logger_finish(&mut options.logger.borrow_mut());
+        consolidate_gdef(glyph_order, font.gdef.as_deref_mut());
+        drop(stage);
     }
 }
-fn consolidate_colr(font: &mut Font, options: &Options) {
+fn consolidate_colr(font: &mut Font) {
     if font.colr.is_none() || font.glyph_order.is_none() {
         return;
     }
@@ -869,15 +704,7 @@ fn consolidate_colr(font: &mut Font, options: &Options) {
     let source: &mut Vec<ColrMapping> = font.colr.as_mut().unwrap();
     for mapping in source.iter_mut() {
         if !otfcc_gord_consolidate_handle(glyph_order, &mut mapping.glyph) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored missing glyph of /",
-                    &mapping.glyph.name,
-                ),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&mapping.glyph.name));
         } else {
             let mut m: ColrMapping = ColrMapping {
                 glyph: mapping.glyph.clone(),
@@ -885,15 +712,7 @@ fn consolidate_colr(font: &mut Font, options: &Options) {
             };
             for layer in mapping.layers.iter_mut() {
                 if !otfcc_gord_consolidate_handle(glyph_order, &mut layer.glyph) {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Ignored missing glyph of /",
-                            &layer.glyph.name,
-                        ),
-                    );
+                    tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&layer.glyph.name));
                 } else {
                     m.layers.push(layer.clone());
                 }
@@ -901,16 +720,7 @@ fn consolidate_colr(font: &mut Font, options: &Options) {
             if !mapping.layers.is_empty() {
                 consolidated.push(m);
             } else {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] COLR decomposition for /",
-                        &mapping.glyph.name,
-                        b" is empth",
-                    ),
-                );
+                tracing::warn!("[Consolidate] COLR decomposition for /{} is empth", ByteStr(&mapping.glyph.name));
                 // `m` is dropped here (its `Handle` and `layers: Vec<ColrLayer>`
                 // freed by their own compiler-generated drop glue) rather than
                 // pushed into `consolidated` -- no manual dispose call needed.
@@ -928,7 +738,7 @@ fn consolidate_colr(font: &mut Font, options: &Options) {
 // disjoint fields directly off `font`, which Rust allows even though a
 // single `&Font`/`&mut Font` funneled through this function's own
 // parameter list would not.
-fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<TsiTable>, options: &Options) {
+fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<TsiTable>) {
     if tsi.is_none() {
         return;
     }
@@ -947,12 +757,7 @@ fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<
                 gid_entries[entry.glyph.index as usize] =
                     Some(::core::mem::take(&mut entry.content));
             } else {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /", &entry.glyph.name),
-                );
+                tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&entry.glyph.name));
             }
         } else {
             // `tsi_entry_dup` is a safe fn now that this stack includes
@@ -1025,12 +830,7 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
             // below regardless of whether this call succeeds or fails, for
             // the log message and/or the retry loop.
             if !otfcc_set_glyph_order_by_name(go, name.clone(), gid) {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(b"[Consolidate] Glyph name ", &name, b" is already in use.",),
-                );
+                tracing::warn!("[Consolidate] Glyph name {} is already in use.", ByteStr(&name));
                 let mut suffix: u32 = 2_u32;
                 let mut success: bool;
                 loop {
@@ -1039,18 +839,7 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
                     if !success {
                         suffix = suffix.wrapping_add(1_u32);
                     } else {
-                        logger_log_sds(
-                            &mut options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"[Consolidate] Glyph ",
-                                &name,
-                                b" is renamed into ",
-                                &newname,
-                                b".",
-                            ),
-                        );
+                        tracing::warn!("[Consolidate] Glyph {} is renamed into {}.", ByteStr(&name), ByteStr(&newname));
                         g.name = newname;
                     }
                     if success {
@@ -1061,18 +850,12 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
         }
         font.glyph_order = Some(go_box);
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"glyf"),
-    );
+    let stage = crate::logger::stage("glyf");
     consolidate_glyf(font, options);
-    logger_finish(&mut options.logger.borrow_mut());
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"cmap"),
-    );
-    consolidate_cmap(font, options);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
+    let stage = crate::logger::stage("cmap");
+    consolidate_cmap(font);
+    drop(stage);
     if has_glyf {
         // The lookup consolidators read exactly one thing from the font --
         // its glyph order -- so `consolidate_otl` splits `font.glyph_order`
@@ -1083,34 +866,22 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
         // scope; it turned out to need only that one field.
         consolidate_otl(font, options);
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"COLR"),
-    );
-    consolidate_colr(font, options);
-    logger_finish(&mut options.logger.borrow_mut());
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"TSI_01"),
-    );
+    let stage = crate::logger::stage("COLR");
+    consolidate_colr(font);
+    drop(stage);
+    let stage = crate::logger::stage("TSI_01");
     if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
-        consolidate_tsi(glyf, glyph_order, &mut font.tsi_01, options);
+        consolidate_tsi(glyf, glyph_order, &mut font.tsi_01);
     }
-    logger_finish(&mut options.logger.borrow_mut());
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"TSI_23"),
-    );
+    drop(stage);
+    let stage = crate::logger::stage("TSI_23");
     if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
-        consolidate_tsi(glyf, glyph_order, &mut font.tsi_23, options);
+        consolidate_tsi(glyf, glyph_order, &mut font.tsi_23);
     }
-    logger_finish(&mut options.logger.borrow_mut());
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"TSI5"),
-    );
-    fontop_consolidate_class_def(font.glyph_order.as_deref(), font.tsi5.as_deref_mut(), options);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
+    let stage = crate::logger::stage("TSI5");
+    fontop_consolidate_class_def(font.glyph_order.as_deref(), font.tsi5.as_deref_mut());
+    drop(stage);
 }
 
 #[cfg(test)]

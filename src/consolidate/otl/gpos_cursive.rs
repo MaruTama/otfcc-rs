@@ -1,9 +1,8 @@
+use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
 use crate::support::glyph_order::GlyphOrder;
-use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
 use crate::table::otl::{Anchor, GposCursiveEntry, Subtable};
@@ -14,7 +13,6 @@ use crate::table::otl::subtables::gpos_cursive::dispose_gpos_cursive_subtable;
 pub fn consolidate_gpos_cursive(
     glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
-    options: &Options,
 ) -> bool {
     let Subtable::GposCursive(subtable) = _subtable else {
         unreachable!()
@@ -36,12 +34,7 @@ pub fn consolidate_gpos_cursive(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.target) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.target.name, b".\n",),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.target.name));
         } else {
             let fromid: i32 = entry.target.index as i32;
             if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
@@ -50,16 +43,7 @@ pub fn consolidate_gpos_cursive(
                 let exit: Anchor = entry.exit;
                 e.insert((fromname, enter, exit));
             } else {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Double-mapping a glyph in a cursive positioning /",
-                        &entry.target.name,
-                        b".\n",
-                    ),
-                );
+                tracing::warn!("[Consolidate] Double-mapping a glyph in a cursive positioning /{}.\n", ByteStr(&entry.target.name));
             }
         }
     }

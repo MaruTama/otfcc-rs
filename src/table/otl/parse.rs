@@ -1,8 +1,5 @@
 
-use crate::logger::{
-    LOG_VL_IMPORTANT, LOG_VL_NOTICE, LoggerType, logger_dedent, logger_finish, logger_log_sds,
-    logger_start_sds,
-};
+use crate::logger::ByteStr;
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
@@ -30,7 +27,7 @@ use crate::vendor::json::JsonType;
 /// type's own parse function and by `_declare_lookup_parser`'s own
 /// `parser` parameter -- named once here instead of spelled out at each
 /// of the 14 call/declaration sites below.
-type SubtableParser = fn(Option<&ParsedValue>, &Options) -> Option<Subtable>;
+type SubtableParser = fn(Option<&ParsedValue>) -> Option<Subtable>;
 /// A transient identity minted for a not-yet-collected `Lookup`, indexing
 /// `PendingLookups.lookups` (position within `LookupEntry.lookup_id`'s own
 /// backing store, *not* the final `OtlTable.lookups` position -- `lh` gets
@@ -138,7 +135,6 @@ struct PendingLookups {
 fn _parse_lookup(
     lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
-    options: &Options,
     lh: &mut PendingLookups,
 ) -> bool {
     let mut parsed: bool = false;
@@ -148,7 +144,6 @@ fn _parse_lookup(
             Some(otl_gsub_parse_single as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -158,7 +153,6 @@ fn _parse_lookup(
             Some(otl_gsub_parse_multi as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -168,7 +162,6 @@ fn _parse_lookup(
             Some(otl_gsub_parse_multi as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -178,7 +171,6 @@ fn _parse_lookup(
             Some(otl_gsub_parse_ligature as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -188,7 +180,6 @@ fn _parse_lookup(
             Some(otl_parse_chaining as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -198,7 +189,6 @@ fn _parse_lookup(
             Some(otl_gsub_parse_reverse as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -208,7 +198,6 @@ fn _parse_lookup(
             Some(otl_gpos_parse_single as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -218,7 +207,6 @@ fn _parse_lookup(
             Some(otl_gpos_parse_pair as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -228,7 +216,6 @@ fn _parse_lookup(
             Some(otl_gpos_parse_cursive as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -238,7 +225,6 @@ fn _parse_lookup(
             Some(otl_parse_chaining as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -248,7 +234,6 @@ fn _parse_lookup(
             Some(otl_gpos_parse_mark_to_single as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -258,7 +243,6 @@ fn _parse_lookup(
             Some(otl_gpos_parse_mark_to_single as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -268,7 +252,6 @@ fn _parse_lookup(
             Some(otl_gpos_parse_mark_to_ligature as SubtableParser),
             lookup,
             lookup_name,
-            options,
             lh,
         );
     }
@@ -279,7 +262,6 @@ fn _declare_lookup_parser(
     parser: Option<SubtableParser>,
     _lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
-    options: &Options,
     lh: &mut PendingLookups,
 ) -> bool {
     let lv = _lookup;
@@ -289,40 +271,17 @@ fn _declare_lookup_parser(
         .is_some_and(|b| b == llt.name().as_bytes());
     if !matches_type {
         if type_0.is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"Lookup ",
-                    lookup_name,
-                    b" does not have a valid 'type' field.",
-                ),
-            );
+            tracing::warn!("Lookup {} does not have a valid 'type' field.", ByteStr(lookup_name));
         }
         return false;
     }
     let name_bytes: Vec<u8> = lookup_name.to_vec();
     if lh.entries.iter().any(|e| e.name == name_bytes) {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(b"Lookup ", lookup_name, b" already exists."),
-        );
+        tracing::warn!("Lookup {} already exists.", ByteStr(lookup_name));
         return false;
     }
     let Some(subtables) = lv.and_then(|v| v.get_typed(b"subtables", JsonType::Array)) else {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"Lookup ",
-                lookup_name,
-                b" does not have a valid subtable list.",
-            ),
-        );
+        tracing::warn!("Lookup {} does not have a valid subtable list.", ByteStr(lookup_name));
         return false;
     };
     // Built as a local owned value, not `Box::into_raw`'d until the very
@@ -342,26 +301,18 @@ fn _declare_lookup_parser(
         lookup.flags = (lookup.flags as i32 | (mark_attachment_type as i32) << 8_i32) as u16;
     }
     let subtable_items = subtables.as_array().unwrap();
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(lookup_name),
-    );
+    let stage = crate::logger::stage(ByteStr(lookup_name));
     {
         for _subtable in subtable_items {
             if _subtable.as_object().is_some() {
-                let st = parser.expect("non-null function pointer")(Some(_subtable), options);
+                let st = parser.expect("non-null function pointer")(Some(_subtable));
                 lookup.subtables.push(st.map(Box::new));
             }
         }
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
     if lookup.subtables.is_empty() {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(b"Lookup ", lookup_name, b" does not have any subtables."),
-        );
+        tracing::warn!("Lookup {} does not have any subtables.", ByteStr(lookup_name));
         return false;
     }
     let order_val: u16 = lh.entries.len() as u16;
@@ -377,7 +328,7 @@ fn _declare_lookup_parser(
     });
     return true;
 }
-fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>, options: &Options) -> PendingLookups {
+fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>) -> PendingLookups {
     let mut lh = PendingLookups {
         entries: Vec::new(),
         lookups: Vec::new(),
@@ -388,18 +339,9 @@ fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>, options: &Options
     for (key, lookup_val) in fields {
         let lookup_name = &key[..key.len() - 1];
         if lookup_val.as_object().is_some() {
-            let parsed: bool = _parse_lookup(Some(lookup_val), lookup_name, options, &mut lh);
+            let parsed: bool = _parse_lookup(Some(lookup_val), lookup_name, &mut lh);
             if !parsed {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[OTFCC-fea] Ignoring invalid or unsupported lookup ",
-                        lookup_name,
-                        b".\n",
-                    ),
-                );
+                tracing::warn!("[OTFCC-fea] Ignoring invalid or unsupported lookup {}.\n", ByteStr(lookup_name));
             }
         } else if let Some(thatname_bytes) = lookup_val.as_str_bytes() {
             // Alias's own name is never checked against existing entries
@@ -466,7 +408,7 @@ fn tag4_matches(a: &[u8], b: &[u8]) -> bool {
 /// same "resolve at the point of use" pattern `libcff/subr.rs`'s
 /// `resolve_subr_ref` established for a comparable aliasing shape in
 /// Stage 9.
-fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8], options: &Options) {
+fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8]) {
     let n = match d.as_object() {
         Some(fields) => fields.len(),
         None => return,
@@ -495,20 +437,7 @@ fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8], o
             let fields = d.as_object().unwrap();
             let kthis = &fields[j].0;
             let kthat = &fields[k].0;
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_NOTICE,
-                LoggerType::Info,
-                crate::bytesbuild!(
-                    b"[OTFCC-fea] Merged duplicate ",
-                    objtype,
-                    b" '",
-                    kthat,
-                    b"' into '",
-                    kthis,
-                    b"'.\n",
-                ),
-            );
+            tracing::info!("[OTFCC-fea] Merged duplicate {} '{}' into '{}'.\n", ByteStr(objtype), ByteStr(kthat), ByteStr(kthis));
         }
     }
 }
@@ -523,7 +452,7 @@ fn figure_out_features_from_json(
         features: Vec::new(),
     };
     if options.merge_features {
-        feature_merger_activate(features, true, b"feature", options);
+        feature_merger_activate(features, true, b"feature");
     }
     // `feature_merger_activate` (above) is the only thing that ever
     // mutates `features`'s tree, and it has already returned by the time
@@ -543,20 +472,7 @@ fn figure_out_features_from_json(
                     if let Some(item) = item {
                         al.push(item.lookup_id);
                     } else {
-                        logger_log_sds(
-                            &mut options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"Lookup assignment ",
-                                term_bytes,
-                                b" for feature [",
-                                tag,
-                                b"/",
-                                feature_name,
-                                b"] is missing or invalid.",
-                            ),
-                        );
+                        tracing::warn!("Lookup assignment {} for feature [{}/{}] is missing or invalid.", ByteStr(term_bytes), ByteStr(tag), ByteStr(feature_name));
                     }
                 }
             }
@@ -582,32 +498,10 @@ fn figure_out_features_from_json(
                         feature_id,
                     });
                 } else {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[OTFCC-fea] Duplicate feature for [",
-                            tag,
-                            b"/",
-                            feature_name,
-                            b"]. This feature will be ignored.\n",
-                        ),
-                    );
+                    tracing::warn!("[OTFCC-fea] Duplicate feature for [{}/{}]. This feature will be ignored.\n", ByteStr(tag), ByteStr(feature_name));
                 }
             } else {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[OTFCC-fea] There is no valid lookup assignments for [",
-                        tag,
-                        b"/",
-                        feature_name,
-                        b"]. This feature will be ignored.\n",
-                    ),
-                );
+                tracing::warn!("[OTFCC-fea] There is no valid lookup assignments for [{}/{}]. This feature will be ignored.\n", ByteStr(tag), ByteStr(feature_name));
             }
         } else if let Some(target_bytes) = feature_val.as_str_bytes() {
             let target_owned = target_bytes.to_vec();
@@ -635,7 +529,6 @@ fn figure_out_languages_from_json(
     languages: Option<&ParsedValue>,
     fh: &PendingFeatures,
     tag: &[u8],
-    options: &Options,
 ) -> std::collections::BTreeMap<Vec<u8>, PendingLanguage> {
     let mut sh: std::collections::BTreeMap<Vec<u8>, PendingLanguage> =
         std::collections::BTreeMap::new();
@@ -690,32 +583,10 @@ fn figure_out_languages_from_json(
                         },
                     );
                 } else {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[OTFCC-fea] Duplicate language item [",
-                            tag,
-                            b"/",
-                            language_name,
-                            b"]. This language term will be ignored.\n",
-                        ),
-                    );
+                    tracing::warn!("[OTFCC-fea] Duplicate language item [{}/{}]. This language term will be ignored.\n", ByteStr(tag), ByteStr(language_name));
                 }
             } else {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[OTFCC-fea] There is no valid feature assignments for [",
-                        tag,
-                        b"/",
-                        language_name,
-                        b"]. This language term will be ignored.\n",
-                    ),
-                );
+                tracing::warn!("[OTFCC-fea] There is no valid feature assignments for [{}/{}]. This language term will be ignored.\n", ByteStr(tag), ByteStr(language_name));
             }
         }
     }
@@ -765,7 +636,7 @@ pub fn otfcc_parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) ->
     let features_present = table.get_typed(b"features", JsonType::Object).is_some();
     let lookups_present = table.get_typed(b"lookups", JsonType::Object).is_some();
     if languages_present && features_present && lookups_present {
-        logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
+        let stage = crate::logger::stage(ByteStr(tag));
         // No longer a `___loggedstep_v`/`current_block`-flagged `loop`
         // simulating "run this block once, then jump past the
         // `logger_finish`+early-return on failure" -- the block below
@@ -776,7 +647,6 @@ pub fn otfcc_parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) ->
         // tail below instead.
         let mut lh: PendingLookups = figure_out_lookups_from_json(
             table.get_typed(b"lookups", JsonType::Object),
-            options,
         );
         if let Some(items) = table
             .get_typed(b"lookupOrder", JsonType::Array)
@@ -807,10 +677,9 @@ pub fn otfcc_parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) ->
                 table.get_typed(b"languages", JsonType::Object),
                 &fh,
                 tag,
-                options,
             );
         if lh.entries.is_empty() || fh.entries.is_empty() || sh.is_empty() {
-            logger_dedent(&mut options.logger.borrow_mut());
+            stage.abandon();
         } else {
             // `lh.entries` is an owned `Vec` now, not a chain of
             // uthash nodes reached via a raw pointer, so there is no
@@ -919,20 +788,11 @@ pub fn otfcc_parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) ->
                 language_box.features = features;
                 otl_box.languages.push(language_box);
             }
-            logger_finish(&mut options.logger.borrow_mut());
+            drop(stage);
             return Some(otl_box);
         }
     }
-    logger_log_sds(
-        &mut options.logger.borrow_mut(),
-        LOG_VL_IMPORTANT,
-        LoggerType::Warning,
-        crate::bytesbuild!(
-            b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",
-            tag,
-            b".\n",
-        ),
-    );
+    tracing::warn!("[OTFCC-fea] Ignoring invalid or incomplete OTL table {}.\n", ByteStr(tag));
     None
 }
 
@@ -951,8 +811,7 @@ mod feature_merger_tests {
             (b"test1\0".to_vec(), arr.clone()),
             (b"test2\0".to_vec(), arr),
         ]);
-        let options = Options::default();
-        feature_merger_activate(&mut d, true, b"feature", &options);
+        feature_merger_activate(&mut d, true, b"feature");
         let fields = d.as_object().unwrap();
         assert_eq!(fields[0].0, b"test1\0");
         assert_eq!(
@@ -972,8 +831,7 @@ mod feature_merger_tests {
             (b"aaaa1\0".to_vec(), arr.clone()),
             (b"bbbb1\0".to_vec(), arr),
         ]);
-        let options = Options::default();
-        feature_merger_activate(&mut d, true, b"feature", &options);
+        feature_merger_activate(&mut d, true, b"feature");
         let fields = d.as_object().unwrap();
         // Neither entry is an alias: the first 4 bytes ("aaaa" vs "bbbb")
         // never match, so `tag4_matches` rejects every candidate pair.
@@ -990,8 +848,7 @@ mod feature_merger_tests {
             (b"aaaa1\0".to_vec(), arr.clone()),
             (b"bbbb1\0".to_vec(), arr),
         ]);
-        let options = Options::default();
-        feature_merger_activate(&mut d, false, b"lookup", &options);
+        feature_merger_activate(&mut d, false, b"lookup");
         let fields = d.as_object().unwrap();
         assert_eq!(fields[1].1, ParsedValue::Str(b"aaaa1\0".to_vec()));
     }

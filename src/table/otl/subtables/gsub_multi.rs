@@ -9,7 +9,6 @@ use crate::support::font_reader::FontReader;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, count_u16};
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -125,7 +124,6 @@ pub fn otl_gsub_dump_multi(_subtable: &Subtable) -> BuiltValue {
 }
 pub fn otl_gsub_parse_multi(
     _subtable: Option<&ParsedValue>,
-    _options: &Options,
 ) -> Option<Subtable> {
     let mut st: GsubMultiSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
