@@ -140,7 +140,7 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
             }
         } else {
             let cffpr: CffAndGlyfOwned =
-                otfcc_read_cff_and_glyf_tables(packet, options, font.head.as_deref());
+                otfcc_read_cff_and_glyf_tables(packet, font.head.as_deref());
             font.cff = cffpr.meta;
             font.glyf = cffpr.glyphs;
             font.vhea = otfcc_read_vhea(packet);

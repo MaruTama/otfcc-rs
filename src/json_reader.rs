@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 
-use crate::logger::{LOG_VL_CRITICAL, LOG_VL_NOTICE, LoggerType, logger_log_sds};
+use crate::logger::ByteStr;
 use crate::support::json_limits::{MAX_ENTRIES, find_oversized_collection};
 use crate::support::parsed_json::ParsedValue;
 
@@ -180,12 +180,7 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
         if let Some(table) = root.get_typed(b"glyph_order", JsonType::Array) {
             let mut ignore_glyph_order: bool = options.ignore_glyph_order;
             if ignore_glyph_order && root.get_typed(b"SVG_", JsonType::Array).is_some() {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_NOTICE,
-                    LoggerType::Info,
-                    crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",),
-                );
+                tracing::info!("OpenType SVG table detected. Glyph order is preserved.");
                 ignore_glyph_order = false;
             }
             place_order_entries_from_subtable(table, go, ignore_glyph_order);
@@ -235,20 +230,7 @@ pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>>
     // reports as "Cannot parse JSON file ... as a font" and what
     // `otfccbuild_json_otf` turns into a null buffer.
     if let Some(found) = find_oversized_collection(root) {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_CRITICAL,
-            LoggerType::Error,
-            crate::bytesbuild!(
-                b"Too many entries in \"",
-                &found.path,
-                b"\": ",
-                found.len as u32,
-                b" (at most ",
-                MAX_ENTRIES as u32,
-                b" are supported; counts in an OpenType table are 16-bit).\n",
-            ),
-        );
+        tracing::error!("Too many entries in \"{}\": {} (at most {} are supported; counts in an OpenType table are 16-bit).\n", ByteStr(&found.path), found.len as u32, MAX_ENTRIES as u32);
         return None;
     }
     let mut font: Box<Font> = Box::default();

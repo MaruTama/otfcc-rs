@@ -1,5 +1,5 @@
 
-use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
+use crate::logger::ByteStr;
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::fmt::Byte;
@@ -89,20 +89,7 @@ pub fn otfcc_sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer
     }
     let entry = create_segment(tag, buffer);
     builder.tables.insert(tag as i32, entry);
-    let options = builder.options;
-    logger_log_sds(
-        &mut options.logger.borrow_mut(),
-        LOG_VL_PROGRESS,
-        LoggerType::Progress,
-        crate::bytesbuild!(
-            b"OpenType table ",
-            Byte((tag >> 24_i32 & 0xff_u32) as u8),
-            Byte((tag >> 16_i32 & 0xff_u32) as u8),
-            Byte((tag >> 8_i32 & 0xff_u32) as u8),
-            Byte((tag & 0xff_u32) as u8),
-            b" successfully built.\n",
-        ),
-    );
+    tracing::debug!("OpenType table {}{}{}{} successfully built.\n", ByteStr(Byte((tag >> 24_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag >> 16_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag >> 8_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag & 0xff_u32) as u8)));
 }
 // `builder.is_null()` was dead here too, same reasoning as
 // `otfcc_sfnt_builder_push_table` above.

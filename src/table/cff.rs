@@ -874,7 +874,6 @@ fn build_outline(
     glyphs: &mut GlyfTable,
     cff_file: &CffFile,
     seed: &mut u64,
-    options: &Options,
     stack: &mut CffStack,
 ) {
     stack.index = 0;
@@ -966,7 +965,6 @@ fn build_outline(
         &local_subrs,
         stack,
         &mut bc,
-        options,
         0,
         &mut total_subr_calls,
     );
@@ -1206,7 +1204,6 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Option<&HeadTabl
 // trip along with the unsafe wrapping it required.
 pub fn otfcc_read_cff_and_glyf_tables(
     packet: &Packet,
-    options: &Options,
     head: Option<&HeadTable>,
 ) -> CffAndGlyfOwned {
     let mut ret: CffAndGlyfOwned = CffAndGlyfOwned::default();
@@ -1219,7 +1216,7 @@ pub fn otfcc_read_cff_and_glyf_tables(
         // `meta`/`glyphs` (this function's own two results) are plain
         // owned values, not a second raw-pointer round trip through
         // `table_cff_create`/`unwrap_cff_table` on top of the first one.
-        let cff_file: Box<CffFile> = cff_open_stream(&table.data, options);
+        let cff_file: Box<CffFile> = cff_open_stream(&table.data);
         // A CFF table's Top DICT INDEX with a declared `count`
         // of 0 has no entries at all -- `extract_index` only
         // populates `offset` (`count + 1` entries) when
@@ -1327,7 +1324,6 @@ pub fn otfcc_read_cff_and_glyf_tables(
                         glyphs_ref,
                         cff_file_ref,
                         &mut seed,
-                        options,
                         &mut outline_stack,
                     );
                 }
@@ -1649,7 +1645,7 @@ fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, B
         cff_optimize_il(&mut il, options);
         cff_insert_il_to_graph(&mut context.graph, &il);
     }
-    cff_il_graph_to_buffers(&mut context.graph, options)
+    cff_il_graph_to_buffers(&mut context.graph)
 }
 // Deduplicates by string content, first registration wins -- returns the
 // existing SID if the string was already registered, otherwise assigns
@@ -2282,7 +2278,7 @@ mod cff_matrix_no_head_regression_tests {
 
         // The call that used to segfault: `head: None`, matching a
         // `Font` with no `head` table at all.
-        let result = otfcc_read_cff_and_glyf_tables(&packet, &options, None);
+        let result = otfcc_read_cff_and_glyf_tables(&packet, None);
 
         // Sanity: the FontMatrix really did round-trip through the
         // writer and back, and there is a real glyph to (not) scale --
