@@ -140,7 +140,7 @@ pub fn otfcc_dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
         BuiltValue::Int(table.glyph_data_format as i64),
     );
     root.push_field(b"head", head);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
     // Reproduces `init_head`'s two non-zero defaults exactly:
@@ -190,7 +190,7 @@ pub fn otfcc_parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
     head.font_directory_hint = table.get_num_or(b"fontDirectoryHint", 0.0) as i16;
     head.index_to_loc_format = table.get_num_or(b"indexToLocFormat", 0.0) as i16;
     head.glyph_data_format = table.get_num_or(b"glyphDataFormat", 0.0) as i16;
-    drop(stage);
+    stage.finish();
     Some(Box::new(head))
 }
 #[allow(improper_ctypes_definitions)]

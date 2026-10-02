@@ -1,7 +1,3 @@
-use std::cell::RefCell;
-
-use crate::logger::Logger;
-
 #[derive(Default, Debug)]
 pub struct Options {
     pub debug_wait_on_start: bool,
@@ -33,21 +29,6 @@ pub struct Options {
     /// was a CLI argument that had already been a Rust `CString`, so the
     /// C-string round trip bought nothing.
     pub glyph_name_prefix: Option<Vec<u8>>,
-    // Was `*mut Logger`, a second heap allocation `Options` merely pointed
-    // at (built via the now-removed `otfcc_new_logger`, freed via the
-    // now-removed `logger_dispose`). `Options` owns its `Logger` inline
-    // now; `RefCell` gives every call site holding only `&Options` (the
-    // norm since Stage 7-2-a) a way to still get `&mut Logger` out to log
-    // with, without needing `&mut Options` threaded through every read/
-    // dump/build/parse function purely for logging. Every existing call
-    // site already logs with a single short-lived borrow per statement
-    // (`logger_log_sds(&mut *options.logger.borrow_mut(), ...)`, immediately
-    // released), never nested re-entrantly into another borrow of the same
-    // `Logger` -- confirmed by full pipeline + Miri after the conversion,
-    // which would surface a `RefCell` double-borrow as a panic, not silent
-    // UB. Single-threaded throughout (this crate has no threading), so
-    // `RefCell` over `Mutex` costs nothing and needs no `Sync` bound.
-    pub logger: RefCell<Logger>,
     // Bounds the total number of "invalid lookup reference" warnings
     // `consolidate_chaining` will actually log for one `otfcc_consolidate_
     // font` call. Each individual contextual/chaining rule's own lookup-
@@ -58,8 +39,8 @@ pub struct Options {
     // but those three caps multiply, and fuzzing found a font that rode
     // all three near their ceiling at once (many subtables, each with many
     // rules, each with many unresolvable lookup applications), reaching
-    // millions of warnings -- each one a heap-allocating `bytesbuild!` call
-    // plus a stderr write, tens of seconds of pure logging overhead. This
+    // millions of warnings -- each one a formatted message plus a stderr
+    // write, tens of seconds of pure logging overhead. This
     // is the backstop that bounds the *product*, not just each factor.
     // Reset to `CONSOLIDATE_WARNING_BUDGET` at the start of every
     // `otfcc_consolidate_font` call (not just once at `Options` creation),

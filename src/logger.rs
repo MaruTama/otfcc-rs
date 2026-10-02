@@ -3,19 +3,16 @@
 //! Library code reports through `tracing` events and spans:
 //! - `tracing::error!` / `warn!` / `info!` / `debug!` for messages, printed
 //!   with the `[ERROR]` / `[WARNING]` / `[NOTE]` / no prefix respectively;
-//! - [`stage`] for a named step that prints `Begin` and `Finish` lines in
-//!   verbose mode, and [`indent`] for a named scope that only indents the
-//!   lines inside it.
+//! - [`stage`] for a named step: verbose mode prints `Begin` when it opens
+//!   and `Finish` when [`StageGuard::finish`] is called (a stage left by an
+//!   early return closes without one); [`indent`] for a named scope that
+//!   only indents the lines inside it.
 //!
 //! [`OtfccTreeLayer`] renders those as otfcc's indented stderr format
 //! (`otfccdump : Read SFNT : Begin`, ` |-`, ` | `). The CLI binaries install
 //! it with [`install_stderr`]. With no subscriber installed (the cdylib/FFI
 //! path and library tests) nothing is printed, and disabled messages are
 //! never formatted.
-//!
-//! The older `logger_*` functions and [`Logger`] remain as a thin
-//! compatibility layer that forwards to `tracing`, so call sites can move
-//! over gradually.
 
 use std::fmt;
 use std::io::Write;
@@ -30,14 +27,10 @@ use tracing::{Event, Level, Metadata};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum LoggerTarget {
-    Stderr,
-    Empty,
-}
+/// The four kinds of line the original logger printed, in prefix order.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
-pub enum LoggerType {
+enum LoggerType {
     Error = 0,
     Warning = 1,
     Info = 2,
@@ -48,13 +41,12 @@ pub enum LoggerType {
 // set -- and `Begin`/`Finish` lines do arithmetic on one (`LOG_VL_PROGRESS
 // + level`, deeper nesting being more verbose), which an enum could not
 // express.
-pub const LOG_VL_CRITICAL: u8 = 0;
-pub const LOG_VL_IMPORTANT: u8 = 1;
-pub const LOG_VL_NOTICE: u8 = 2;
-pub const LOG_VL_INFO: u8 = 5;
-pub const LOG_VL_PROGRESS: u8 = 10;
+const LOG_VL_CRITICAL: u8 = 0;
+const LOG_VL_IMPORTANT: u8 = 1;
+const LOG_VL_NOTICE: u8 = 2;
+const LOG_VL_PROGRESS: u8 = 10;
 
-pub static OTFCC_LOGGER_TYPE_NAMES: [&str; 3] = ["[ERROR]", "[WARNING]", "[NOTE]"];
+static OTFCC_LOGGER_TYPE_NAMES: [&str; 3] = ["[ERROR]", "[WARNING]", "[NOTE]"];
 
 /// Displays one piece of a log message exactly as the old byte-based
 /// `bytesbuild!` messages rendered it (via `SdsPart`): a `&Vec<u8>` (a
@@ -76,15 +68,17 @@ impl<T: SdsPart + Copy> fmt::Display for ByteStr<T> {
 const STAGE_SPAN: &str = "otfcc_stage";
 const INDENT_SPAN: &str = "otfcc_indent";
 
-/// An open [`stage`] or [`indent`] scope; dropping it closes the scope (and,
-/// for a stage, prints its `Finish` line in verbose mode).
+/// An open [`stage`] or [`indent`] scope. Dropping it closes the scope
+/// silently; [`StageGuard::finish`] closes a stage with its `Finish` line.
 #[must_use = "the scope closes as soon as this guard is dropped"]
 pub struct StageGuard(tracing::span::EnteredSpan);
 
 impl StageGuard {
-    /// Closes the scope without printing a `Finish` line.
-    pub fn abandon(self) {
-        self.0.record("abandoned", true);
+    /// Closes a stage that completed, printing its `Finish` line in verbose
+    /// mode. (A stage that is just dropped, e.g. by an early return on an
+    /// error path, prints no `Finish` -- as the original logger did.)
+    pub fn finish(self) {
+        self.0.record("finished", true);
     }
 }
 
@@ -95,11 +89,11 @@ impl fmt::Debug for StageGuard {
 }
 
 /// Opens a named step: verbose output shows `<segment> : Begin` now and
-/// `<segment> : Finish` when the returned guard is dropped, and every line
-/// logged in between is indented under `segment`.
+/// `<segment> : Finish` when [`StageGuard::finish`] is called, and every
+/// line logged in between is indented under `segment`.
 pub fn stage(segment: impl fmt::Display) -> StageGuard {
     StageGuard(
-        tracing::info_span!(STAGE_SPAN, segment = %segment, abandoned = tracing::field::Empty).entered(),
+        tracing::info_span!(STAGE_SPAN, segment = %segment, finished = tracing::field::Empty).entered(),
     )
 }
 
@@ -203,19 +197,19 @@ fn verbosity_of(level: &Level) -> (u8, LoggerType) {
 struct ScopeInfo {
     segment: Vec<u8>,
     is_stage: bool,
-    abandoned: bool,
+    finished: bool,
 }
 
 #[derive(Default)]
 struct ScopeVisitor {
     segment: Option<String>,
-    abandoned: bool,
+    finished: bool,
 }
 
 impl Visit for ScopeVisitor {
     fn record_bool(&mut self, field: &Field, value: bool) {
-        if field.name() == "abandoned" {
-            self.abandoned = value;
+        if field.name() == "finished" {
+            self.finished = value;
         }
     }
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
@@ -307,7 +301,7 @@ where
             span.extensions_mut().insert(ScopeInfo {
                 segment: visitor.segment.unwrap_or_default().into_bytes(),
                 is_stage: attrs.metadata().name() == STAGE_SPAN,
-                abandoned: visitor.abandoned,
+                finished: visitor.finished,
             });
         }
     }
@@ -315,13 +309,13 @@ where
     fn on_record(&self, id: &Id, values: &Record<'_>, ctx: Context<'_, S>) {
         let mut visitor = ScopeVisitor::default();
         values.record(&mut visitor);
-        if !visitor.abandoned {
+        if !visitor.finished {
             return;
         }
         if let Some(span) = ctx.span(id)
             && let Some(info) = span.extensions_mut().get_mut::<ScopeInfo>()
         {
-            info.abandoned = true;
+            info.finished = true;
         }
     }
 
@@ -347,7 +341,7 @@ where
         let Some(span) = ctx.span(id) else { return };
         let extensions = span.extensions();
         let Some(info) = extensions.get::<ScopeInfo>() else { return };
-        let prints_finish = info.is_stage && !info.abandoned;
+        let prints_finish = info.is_stage && info.finished;
         drop(extensions);
         self.with_state(|formatter, out| {
             if prints_finish {
@@ -381,76 +375,6 @@ pub fn install_stderr(verbosity: u8) {
     let subscriber =
         tracing_subscriber::Registry::default().with(OtfccTreeLayer::new(verbosity, std::io::stderr()));
     let _ = tracing::subscriber::set_global_default(subscriber);
-}
-
-// ---------------------------------------------------------------------------
-// Compatibility layer: the original `Logger` API, forwarding to `tracing`.
-// ---------------------------------------------------------------------------
-
-/// The per-`Options` handle the original API threads through every call.
-/// It now only holds the scopes opened through `logger_start_sds`/
-/// `logger_indent_sds` (closed again by `logger_finish`/`logger_dedent`)
-/// and the verbosity the CLI asked for; output goes through `tracing`.
-#[derive(Debug)]
-pub struct Logger {
-    pub target: LoggerTarget,
-    pub verbosity_limit: u8,
-    scopes: Vec<StageGuard>,
-}
-impl Logger {
-    pub fn new(target: LoggerTarget) -> Logger {
-        Logger { target, verbosity_limit: 0, scopes: Vec::new() }
-    }
-}
-impl Default for Logger {
-    fn default() -> Self {
-        Logger::new(LoggerTarget::Empty)
-    }
-}
-impl Drop for Logger {
-    /// Scopes still open here were never finished (an early return on an
-    /// error path), and the original printed nothing for them; close them
-    /// innermost first without a `Finish` line.
-    fn drop(&mut self) {
-        while let Some(scope) = self.scopes.pop() {
-            scope.abandon();
-        }
-    }
-}
-pub fn logger_indent_sds(self_0: &mut Logger, segment: Vec<u8>) {
-    self_0.scopes.push(indent(ByteStr(&segment[..])));
-}
-pub fn logger_dedent(self_0: &mut Logger) {
-    if let Some(scope) = self_0.scopes.pop() {
-        scope.abandon();
-    }
-}
-pub fn logger_finish(self_0: &mut Logger) {
-    self_0.scopes.pop();
-}
-pub fn logger_start_sds(self_0: &mut Logger, segment: Vec<u8>) {
-    self_0.scopes.push(stage(ByteStr(&segment[..])));
-}
-/// `verbosity` is implied by `type_0` at every call site (errors are
-/// critical, warnings important, notes notices, progress progress), so the
-/// event's level is taken from `type_0`.
-pub fn logger_log_sds(_self_0: &mut Logger, _verbosity: u8, type_0: LoggerType, data: Vec<u8>) {
-    let message = String::from_utf8_lossy(&data);
-    match type_0 {
-        LoggerType::Error => tracing::error!("{message}"),
-        LoggerType::Warning => tracing::warn!("{message}"),
-        LoggerType::Info => tracing::info!("{message}"),
-        LoggerType::Progress => tracing::debug!("{message}"),
-    }
-}
-pub fn logger_set_verbosity(self_0: &mut Logger, verbosity: u8) {
-    self_0.verbosity_limit = verbosity;
-}
-pub fn otfcc_new_std_err_target() -> LoggerTarget {
-    LoggerTarget::Stderr
-}
-pub fn otfcc_new_empty_target() -> LoggerTarget {
-    LoggerTarget::Empty
 }
 
 #[cfg(test)]
@@ -583,8 +507,8 @@ mod tests {
                 match op {
                     Op::Indent(s) => open.push(indent(s)),
                     Op::Start(s) => open.push(stage(s)),
-                    Op::Finish => drop(open.pop()),
-                    Op::Dedent => open.pop().unwrap().abandon(),
+                    Op::Finish => open.pop().unwrap().finish(),
+                    Op::Dedent => drop(open.pop()),
                     Op::Log(LoggerType::Error, m) => tracing::error!("{m}"),
                     Op::Log(LoggerType::Warning, m) => tracing::warn!("{m}"),
                     Op::Log(LoggerType::Info, m) => tracing::info!("{m}"),
@@ -596,8 +520,9 @@ mod tests {
     }
 
     /// A run shaped like `otfccdump`'s: a root indent, nested stages with
-    /// progress, warnings and errors at several depths, a stage closed with
-    /// `Dedent` (no `Finish`), and messages with and without a trailing `\n`.
+    /// progress, warnings and errors at several depths, a stage closed
+    /// without `Finish` (the old `logger_dedent`; now a plain drop), and
+    /// messages with and without a trailing `\n`.
     fn script() -> Vec<Op> {
         use LoggerType::*;
         vec![
@@ -659,21 +584,27 @@ mod tests {
     }
 
     #[test]
-    fn compatibility_layer_closes_unfinished_scopes_silently() {
+    fn a_stage_left_by_an_early_return_closes_without_finish() {
+        // `otfccdump`'s "Cannot read SFNT file" path: the stage is dropped
+        // by the error return, never finished.
+        fn read_sfnt() -> Result<(), ()> {
+            let stage = stage("Read SFNT");
+            tracing::error!("Cannot read");
+            Err(())?;
+            stage.finish();
+            Ok(())
+        }
         let buf = SharedBuf::default();
         let subscriber =
             tracing_subscriber::Registry::default().with(OtfccTreeLayer::new(0xff, buf.clone()));
         tracing::subscriber::with_default(subscriber, || {
-            let mut logger = Logger::default();
-            logger_indent_sds(&mut logger, b"otfccdump".to_vec());
-            logger_start_sds(&mut logger, b"Read SFNT".to_vec());
-            logger_log_sds(&mut logger, LOG_VL_CRITICAL, LoggerType::Error, b"Cannot read".to_vec());
-            drop(logger);
+            let _root = indent("otfccdump");
+            assert!(read_sfnt().is_err());
             tracing::error!("after");
         });
         assert_eq!(
             String::from_utf8(buf.0.lock().unwrap().clone()).unwrap(),
-            "otfccdump : Read SFNT : Begin\n          |-Read SFNT : [ERROR] Cannot read\n[ERROR] after\n"
+            "otfccdump : Read SFNT : Begin\n          |-Read SFNT : [ERROR] Cannot read\notfccdump : [ERROR] after\n"
         );
     }
 

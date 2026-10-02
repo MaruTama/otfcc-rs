@@ -176,7 +176,7 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8
                 languages.push_field_bytes_key(&lang.name, _lang);
             }
             otl.push_field(b"languages", languages);
-            drop(stage_2);
+            stage_2.finish();
         }
         let stage_2 = crate::logger::stage("Features");
         {
@@ -198,7 +198,7 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8
                 features_0.push_field_bytes_key(&feature.name, _feature.preserialize());
             }
             otl.push_field(b"features", features_0);
-            drop(stage_2);
+            stage_2.finish();
         }
         let stage_2 = crate::logger::stage("Lookups");
         {
@@ -213,9 +213,9 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8
             }
             otl.push_field(b"lookups", lookups);
             otl.push_field(b"lookupOrder", lookup_order);
-            drop(stage_2);
+            stage_2.finish();
         }
         root.push_field(tag, otl);
-        drop(stage);
+        stage.finish();
     }
 }

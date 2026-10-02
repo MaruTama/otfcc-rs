@@ -35,5 +35,5 @@ pub fn otfcc_dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue) {
     }
     _meta.push_field(b"entries", _entries);
     root.push_field(b"meta", _meta);
-    drop(stage);
+    stage.finish();
 }

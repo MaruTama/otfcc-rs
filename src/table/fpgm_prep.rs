@@ -55,7 +55,7 @@ pub fn table_dump_table_fpgm_prep(
     let stage = crate::logger::stage(ByteStr(tag));
     let dumped = dump_ttinstr(&table.bytes, options);
     root.push_field(tag, dumped);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_fpgm_prep(
     root: &ParsedValue,
@@ -68,7 +68,7 @@ pub fn otfcc_parse_fpgm_prep(
         bytes: Vec::new(),
     });
     parse_ttinstr(Some(table), |instrs| boxed.bytes = instrs, |_reason, _pos| {});
-    drop(stage);
+    stage.finish();
     Some(boxed)
 }
 pub fn otfcc_build_fpgm_prep(table: Option<&FpgmPrepTable>) -> Option<Buffer> {

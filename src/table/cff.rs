@@ -1516,7 +1516,7 @@ pub fn otfcc_dump_cff(table: Option<&CffTable>, root: &mut BuiltValue) {
     };
     let stage = crate::logger::stage("CFF");
     root.push_field(b"CFF_", fd_to_json(table));
-    drop(stage);
+    stage.finish();
 }
 fn pd_delta_from_json(dump: Option<&ParsedValue>) -> Vec<::core::ffi::c_double> {
     let Some(items) = dump.and_then(ParsedValue::as_array) else {
@@ -1622,7 +1622,7 @@ pub fn otfcc_parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffT
     let dump = root.get_typed(b"CFF_", JsonType::Object)?;
     let stage = crate::logger::stage("CFF");
     let cff = fd_from_json(Some(dump), options, true);
-    drop(stage);
+    stage.finish();
     Some(cff)
 }
 // `CffCharstringBuilderContext.glyf`/`.options` are plain borrows now

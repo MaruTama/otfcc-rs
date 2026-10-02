@@ -121,7 +121,7 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
             _svg.push_item(_a);
         }
         root.push_field(b"SVG_", _svg);
-        drop(stage);
+        stage.finish();
     }
 }
 pub fn otfcc_parse_svg(root: &ParsedValue) -> Option<SvgTable> {
@@ -148,7 +148,7 @@ pub fn otfcc_parse_svg(root: &ParsedValue) -> Option<SvgTable> {
                 }
             }
         }
-        drop(stage);
+        stage.finish();
     }
     return Some(svg);
 }

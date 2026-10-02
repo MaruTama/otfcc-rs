@@ -120,7 +120,7 @@ pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
         _colr.push_item(_map);
     }
     root.push_field(b"COLR", _colr);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_colr(root: &ParsedValue) -> Option<ColrTable> {
     let colr_val = root.get_typed(b"COLR", JsonType::Array)?;
@@ -159,7 +159,7 @@ pub fn otfcc_parse_colr(root: &ParsedValue) -> Option<ColrTable> {
             }
         }
     }
-    drop(stage);
+    stage.finish();
     Some(colr)
 }
 #[allow(improper_ctypes_definitions)]

@@ -647,7 +647,7 @@ pub fn otfcc_dump_cmap(
         }
         root.push_field(b"cmap_uvs", uvs);
     }
-    drop(stage);
+    stage.finish();
 }
 // `unicode_str` borrows the object key's own storage directly (the trailing
 // storage NUL stripped by the caller, same as every other `ParsedValue`
@@ -728,13 +728,13 @@ pub fn otfcc_parse_cmap(root: &ParsedValue) -> Option<Box<CmapTable>> {
     let cmap: &mut CmapTable = cmap_box.as_mut();
     let stage = crate::logger::stage("cmap");
     parse_cmap_unicodes(cmap, root.get_typed(b"cmap", JsonType::Object));
-    drop(stage);
+    stage.finish();
     let stage = crate::logger::stage("cmap_uvs");
     parse_cmap_uvs(
         cmap,
         root.get_typed(b"cmap_uvs", JsonType::Object),
     );
-    drop(stage);
+    stage.finish();
     Some(cmap_box)
 }
 fn otfcc_build_cmap_format4(cmap: &CmapTable) -> Buffer {

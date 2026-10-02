@@ -466,7 +466,7 @@ pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
         BuiltValue::Int(table.max_mem_type1 as i64),
     );
     root.push_field(b"post", post);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
@@ -500,7 +500,7 @@ pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<Pos
         post.max_mem_type42 = table.get_num(b"maxMemType42") as u32;
         post.min_mem_type1 = table.get_num(b"minMemType1") as u32;
         post.max_mem_type1 = table.get_num(b"maxMemType1") as u32;
-        drop(stage);
+        stage.finish();
     }
     Some(Box::new(post))
 }

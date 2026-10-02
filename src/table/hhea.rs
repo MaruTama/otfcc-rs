@@ -98,7 +98,7 @@ pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     );
     hhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
     root.push_field(b"hhea", hhea);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     let mut hhea = HheaTable {
@@ -130,7 +130,7 @@ pub fn otfcc_parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
         hhea.caret_slope_rise = table.get_num(b"caretSlopeRise") as i16;
         hhea.caret_slope_run = table.get_num(b"caretSlopeRun") as i16;
         hhea.caret_offset = table.get_num(b"caretOffset") as i16;
-        drop(stage);
+        stage.finish();
     }
     Some(Box::new(hhea))
 }

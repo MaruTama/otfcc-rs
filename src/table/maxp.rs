@@ -147,7 +147,7 @@ pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
         BuiltValue::Int(table.max_component_depth as i64),
     );
     root.push_field(b"maxp", maxp);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
@@ -183,7 +183,7 @@ pub fn otfcc_parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
         maxp.max_function_defs = table.get_num(b"maxFunctionDefs") as u16;
         maxp.max_instruction_defs = table.get_num(b"maxInstructionDefs") as u16;
         maxp.max_stack_elements = table.get_num(b"maxStackElements") as u16;
-        drop(stage);
+        stage.finish();
     }
     Some(Box::new(maxp))
 }

@@ -28,7 +28,6 @@
 
 use libfuzzer_sys::fuzz_target;
 use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
-use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::options::Options;
 use std::cell::RefCell;
@@ -47,7 +46,6 @@ fuzz_target!(|data: &[u8]| {
     }
 
     let mut options: Box<Options> = Box::default();
-    options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
     // Subfont index 0 always exists once `count > 0` -- fuzzing which
     // TTC subfont gets selected would mostly re-exercise the same

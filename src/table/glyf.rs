@@ -545,7 +545,7 @@ pub fn otfcc_dump_glyf(
     if !options.ignore_glyph_order {
         otfcc_dump_glyphorder(table, root);
     }
-    drop(stage);
+    stage.finish();
 }
 fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
     let mut point: Point = Point {
@@ -782,7 +782,7 @@ pub fn otfcc_parse_glyf(
             }
         table.take_field(j);
     }
-    drop(stage);
+    stage.finish();
     Some(glyf_val)
 }
 

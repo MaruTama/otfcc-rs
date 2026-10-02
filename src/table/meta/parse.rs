@@ -52,7 +52,7 @@ pub fn otfcc_parse_meta(root: &ParsedValue) -> Option<Box<MetaTable>> {
             meta.entries.push(MetaEntry { tag, data });
         }
     }
-    drop(stage);
+    stage.finish();
     Some(meta)
 }
 #[inline]

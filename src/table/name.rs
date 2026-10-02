@@ -132,7 +132,7 @@ pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue) {
             _name.push_item(record);
         }
         root.push_field(b"name", _name);
-        drop(stage);
+        stage.finish();
     }
 }
 pub fn otfcc_parse_name(root: &ParsedValue) -> Option<NameTable> {
@@ -180,7 +180,7 @@ pub fn otfcc_parse_name(root: &ParsedValue) -> Option<NameTable> {
             .then(a.language_id.cmp(&b.language_id))
             .then(a.name_id.cmp(&b.name_id))
     });
-    drop(stage);
+    stage.finish();
     Some(name)
 }
 pub fn otfcc_build_name(name: Option<&NameTable>) -> Option<Buffer> {
