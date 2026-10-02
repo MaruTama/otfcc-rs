@@ -1,10 +1,8 @@
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::{FontReader, ReadError};
 
 use crate::font::caryll_sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
 // Stage 6-4 pilot for `Font`'s `*mut X`-typed table fields Box-ified the
@@ -34,7 +32,7 @@ fn parse_ltsh(data: &[u8]) -> Result<(u16, GlyphId, &[u8]), ReadError> {
     Ok((version, num_glyphs, pels))
 }
 
-pub fn otfcc_read_ltsh(packet: &Packet, options: &Options) -> Option<Box<LtshTable>> {
+pub fn otfcc_read_ltsh(packet: &Packet) -> Option<Box<LtshTable>> {
     let table = packet
         .pieces
         .iter()
@@ -42,12 +40,7 @@ pub fn otfcc_read_ltsh(packet: &Packet, options: &Options) -> Option<Box<LtshTab
     let (version, num_glyphs, pels) = match parse_ltsh(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'LTSH' corrupted.\n"),
-            );
+            tracing::warn!("table 'LTSH' corrupted.\n");
             return None;
         }
     };

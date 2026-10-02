@@ -40,17 +40,17 @@ use crate::table::vhea::otfcc_dump_vhea;
 /// existed on this path.
 pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
     let mut root = BuiltValue::new_object(48);
-    otfcc_dump_fvar(font.fvar.as_deref(), &mut root, options);
-    otfcc_dump_head(font.head.as_deref(), &mut root, options);
-    otfcc_dump_hhea(font.hhea.as_deref(), &mut root, options);
-    otfcc_dump_maxp(font.maxp.as_deref(), &mut root, options);
-    otfcc_dump_vhea(font.vhea.as_deref(), &mut root, options);
-    otfcc_dump_post(font.post.as_deref(), &mut root, options);
-    otfcc_dump_os_2(font.os_2.as_deref(), &mut root, options);
-    otfcc_dump_name(font.name.as_ref(), &mut root, options);
-    otfcc_dump_meta(font.meta.as_deref(), &mut root, options);
+    otfcc_dump_fvar(font.fvar.as_deref(), &mut root);
+    otfcc_dump_head(font.head.as_deref(), &mut root);
+    otfcc_dump_hhea(font.hhea.as_deref(), &mut root);
+    otfcc_dump_maxp(font.maxp.as_deref(), &mut root);
+    otfcc_dump_vhea(font.vhea.as_deref(), &mut root);
+    otfcc_dump_post(font.post.as_deref(), &mut root);
+    otfcc_dump_os_2(font.os_2.as_deref(), &mut root);
+    otfcc_dump_name(font.name.as_ref(), &mut root);
+    otfcc_dump_meta(font.meta.as_deref(), &mut root);
     otfcc_dump_cmap(font.cmap.as_deref(), &mut root, options);
-    otfcc_dump_cff(font.cff.as_deref(), &mut root, options);
+    otfcc_dump_cff(font.cff.as_deref(), &mut root);
     // `GlyfIOContext` needs both `head` (for `index_to_loc_format`) and
     // `maxp` (for `num_glyphs`) -- a malformed/CFF-flavored font can
     // legitimately have neither, the same "head+maxp missing" case
@@ -86,12 +86,11 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
         otfcc_dump_cvt(
             font.cvt_.as_deref(),
             &mut root,
-            options,
             b"cvt_",
         );
-        otfcc_dump_gasp(font.gasp.as_deref(), &mut root, options);
+        otfcc_dump_gasp(font.gasp.as_deref(), &mut root);
     }
-    otfcc_dump_vdmx(font.vdmx.as_deref(), &mut root, options);
+    otfcc_dump_vdmx(font.vdmx.as_deref(), &mut root);
     otfcc_dump_otl(
         font.gsub.as_deref(),
         &mut root,
@@ -104,21 +103,19 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
         options,
         b"GPOS",
     );
-    otfcc_dump_gdef(font.gdef.as_deref(), &mut root, options);
-    otfcc_dump_base(font.base.as_deref(), &mut root, options);
-    otfcc_dump_cpal(font.cpal.as_deref(), &mut root, options);
-    otfcc_dump_colr(font.colr.as_ref(), &mut root, options);
-    otfcc_dump_svg(font.svg.as_ref(), &mut root, options);
+    otfcc_dump_gdef(font.gdef.as_deref(), &mut root);
+    otfcc_dump_base(font.base.as_deref(), &mut root);
+    otfcc_dump_cpal(font.cpal.as_deref(), &mut root);
+    otfcc_dump_colr(font.colr.as_ref(), &mut root);
+    otfcc_dump_svg(font.svg.as_ref(), &mut root);
     otfcc_dump_tsi(
         font.tsi_01.as_ref(),
         &mut root,
-        options,
         b"TSI_01",
     );
     otfcc_dump_tsi(
         font.tsi_23.as_ref(),
         &mut root,
-        options,
         b"TSI_23",
     );
     otfcc_dump_tsi5(font.tsi5.as_deref(), &mut root);

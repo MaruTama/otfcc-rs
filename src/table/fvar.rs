@@ -1,8 +1,4 @@
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::font_reader::FontReader;
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::Pos;
 
@@ -275,27 +271,19 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
         masters: indexmap::IndexMap::new(),
     })
 }
-pub fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTable>> {
+pub fn otfcc_read_fvar(packet: &Packet) -> Option<Box<FvarTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_FVAR)?;
     match parse_fvar(&table.data) {
         Some(fvar) => Some(Box::new(fvar)),
         None => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'fvar' corrupted.\n"),
-            );
+            tracing::warn!("table 'fvar' corrupted.\n");
             None
         }
     }
 }
-pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
     let Some(table) = table else { return };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"fvar"),
-    );
+    let stage = crate::logger::stage("fvar");
     let axes: &Vec<VfAxis> = &table.axes;
     let instances: &Vec<FvarInstance> = &table.instances;
     let mut t = BuiltValue::new_object(2);
@@ -340,7 +328,7 @@ pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue, options
     }
     t.push_field(b"masters", _masters);
     root.push_field(b"fvar", t);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
 pub fn json_new_vq_segment(s: &VqSegment, fvar: Option<&FvarTable>) -> BuiltValue {
     match s {

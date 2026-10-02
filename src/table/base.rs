@@ -1,13 +1,9 @@
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::bk_build_block;
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::{Pos, TableId};
 use crate::vendor::json::JsonType;
@@ -221,17 +217,12 @@ fn parse_base(data: &[u8]) -> Result<BaseAxisPair, ReadError> {
         .flatten();
     Ok((horizontal, vertical))
 }
-pub fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTable>> {
+pub fn otfcc_read_base(packet: &Packet) -> Option<Box<BaseTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_BASE)?;
     let (horizontal, vertical) = match parse_base(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"Table 'BASE' Corrupted"),
-            );
+            tracing::warn!("Table 'BASE' Corrupted");
             return None;
         }
     };
@@ -266,12 +257,9 @@ fn axis_to_json(axis: &BaseAxis) -> BuiltValue {
     }
     _axis
 }
-pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue) {
     let Some(base) = base else { return };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"BASE"),
-    );
+    let stage = crate::logger::stage("BASE");
     {
         let mut _base = BuiltValue::new_object(2);
         if let Some(horizontal) = base.horizontal.as_deref() {
@@ -281,7 +269,7 @@ pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue, options:
             _base.push_field(b"vertical", axis_to_json(vertical));
         }
         root.push_field(b"BASE", _base);
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
 }
 /// Returns `(default_baseline_tag, base_values)`, the JSON-side twin of
@@ -326,14 +314,11 @@ fn axis_from_json(axis: Option<&ParsedValue>) -> Option<Box<BaseAxis>> {
     entries.sort_by_key(|e| e.tag);
     Some(Box::new(BaseAxis { entries }))
 }
-pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<BaseTable>> {
+pub fn otfcc_parse_base(root: &ParsedValue) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
     let table = root.get_typed(b"BASE", JsonType::Object);
     if let Some(table) = table {
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            crate::bytesbuild!(b"BASE"),
-        );
+        let stage = crate::logger::stage("BASE");
         {
             let horizontal = axis_from_json(table.get_typed(b"horizontal", JsonType::Object));
             let vertical = axis_from_json(table.get_typed(b"vertical", JsonType::Object));
@@ -341,7 +326,7 @@ pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<Bas
                 horizontal,
                 vertical,
             }));
-            logger_finish(&mut options.logger.borrow_mut());
+            drop(stage);
         }
     }
     return base;

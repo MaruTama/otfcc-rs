@@ -1,5 +1,5 @@
+use crate::logger::ByteStr;
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
@@ -52,24 +52,23 @@ pub fn table_dump_table_fpgm_prep(
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    let stage = crate::logger::stage(ByteStr(tag));
     let dumped = dump_ttinstr(&table.bytes, options);
     root.push_field(tag, dumped);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
 pub fn otfcc_parse_fpgm_prep(
     root: &ParsedValue,
-    options: &Options,
     tag: &[u8],
 ) -> Option<Box<FpgmPrepTable>> {
     let table = root.get(tag)?;
-    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    let stage = crate::logger::stage(ByteStr(tag));
     let mut boxed = Box::new(FpgmPrepTable {
         tag: tag.to_vec(),
         bytes: Vec::new(),
     });
     parse_ttinstr(Some(table), |instrs| boxed.bytes = instrs, |_reason, _pos| {});
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(boxed)
 }
 pub fn otfcc_build_fpgm_prep(table: Option<&FpgmPrepTable>) -> Option<Buffer> {

@@ -1,11 +1,7 @@
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::vendor::json::JsonType;
 
@@ -58,7 +54,7 @@ fn parse_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
     }
     Ok(VdmxTable { version, ratios })
 }
-pub fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTable>> {
+pub fn otfcc_read_vdmx(packet: &Packet) -> Option<Box<VdmxTable>> {
     let table = packet
         .pieces
         .iter()
@@ -66,24 +62,16 @@ pub fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTab
     match parse_vdmx(&table.data) {
         Ok(vdmx) => Some(Box::new(vdmx)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"Table 'VDMX' corrupted.\n"),
-            );
+            tracing::warn!("Table 'VDMX' corrupted.\n");
             None
         }
     }
 }
-pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue) {
     let Some(vdmx) = vdmx else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"VDMX"),
-    );
+    let stage = crate::logger::stage("VDMX");
     let mut _vdmx = BuiltValue::new_object(2);
     _vdmx.push_field(b"version", BuiltValue::Int(vdmx.version as i64));
     let ratios = &vdmx.ratios;
@@ -107,18 +95,15 @@ pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue, options:
     }
     _vdmx.push_field(b"ratios", _ratios);
     root.push_field(b"VDMX", _vdmx);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
-pub fn otfcc_parse_vdmx(root: &ParsedValue, options: &Options) -> Option<Box<VdmxTable>> {
+pub fn otfcc_parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
     let vdmx_dump = root.get_typed(b"VDMX", JsonType::Object)?;
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable {
         version: 0,
         ratios: Vec::new(),
     });
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"VDMX"),
-    );
+    let stage = crate::logger::stage("VDMX");
     vdmx.version = vdmx_dump.get_num(b"version") as u16;
     if let Some(ratio_items) = vdmx_dump
         .get_typed(b"ratios", JsonType::Array)
@@ -157,7 +142,7 @@ pub fn otfcc_parse_vdmx(root: &ParsedValue, options: &Options) -> Option<Box<Vdm
             }
         }
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(vdmx)
 }
 #[allow(improper_ctypes_definitions)]

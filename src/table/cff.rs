@@ -22,7 +22,6 @@ use crate::libcff::{
     OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE,
     OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_VERSION, OP_WEIGHT,
 };
-use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::primitives::{Arity, CffSid, GlyphId, Pos, Scale, ShapeId, TableId};
@@ -1515,16 +1514,13 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
     }
     _cff
 }
-pub fn otfcc_dump_cff(table: Option<&CffTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_cff(table: Option<&CffTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"CFF"),
-    );
+    let stage = crate::logger::stage("CFF");
     root.push_field(b"CFF_", fd_to_json(table));
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
 fn pd_delta_from_json(dump: Option<&ParsedValue>) -> Vec<::core::ffi::c_double> {
     let Some(items) = dump.and_then(ParsedValue::as_array) else {
@@ -1628,12 +1624,9 @@ fn fd_from_json(dump: Option<&ParsedValue>, options: &Options, top_level: bool) 
 }
 pub fn otfcc_parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffTable>> {
     let dump = root.get_typed(b"CFF_", JsonType::Object)?;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"CFF"),
-    );
+    let stage = crate::logger::stage("CFF");
     let cff = fd_from_json(Some(dump), options, true);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(cff)
 }
 // `CffCharstringBuilderContext.glyf`/`.options` are plain borrows now

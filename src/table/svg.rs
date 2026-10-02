@@ -2,12 +2,10 @@ use crate::bk::bkblock::bk_new_block_from_buffer_copy;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::bk_build_block;
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_encode;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
@@ -99,15 +97,12 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && doc[3_usize] as i32 == 'm' as i32
             && doc[4_usize] as i32 == 'l' as i32;
 }
-pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
     let svg = match svg {
         Some(s) => s,
         None => return,
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"SVG "),
-    );
+    let stage = crate::logger::stage("SVG ");
     let entries: &Vec<SvgAssignment> = svg;
     {
         let mut _svg = BuiltValue::new_array(entries.len());
@@ -126,16 +121,13 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &O
             _svg.push_item(_a);
         }
         root.push_field(b"SVG_", _svg);
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
 }
-pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable> {
+pub fn otfcc_parse_svg(root: &ParsedValue) -> Option<SvgTable> {
     let svg_val = root.get_typed(b"SVG_", JsonType::Array)?;
     let mut svg: SvgTable = Vec::new();
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"SVG "),
-    );
+    let stage = crate::logger::stage("SVG ");
     {
         if let Some(items) = svg_val.as_array() {
             for a in items {
@@ -156,7 +148,7 @@ pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable
                 }
             }
         }
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
     return Some(svg);
 }
