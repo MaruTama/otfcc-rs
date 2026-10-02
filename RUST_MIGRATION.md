@@ -55,18 +55,19 @@ Cargo.toml
 src/lib.rs                  crate root: a flat list of `pub mod`
 src/bin/{otfccdump,otfccbuild}.rs
 src/ffi/dll.rs              the four public extern "C" functions
-src/vendor/{sds,json,json_builder,emyg_dtoa,uthash}.rs  third-party C
+src/vendor/{json,json_builder,emyg_dtoa}.rs  third-party C
 src/version.rs              MAIN_VER / SECONDARY_VER / PATCH_VER
 src/{bk,consolidate,font,json_reader,json_writer,libcff,logger,
-          otf_reader,otf_writer,support,table,vf}[.rs|/]
+          otf_reader,otf_writer,support,table,tag,vf}[.rs|/]
 ```
 
 Every directory has a sibling module file (`src/support.rs` for
 `src/support/`), the 2018-style layout with no `mod.rs`, so paths are now
-`crate::support::stdio::FILE`. `push_stopwatch` lives in
-`src/support/stopwatch.rs` rather than `src/bin/` — the two binaries link
-against it as a library symbol, and anything directly under `src/bin/` would
-be treated as a third binary target. `table/meta/type.rs` and
+`crate::support::stdio::FILE`. The code only the two binaries use (option
+parsing, the step-time stopwatch, the startup and logging setup they share)
+lives in `src/support/cli/` rather than `src/bin/` — the binaries link
+against it as a library module, and anything directly under `src/bin/`
+would be treated as a third binary target. `table/meta/type.rs` and
 `table/vdmx/type.rs` became `types.rs`, which removes the `r#type` escaping
 from those paths.
 
@@ -79,7 +80,7 @@ has been deleted — do not need it present, built, or checked out either:
 ```bash
 cargo build --release --locked
 cargo clippy --release --all-targets --locked -- -D warnings
-cargo test --release --locked -- --test-threads=1
+cargo test --release --locked
 ```
 
 That single `cargo test` invocation covers everything a standalone shell/
@@ -91,9 +92,9 @@ round-trip comparison (`tests/cycles.rs`), the GSUB lookup-alias regression
 (`tests/lookup_alias.rs`), and the `otfccdll` cdylib FFI boundary
 (`tests/dll_abi.rs`, via `libloading` rather than python3/ctypes). See each
 file's own doc comment for what it replaced and why (Stage F of the
-migration plan). `--test-threads=1`: `tests/golden.rs` has two `#[test]` fns
-that share a scratch file and can race under the default multi-threaded
-runner.
+migration plan). The tests run in parallel: each golden test has its own
+scratch directory, and the OTL read limits are per-read state rather than
+process-wide counters (both used to need `--test-threads=1`).
 
 None of this needs Docker, c2rust, a C compiler, a specific architecture, a
 Python interpreter (except for the handful of `make-test-*.py` fixture
@@ -116,8 +117,8 @@ issue), the manual, on-demand comparison tool this used to point at
 by-hand diff against `c/` restored from git history (`git show
 <pre-deletion-commit>:c` or a tag before the deletion) is the fallback if
 one is ever needed again. Otherwise, re-run the golden-comparison tests with
-`UPDATE_GOLDEN=1` set (`UPDATE_GOLDEN=1 cargo test --release --locked --
---test-threads=1`) to refresh `tests/golden/` and commit the result
+`UPDATE_GOLDEN=1` set (`UPDATE_GOLDEN=1 cargo test --release --locked`)
+to refresh `tests/golden/` and commit the result
 alongside the change that motivated it. See "CI decoupled from C" further
 down for the full story of how the dump/build half of this moved; the
 log-output half moved the same way, later (see "Next steps").
@@ -20006,3 +20007,24 @@ than any new caution invented for this plan.
   - **Removed.** `otl_parse_mark_array` returns the class count again (no `Option`), computed with `count_u16`; both parsers use `?`-free `class_count`, and the two `h.len() as GlyphClass` in `parse_bases` use `count_u16` too, so every class count goes through one conversion. `gpos_mark_to_ligature`'s `Too many components ... ignored` branch is replaced by `count_u16(components.len())`. Each mark names one class and a `marks` object is bounded by `json_limits`, so there cannot be more than 65,535 distinct classes; a ligature's `bases` array is bounded the same way.
   - **Tests.** The two parse-level tests that fed 65,536 components or mark classes straight to the parser are replaced by `json_reader::layout_collection_limit_tests`, which feed the same two shapes to `read_json` and assert rejection -- the entry point the rule actually protects, so the tests would notice if the shared check stopped covering GPOS. `count_u16_tests` keeps the 65,535 / 65,536 boundary.
   - **Verification.** clippy clean; `cargo test --release --locked --no-fail-fast -- --test-threads=1` all pass (457 lib tests; goldens byte-exact); Miri with CI's filter: 218 passed, 0 failed, 26 ignored.
+
+- **Refactoring pass after a whole-crate review (PRs #528–#538): seven items, each its own PR, output byte-identical throughout.** A review of the crate for misplaced responsibilities, hidden global state and hard-to-read code produced a ranked list; all seven items landed. Every PR was checked with clippy, the full (parallel) test suite, `cd fuzz && cargo check --locked`, and an old-vs-new binary comparison of `otfccdump` stdout and stderr over the payload and fuzz corpora.
+  - **`BITS_IN` (#528).** The 256-entry popcount table in `gpos_common.rs` (770 lines) is `(format & 0xff).count_ones()`; a test covers every `u16`.
+  - **OTL read limits are per read (#529).** The five `static AtomicU32` budgets (coverage entries, class-0 glyphs, class-coverage calls, rules, mark-attach anchors) became `table/otl/budget.rs`'s `OtlReadBudget`, created in `otfcc_read_otl`/GDEF and passed by `&mut`. Limits and cut-off points are unchanged; the 18 library tests that failed under the default parallel runner (tests resetting each other's counters) now pass.
+  - **Parallel tests (#530).** `tests/golden.rs` gives each test its own scratch directory (they shared `build/compare-with-golden-rs/`, and two re-dumped a file others read), and dumps afresh instead of reusing an old dump "if present". CI dropped `--test-threads=1`.
+  - **Logging through `tracing` (#531–#535).** The hand-written logger (`Options.logger: RefCell<Logger>`, ~420 call sites) is replaced by `tracing` events and spans rendered by `logger::OtfccTreeLayer`, which ports the old indentation state machine; `logger::stage` prints Begin/Finish, `logger::indent` only indents, and a stage prints Finish only when `finish()` is called (an early return leaves none, as before). Verbosity 0/1/255 map to ERROR/WARN/DEBUG filtering; the FFI path installs no subscriber and prints nothing. The golden logs are unchanged; the one intended difference is that non-UTF-8 bytes in a message (e.g. a glyph name) print as U+FFFD. Done in five stacked PRs: the layer plus a compatibility shim, then `table/`, OTL and consolidate, the remaining modules, and finally the binaries, FFI and the shim's removal; `options` parameters that only existed to reach the logger went with it.
+  - **OS/2 Unicode ranges (#536).** `stat_os_2_unicode_ranges`'s 123 `if` blocks are a `(bit, ranges)` table; a temporary test checked every code point from −1 to 0x110010 against the old code.
+  - **Shared CLI startup (#537).** `support/cli.rs` holds what `otfccdump` and `otfccbuild` duplicated (version text, getopt error reporting, logging setup, step-time logging); the binaries' helpers are snake_case.
+  - **The CharString interpreter is its own module (#538).** `cff_parse_outline` (1,426 lines, one `match` over raw opcode numbers) moved to `libcff/charstring_interp.rs` with one `op_*` function per operator, dispatched on the named `OP_*` constants; a temporary differential test against the old function passed 400,000 random CharStrings.
+
+- **CFF: negative subroutine numbers were read as 0, so most outlines of fonts with more than 107 subroutines were wrong (#539).** `callsubr`/`callgsubr` converted the operand with `cffnum(..) as u32`, and Rust's float-to-int casts saturate: every negative number became 0 and called the subroutine at `bias` instead of `bias + n` (C's `(uint32_t)` cast wrapped instead, which happened to work). Against fontTools' own interpreter, WorkSans-Regular matched 218/786 glyphs before and 786/786 after, Cormorant-Medium 109/2522 → 2522/2522, FDArrayTest257 1/257 → 257/257 and FDArrayTest65535 1/65535 → 65535/65535. The only CFF font with a golden, KRName, never calls a negative number, which is how this went unnoticed. `locate_subr` now takes the signed number and rejects `bias + subr < 0`.
+  - **Fuzz seed.** With real outlines, dumping FDArrayTest65535 (3.3M points, a 160 MB JSON) takes ~2 GB under ASan, libFuzzer's default RSS limit, and the whole 60 s budget; CI no longer seeds `otf_dump` with it (it stays an `otf_parse` seed).
+  - **Found while fixing the next item:** WorkSans seemed to depend on stale operand reads, which turned out to be this bug's symptom.
+
+- **CFF line and curve operators drop an incomplete trailing operand group (#540).** `rlineto`, `rrcurveto`, `rcurveline`, `vvcurveto` and `hhcurveto` drew one segment per 2/4/6 operands without checking the last group was complete, reading stale slots at or past `stack.index` (left by earlier operators or glyphs, since the operand stack is reused) or, with ~65,530 operands pushed, panicking. They now stop at the last complete group, as FreeType does. Output changed only for 7 fuzz inputs.
+
+- **Golden coverage for negative subroutine numbers (#541).** `fixed_payloads_match_golden` also dumps and rebuilds WorkSans-Regular.otf and FDArrayTest257.otf, and `worksans_negative_subroutine_numbers_draw_the_fonttools_outline` checks glyph `I` (two negative-number `callsubr`s) against the rectangle fontTools draws. All five checks fail with the pre-#539 interpreter.
+
+- **The CharString interpreter rewritten without c2rust idioms (#542, #543), and `roll`/`index` made to follow the Type 2 spec (#544).** #538 had moved the operator bodies verbatim.
+  - **Rewrite (#542, #543).** `CffStack` gets private accessors (`num`, `top`, `set_top`, `push`, `has_room`, `clear`); operators that differ only in direction share a helper (`alternating_lines`, `same_direction_curves`, `alternating_curves`, `read_stem_hints`, `unary`/`binary`, `call_subroutine`); flex operators name their operands as the spec does. The interpreter's non-test code went from 1,648 to 818 lines. A temporary differential test ran the old interpreter, copied verbatim, against the new one on 300,000 random CharStrings and subroutine sets per PR (glyph, stack, hint and context state, and log output compared) and was checked to fail on injected operand-order, bound and branch mistakes; `otfccdump` output was byte-identical on 8,184 corpus inputs.
+  - **`roll` was wrong for most valid input (#544).** It computed the shift as `(-j as u32) % n`, i.e. (2^32 − J) mod N for a positive J, which equals −J mod N only when N is a power of two: the spec's own `a b c 3 1 roll` → `c a b` rotated nothing. It also left N and J on the stack when the shift was 0 (every N = 1) or N was 0 or too large, and truncated stack positions to `u8`. `index` truncated the same way and wrapped an out-of-range `i`. `roll` is now one `rotate_right` with N and J always popped; `index` copies `num(i)` (`num(0)` for a negative `i`) and ignores an out-of-range `i`. On 199,542 random valid cases the new code matched a direct implementation of the spec everywhere, the old `roll` differed in 46,712. The bundled `cff.roll.(drop).otf` and `cff.index.(roll,drop).otf` only roll with N = 2 and 4, so no corpus output changed.
