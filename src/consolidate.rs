@@ -393,12 +393,12 @@ pub fn consolidate_anchor_ref(
         // `f64::abs` is IEEE-754 `fabs` bit for bit (see `vf/vq.rs`'s own
         // note); this file's `unsafe extern "C" { fn fabs(...) }` import
         // (removed in Stage M-45; see RUST_MIGRATION.md) is gone.
-        if (vq_get_still(rr.x.borrow().clone()) as ::core::ffi::c_double
-            - vq_get_still(rrx.clone()) as ::core::ffi::c_double)
+        if (vq_get_still(rr.x.borrow().clone()) as f64
+            - vq_get_still(rrx.clone()) as f64)
             .abs()
             > 0.5f64
-            && (vq_get_still(rr.y.borrow().clone()) as ::core::ffi::c_double
-                - vq_get_still(rry.clone()) as ::core::ffi::c_double)
+            && (vq_get_still(rr.y.borrow().clone()) as f64
+                - vq_get_still(rry.clone()) as f64)
                 .abs()
                 > 0.5f64
         {

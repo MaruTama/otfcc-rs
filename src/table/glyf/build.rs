@@ -42,7 +42,7 @@ pub fn shrink_flags(flags: Buffer) -> Buffer {
     }
     shrunk
 }
-pub const EPSILON: ::core::ffi::c_double = 1e-5f64;
+pub const EPSILON: f64 = 1e-5f64;
 fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
     let mut flags = Buffer::new();
     let mut xs = Buffer::new();
@@ -155,8 +155,8 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         };
         if r.b.abs() > EPSILON || r.c.abs() > EPSILON {
             flags.insert(ComponentFlags::WE_HAVE_A_TWO_BY_TWO);
-        } else if (r.a - 1_i32 as ::core::ffi::c_double).abs() > EPSILON
-            || (r.d - 1_i32 as ::core::ffi::c_double).abs() > EPSILON
+        } else if (r.a - 1_f64).abs() > EPSILON
+            || (r.d - 1_f64).abs() > EPSILON
         {
             if (r.a - r.d).abs() > EPSILON {
                 flags.insert(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE);

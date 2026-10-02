@@ -53,8 +53,8 @@ pub fn push_stopwatch(sofar: &mut timespec) -> Vec<u8> {
             secs.as_mut_ptr(),
             ::core::mem::size_of_val(&secs),
             b"%g\0" as *const u8 as *const ::core::ffi::c_char,
-            diff.tv_sec as ::core::ffi::c_double
-                + diff.tv_nsec as ::core::ffi::c_double / BILLION as ::core::ffi::c_double,
+            diff.tv_sec as f64
+                + diff.tv_nsec as f64 / BILLION as f64,
         );
     }
     // `secs` is already a fully owned, fixed-size local array -- `snprintf`

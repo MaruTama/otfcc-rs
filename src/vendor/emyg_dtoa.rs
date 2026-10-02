@@ -24,7 +24,7 @@ fn diy_fp_from_parts(f: u64, e: i32) -> DiyFp {
     fp.e = e;
     return fp;
 }
-pub fn diy_fp_from_double(d: ::core::ffi::c_double) -> DiyFp {
+pub fn diy_fp_from_double(d: f64) -> DiyFp {
     // Was a `DoubleBits` union (`d: f64`/`u64_0: u64`, written via `.d`
     // then read via `.u64_0`); `f64::to_bits` is the same bit-for-bit
     // reinterpretation without a union.
@@ -373,11 +373,11 @@ fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
         1039_i32 as i16,
         1066_i32 as i16,
     ];
-    let dk: ::core::ffi::c_double = (-61_i32 - e) as ::core::ffi::c_double
+    let dk: f64 = (-61_i32 - e) as f64
         * 0.30102999566398114f64
-        + 347_i32 as ::core::ffi::c_double;
+        + 347_f64;
     let mut k: i32 = dk as i32;
-    if k as ::core::ffi::c_double != dk {
+    if k as f64 != dk {
         k += 1;
     }
     let index: ::core::ffi::c_uint =
@@ -551,7 +551,7 @@ fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i
     }
 }
 #[inline]
-fn grisu2(value: ::core::ffi::c_double, buffer: &mut [u8], length: &mut i32, k_out: &mut i32) {
+fn grisu2(value: f64, buffer: &mut [u8], length: &mut i32, k_out: &mut i32) {
     let v: DiyFp = diy_fp_from_double(value) as DiyFp;
     let mut w_m: DiyFp = DiyFp { f: 0, e: 0 };
     let mut w_p: DiyFp = DiyFp { f: 0, e: 0 };
@@ -639,15 +639,15 @@ fn prettify(buffer: &mut [u8], length: i32, k: i32) {
 /// formatting byte for byte -- callers still slice up to the first NUL
 /// (e.g. `CStr::from_bytes_until_nul`) rather than reading a returned
 /// length, unchanged from the original C-shaped contract.
-pub fn emyg_dtoa(mut value: ::core::ffi::c_double, buffer: &mut [u8]) {
+pub fn emyg_dtoa(mut value: f64, buffer: &mut [u8]) {
     let mut buffer = buffer;
-    if value == 0_i32 as ::core::ffi::c_double {
+    if value == 0_i32 as f64 {
         buffer[0] = b'0';
         buffer[1] = b'.';
         buffer[2] = b'0';
         buffer[3] = 0;
     } else {
-        if value < 0_i32 as ::core::ffi::c_double {
+        if value < 0_i32 as f64 {
             buffer[0] = b'-';
             buffer = &mut buffer[1..];
             value = -value;

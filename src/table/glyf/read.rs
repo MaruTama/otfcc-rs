@@ -482,16 +482,16 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
             }
             if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
                 let untouch_j: F16Dot16 =
-                    otfcc_to_fixed(kernel[j as usize] as ::core::ffi::c_double);
+                    otfcc_to_fixed(kernel[j as usize]);
                 let untouch_prev: F16Dot16 =
-                    otfcc_to_fixed(kernel[j_prev as usize] as ::core::ffi::c_double);
+                    otfcc_to_fixed(kernel[j_prev as usize] as f64);
                 let untouch_next: F16Dot16 =
-                    otfcc_to_fixed(kernel[j_next as usize] as ::core::ffi::c_double);
+                    otfcc_to_fixed(kernel[j_next as usize] as f64);
                 let delta_prev: F16Dot16 = otfcc_to_fixed(
-                    nudges[j_prev as usize].unwrap_delta().quantity as ::core::ffi::c_double,
+                    nudges[j_prev as usize].unwrap_delta().quantity as f64,
                 );
                 let delta_next: F16Dot16 = otfcc_to_fixed(
-                    nudges[j_next as usize].unwrap_delta().quantity as ::core::ffi::c_double,
+                    nudges[j_next as usize].unwrap_delta().quantity as f64,
                 );
                 let mut u_min: F16Dot16 = untouch_prev;
                 let mut u_max: F16Dot16 = untouch_next;
