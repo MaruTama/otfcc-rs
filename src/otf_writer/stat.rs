@@ -470,464 +470,158 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
         top_side_bearing,
     }));
 }
+/// OS/2 `ulUnicodeRange1`..`ulUnicodeRange4` (OpenType spec, OS/2 table):
+/// each entry is a bit number (0..=122) and the code point ranges that set it
+/// when the cmap maps any code point inside one of them. Bit `n` lives in
+/// `ulUnicodeRange{n / 32 + 1}`, at position `n % 32`.
+static UNICODE_RANGE_BITS: [(u32, &[(i32, i32)]); 123] = [
+    (0, &[(0x0000, 0x007F)]),
+    (1, &[(0x0080, 0x00FF)]),
+    (2, &[(0x0100, 0x017F)]),
+    (3, &[(0x0180, 0x024F)]),
+    (4, &[(0x0250, 0x02AF), (0x1D00, 0x1D7F), (0x1D80, 0x1DBF)]),
+    (5, &[(0x02B0, 0x02FF), (0xA700, 0xA71F)]),
+    (6, &[(0x0300, 0x036F), (0x1DC0, 0x1DFF)]),
+    (7, &[(0x0370, 0x03FF)]),
+    (8, &[(0x2C80, 0x2CFF)]),
+    (9, &[(0x0400, 0x04FF), (0x0500, 0x052F), (0x2DE0, 0x2DFF), (0xA640, 0xA69F)]),
+    (10, &[(0x0530, 0x058F)]),
+    (11, &[(0x0590, 0x05FF)]),
+    (12, &[(0xA500, 0xA63F)]),
+    (13, &[(0x0600, 0x06FF), (0x0750, 0x077F)]),
+    (14, &[(0x07C0, 0x07FF)]),
+    (15, &[(0x0900, 0x097F)]),
+    (16, &[(0x0980, 0x09FF)]),
+    (17, &[(0x0A00, 0x0A7F)]),
+    (18, &[(0x0A80, 0x0AFF)]),
+    (19, &[(0x0B00, 0x0B7F)]),
+    (20, &[(0x0B80, 0x0BFF)]),
+    (21, &[(0x0C00, 0x0C7F)]),
+    (22, &[(0x0C80, 0x0CFF)]),
+    (23, &[(0x0D00, 0x0D7F)]),
+    (24, &[(0x0E00, 0x0E7F)]),
+    (25, &[(0x0E80, 0x0EFF)]),
+    (26, &[(0x10A0, 0x10FF), (0x2D00, 0x2D2F)]),
+    (27, &[(0x1B00, 0x1B7F)]),
+    (28, &[(0x1100, 0x11FF)]),
+    (29, &[(0x1E00, 0x1EFF), (0x2C60, 0x2C7F), (0xA720, 0xA7FF)]),
+    (30, &[(0x1F00, 0x1FFF)]),
+    (31, &[(0x2000, 0x206F), (0x2E00, 0x2E7F)]),
+    (32, &[(0x2070, 0x209F)]),
+    (33, &[(0x20A0, 0x20CF)]),
+    (34, &[(0x20D0, 0x20FF)]),
+    (35, &[(0x2100, 0x214F)]),
+    (36, &[(0x2150, 0x218F)]),
+    (37, &[(0x2190, 0x21FF), (0x27F0, 0x27FF), (0x2900, 0x297F), (0x2B00, 0x2BFF)]),
+    (38, &[(0x2200, 0x22FF), (0x2A00, 0x2AFF), (0x27C0, 0x27EF), (0x2980, 0x29FF)]),
+    (39, &[(0x2300, 0x23FF)]),
+    (40, &[(0x2400, 0x243F)]),
+    (41, &[(0x2440, 0x245F)]),
+    (42, &[(0x2460, 0x24FF)]),
+    (43, &[(0x2500, 0x257F)]),
+    (44, &[(0x2580, 0x259F)]),
+    (45, &[(0x25A0, 0x25FF)]),
+    (46, &[(0x2600, 0x26FF)]),
+    (47, &[(0x2700, 0x27BF)]),
+    (48, &[(0x3000, 0x303F)]),
+    (49, &[(0x3040, 0x309F)]),
+    (50, &[(0x30A0, 0x30FF), (0x31F0, 0x31FF)]),
+    (51, &[(0x3100, 0x312F), (0x31A0, 0x31BF)]),
+    (52, &[(0x3130, 0x318F)]),
+    (53, &[(0xA840, 0xA87F)]),
+    (54, &[(0x3200, 0x32FF)]),
+    (55, &[(0x3300, 0x33FF)]),
+    (56, &[(0xAC00, 0xD7AF)]),
+    (57, &[(0xD800, 0xDFFF), (0x10000, i32::MAX)]),  // surrogates, and every code point beyond the BMP
+    (58, &[(0x10900, 0x1091F)]),
+    (59, &[(0x4E00, 0x9FFF), (0x2E80, 0x2EFF), (0x2F00, 0x2FDF), (0x2FF0, 0x2FFF), (0x3400, 0x4DBF), (0x20000, 0x2F7FF), (0x3190, 0x319F)]),
+    (60, &[(0xE000, 0xF8FF)]),
+    (61, &[(0x31C0, 0x31EF), (0xF900, 0xFAFF), (0x2F800, 0x2FA1F)]),
+    (62, &[(0xFB00, 0xFB4F)]),
+    (63, &[(0xFB50, 0xFDFF)]),
+    (64, &[(0xFE20, 0xFE2F)]),
+    (65, &[(0xFE10, 0xFE1F), (0xFE30, 0xFE4F)]),
+    (66, &[(0xFE50, 0xFE6F)]),
+    (67, &[(0xFE70, 0xFEFF)]),
+    (68, &[(0xFF00, 0xFFEF)]),
+    (69, &[(0xFFF0, 0xFFFF)]),
+    (70, &[(0x0F00, 0x0FFF)]),
+    (71, &[(0x0700, 0x074F)]),
+    (72, &[(0x0780, 0x07BF)]),
+    (73, &[(0x0D80, 0x0DFF)]),
+    (74, &[(0x1000, 0x109F)]),
+    (75, &[(0x1200, 0x137F), (0x1380, 0x139F), (0x2D80, 0x2DDF)]),
+    (76, &[(0x13A0, 0x13FF)]),
+    (77, &[(0x1400, 0x167F)]),
+    (78, &[(0x1680, 0x169F)]),
+    (79, &[(0x16A0, 0x16FF)]),
+    (80, &[(0x1780, 0x17FF), (0x19E0, 0x19FF)]),
+    (81, &[(0x1800, 0x18AF)]),
+    (82, &[(0x2800, 0x28FF)]),
+    (83, &[(0xA000, 0xA48F), (0xA490, 0xA4CF)]),
+    (84, &[(0x1700, 0x171F), (0x1720, 0x173F), (0x1740, 0x175F), (0x1760, 0x177F)]),
+    (85, &[(0x10300, 0x1032F)]),
+    (86, &[(0x10330, 0x1034F)]),
+    (87, &[(0x10400, 0x1044F)]),
+    (88, &[(0x1D000, 0x1D0FF), (0x1D100, 0x1D1FF), (0x1D200, 0x1D24F)]),
+    (89, &[(0x1D400, 0x1D7FF)]),
+    (90, &[(0xFF000, 0xFFFFD), (0x100000, 0x10FFFD)]),
+    (91, &[(0xFE00, 0xFE0F), (0xE0100, 0xE01EF)]),
+    (92, &[(0xE0000, 0xE007F)]),
+    (93, &[(0x1900, 0x194F)]),
+    (94, &[(0x1950, 0x197F)]),
+    (95, &[(0x1980, 0x19DF)]),
+    (96, &[(0x1A00, 0x1A1F)]),
+    (97, &[(0x2C00, 0x2C5F)]),
+    (98, &[(0x2D30, 0x2D7F)]),
+    (99, &[(0x4DC0, 0x4DFF)]),
+    (100, &[(0xA800, 0xA82F)]),
+    (101, &[(0x10000, 0x1007F), (0x10080, 0x100FF), (0x10100, 0x1013F)]),
+    (102, &[(0x10140, 0x1018F)]),
+    (103, &[(0x10380, 0x1039F)]),
+    (104, &[(0x103A0, 0x103DF)]),
+    (105, &[(0x10450, 0x1047F)]),
+    (106, &[(0x10480, 0x104AF)]),
+    (107, &[(0x10800, 0x1083F)]),
+    (108, &[(0x10A00, 0x10A5F)]),
+    (109, &[(0x1D300, 0x1D35F)]),
+    (110, &[(0x12000, 0x123FF), (0x12400, 0x1247F)]),
+    (111, &[(0x1D360, 0x1D37F)]),
+    (112, &[(0x1B80, 0x1BBF)]),
+    (113, &[(0x1C00, 0x1C4F)]),
+    (114, &[(0x1C50, 0x1C7F)]),
+    (115, &[(0xA880, 0xA8DF)]),
+    (116, &[(0xA900, 0xA92F)]),
+    (117, &[(0xA930, 0xA95F)]),
+    (118, &[(0xAA00, 0xAA5F)]),
+    (119, &[(0x10190, 0x101CF)]),
+    (120, &[(0x101D0, 0x101FF)]),
+    (121, &[(0x102A0, 0x102DF), (0x10280, 0x1029F), (0x10920, 0x1093F)]),
+    (122, &[(0x1F030, 0x1F09F), (0x1F000, 0x1F02F)]),
+];
+
+/// The `ulUnicodeRange1`..`4` bits that code point `u` sets.
+fn unicode_range_bits(u: i32) -> [u32; 4] {
+    let mut ranges = [0u32; 4];
+    for &(bit, bit_ranges) in &UNICODE_RANGE_BITS {
+        if bit_ranges.iter().any(|&(lo, hi)| (lo..=hi).contains(&u)) {
+            ranges[(bit / 32) as usize] |= 1 << (bit % 32);
+        }
+    }
+    ranges
+}
 fn stat_os_2_unicode_ranges(font: &mut Font, options: &Options) {
-    let mut u1: u32 = 0_u32;
-    let mut u2: u32 = 0_u32;
-    let mut u3: u32 = 0_u32;
-    let mut u4: u32 = 0_u32;
+    let mut ranges = [0u32; 4];
     let mut min_unicode: i32 = 0xffff_i32;
     let mut max_unicode: i32 = 0_i32;
     for &u in font.cmap.as_ref().unwrap().unicodes.keys() {
-        if u < min_unicode {
-            min_unicode = u;
-        }
-        if u > max_unicode {
-            max_unicode = u;
-        }
-        if (0_i32..=0x7f_i32).contains(&u) {
-            u1 |= (1_i32 << 0_i32) as u32;
-        }
-        if (0x80_i32..=0xff_i32).contains(&u) {
-            u1 |= (1_i32 << 1_i32) as u32;
-        }
-        if (0x100_i32..=0x17f_i32).contains(&u) {
-            u1 |= (1_i32 << 2_i32) as u32;
-        }
-        if (0x180_i32..=0x24f_i32).contains(&u) {
-            u1 |= (1_i32 << 3_i32) as u32;
-        }
-        if (0x250_i32..=0x2af_i32).contains(&u)
-            || (0x1d00_i32..=0x1d7f_i32).contains(&u)
-            || (0x1d80_i32..=0x1dbf_i32).contains(&u)
-        {
-            u1 |= (1_i32 << 4_i32) as u32;
-        }
-        if (0x2b0_i32..=0x2ff_i32).contains(&u)
-            || (0xa700_i32..=0xa71f_i32).contains(&u)
-        {
-            u1 |= (1_i32 << 5_i32) as u32;
-        }
-        if (0x300_i32..=0x36f_i32).contains(&u)
-            || (0x1dc0_i32..=0x1dff_i32).contains(&u)
-        {
-            u1 |= (1_i32 << 6_i32) as u32;
-        }
-        if (0x370_i32..=0x3ff_i32).contains(&u) {
-            u1 |= (1_i32 << 7_i32) as u32;
-        }
-        if (0x2c80_i32..=0x2cff_i32).contains(&u) {
-            u1 |= (1_i32 << 8_i32) as u32;
-        }
-        if (0x400_i32..=0x4ff_i32).contains(&u)
-            || (0x500_i32..=0x52f_i32).contains(&u)
-            || (0x2de0_i32..=0x2dff_i32).contains(&u)
-            || (0xa640_i32..=0xa69f_i32).contains(&u)
-        {
-            u1 |= (1_i32 << 9_i32) as u32;
-        }
-        if (0x530_i32..=0x58f_i32).contains(&u) {
-            u1 |= (1_i32 << 10_i32) as u32;
-        }
-        if (0x590_i32..=0x5ff_i32).contains(&u) {
-            u1 |= (1_i32 << 11_i32) as u32;
-        }
-        if (0xa500_i32..=0xa63f_i32).contains(&u) {
-            u1 |= (1_i32 << 12_i32) as u32;
-        }
-        if (0x600_i32..=0x6ff_i32).contains(&u)
-            || (0x750_i32..=0x77f_i32).contains(&u)
-        {
-            u1 |= (1_i32 << 13_i32) as u32;
-        }
-        if (0x7c0_i32..=0x7ff_i32).contains(&u) {
-            u1 |= (1_i32 << 14_i32) as u32;
-        }
-        if (0x900_i32..=0x97f_i32).contains(&u) {
-            u1 |= (1_i32 << 15_i32) as u32;
-        }
-        if (0x980_i32..=0x9ff_i32).contains(&u) {
-            u1 |= (1_i32 << 16_i32) as u32;
-        }
-        if (0xa00_i32..=0xa7f_i32).contains(&u) {
-            u1 |= (1_i32 << 17_i32) as u32;
-        }
-        if (0xa80_i32..=0xaff_i32).contains(&u) {
-            u1 |= (1_i32 << 18_i32) as u32;
-        }
-        if (0xb00_i32..=0xb7f_i32).contains(&u) {
-            u1 |= (1_i32 << 19_i32) as u32;
-        }
-        if (0xb80_i32..=0xbff_i32).contains(&u) {
-            u1 |= (1_i32 << 20_i32) as u32;
-        }
-        if (0xc00_i32..=0xc7f_i32).contains(&u) {
-            u1 |= (1_i32 << 21_i32) as u32;
-        }
-        if (0xc80_i32..=0xcff_i32).contains(&u) {
-            u1 |= (1_i32 << 22_i32) as u32;
-        }
-        if (0xd00_i32..=0xd7f_i32).contains(&u) {
-            u1 |= (1_i32 << 23_i32) as u32;
-        }
-        if (0xe00_i32..=0xe7f_i32).contains(&u) {
-            u1 |= (1_i32 << 24_i32) as u32;
-        }
-        if (0xe80_i32..=0xeff_i32).contains(&u) {
-            u1 |= (1_i32 << 25_i32) as u32;
-        }
-        if (0x10a0_i32..=0x10ff_i32).contains(&u)
-            || (0x2d00_i32..=0x2d2f_i32).contains(&u)
-        {
-            u1 |= (1_i32 << 26_i32) as u32;
-        }
-        if (0x1b00_i32..=0x1b7f_i32).contains(&u) {
-            u1 |= (1_i32 << 27_i32) as u32;
-        }
-        if (0x1100_i32..=0x11ff_i32).contains(&u) {
-            u1 |= (1_i32 << 28_i32) as u32;
-        }
-        if (0x1e00_i32..=0x1eff_i32).contains(&u)
-            || (0x2c60_i32..=0x2c7f_i32).contains(&u)
-            || (0xa720_i32..=0xa7ff_i32).contains(&u)
-        {
-            u1 |= (1_i32 << 29_i32) as u32;
-        }
-        if (0x1f00_i32..=0x1fff_i32).contains(&u) {
-            u1 |= (1_i32 << 30_i32) as u32;
-        }
-        if (0x2000_i32..=0x206f_i32).contains(&u)
-            || (0x2e00_i32..=0x2e7f_i32).contains(&u)
-        {
-            u1 |= (1_i32 << 31_i32) as u32;
-        }
-        if (0x2070_i32..=0x209f_i32).contains(&u) {
-            u2 |= (1_i32 << 0_i32) as u32;
-        }
-        if (0x20a0_i32..=0x20cf_i32).contains(&u) {
-            u2 |= (1_i32 << 1_i32) as u32;
-        }
-        if (0x20d0_i32..=0x20ff_i32).contains(&u) {
-            u2 |= (1_i32 << 2_i32) as u32;
-        }
-        if (0x2100_i32..=0x214f_i32).contains(&u) {
-            u2 |= (1_i32 << 3_i32) as u32;
-        }
-        if (0x2150_i32..=0x218f_i32).contains(&u) {
-            u2 |= (1_i32 << 4_i32) as u32;
-        }
-        if (0x2190_i32..=0x21ff_i32).contains(&u)
-            || (0x27f0_i32..=0x27ff_i32).contains(&u)
-            || (0x2900_i32..=0x297f_i32).contains(&u)
-            || (0x2b00_i32..=0x2bff_i32).contains(&u)
-        {
-            u2 |= (1_i32 << 5_i32) as u32;
-        }
-        if (0x2200_i32..=0x22ff_i32).contains(&u)
-            || (0x2a00_i32..=0x2aff_i32).contains(&u)
-            || (0x27c0_i32..=0x27ef_i32).contains(&u)
-            || (0x2980_i32..=0x29ff_i32).contains(&u)
-        {
-            u2 |= (1_i32 << 6_i32) as u32;
-        }
-        if (0x2300_i32..=0x23ff_i32).contains(&u) {
-            u2 |= (1_i32 << 7_i32) as u32;
-        }
-        if (0x2400_i32..=0x243f_i32).contains(&u) {
-            u2 |= (1_i32 << 8_i32) as u32;
-        }
-        if (0x2440_i32..=0x245f_i32).contains(&u) {
-            u2 |= (1_i32 << 9_i32) as u32;
-        }
-        if (0x2460_i32..=0x24ff_i32).contains(&u) {
-            u2 |= (1_i32 << 10_i32) as u32;
-        }
-        if (0x2500_i32..=0x257f_i32).contains(&u) {
-            u2 |= (1_i32 << 11_i32) as u32;
-        }
-        if (0x2580_i32..=0x259f_i32).contains(&u) {
-            u2 |= (1_i32 << 12_i32) as u32;
-        }
-        if (0x25a0_i32..=0x25ff_i32).contains(&u) {
-            u2 |= (1_i32 << 13_i32) as u32;
-        }
-        if (0x2600_i32..=0x26ff_i32).contains(&u) {
-            u2 |= (1_i32 << 14_i32) as u32;
-        }
-        if (0x2700_i32..=0x27bf_i32).contains(&u) {
-            u2 |= (1_i32 << 15_i32) as u32;
-        }
-        if (0x3000_i32..=0x303f_i32).contains(&u) {
-            u2 |= (1_i32 << 16_i32) as u32;
-        }
-        if (0x3040_i32..=0x309f_i32).contains(&u) {
-            u2 |= (1_i32 << 17_i32) as u32;
-        }
-        if (0x30a0_i32..=0x30ff_i32).contains(&u)
-            || (0x31f0_i32..=0x31ff_i32).contains(&u)
-        {
-            u2 |= (1_i32 << 18_i32) as u32;
-        }
-        if (0x3100_i32..=0x312f_i32).contains(&u)
-            || (0x31a0_i32..=0x31bf_i32).contains(&u)
-        {
-            u2 |= (1_i32 << 19_i32) as u32;
-        }
-        if (0x3130_i32..=0x318f_i32).contains(&u) {
-            u2 |= (1_i32 << 20_i32) as u32;
-        }
-        if (0xa840_i32..=0xa87f_i32).contains(&u) {
-            u2 |= (1_i32 << 21_i32) as u32;
-        }
-        if (0x3200_i32..=0x32ff_i32).contains(&u) {
-            u2 |= (1_i32 << 22_i32) as u32;
-        }
-        if (0x3300_i32..=0x33ff_i32).contains(&u) {
-            u2 |= (1_i32 << 23_i32) as u32;
-        }
-        if (0xac00_i32..=0xd7af_i32).contains(&u) {
-            u2 |= (1_i32 << 24_i32) as u32;
-        }
-        if (0xd800_i32..=0xdfff_i32).contains(&u)
-            || u > 0xffff_i32
-        {
-            u2 |= (1_i32 << 25_i32) as u32;
-        }
-        if (0x10900_i32..=0x1091f_i32).contains(&u) {
-            u2 |= (1_i32 << 26_i32) as u32;
-        }
-        if (0x4e00_i32..=0x9fff_i32).contains(&u)
-            || (0x2e80_i32..=0x2eff_i32).contains(&u)
-            || (0x2f00_i32..=0x2fdf_i32).contains(&u)
-            || (0x2ff0_i32..=0x2fff_i32).contains(&u)
-            || (0x3400_i32..=0x4dbf_i32).contains(&u)
-            || (0x20000_i32..=0x2f7ff_i32).contains(&u)
-            || (0x3190_i32..=0x319f_i32).contains(&u)
-        {
-            u2 |= (1_i32 << 27_i32) as u32;
-        }
-        if (0xe000_i32..=0xf8ff_i32).contains(&u) {
-            u2 |= (1_i32 << 28_i32) as u32;
-        }
-        if (0x31c0_i32..=0x31ef_i32).contains(&u)
-            || (0xf900_i32..=0xfaff_i32).contains(&u)
-            || (0x2f800_i32..=0x2fa1f_i32).contains(&u)
-        {
-            u2 |= (1_i32 << 29_i32) as u32;
-        }
-        if (0xfb00_i32..=0xfb4f_i32).contains(&u) {
-            u2 |= (1_i32 << 30_i32) as u32;
-        }
-        if (0xfb50_i32..=0xfdff_i32).contains(&u) {
-            u2 |= (1_i32 << 31_i32) as u32;
-        }
-        if (0xfe20_i32..=0xfe2f_i32).contains(&u) {
-            u3 |= (1_i32 << 0_i32) as u32;
-        }
-        if (0xfe10_i32..=0xfe1f_i32).contains(&u)
-            || (0xfe30_i32..=0xfe4f_i32).contains(&u)
-        {
-            u3 |= (1_i32 << 1_i32) as u32;
-        }
-        if (0xfe50_i32..=0xfe6f_i32).contains(&u) {
-            u3 |= (1_i32 << 2_i32) as u32;
-        }
-        if (0xfe70_i32..=0xfeff_i32).contains(&u) {
-            u3 |= (1_i32 << 3_i32) as u32;
-        }
-        if (0xff00_i32..=0xffef_i32).contains(&u) {
-            u3 |= (1_i32 << 4_i32) as u32;
-        }
-        if (0xfff0_i32..=0xffff_i32).contains(&u) {
-            u3 |= (1_i32 << 5_i32) as u32;
-        }
-        if (0xf00_i32..=0xfff_i32).contains(&u) {
-            u3 |= (1_i32 << 6_i32) as u32;
-        }
-        if (0x700_i32..=0x74f_i32).contains(&u) {
-            u3 |= (1_i32 << 7_i32) as u32;
-        }
-        if (0x780_i32..=0x7bf_i32).contains(&u) {
-            u3 |= (1_i32 << 8_i32) as u32;
-        }
-        if (0xd80_i32..=0xdff_i32).contains(&u) {
-            u3 |= (1_i32 << 9_i32) as u32;
-        }
-        if (0x1000_i32..=0x109f_i32).contains(&u) {
-            u3 |= (1_i32 << 10_i32) as u32;
-        }
-        if (0x1200_i32..=0x137f_i32).contains(&u)
-            || (0x1380_i32..=0x139f_i32).contains(&u)
-            || (0x2d80_i32..=0x2ddf_i32).contains(&u)
-        {
-            u3 |= (1_i32 << 11_i32) as u32;
-        }
-        if (0x13a0_i32..=0x13ff_i32).contains(&u) {
-            u3 |= (1_i32 << 12_i32) as u32;
-        }
-        if (0x1400_i32..=0x167f_i32).contains(&u) {
-            u3 |= (1_i32 << 13_i32) as u32;
-        }
-        if (0x1680_i32..=0x169f_i32).contains(&u) {
-            u3 |= (1_i32 << 14_i32) as u32;
-        }
-        if (0x16a0_i32..=0x16ff_i32).contains(&u) {
-            u3 |= (1_i32 << 15_i32) as u32;
-        }
-        if (0x1780_i32..=0x17ff_i32).contains(&u)
-            || (0x19e0_i32..=0x19ff_i32).contains(&u)
-        {
-            u3 |= (1_i32 << 16_i32) as u32;
-        }
-        if (0x1800_i32..=0x18af_i32).contains(&u) {
-            u3 |= (1_i32 << 17_i32) as u32;
-        }
-        if (0x2800_i32..=0x28ff_i32).contains(&u) {
-            u3 |= (1_i32 << 18_i32) as u32;
-        }
-        if (0xa000_i32..=0xa48f_i32).contains(&u)
-            || (0xa490_i32..=0xa4cf_i32).contains(&u)
-        {
-            u3 |= (1_i32 << 19_i32) as u32;
-        }
-        if (0x1700_i32..=0x171f_i32).contains(&u)
-            || (0x1720_i32..=0x173f_i32).contains(&u)
-            || (0x1740_i32..=0x175f_i32).contains(&u)
-            || (0x1760_i32..=0x177f_i32).contains(&u)
-        {
-            u3 |= (1_i32 << 20_i32) as u32;
-        }
-        if (0x10300_i32..=0x1032f_i32).contains(&u) {
-            u3 |= (1_i32 << 21_i32) as u32;
-        }
-        if (0x10330_i32..=0x1034f_i32).contains(&u) {
-            u3 |= (1_i32 << 22_i32) as u32;
-        }
-        if (0x10400_i32..=0x1044f_i32).contains(&u) {
-            u3 |= (1_i32 << 23_i32) as u32;
-        }
-        if (0x1d000_i32..=0x1d0ff_i32).contains(&u)
-            || (0x1d100_i32..=0x1d1ff_i32).contains(&u)
-            || (0x1d200_i32..=0x1d24f_i32).contains(&u)
-        {
-            u3 |= (1_i32 << 24_i32) as u32;
-        }
-        if (0x1d400_i32..=0x1d7ff_i32).contains(&u) {
-            u3 |= (1_i32 << 25_i32) as u32;
-        }
-        if (0xff000_i32..=0xffffd_i32).contains(&u)
-            || (0x100000_i32..=0x10fffd_i32).contains(&u)
-        {
-            u3 |= (1_i32 << 26_i32) as u32;
-        }
-        if (0xfe00_i32..=0xfe0f_i32).contains(&u)
-            || (0xe0100_i32..=0xe01ef_i32).contains(&u)
-        {
-            u3 |= (1_i32 << 27_i32) as u32;
-        }
-        if (0xe0000_i32..=0xe007f_i32).contains(&u) {
-            u3 |= (1_i32 << 28_i32) as u32;
-        }
-        if (0x1900_i32..=0x194f_i32).contains(&u) {
-            u3 |= (1_i32 << 29_i32) as u32;
-        }
-        if (0x1950_i32..=0x197f_i32).contains(&u) {
-            u3 |= (1_i32 << 30_i32) as u32;
-        }
-        if (0x1980_i32..=0x19df_i32).contains(&u) {
-            u3 |= (1_i32 << 31_i32) as u32;
-        }
-        if (0x1a00_i32..=0x1a1f_i32).contains(&u) {
-            u4 |= (1_i32 << 0_i32) as u32;
-        }
-        if (0x2c00_i32..=0x2c5f_i32).contains(&u) {
-            u4 |= (1_i32 << 1_i32) as u32;
-        }
-        if (0x2d30_i32..=0x2d7f_i32).contains(&u) {
-            u4 |= (1_i32 << 2_i32) as u32;
-        }
-        if (0x4dc0_i32..=0x4dff_i32).contains(&u) {
-            u4 |= (1_i32 << 3_i32) as u32;
-        }
-        if (0xa800_i32..=0xa82f_i32).contains(&u) {
-            u4 |= (1_i32 << 4_i32) as u32;
-        }
-        if (0x10000_i32..=0x1007f_i32).contains(&u)
-            || (0x10080_i32..=0x100ff_i32).contains(&u)
-            || (0x10100_i32..=0x1013f_i32).contains(&u)
-        {
-            u4 |= (1_i32 << 5_i32) as u32;
-        }
-        if (0x10140_i32..=0x1018f_i32).contains(&u) {
-            u4 |= (1_i32 << 6_i32) as u32;
-        }
-        if (0x10380_i32..=0x1039f_i32).contains(&u) {
-            u4 |= (1_i32 << 7_i32) as u32;
-        }
-        if (0x103a0_i32..=0x103df_i32).contains(&u) {
-            u4 |= (1_i32 << 8_i32) as u32;
-        }
-        if (0x10450_i32..=0x1047f_i32).contains(&u) {
-            u4 |= (1_i32 << 9_i32) as u32;
-        }
-        if (0x10480_i32..=0x104af_i32).contains(&u) {
-            u4 |= (1_i32 << 10_i32) as u32;
-        }
-        if (0x10800_i32..=0x1083f_i32).contains(&u) {
-            u4 |= (1_i32 << 11_i32) as u32;
-        }
-        if (0x10a00_i32..=0x10a5f_i32).contains(&u) {
-            u4 |= (1_i32 << 12_i32) as u32;
-        }
-        if (0x1d300_i32..=0x1d35f_i32).contains(&u) {
-            u4 |= (1_i32 << 13_i32) as u32;
-        }
-        if (0x12000_i32..=0x123ff_i32).contains(&u)
-            || (0x12400_i32..=0x1247f_i32).contains(&u)
-        {
-            u4 |= (1_i32 << 14_i32) as u32;
-        }
-        if (0x1d360_i32..=0x1d37f_i32).contains(&u) {
-            u4 |= (1_i32 << 15_i32) as u32;
-        }
-        if (0x1b80_i32..=0x1bbf_i32).contains(&u) {
-            u4 |= (1_i32 << 16_i32) as u32;
-        }
-        if (0x1c00_i32..=0x1c4f_i32).contains(&u) {
-            u4 |= (1_i32 << 17_i32) as u32;
-        }
-        if (0x1c50_i32..=0x1c7f_i32).contains(&u) {
-            u4 |= (1_i32 << 18_i32) as u32;
-        }
-        if (0xa880_i32..=0xa8df_i32).contains(&u) {
-            u4 |= (1_i32 << 19_i32) as u32;
-        }
-        if (0xa900_i32..=0xa92f_i32).contains(&u) {
-            u4 |= (1_i32 << 20_i32) as u32;
-        }
-        if (0xa930_i32..=0xa95f_i32).contains(&u) {
-            u4 |= (1_i32 << 21_i32) as u32;
-        }
-        if (0xaa00_i32..=0xaa5f_i32).contains(&u) {
-            u4 |= (1_i32 << 22_i32) as u32;
-        }
-        if (0x10190_i32..=0x101cf_i32).contains(&u) {
-            u4 |= (1_i32 << 23_i32) as u32;
-        }
-        if (0x101d0_i32..=0x101ff_i32).contains(&u) {
-            u4 |= (1_i32 << 24_i32) as u32;
-        }
-        if (0x102a0_i32..=0x102df_i32).contains(&u)
-            || (0x10280_i32..=0x1029f_i32).contains(&u)
-            || (0x10920_i32..=0x1093f_i32).contains(&u)
-        {
-            u4 |= (1_i32 << 25_i32) as u32;
-        }
-        if (0x1f030_i32..=0x1f09f_i32).contains(&u)
-            || (0x1f000_i32..=0x1f02f_i32).contains(&u)
-        {
-            u4 |= (1_i32 << 26_i32) as u32;
+        min_unicode = min_unicode.min(u);
+        max_unicode = max_unicode.max(u);
+        for (range, bits) in ranges.iter_mut().zip(unicode_range_bits(u)) {
+            *range |= bits;
         }
     }
+    let [u1, u2, u3, u4] = ranges;
     let os_2 = font.os_2.as_deref_mut().unwrap();
     if !options.keep_unicode_ranges {
         os_2.ul_unicode_range1 = u1;
@@ -1411,5 +1105,35 @@ mod round_tests {
         assert_eq!(f64::INFINITY.round(), f64::INFINITY);
         assert_eq!(f64::NEG_INFINITY.round(), f64::NEG_INFINITY);
         assert!(f64::NAN.round().is_nan());
+    }
+}
+
+#[cfg(test)]
+mod unicode_range_tests {
+    use super::*;
+
+    fn has_bit(bits: [u32; 4], bit: u32) -> bool {
+        bits[(bit / 32) as usize] & (1 << (bit % 32)) != 0
+    }
+
+    #[test]
+    fn table_lists_each_bit_once_with_well_formed_ranges() {
+        for (i, &(bit, ranges)) in UNICODE_RANGE_BITS.iter().enumerate() {
+            assert_eq!(bit as usize, i, "bits are listed in order, 0..=122, once each");
+            assert!(!ranges.is_empty());
+            assert!(ranges.iter().all(|&(lo, hi)| lo <= hi), "bit {bit}");
+        }
+    }
+
+    #[test]
+    fn known_code_points_set_their_bits() {
+        assert!(has_bit(unicode_range_bits(0x41), 0)); // Basic Latin
+        assert!(has_bit(unicode_range_bits(0xE9), 1)); // Latin-1 Supplement
+        assert!(has_bit(unicode_range_bits(0x0301), 6)); // Combining Diacritical Marks
+        assert!(has_bit(unicode_range_bits(0x1DC0), 6)); // ... and its supplement
+        assert!(has_bit(unicode_range_bits(0xD800), 57)); // a surrogate
+        assert!(has_bit(unicode_range_bits(0x1F600), 57)); // any non-BMP code point
+        assert!(!has_bit(unicode_range_bits(0xFFFF), 57));
+        assert_eq!(unicode_range_bits(0x41), [1, 0, 0, 0], "only bit 0");
     }
 }
