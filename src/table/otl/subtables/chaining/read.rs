@@ -5,10 +5,8 @@ use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::FontReader;
 
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 
 use crate::table::otl::subtables::chaining::common::chaining_ruleset_mut;
@@ -685,7 +683,6 @@ pub fn otl_read_contextual(
     data: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
-    options: &Options,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     // Built directly as an owned `Box`, a valid empty `Poly` ruleset from
@@ -727,12 +724,7 @@ pub fn otl_read_contextual(
         }
         _ => {}
     }
-    logger_log_sds(
-        &mut options.logger.borrow_mut(),
-        LOG_VL_IMPORTANT,
-        LoggerType::Warning,
-        crate::bytesbuild!(b"Unsupported format ", format as i32, b".\n"),
-    );
+    tracing::warn!("Unsupported format {}.\n", format as i32);
     // `subtable` (still just a local `Box`, never adopted into anything)
     // self-drops here -- no manual reclamation needed any more.
     None
@@ -1122,7 +1114,6 @@ pub fn otl_read_chaining(
     data: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
-    options: &Options,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     // See the identical comment in `otl_read_contextual`.
@@ -1160,12 +1151,7 @@ pub fn otl_read_chaining(
         }
         _ => {}
     }
-    logger_log_sds(
-        &mut options.logger.borrow_mut(),
-        LOG_VL_IMPORTANT,
-        LoggerType::Warning,
-        crate::bytesbuild!(b"Unsupported format ", format as i32, b".\n"),
-    );
+    tracing::warn!("Unsupported format {}.\n", format as i32);
     // `subtable` (still just a local `Box`, never adopted into anything)
     // self-drops here -- no manual reclamation needed any more.
     None
@@ -1183,10 +1169,6 @@ fn reverse_backtracks(rule: &mut ChainingRule) {
 #[cfg(test)]
 mod chaining_read_tests {
     use super::*;
-
-    fn zeroed_options() -> Options {
-        Options::default()
-    }
 
     fn glyphs_of(cov: &Coverage) -> Vec<GlyphId> {
         cov.iter().map(|h| h.index).collect()
@@ -1248,8 +1230,7 @@ mod chaining_read_tests {
         data[10..12].copy_from_slice(&1u16.to_be_bytes()); // coverage format 1
         data[12..14].copy_from_slice(&1u16.to_be_bytes()); // glyphCount
         data[14..16].copy_from_slice(&42u16.to_be_bytes()); // glyph
-        let options = zeroed_options();
-        let sub = otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).unwrap();
+        let sub = otl_read_contextual(&data, 0, 100, &mut OtlReadBudget::new()).unwrap();
         let Subtable::Chaining(ref sub) = sub else {
             unreachable!()
         };
@@ -1282,8 +1263,7 @@ mod chaining_read_tests {
         data[16..18].copy_from_slice(&1u16.to_be_bytes()); // coverage format 1
         data[18..20].copy_from_slice(&1u16.to_be_bytes()); // glyphCount
         data[20..22].copy_from_slice(&5u16.to_be_bytes()); // glyph
-        let options = zeroed_options();
-        let sub = otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).unwrap();
+        let sub = otl_read_contextual(&data, 0, 100, &mut OtlReadBudget::new()).unwrap();
         let Subtable::Chaining(ref sub) = sub else {
             unreachable!()
         };
@@ -1307,8 +1287,7 @@ mod chaining_read_tests {
         data[6..8].copy_from_slice(&1u16.to_be_bytes()); // coverage format 1
         data[8..10].copy_from_slice(&1u16.to_be_bytes()); // glyphCount = 1
         data[10..12].copy_from_slice(&9u16.to_be_bytes());
-        let options = zeroed_options();
-        assert!(otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).is_none());
+        assert!(otl_read_contextual(&data, 0, 100, &mut OtlReadBudget::new()).is_none());
     }
 
     #[test]
@@ -1324,8 +1303,7 @@ mod chaining_read_tests {
         data[4..6].copy_from_slice(&10u16.to_be_bytes()); // classDefOffset (past end, handled gracefully)
         data[6..8].copy_from_slice(&1u16.to_be_bytes()); // chainSubClassSetCnt
         data[8..10].copy_from_slice(&5000u16.to_be_bytes()); // classSetOffset[0]
-        let options = zeroed_options();
-        assert!(otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).is_none());
+        assert!(otl_read_contextual(&data, 0, 100, &mut OtlReadBudget::new()).is_none());
     }
 
     #[test]
@@ -1338,8 +1316,7 @@ mod chaining_read_tests {
         data[4..6].copy_from_slice(&10u16.to_be_bytes());
         data[6..8].copy_from_slice(&1u16.to_be_bytes());
         data[8..10].copy_from_slice(&0u16.to_be_bytes()); // classSetOffset[0] = 0
-        let options = zeroed_options();
-        let sub = otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).unwrap();
+        let sub = otl_read_contextual(&data, 0, 100, &mut OtlReadBudget::new()).unwrap();
         let Subtable::Chaining(ref sub) = sub else {
             unreachable!()
         };
@@ -1376,8 +1353,7 @@ mod chaining_read_tests {
         data[32..34].copy_from_slice(&1u16.to_be_bytes());
         data[34..36].copy_from_slice(&1u16.to_be_bytes());
         data[36..38].copy_from_slice(&3u16.to_be_bytes()); // lookaround glyph
-        let options = zeroed_options();
-        let sub = otl_read_chaining(&data, 0, 100, &options, &mut OtlReadBudget::new()).unwrap();
+        let sub = otl_read_chaining(&data, 0, 100, &mut OtlReadBudget::new()).unwrap();
         let Subtable::Chaining(ref sub) = sub else {
             unreachable!()
         };
@@ -1430,7 +1406,6 @@ mod chaining_read_tests {
         // real, usable `Logger`, not null -- automatic now that `Options::
         // default()`'s `logger` is a real (if `LoggerTarget::Empty`, i.e.
         // no-op-push) `Logger` rather than a null pointer.
-        let options = Options::default();
-        assert!(otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).is_none());
+        assert!(otl_read_contextual(&data, 0, 100, &mut OtlReadBudget::new()).is_none());
     }
 }

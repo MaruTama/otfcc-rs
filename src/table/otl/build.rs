@@ -1,11 +1,8 @@
+use crate::logger::ByteStr;
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::bk_build_block;
-use crate::logger::{
-    LOG_VL_NOTICE, LOG_VL_PROGRESS, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
-use crate::support::options::Options;
 use crate::support::primitives::TableId;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::chaining::build::otfcc_chaining_lookup_is_contextual_lookup;
@@ -312,7 +309,7 @@ fn get_lookup_heuristics(table: &OtlTable, lut_idx: LookupIdx, lut: &Lookup) -> 
     }
     return heu;
 }
-fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock {
+fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
     // Storage-space `(LookupIdx, &Lookup)` pairs, holes (consolidation-
     // punched `None` slots) skipped -- every array below is indexed by
     // *this* sequence's dense position, matching the binary LookupList's
@@ -339,20 +336,7 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
     for j in 0..live.len() {
         let (lookup_idx, lookup) = live[j];
         let heu: BuildHeuristics = get_lookup_heuristics(table, lookup_idx, lookup);
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            crate::bytesbuild!(
-                b"Building lookup ",
-                &lookup.name,
-                b" (",
-                j as i32,
-                b"/",
-                live.len() as u32,
-                b")\n",
-            ),
-        );
+        tracing::debug!("Building lookup {} ({}/{})\n", ByteStr(&lookup.name), j as i32, live.len() as u32);
         subtable_quantity[j] = _build_lookup(
             lookup,
             &mut LookupWriteCtx {
@@ -375,29 +359,13 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
     for j_1 in 0..live.len() {
         let (_, lookup_0) = live[j_1];
         if subtable_quantity[j_1] == 0 {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_NOTICE,
-                LoggerType::Info,
-                crate::bytesbuild!(b"Lookup ", &lookup_0.name, b" is empty.\n",),
-            );
+            tracing::info!("Lookup {} is empty.\n", ByteStr(&lookup_0.name));
         }
         let can_be_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup_0);
         let use_extended_for_it: bool =
             use_extended as i32 != 0 || prefer_ext_for_this_lut[j_1] as i32 != 0;
         if use_extended_for_it {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_NOTICE,
-                LoggerType::Info,
-                crate::bytesbuild!(
-                    b"[OTFCC-fea] Using extended OpenType table layout for ",
-                    tag,
-                    b"/",
-                    &lookup_0.name,
-                    b".\n",
-                ),
-            );
+            tracing::info!("[OTFCC-fea] Using extended OpenType table layout for {}/{}.\n", ByteStr(tag), ByteStr(&lookup_0.name));
         }
         // The format number the file wants, which is the lookup type with its
         // table's base taken back off -- `LookupType::file_format`, the
@@ -632,14 +600,14 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
     }
     return root;
 }
-pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) -> Option<Buffer> {
+pub fn otfcc_build_otl(table: Option<&OtlTable>, tag: &[u8]) -> Option<Buffer> {
     let table: &OtlTable = table?;
     let buf: Option<Buffer>;
-    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    let stage = crate::logger::stage(ByteStr(tag));
     {
         let lookup_dense = storage_to_dense(&table.lookups);
         let feature_dense = storage_to_dense(&table.features);
-        let lookups: BkBlock = write_otl_lookups(table, options, tag);
+        let lookups: BkBlock = write_otl_lookups(table, tag);
         let features: BkBlock = write_otl_features(table, &lookup_dense);
         let languages: BkBlock = write_otl_script_and_languages(table, &feature_dense);
         let root: BkBlock = bk_new_block(vec![
@@ -649,7 +617,7 @@ pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) 
             bk_ptr(BkCellType::P16, Some(lookups)),
         ]);
         buf = Some(bk_build_block(root));
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
     return buf;
 }

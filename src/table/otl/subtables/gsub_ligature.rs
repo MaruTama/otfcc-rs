@@ -10,7 +10,6 @@ use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::bk::bkgraph::bk_build_block;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
-use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
@@ -139,7 +138,6 @@ pub fn otl_gsub_dump_ligature(_subtable: &Subtable) -> BuiltValue {
 }
 pub fn otl_gsub_parse_ligature(
     _subtable: Option<&ParsedValue>,
-    _options: &Options,
 ) -> Option<Subtable> {
     if let Some(subs) = _subtable.and_then(|v| v.get_typed(b"substitutions", JsonType::Array)) {
         let mut st: GsubLigatureSubtable = Vec::new();

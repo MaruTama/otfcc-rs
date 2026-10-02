@@ -1,13 +1,12 @@
 use crate::support::handle::{LookupHandle, handle_from_name, otfcc_handle_empty};
 use crate::support::parsed_json::ParsedValue;
 
-use crate::support::options::Options;
 use crate::support::primitives::TableId;
 use crate::vendor::json::JsonType;
 
 use crate::table::otl::coverage::parse_coverage;
 use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingSubtable, Subtable};
-pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>, _options: &Options) -> Option<Subtable> {
+pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let sv = _subtable;
     let match_val = sv.and_then(|v| v.get_typed(b"match", JsonType::Array));
     let apply_val = sv.and_then(|v| v.get_typed(b"apply", JsonType::Array));

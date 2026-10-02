@@ -6,7 +6,6 @@ use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
-use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -104,7 +103,6 @@ pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
 }
 pub fn otl_gpos_parse_single(
     _subtable: Option<&ParsedValue>,
-    _options: &Options,
 ) -> Option<Subtable> {
     let mut subtable: GposSingleSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {

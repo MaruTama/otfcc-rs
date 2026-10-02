@@ -1,7 +1,6 @@
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::logger::ByteStr;
 use crate::table::otl::coverage::shrink_coverage;
 
-use crate::support::options::Options;
 
 use crate::support::glyph_order::GlyphOrder;
 
@@ -13,7 +12,6 @@ use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable};
 pub fn consolidate_gsub_ligature(
     glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
-    options: &Options,
 ) -> bool {
     let Subtable::GsubLigature(subtable) = _subtable else {
         unreachable!()
@@ -25,26 +23,12 @@ pub fn consolidate_gsub_ligature(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.to) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.to.name, b".\n",),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.to.name));
         } else {
-            fontop_consolidate_coverage(glyph_order, &mut entry.from, options);
+            fontop_consolidate_coverage(glyph_order, &mut entry.from);
             shrink_coverage(&mut entry.from, false);
             if entry.from.is_empty() {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Ignoring empty ligature substitution to glyph /",
-                        &entry.to.name,
-                        b".\n",
-                    ),
-                );
+                tracing::warn!("[Consolidate] Ignoring empty ligature substitution to glyph /{}.\n", ByteStr(&entry.to.name));
             } else {
                 nt.push(GsubLigatureEntry {
                     from: ::core::mem::take(&mut entry.from),

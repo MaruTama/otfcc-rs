@@ -1,9 +1,8 @@
+use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
 use crate::support::glyph_order::GlyphOrder;
-use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
 use crate::table::otl::{GposSingleEntry, PositionValue, Subtable};
@@ -14,7 +13,6 @@ use crate::table::otl::subtables::gpos_single::dispose_gpos_single_subtable;
 pub fn consolidate_gpos_single(
     glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
-    options: &Options,
 ) -> bool {
     let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
@@ -36,12 +34,7 @@ pub fn consolidate_gpos_single(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.target) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.target.name, b".\n",),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.target.name));
         } else {
             let fromid: i32 = entry.target.index as i32;
             if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
@@ -49,16 +42,7 @@ pub fn consolidate_gpos_single(
                 let v: PositionValue = entry.value;
                 e.insert((fromname, v));
             } else {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Detected glyph double-mapping about /",
-                        &entry.target.name,
-                        b".\n",
-                    ),
-                );
+                tracing::warn!("[Consolidate] Detected glyph double-mapping about /{}.\n", ByteStr(&entry.target.name));
             }
         }
     }

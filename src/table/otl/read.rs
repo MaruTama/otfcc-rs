@@ -1,5 +1,4 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
@@ -164,19 +163,19 @@ pub fn otfcc_read_otl_subtable(
             otl_read_gsub_ligature(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_CHAINING => {
-            otl_read_chaining(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
+            otl_read_chaining(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_REVERSE => {
             otl_read_gsub_reverse(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_CHAINING => {
-            otl_read_chaining(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
+            otl_read_chaining(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_CONTEXT => {
-            otl_read_contextual(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
+            otl_read_contextual(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_CONTEXT => {
-            otl_read_contextual(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
+            otl_read_contextual(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_SINGLE => otl_read_gpos_single(data, subtable_offset, max_glyphs, budget).map(Box::new),
         OTL_TYPE_GPOS_PAIR => otl_read_gpos_pair(data, subtable_offset, max_glyphs, budget).map(Box::new),
@@ -460,16 +459,7 @@ fn parse_otl_common(
         }
     }
     if total_languages >= MAX_TOTAL_LANGUAGES {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"[otl] Total script/language count exceeded ",
-                MAX_TOTAL_LANGUAGES as i32,
-                b"; the rest of this table's scripts are ignored.\n",
-            ),
-        );
+        tracing::warn!("[otl] Total script/language count exceeded {}; the rest of this table's scripts are ignored.\n", MAX_TOTAL_LANGUAGES as i32);
     }
 
     // Every slot is still `Some` here -- holes only ever appear later, via

@@ -17,7 +17,6 @@ use crate::bk::bkgraph::{
 };
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;
@@ -397,7 +396,6 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
 }
 pub fn otl_gpos_parse_pair(
     _subtable: Option<&ParsedValue>,
-    _options: &Options,
 ) -> Option<Subtable> {
     let sv = _subtable;
     let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array))?;

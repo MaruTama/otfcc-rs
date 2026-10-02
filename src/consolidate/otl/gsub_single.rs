@@ -1,8 +1,7 @@
+use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
 use crate::table::otl::{GsubSingleEntry, Subtable};
@@ -13,7 +12,6 @@ use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 pub fn consolidate_gsub_single(
     glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
-    options: &Options,
 ) -> bool {
     // Guaranteed `Some`: `consolidate_otl` (and hence this function) only
     // ever runs when `glyf` is present, and `otfcc_consolidate_font`
@@ -33,27 +31,9 @@ pub fn consolidate_gsub_single(
         std::collections::BTreeMap::new();
     for entry in subtable.iter_mut() {
         if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.from) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored missing glyph /",
-                    &entry.from.name,
-                    b".\n",
-                ),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.from.name));
         } else if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.to) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored missing glyph /",
-                    &entry.to.name,
-                    b".\n",
-                ),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.to.name));
         } else {
             let fromid: i32 = entry.from.index as i32;
             if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
@@ -62,26 +42,12 @@ pub fn consolidate_gsub_single(
                 let toname: Vec<u8> = entry.to.name.clone();
                 e.insert((fromname, toid, toname));
             } else {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Double-mapping a glyph in a single substitution /",
-                        &entry.from.name,
-                        b".\n",
-                    ),
-                );
+                tracing::warn!("[Consolidate] Double-mapping a glyph in a single substitution /{}.\n", ByteStr(&entry.from.name));
             }
         }
     }
     if seen.len() != subtable.len() {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",),
-        );
+        tracing::warn!("[Consolidate] In this lookup, some mappings are ignored.\n");
     }
     dispose_gsub_single_subtable(subtable);
     for (fromid, (fromname, toid, toname)) in seen {

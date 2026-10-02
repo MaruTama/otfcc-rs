@@ -94,13 +94,11 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
     otfcc_dump_otl(
         font.gsub.as_deref(),
         &mut root,
-        options,
         b"GSUB",
     );
     otfcc_dump_otl(
         font.gpos.as_deref(),
         &mut root,
-        options,
         b"GPOS",
     );
     otfcc_dump_gdef(font.gdef.as_deref(), &mut root);

@@ -1,6 +1,5 @@
-use crate::logger::{logger_finish, logger_start_sds};
+use crate::logger::ByteStr;
 use crate::support::built_json::BuiltValue;
-use crate::support::options::Options;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::subtables::chaining::dump::otl_dump_chaining;
 use crate::table::otl::subtables::gpos_cursive::otl_gpos_dump_cursive;
@@ -131,7 +130,7 @@ fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
     );
     dump
 }
-pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: &Options, tag: &[u8]) {
+pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
     let Some(table) = table else { return };
     // `table.lookups`/`.features` are hole-preserving now -- a `None`-only
     // `Vec` (every lookup/feature punched by consolidation) is the "empty"
@@ -143,13 +142,10 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
     {
         return;
     }
-    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    let stage = crate::logger::stage(ByteStr(tag));
     {
         let mut otl = BuiltValue::new_object(3);
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            crate::bytesbuild!(b"Languages"),
-        );
+        let stage_2 = crate::logger::stage("Languages");
         {
             let mut languages = BuiltValue::new_object(table.languages.len());
             for lang in table.languages.iter() {
@@ -180,12 +176,9 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
                 languages.push_field_bytes_key(&lang.name, _lang);
             }
             otl.push_field(b"languages", languages);
-            logger_finish(&mut options.logger.borrow_mut());
+            drop(stage_2);
         }
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            crate::bytesbuild!(b"Features"),
-        );
+        let stage_2 = crate::logger::stage("Features");
         {
             // `.filter_map` skips holes -- a `None` slot consolidation
             // punched has nothing to dump.
@@ -205,12 +198,9 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
                 features_0.push_field_bytes_key(&feature.name, _feature.preserialize());
             }
             otl.push_field(b"features", features_0);
-            logger_finish(&mut options.logger.borrow_mut());
+            drop(stage_2);
         }
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            crate::bytesbuild!(b"Lookups"),
-        );
+        let stage_2 = crate::logger::stage("Lookups");
         {
             // `.filter` skips holes, same as the features loop above.
             let live_lookups: Vec<&Lookup> = table.lookups.iter().filter_map(Option::as_deref).collect();
@@ -223,9 +213,9 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
             }
             otl.push_field(b"lookups", lookups);
             otl.push_field(b"lookupOrder", lookup_order);
-            logger_finish(&mut options.logger.borrow_mut());
+            drop(stage_2);
         }
         root.push_field(tag, otl);
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
 }

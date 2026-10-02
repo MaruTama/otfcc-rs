@@ -1,9 +1,8 @@
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::logger::ByteStr;
 use crate::support::handle::Handle;
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::glyph_order::GlyphOrder;
-use crate::support::options::Options;
 use crate::support::primitives::GlyphClass;
 
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
@@ -18,16 +17,10 @@ use crate::table::otl::classdef::ClassDef;
 pub fn fontop_consolidate_coverage(
     glyph_order: &GlyphOrder,
     coverage: &mut Coverage,
-    options: &Options,
 ) {
     for glyph in coverage.iter_mut() {
         if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &glyph.name, b".\n",),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&glyph.name));
             *glyph = Handle::default();
         }
     }
@@ -35,7 +28,6 @@ pub fn fontop_consolidate_coverage(
 pub fn fontop_consolidate_class_def(
     glyph_order: Option<&GlyphOrder>,
     cd: Option<&mut ClassDef>,
-    options: &Options,
 ) {
     let Some(cd) = cd else {
         return;
@@ -56,12 +48,7 @@ pub fn fontop_consolidate_class_def(
     };
     for (glyph, class) in cd.glyphs.iter_mut().zip(cd.classes.iter_mut()) {
         if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &glyph.name, b".\n",),
-            );
+            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&glyph.name));
             *glyph = Handle::default();
             *class = 0 as GlyphClass;
         }

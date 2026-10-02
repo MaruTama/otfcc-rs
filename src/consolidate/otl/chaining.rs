@@ -1,4 +1,4 @@
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::logger::ByteStr;
 use crate::support::handle::{Handle, HandleState, LookupHandle, handle_name_eq_bytes};
 use crate::table::otl::coverage::shrink_coverage;
 
@@ -42,12 +42,7 @@ pub(crate) fn consolidate_chaining(
         unreachable!()
     };
     if !chaining_is_canonical(subtable) {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(b"[Consolidate] Ignoring non-canonical chaining subtable."),
-        );
+        tracing::warn!("[Consolidate] Ignoring non-canonical chaining subtable.");
         return false;
     }
     let rule: &mut ChainingRule = chaining_rule_mut(subtable);
@@ -58,7 +53,7 @@ pub(crate) fn consolidate_chaining(
     let mut possible: bool = true;
     let match_count = rule.match_count as usize;
     for cov in rule.match_0.iter_mut().take(match_count) {
-        fontop_consolidate_coverage(glyph_order, cov, options);
+        fontop_consolidate_coverage(glyph_order, cov);
         shrink_coverage(cov, true);
         possible = possible && !cov.is_empty();
     }
@@ -117,16 +112,7 @@ pub(crate) fn consolidate_chaining(
                 let budget = options.consolidate_warning_budget.get();
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Quoting an invalid lookup ",
-                            &app.lookup.name,
-                            b". This lookup application is ignored.",
-                        ),
-                    );
+                    tracing::warn!("[Consolidate] Quoting an invalid lookup {}. This lookup application is ignored.", ByteStr(&app.lookup.name));
                 }
                 app.lookup = Handle::default();
             }
@@ -150,16 +136,7 @@ pub(crate) fn consolidate_chaining(
                 let budget = options.consolidate_warning_budget.get();
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Quoting an invalid lookup #",
-                            app.lookup.index as i32,
-                            b".",
-                        ),
-                    );
+                    tracing::warn!("[Consolidate] Quoting an invalid lookup #{}.", app.lookup.index as i32);
                 }
                 app.lookup.index = 0 as GlyphId;
             }
