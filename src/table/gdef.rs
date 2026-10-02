@@ -208,7 +208,7 @@ pub fn otfcc_dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue) {
         _gdef.push_field(b"ligCarets", dump_gdef_lig_carets(gdef));
     }
     root.push_field(b"GDEF", _gdef);
-    drop(stage);
+    stage.finish();
 }
 fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
     let Some(fields) = carets.and_then(ParsedValue::as_object) else {
@@ -256,7 +256,7 @@ pub fn otfcc_parse_gdef(root: &ParsedValue) -> Option<Box<GdefTable>> {
     gdef.mark_attach_class_def =
         parse_class_def(table.get(b"markAttachClassDef")).map(Box::new);
     lig_caret_from_json(table.get(b"ligCarets"), &mut gdef.lig_carets);
-    drop(stage);
+    stage.finish();
     Some(gdef)
 }
 // `bk_new_block`/`bk_push`/`bk_new_block_from_buffer`/`bk_build_block`

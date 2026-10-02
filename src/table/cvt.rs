@@ -50,7 +50,7 @@ pub fn otfcc_dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, tag: &[u8
             arr.push_item(BuiltValue::Int(w as i64));
         }
         root.push_field(tag, arr);
-        drop(stage);
+        stage.finish();
     }
 }
 pub fn otfcc_parse_cvt(root: &ParsedValue, tag: &[u8]) -> Option<Box<CvtTable>> {
@@ -68,7 +68,7 @@ pub fn otfcc_parse_cvt(root: &ParsedValue, tag: &[u8]) -> Option<Box<CvtTable>> 
                 _ => 0_u16,
             });
         }
-        drop(stage);
+        stage.finish();
         return Some(Box::new(CvtTable { words }));
     }
     if let Some(bytes) = root
@@ -82,7 +82,7 @@ pub fn otfcc_parse_cvt(root: &ParsedValue, tag: &[u8]) -> Option<Box<CvtTable>> 
         for j in 0..table_length {
             words.push(u16::from_be_bytes([raw[2 * j], raw[2 * j + 1]]));
         }
-        drop(stage);
+        stage.finish();
         return Some(Box::new(CvtTable { words }));
     }
     None

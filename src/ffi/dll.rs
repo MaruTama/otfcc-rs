@@ -5,11 +5,9 @@ use crate::support::options::Options;
 
 use crate::consolidate::otfcc_consolidate_font;
 use crate::json_reader::read_json;
-use crate::logger::{Logger, logger_indent_sds, otfcc_new_empty_target};
 use crate::otf_writer::serialize_to_otf;
 use crate::support::options::otfcc_options_optimize_to;
 use crate::support::parsed_json::parse_json;
-use std::cell::RefCell;
 
 /// # Safety
 /// `injson` must be non-null and point to at least `inlen` readable bytes
@@ -26,8 +24,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     for_webfont: bool,
 ) -> *mut Buffer {
     let mut options: Box<Options> = Box::default();
-    options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
-    logger_indent_sds(&mut options.logger.borrow_mut(), b"otfccbuild".to_vec());
+    let _root_scope = crate::logger::indent("otfccbuild");
     otfcc_options_optimize_to(&mut options, olevel);
     if for_webfont {
         options.ignore_glyph_order = true;

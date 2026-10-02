@@ -115,7 +115,7 @@ pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     );
     vhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
     root.push_field(b"vhea", vhea);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
     let table = root.get_typed(b"vhea", JsonType::Object)?;
@@ -139,7 +139,7 @@ pub fn otfcc_parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
         metric_data_format: 0,
         num_of_long_ver_metrics: 0,
     };
-    drop(stage);
+    stage.finish();
     Some(Box::new(vhea))
 }
 #[allow(improper_ctypes_definitions)]

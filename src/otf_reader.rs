@@ -175,9 +175,8 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
 mod regression_tests {
     use crate::consolidate::otfcc_consolidate_font;
     use crate::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
-    use crate::logger::{Logger, otfcc_new_empty_target};
     use crate::support::options::Options;
-    use std::cell::RefCell;
+    
     use std::io::Cursor;
     use std::time::{Duration, Instant};
 
@@ -208,8 +207,7 @@ mod regression_tests {
         .unwrap();
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let options: Box<Options> = Box::default();
 
         let start = Instant::now();
         let font = super::read_otf(&sfnt, 0, &options);
@@ -270,8 +268,7 @@ mod regression_tests {
         .unwrap();
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let options: Box<Options> = Box::default();
 
         let start = Instant::now();
         let font = super::read_otf(&sfnt, 0, &options);
@@ -319,8 +316,7 @@ mod regression_tests {
         .unwrap();
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let options: Box<Options> = Box::default();
 
         let start = Instant::now();
         let font = super::read_otf(&sfnt, 0, &options);
@@ -388,8 +384,7 @@ mod regression_tests {
         .unwrap();
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let options: Box<Options> = Box::default();
 
         let start = Instant::now();
         let font = super::read_otf(&sfnt, 0, &options);
@@ -460,8 +455,7 @@ mod regression_tests {
 
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let options: Box<Options> = Box::default();
 
         let font = super::read_otf(&sfnt, 0, &options);
         let font = font.expect("font must parse");
@@ -502,8 +496,7 @@ mod regression_tests {
 
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let options: Box<Options> = Box::default();
 
         let font = super::read_otf(&sfnt, 0, &options);
         let mut font = font.expect("font must parse");
@@ -562,8 +555,7 @@ mod regression_tests {
         .unwrap();
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let options: Box<Options> = Box::default();
 
         let start = Instant::now();
         let mut font = super::read_otf(&sfnt, 0, &options);
@@ -617,8 +609,7 @@ mod regression_tests {
         .unwrap();
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
-        let mut options: Box<Options> = Box::default();
-        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let options: Box<Options> = Box::default();
 
         let start = Instant::now();
         let font = super::read_otf(&sfnt, 0, &options);

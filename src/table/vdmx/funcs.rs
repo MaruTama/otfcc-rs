@@ -95,7 +95,7 @@ pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue) {
     }
     _vdmx.push_field(b"ratios", _ratios);
     root.push_field(b"VDMX", _vdmx);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
     let vdmx_dump = root.get_typed(b"VDMX", JsonType::Object)?;
@@ -142,7 +142,7 @@ pub fn otfcc_parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
             }
         }
     }
-    drop(stage);
+    stage.finish();
     Some(vdmx)
 }
 #[allow(improper_ctypes_definitions)]

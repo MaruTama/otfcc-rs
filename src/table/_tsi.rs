@@ -193,7 +193,7 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8])
         _tsi.push_field(b"glyphs", _glyphs);
         _tsi.push_field(b"extra", _extra);
         root.push_field(tag, _tsi);
-        drop(stage);
+        stage.finish();
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -237,7 +237,7 @@ pub fn otfcc_parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
             });
         }
     }
-    drop(stage);
+    stage.finish();
     Some(tsi)
 }
 // c2rust residue: the original had this as a numeric `switch` over

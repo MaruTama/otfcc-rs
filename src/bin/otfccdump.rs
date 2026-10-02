@@ -7,19 +7,15 @@
     unused_mut
 )]
 #[allow(unused_imports)]
+use otfcc_rust::logger::ByteStr;
 use ::otfcc_rust;
 
 
-use otfcc_rust::logger::{
-    LoggerType, logger_finish, logger_indent_sds, logger_log_sds, logger_set_verbosity,
-    logger_start_sds,
-};
 
 use otfcc_rust::support::options::Options;
 
 use otfcc_rust::font::caryll_font::Font;
 use otfcc_rust::font::caryll_sfnt::SplineFontContainer;
-use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::support::built_json::BuiltValue;
 use otfcc_rust::support::EXIT_FAILURE;
 
@@ -27,7 +23,6 @@ use libc::timespec;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
 use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt;
 use otfcc_rust::json_writer::serialize_to_json;
-use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::built_json::json_serialize_ex;
 use otfcc_rust::support::built_json::{
@@ -37,7 +32,6 @@ use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::cstd::strtol::strtol;
 use otfcc_rust::support::cli::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use std::cell::RefCell;
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
@@ -112,7 +106,6 @@ fn main_0(args: Vec<String>) -> i32 {
         LongOpt { name: "debug-wait-on-start", has_arg: false, val: OPT_DEBUG_WAIT_ON_START },
     ];
     let mut options: Box<Options> = Box::default();
-    options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     options.decimal_cmap = true;
     let mut outputPath: Option<::std::ffi::CString> = None;
     // Placeholder, unconditionally overwritten below before any real use
@@ -183,11 +176,11 @@ fn main_0(args: Vec<String>) -> i32 {
     } else {
         1_i32
     }) as u8;
-    logger_set_verbosity(&mut options.logger.borrow_mut(), verbosity);
     // Installed only now that `--quiet`/`--verbose` are known; nothing is
     // logged before this point (argument errors go straight to stderr).
     otfcc_rust::logger::install_stderr(verbosity);
-    logger_indent_sds(&mut options.logger.borrow_mut(), b"otfccdump".to_vec());
+    // Every line logged from here on is indented under the program name.
+    let _root_scope = otfcc_rust::logger::indent("otfccdump");
     if show_help {
         printInfo();
         printHelp();
@@ -201,12 +194,7 @@ fn main_0(args: Vec<String>) -> i32 {
         inPath =
             ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte");
     } else {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_CRITICAL,
-            LoggerType::Error,
-            otfcc_rust::bytesbuild!(b"Expected argument for input file name.\n"),
-        );
+        tracing::error!("Expected argument for input file name.\n");
         printHelp();
         return EXIT_FAILURE;
     }
@@ -216,127 +204,56 @@ fn main_0(args: Vec<String>) -> i32 {
     };
     time_now(&mut begin);
     let mut sfnt: Option<SplineFontContainer> = None;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Read SFNT"),
-    );
+    let stage = otfcc_rust::logger::stage("Read SFNT");
     {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            otfcc_rust::bytesbuild!(b"From file ", inPath.as_bytes()),
-        );
+        tracing::debug!("From file {}", ByteStr(inPath.as_bytes()));
         sfnt = otfcc_read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(inPath.as_bytes())));
         if sfnt.as_ref().is_none_or(|s| s.count == 0_u32) {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_CRITICAL,
-                LoggerType::Error,
-                otfcc_rust::bytesbuild!(
-                    b"Cannot read SFNT file \"",
-                    inPath.as_bytes(),
-                    b"\". Exit.\n",
-                ),
-            );
+            tracing::error!("Cannot read SFNT file \"{}\". Exit.\n", ByteStr(inPath.as_bytes()));
             return EXIT_FAILURE;
         }
         let subfonts = sfnt.as_ref().unwrap().count;
         if ttcindex >= subfonts {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_CRITICAL,
-                LoggerType::Error,
-                otfcc_rust::bytesbuild!(
-                    b"Subfont index ",
-                    ttcindex,
-                    b" out of range for \"",
-                    inPath.as_bytes(),
-                    b"\" (0 -- ",
-                    subfonts.wrapping_sub(1_u32),
-                    b"). Exit.\n",
-                ),
-            );
+            tracing::error!("Subfont index {} out of range for \"{}\" (0 -- {}). Exit.\n", ttcindex, ByteStr(inPath.as_bytes()), ByteStr(subfonts.wrapping_sub(1_u32)));
             return EXIT_FAILURE;
         }
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
     let mut font: Option<Box<Font>> = None;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Read Font"),
-    );
+    let stage = otfcc_rust::logger::stage("Read Font");
     {
         font = read_otf(sfnt.as_ref().unwrap(), ttcindex, &options);
         if font.is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_CRITICAL,
-                LoggerType::Error,
-                otfcc_rust::bytesbuild!(
-                    b"Font structure broken or corrupted \"",
-                    inPath.as_bytes(),
-                    b"\". Exit.\n",
-                ),
-            );
+            tracing::error!("Font structure broken or corrupted \"{}\". Exit.\n", ByteStr(inPath.as_bytes()));
             return EXIT_FAILURE;
         }
         drop(sfnt.take());
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Consolidate"),
-    );
+    let stage = otfcc_rust::logger::stage("Consolidate");
     {
         otfcc_consolidate_font(font.as_mut().unwrap(), &options);
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
     // Owned now that `serialize_to_json` returns the `BuiltValue` itself
     // rather than a `BuiltValue::into_raw` pointer; `Option` only because
     // the plain block below is what assigns it.
     let mut root: Option<BuiltValue> = None;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Dump"),
-    );
+    let stage = otfcc_rust::logger::stage("Dump");
     {
         // The "dump returned null" error path that used to sit here was
         // already dead: the serializer's every exit built a real
         // `BuiltValue`, so the pointer it handed back was never null. With
         // an owned return there is no null to test for at all.
         root = Some(serialize_to_json(font.as_mut().unwrap(), &options));
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
     let mut buf: Vec<u8> = Vec::new();
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Serialize to JSON"),
-    );
+    let stage = otfcc_rust::logger::stage("Serialize to JSON");
     {
         let mut jsonOptions: JsonSerializeOpts = JsonSerializeOpts {
             mode: 0,
@@ -358,18 +275,10 @@ fn main_0(args: Vec<String>) -> i32 {
             root.as_ref().expect("the Dump step above always assigns root"),
             jsonOptions,
         );
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Output"),
-    );
+    let stage = otfcc_rust::logger::stage("Output");
     {
         if let Some(ref output_path) = outputPath {
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
@@ -382,16 +291,7 @@ fn main_0(args: Vec<String>) -> i32 {
                 },
             );
             if write_result.is_err() {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_CRITICAL,
-                    LoggerType::Error,
-                    otfcc_rust::bytesbuild!(
-                        b"Cannot write to file \"",
-                        output_path.as_bytes(),
-                        b"\". Exit.",
-                    ),
-                );
+                tracing::error!("Cannot write to file \"{}\". Exit.", ByteStr(output_path.as_bytes()));
                 return EXIT_FAILURE;
             }
         } else {
@@ -401,31 +301,18 @@ fn main_0(args: Vec<String>) -> i32 {
             }
             let _ = stdout_handle.write_all(&buf);
         }
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Finalize"),
-    );
+    let stage = otfcc_rust::logger::stage("Finalize");
     {
         drop(font.take());
         drop(root.take());
         // `inPath`/`outputPath` are `CString`/`Option<CString>` now --
         // both drop on their own at the end of this function's scope, no
         // explicit free needed.
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
     return 0_i32;
 }

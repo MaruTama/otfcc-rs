@@ -617,7 +617,7 @@ pub fn otfcc_build_otl(table: Option<&OtlTable>, tag: &[u8]) -> Option<Buffer> {
             bk_ptr(BkCellType::P16, Some(lookups)),
         ]);
         buf = Some(bk_build_block(root));
-        drop(stage);
+        stage.finish();
     }
     return buf;
 }

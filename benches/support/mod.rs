@@ -21,13 +21,11 @@ use otfcc_rust::consolidate::otfcc_consolidate_font;
 use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::json_writer::serialize_to_json;
-use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::built_json::{JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_serialize_ex};
 use otfcc_rust::support::options::{Options, otfcc_options_optimize_to};
 use otfcc_rust::support::parsed_json::parse_json;
-use std::cell::RefCell;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
@@ -48,8 +46,7 @@ pub fn payload_bytes(name: &str) -> Vec<u8> {
 /// competing with `criterion`'s own progress printing), at the default
 /// optimization level.
 pub fn quiet_options() -> Box<Options> {
-    let mut options: Box<Options> = Box::default();
-    options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+    let options: Box<Options> = Box::default();
     options
 }
 

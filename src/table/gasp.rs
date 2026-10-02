@@ -79,7 +79,7 @@ pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
         t.push_item(rec);
     }
     root.push_field(b"gasp", t);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
     let table = root.get_typed(b"gasp", JsonType::Array)?;
@@ -101,7 +101,7 @@ pub fn otfcc_parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
             }
         }
     }
-    drop(stage);
+    stage.finish();
     Some(Box::new(gasp))
 }
 pub fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {

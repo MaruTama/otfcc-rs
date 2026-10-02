@@ -328,7 +328,7 @@ pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
     }
     t.push_field(b"masters", _masters);
     root.push_field(b"fvar", t);
-    drop(stage);
+    stage.finish();
 }
 pub fn json_new_vq_segment(s: &VqSegment, fvar: Option<&FvarTable>) -> BuiltValue {
     match s {

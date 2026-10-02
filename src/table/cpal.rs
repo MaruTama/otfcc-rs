@@ -225,7 +225,7 @@ pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue) {
         }
         _t.push_field(b"palettes", _a);
         root.push_field(b"CPAL", _t);
-        drop(stage);
+        stage.finish();
     }
 }
 #[inline]
@@ -244,17 +244,12 @@ fn parse_color(color: Option<&ParsedValue>) -> CpalColor {
 pub fn otfcc_parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
     let table = root.get_typed(b"CPAL", JsonType::Object)?;
     let stage = crate::logger::stage("CPAL");
-    // An empty/missing `palettes` array returns `None` without a `Finish`
-    // line, as it always has. (The old logger also left the "CPAL" indent
-    // open for the rest of the run; the scope is closed properly now.)
-    let Some(palette_items) = table
+    // An empty/missing `palettes` array returns `None`, closing the stage
+    // without a `Finish` line.
+    let palette_items = table
         .get_typed(b"palettes", JsonType::Array)
         .and_then(ParsedValue::as_array)
-        .filter(|items| !items.is_empty())
-    else {
-        stage.abandon();
-        return None;
-    };
+        .filter(|items| !items.is_empty())?;
     let version = table.get_int(b"version") as u16;
     let mut cpal: Box<CpalTable> = Box::new(CpalTable {
         version,
@@ -280,7 +275,7 @@ pub fn otfcc_parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
         }
         cpal.palettes.push(palette);
     }
-    drop(stage);
+    stage.finish();
     Some(cpal)
 }
 #[inline]

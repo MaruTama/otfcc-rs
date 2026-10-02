@@ -446,7 +446,7 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
         // `gr` is a plain owned local; every field auto-drops when it
         // goes out of scope at the end of this iteration, so no
         // explicit dispose call is needed.
-        drop(stage);
+        stage.finish();
         j_0 = j_0.wrapping_add(1);
     }
 }
@@ -521,7 +521,7 @@ fn __declare_otl_consolidation(
     if lookup.subtables.is_empty() {
         tracing::warn!("[Consolidate] Lookup {} is empty and will be removed.\n", ByteStr(&lookup.name));
     }
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_consolidate_lookup(
     glyph_order: &GlyphOrder,
@@ -681,17 +681,17 @@ fn consolidate_otl(font: &mut Font, options: &Options) {
     let stage = crate::logger::stage("GSUB");
     {
         consolidate_otl_table(glyph_order, font.gsub.as_deref_mut(), options);
-        drop(stage);
+        stage.finish();
     }
     let stage = crate::logger::stage("GPOS");
     {
         consolidate_otl_table(glyph_order, font.gpos.as_deref_mut(), options);
-        drop(stage);
+        stage.finish();
     }
     let stage = crate::logger::stage("GDEF");
     {
         consolidate_gdef(glyph_order, font.gdef.as_deref_mut());
-        drop(stage);
+        stage.finish();
     }
 }
 fn consolidate_colr(font: &mut Font) {
@@ -852,10 +852,10 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
     }
     let stage = crate::logger::stage("glyf");
     consolidate_glyf(font, options);
-    drop(stage);
+    stage.finish();
     let stage = crate::logger::stage("cmap");
     consolidate_cmap(font);
-    drop(stage);
+    stage.finish();
     if has_glyf {
         // The lookup consolidators read exactly one thing from the font --
         // its glyph order -- so `consolidate_otl` splits `font.glyph_order`
@@ -868,20 +868,20 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
     }
     let stage = crate::logger::stage("COLR");
     consolidate_colr(font);
-    drop(stage);
+    stage.finish();
     let stage = crate::logger::stage("TSI_01");
     if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
         consolidate_tsi(glyf, glyph_order, &mut font.tsi_01);
     }
-    drop(stage);
+    stage.finish();
     let stage = crate::logger::stage("TSI_23");
     if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
         consolidate_tsi(glyf, glyph_order, &mut font.tsi_23);
     }
-    drop(stage);
+    stage.finish();
     let stage = crate::logger::stage("TSI5");
     fontop_consolidate_class_def(font.glyph_order.as_deref(), font.tsi5.as_deref_mut());
-    drop(stage);
+    stage.finish();
 }
 
 #[cfg(test)]

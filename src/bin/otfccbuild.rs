@@ -7,13 +7,10 @@
     unused_mut
 )]
 #[allow(unused_imports)]
+use otfcc_rust::logger::ByteStr;
 use ::otfcc_rust;
 
 
-use otfcc_rust::logger::{
-    LoggerType, logger_finish, logger_indent_sds, logger_log_sds, logger_set_verbosity,
-    logger_start_sds,
-};
 use otfcc_rust::support::buffer::Buffer;
 use otfcc_rust::support::options::Options;
 
@@ -21,8 +18,6 @@ use libc::timespec;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
 use otfcc_rust::font::caryll_font::Font;
 use otfcc_rust::json_reader::read_json;
-use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
-use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::options::otfcc_options_optimize_to;
@@ -32,7 +27,6 @@ use otfcc_rust::support::cstd::strtol::strtol;
 use otfcc_rust::support::cli::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::EXIT_FAILURE;
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use std::cell::RefCell;
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
@@ -113,7 +107,6 @@ fn main_0(args: Vec<String>) -> i32 {
     let mut outputPath: Option<::std::ffi::CString> = None;
     let mut inPath: Option<::std::ffi::CString> = None;
     let mut options: Box<Options> = Box::default();
-    options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     otfcc_options_optimize_to(&mut options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
@@ -240,11 +233,11 @@ fn main_0(args: Vec<String>) -> i32 {
     } else {
         1_i32
     }) as u8;
-    logger_set_verbosity(&mut options.logger.borrow_mut(), verbosity);
     // Installed only now that `--quiet`/`--verbose` are known; nothing is
     // logged before this point (argument errors go straight to stderr).
     otfcc_rust::logger::install_stderr(verbosity);
-    logger_indent_sds(&mut options.logger.borrow_mut(), b"otfccbuild".to_vec());
+    // Every line logged from here on is indented under the program name.
+    let _root_scope = otfcc_rust::logger::indent("otfccbuild");
     if show_help {
         printInfo();
         printHelp();
@@ -258,28 +251,15 @@ fn main_0(args: Vec<String>) -> i32 {
         ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte")
     });
     if outputPath.is_none() {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_CRITICAL,
-            LoggerType::Error,
-            otfcc_rust::bytesbuild!(
-                b"Unable to build OpenType font tile : output path not specified. Exit.\n",
-            ),
-        );
+        tracing::error!("Unable to build OpenType font tile : output path not specified. Exit.\n");
         printHelp();
         return EXIT_FAILURE;
     }
     let mut buffer: Vec<u8> = Vec::new();
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Load file"),
-    );
+    let stage = otfcc_rust::logger::stage("Load file");
     {
         if let Some(ref in_path) = inPath {
-            logger_start_sds(
-                &mut options.logger.borrow_mut(),
-                otfcc_rust::bytesbuild!(b"Load from file ", in_path.as_bytes()),
-            );
+            let substage = otfcc_rust::logger::stage(format_args!("Load from file {}", ByteStr(in_path.as_bytes())));
             {
                 let Some(b) = readEntireFile(in_path.as_c_str()) else {
                     return EXIT_FAILURE;
@@ -293,143 +273,73 @@ fn main_0(args: Vec<String>) -> i32 {
                 // for the rest of the function and drops naturally at
                 // the end, which is exactly what those later reads
                 // needed all along.
-                logger_finish(&mut options.logger.borrow_mut());
+                substage.finish();
             }
         } else {
-            logger_start_sds(
-                &mut options.logger.borrow_mut(),
-                otfcc_rust::bytesbuild!(b"Load from stdin"),
-            );
+            let substage = otfcc_rust::logger::stage("Load from stdin");
             {
                 buffer = readEntireStdin();
-                logger_finish(&mut options.logger.borrow_mut());
+                substage.finish();
             }
         }
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
     let mut json_root: Option<ParsedValue> = None;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Parse into JSON"),
-    );
+    let stage = otfcc_rust::logger::stage("Parse into JSON");
     {
         json_root = parse_json(&buffer);
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
         if json_root.is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_CRITICAL,
-                LoggerType::Error,
-                otfcc_rust::bytesbuild!(
-                    b"Cannot parse JSON file \"",
-                    inPath.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b""),
-                    b"\". Exit.\n",
-                ),
-            );
+            tracing::error!("Cannot parse JSON file \"{}\". Exit.\n", ByteStr(inPath.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
             return EXIT_FAILURE;
         }
-        logger_finish(&mut options.logger.borrow_mut());
+        stage.finish();
     }
     let mut font: Option<Box<Font>> = None;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Parse"),
-    );
+    let stage = otfcc_rust::logger::stage("Parse");
     {
         // `read_json` is a plain safe `pub fn` as of Stage M-34 -- see its
         // own doc comment for why it now takes `&mut ParsedValue`.
         font = read_json(json_root.as_mut().unwrap(), &options);
         if font.is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_CRITICAL,
-                LoggerType::Error,
-                otfcc_rust::bytesbuild!(
-                    b"Cannot parse JSON file \"",
-                    inPath.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b""),
-                    b"\" as a font. Exit.\n",
-                ),
-            );
+            tracing::error!("Cannot parse JSON file \"{}\" as a font. Exit.\n", ByteStr(inPath.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
             return EXIT_FAILURE;
         }
         drop(json_root.take());
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Consolidate"),
-    );
+    let stage = otfcc_rust::logger::stage("Consolidate");
     {
         otfcc_consolidate_font(font.as_mut().unwrap(), &options);
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
-        logger_finish(&mut options.logger.borrow_mut());
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        stage.finish();
     }
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        otfcc_rust::bytesbuild!(b"Build"),
-    );
+    let stage = otfcc_rust::logger::stage("Build");
     {
         // Owned now that `serialize_to_otf` returns the `Buffer` itself;
         // it drops at the end of this block, where an explicit
         // `Buffer::from_raw` used to be needed.
         let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &options);
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            otfcc_rust::bytesbuild!(b"Write to file"),
-        );
+        let substage = otfcc_rust::logger::stage("Write to file");
         {
             // Always `Some` here -- the `outputPath.is_none()` branch
             // above already exited.
             let output_path = outputPath.as_ref().unwrap();
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
             if std::fs::write(std::path::Path::new(os_path), &otf.data).is_err() {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_CRITICAL,
-                    LoggerType::Error,
-                    otfcc_rust::bytesbuild!(
-                        b"Cannot write to file \"",
-                        output_path.as_bytes(),
-                        b"\". Exit.\n",
-                    ),
-                );
+                tracing::error!("Cannot write to file \"{}\". Exit.\n", ByteStr(output_path.as_bytes()));
                 return EXIT_FAILURE;
             }
-            logger_finish(&mut options.logger.borrow_mut());
+            substage.finish();
         }
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_PROGRESS,
-            LoggerType::Progress,
-            push_stopwatch(&mut begin),
-        );
+        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
         drop(font.take());
         // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
         // their own at the end of this function's scope, no explicit
         // free needed.
-        logger_finish(&mut options.logger.borrow_mut());
+        stage.finish();
     }
     return 0_i32;
 }

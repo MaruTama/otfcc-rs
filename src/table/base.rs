@@ -269,7 +269,7 @@ pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue) {
             _base.push_field(b"vertical", axis_to_json(vertical));
         }
         root.push_field(b"BASE", _base);
-        drop(stage);
+        stage.finish();
     }
 }
 /// Returns `(default_baseline_tag, base_values)`, the JSON-side twin of
@@ -326,7 +326,7 @@ pub fn otfcc_parse_base(root: &ParsedValue) -> Option<Box<BaseTable>> {
                 horizontal,
                 vertical,
             }));
-            drop(stage);
+            stage.finish();
         }
     }
     return base;

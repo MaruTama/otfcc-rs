@@ -551,7 +551,7 @@ pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
         BuiltValue::Int(table.us_upper_optical_point_size as i64),
     );
     root.push_field(b"OS_2", os_2);
-    drop(stage);
+    stage.finish();
 }
 pub fn otfcc_parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     let mut os_2 = Os2Table {
@@ -667,7 +667,7 @@ pub fn otfcc_parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
                 os_2.ach_vend_id[..n].copy_from_slice(&bytes[..n]);
             }
         }
-        drop(stage);
+        stage.finish();
     }
     if (os_2.version as i32) < 1_i32 {
         os_2.version = 1_u16;

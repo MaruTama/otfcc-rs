@@ -309,7 +309,7 @@ fn _declare_lookup_parser(
                 lookup.subtables.push(st.map(Box::new));
             }
         }
-        drop(stage);
+        stage.finish();
     }
     if lookup.subtables.is_empty() {
         tracing::warn!("Lookup {} does not have any subtables.", ByteStr(lookup_name));
@@ -679,7 +679,8 @@ pub fn otfcc_parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) ->
                 tag,
             );
         if lh.entries.is_empty() || fh.entries.is_empty() || sh.is_empty() {
-            stage.abandon();
+            // Nothing usable: close the stage without a `Finish` line.
+            drop(stage);
         } else {
             // `lh.entries` is an owned `Vec` now, not a chain of
             // uthash nodes reached via a raw pointer, so there is no
@@ -788,7 +789,7 @@ pub fn otfcc_parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) ->
                 language_box.features = features;
                 otl_box.languages.push(language_box);
             }
-            drop(stage);
+            stage.finish();
             return Some(otl_box);
         }
     }
