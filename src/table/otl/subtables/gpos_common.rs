@@ -22,8 +22,8 @@ pub(crate) fn dispose_mark_array(arr: &mut MarkArray) {
 /// Bounds mark-attachment anchor-slot construction (`gpos_mark_to_single.rs`'s
 /// BaseArray, `gpos_mark_to_ligature.rs`'s LigatureArray) across a WHOLE
 /// GSUB/GPOS table, the same "individually bounded per call, unbounded in
-/// aggregate" shape `otl/coverage.rs`'s `COVERAGE_ENTRY_BUILD_BUDGET` and
-/// `chaining/read.rs`'s `CLASS_COVERAGE_CALL_BUDGET` already close for their
+/// aggregate" shape `OtlReadBudget`'s `coverage_entries` and
+/// `class_coverage_calls` limits already close for their
 /// own call sites.
 ///
 /// `gpos_mark_to_ligature.rs`'s `otl_read_gpos_mark_to_ligature` reads its
@@ -53,40 +53,18 @@ pub(crate) fn dispose_mark_array(arr: &mut MarkArray) {
 /// from each independently pointing their BaseArray/LigatureArray at the
 /// same maximal-cost bytes).
 ///
-/// Reset once per table (see `otl/read.rs`'s `otfcc_read_otl`, alongside
-/// `reset_class_coverage_budgets`/`reset_coverage_entry_build_budget`), not
-/// per subtable -- a table-wide ceiling closes the many-subtables variant
-/// above too, the same reasoning those two budgets' own doc comments give.
+/// This is the `mark_attach_anchors` limit of `OtlReadBudget`, which
+/// `otl/read.rs`'s `otfcc_read_otl` creates once per table, not per
+/// subtable -- a table-wide ceiling closes the many-subtables variant
+/// above too, the same reasoning the other `OtlReadBudget` limits give.
+/// `OtlReadBudget::try_spend_mark_attach_anchors` charges a whole request
+/// or none of it, so a refusal means "this call changed nothing" and the
+/// caller should stop adding records, keeping whatever was already built.
 /// 2,000,000 anchor slots is generously above any legitimate font's mark
 /// attachment count (each slot is one `Anchor`, a few bytes) while still
 /// bounding worst-case memory to a few tens of MB instead of exhausting
 /// all available RAM.
 pub(crate) const MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE: u32 = 2_000_000;
-static MARK_ATTACH_ANCHOR_BUDGET: ::core::sync::atomic::AtomicU32 =
-    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE);
-pub(crate) fn reset_mark_attach_anchor_budget() {
-    MARK_ATTACH_ANCHOR_BUDGET.store(
-        MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE,
-        ::core::sync::atomic::Ordering::Relaxed,
-    );
-}
-/// Atomically consumes `n` units of `MARK_ATTACH_ANCHOR_BUDGET`. Returns
-/// `true` (proceed) when the whole request was affordable, `false` (stop --
-/// the caller should treat this the same as running out of buffer room:
-/// stop adding further records, keeping whatever was already built) once
-/// the budget can't cover it. Never partially consumes: either the whole
-/// `n` is charged or none of it is, so a caller can rely on "budget hit
-/// zero" meaning "this call changed nothing."
-pub(crate) fn try_spend_mark_attach_anchor_budget(n: usize) -> bool {
-    let Ok(n) = u32::try_from(n) else { return false };
-    MARK_ATTACH_ANCHOR_BUDGET
-        .try_update(
-            ::core::sync::atomic::Ordering::Relaxed,
-            ::core::sync::atomic::Ordering::Relaxed,
-            |budget| budget.checked_sub(n),
-        )
-        .is_ok()
-}
 /// The original checked only that `MarkCount` itself (2 bytes at `offset`)
 /// was in bounds, then read `mark_count` 4-byte records with no room check
 /// at all -- a `mark_count` large enough to run past `table_length` read

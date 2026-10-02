@@ -113,6 +113,7 @@ use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_c
 use crate::table::otl::subtables::extend::{
     otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend,
 };
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::subtables::gpos_cursive::otl_read_gpos_cursive;
 use crate::table::otl::subtables::gpos_mark_to_ligature::otl_read_gpos_mark_to_ligature;
 use crate::table::otl::subtables::gpos_mark_to_single::otl_read_gpos_mark_to_single;
@@ -153,48 +154,49 @@ pub fn otfcc_read_otl_subtable(
     lookup_type: LookupType,
     max_glyphs: GlyphId,
     options: &Options,
+    budget: &mut OtlReadBudget,
 ) -> Option<Box<Subtable>> {
     match lookup_type {
-        OTL_TYPE_GSUB_SINGLE => otl_read_gsub_single(data, subtable_offset, max_glyphs).map(Box::new),
-        OTL_TYPE_GSUB_MULTIPLE => otl_read_gsub_multi(data, subtable_offset, max_glyphs).map(Box::new),
-        OTL_TYPE_GSUB_ALTERNATE => otl_read_gsub_multi(data, subtable_offset, max_glyphs).map(Box::new),
+        OTL_TYPE_GSUB_SINGLE => otl_read_gsub_single(data, subtable_offset, max_glyphs, budget).map(Box::new),
+        OTL_TYPE_GSUB_MULTIPLE => otl_read_gsub_multi(data, subtable_offset, max_glyphs, budget).map(Box::new),
+        OTL_TYPE_GSUB_ALTERNATE => otl_read_gsub_multi(data, subtable_offset, max_glyphs, budget).map(Box::new),
         OTL_TYPE_GSUB_LIGATURE => {
-            otl_read_gsub_ligature(data, subtable_offset, max_glyphs).map(Box::new)
+            otl_read_gsub_ligature(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_CHAINING => {
-            otl_read_chaining(data, subtable_offset, max_glyphs, options).map(Box::new)
+            otl_read_chaining(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_REVERSE => {
-            otl_read_gsub_reverse(data, subtable_offset, max_glyphs).map(Box::new)
+            otl_read_gsub_reverse(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_CHAINING => {
-            otl_read_chaining(data, subtable_offset, max_glyphs, options).map(Box::new)
+            otl_read_chaining(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_CONTEXT => {
-            otl_read_contextual(data, subtable_offset, max_glyphs, options).map(Box::new)
+            otl_read_contextual(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_CONTEXT => {
-            otl_read_contextual(data, subtable_offset, max_glyphs, options).map(Box::new)
+            otl_read_contextual(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
-        OTL_TYPE_GPOS_SINGLE => otl_read_gpos_single(data, subtable_offset, max_glyphs).map(Box::new),
-        OTL_TYPE_GPOS_PAIR => otl_read_gpos_pair(data, subtable_offset, max_glyphs).map(Box::new),
+        OTL_TYPE_GPOS_SINGLE => otl_read_gpos_single(data, subtable_offset, max_glyphs, budget).map(Box::new),
+        OTL_TYPE_GPOS_PAIR => otl_read_gpos_pair(data, subtable_offset, max_glyphs, budget).map(Box::new),
         OTL_TYPE_GPOS_CURSIVE => {
-            otl_read_gpos_cursive(data, subtable_offset, max_glyphs).map(Box::new)
+            otl_read_gpos_cursive(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_MARK_TO_BASE => {
-            otl_read_gpos_mark_to_single(data, subtable_offset, max_glyphs).map(Box::new)
+            otl_read_gpos_mark_to_single(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_MARK_TO_MARK => {
-            otl_read_gpos_mark_to_single(data, subtable_offset, max_glyphs).map(Box::new)
+            otl_read_gpos_mark_to_single(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
-            otl_read_gpos_mark_to_ligature(data, subtable_offset, max_glyphs).map(Box::new)
+            otl_read_gpos_mark_to_ligature(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_EXTEND => {
-            otfcc_read_otl_gsub_extend(data, subtable_offset, max_glyphs, options).map(Box::new)
+            otfcc_read_otl_gsub_extend(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_EXTEND => {
-            otfcc_read_otl_gpos_extend(data, subtable_offset, max_glyphs, options).map(Box::new)
+            otfcc_read_otl_gpos_extend(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
         _ => None,
     }
@@ -495,7 +497,13 @@ fn parse_otl_common(
     }
     Ok(table_box)
 }
-fn otfcc_read_otl_lookup(data: &[u8], lookup: &mut Lookup, max_glyphs: GlyphId, options: &Options) {
+fn otfcc_read_otl_lookup(
+    data: &[u8],
+    lookup: &mut Lookup,
+    max_glyphs: GlyphId,
+    options: &Options,
+    budget: &mut OtlReadBudget,
+) {
     let parsed = FontReader::new(data)
         .at(lookup._offset as usize)
         .and_then(|mut r| {
@@ -526,7 +534,7 @@ fn otfcc_read_otl_lookup(data: &[u8], lookup: &mut Lookup, max_glyphs: GlyphId, 
     lookup.flags = flags;
     for subtable_offset in subtable_offsets {
         let subtable =
-            otfcc_read_otl_subtable(data, subtable_offset, lookup.type_0, max_glyphs, options);
+            otfcc_read_otl_subtable(data, subtable_offset, lookup.type_0, max_glyphs, options, budget);
         lookup.subtables.push(subtable);
     }
     if lookup.type_0 == OTL_TYPE_GSUB_EXTEND || lookup.type_0 == OTL_TYPE_GPOS_EXTEND {
@@ -623,17 +631,14 @@ pub fn otfcc_read_otl(
     // No "corrupted" log on failure here, matching the original: OTL
     // parse failures are silent (unlike most other table readers).
     let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options).ok()?;
-    // See `chaining::read::reset_class_coverage_budgets`'s own doc comment:
-    // this must run once per table (GSUB or GPOS), before any of this
-    // table's lookups are read, so the budget bounds this whole table's
-    // total `class_coverage` cost rather than resetting fresh per subtable.
-    crate::table::otl::subtables::chaining::read::reset_class_coverage_budgets();
-    crate::table::otl::coverage::reset_coverage_entry_build_budget();
-    crate::table::otl::subtables::gpos_common::reset_mark_attach_anchor_budget();
+    // One budget for the whole table (GSUB or GPOS), shared by every lookup
+    // and subtable read below, so it bounds this table's total cost rather
+    // than each subtable's separately -- see `OtlReadBudget`.
+    let mut budget = OtlReadBudget::new();
     // Every slot is still `Some` here -- this is the same freshly-built
     // table `parse_otl_common` just returned, before any consolidation.
     for lookup in otl_box.lookups.iter_mut().flatten() {
-        otfcc_read_otl_lookup(&table.data, lookup, max_glyphs, options);
+        otfcc_read_otl_lookup(&table.data, lookup, max_glyphs, options, &mut budget);
     }
     Some(otl_box)
 }
@@ -807,7 +812,7 @@ mod parse_otl_common_tests {
         // through to its null-return arm -- this test only checks that one
         // subtable slot was appended, not what's in it.
         lookup.type_0 = OTL_TYPE_GSUB_UNKNOWN;
-        otfcc_read_otl_lookup(&data, &mut lookup, 0, &options);
+        otfcc_read_otl_lookup(&data, &mut lookup, 0, &options, &mut OtlReadBudget::new());
         assert_eq!(lookup.subtables.len(), 1);
     }
 
@@ -816,7 +821,7 @@ mod parse_otl_common_tests {
         let data = well_formed_gsub(); // subtableCount is already 0
         let options = zeroed_options();
         let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
-        otfcc_read_otl_lookup(&data, otl.lookups[0].as_mut().unwrap(), 0, &options);
+        otfcc_read_otl_lookup(&data, otl.lookups[0].as_mut().unwrap(), 0, &options, &mut OtlReadBudget::new());
         assert_eq!(otl.lookups[0].as_ref().unwrap().type_0, OTL_TYPE_UNKNOWN);
     }
 }

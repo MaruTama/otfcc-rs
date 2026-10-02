@@ -2,6 +2,7 @@ use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -17,7 +18,7 @@ use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
     bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array, otl_read_anchor,
-    otl_read_mark_array, try_spend_mark_attach_anchor_budget,
+    otl_read_mark_array,
 };
 use crate::table::otl::{
     Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable,
@@ -43,6 +44,7 @@ pub fn otl_read_gpos_mark_to_single(
     data: &[u8],
     subtable_offset: u32,
     _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     let mut subtable = GposMarkToSingleSubtable {
         class_count: 0,
@@ -74,8 +76,8 @@ pub fn otl_read_gpos_mark_to_single(
             break 'parse;
         };
 
-        let marks: Coverage = read_coverage(data, subtable_offset.wrapping_add(marks_rel as u32));
-        let bases: Coverage = read_coverage(data, subtable_offset.wrapping_add(bases_rel as u32));
+        let marks: Coverage = read_coverage(data, subtable_offset.wrapping_add(marks_rel as u32), budget);
+        let bases: Coverage = read_coverage(data, subtable_offset.wrapping_add(bases_rel as u32), budget);
         if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
@@ -102,7 +104,7 @@ pub fn otl_read_gpos_mark_to_single(
         }
 
         for base in &bases {
-            // See `try_spend_mark_attach_anchor_budget`'s own doc comment
+            // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
             // (`gpos_common.rs`): this loop's single sequential `base_
             // reader` (unlike `gpos_mark_to_ligature.rs`'s per-entry
             // fresh readers) already keeps *this* subtable's own total
@@ -111,7 +113,7 @@ pub fn otl_read_gpos_mark_to_single(
             // Single/MarkToLigature subtables each independently pointing
             // their BaseArray at the very same maximal-cost bytes; a
             // table-wide budget is the only thing that can see that.
-            if !try_spend_mark_attach_anchor_budget(class_count as usize) {
+            if !budget.try_spend_mark_attach_anchors(class_count as usize) {
                 break;
             }
             let mut base_anchors: Vec<Anchor> = Vec::with_capacity(class_count as usize);
@@ -320,9 +322,6 @@ pub fn otfcc_build_gpos_mark_to_single(
 #[cfg(test)]
 mod otl_read_gpos_mark_to_single_tests {
     use super::*;
-    use crate::table::otl::subtables::gpos_common::{
-        MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE, reset_mark_attach_anchor_budget,
-    };
 
     // format(2)@0, marksOffset(2)@2 -> 12, basesOffset(2)@4 -> 18,
     // classCount(2)@6, markArrayOffset(2)@8 -> 24, baseArrayOffset(2)@10
@@ -352,7 +351,7 @@ mod otl_read_gpos_mark_to_single_tests {
     #[test]
     fn well_formed_table_reads_the_base_array() {
         let data = well_formed_data(1);
-        let result = otl_read_gpos_mark_to_single(&data, 0, 0);
+        let result = otl_read_gpos_mark_to_single(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GposMarkToSingle(ref subtable)) = result else {
             unreachable!()
         };
@@ -366,7 +365,7 @@ mod otl_read_gpos_mark_to_single_tests {
     fn base_count_mismatch_with_coverage_is_rejected() {
         let mut data = well_formed_data(1);
         data[26..28].copy_from_slice(&2u16.to_be_bytes()); // baseCount claims 2, coverage has only 1
-        let result = otl_read_gpos_mark_to_single(&data, 0, 0);
+        let result = otl_read_gpos_mark_to_single(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 
@@ -413,8 +412,8 @@ mod otl_read_gpos_mark_to_single_tests {
 
     #[test]
     fn mark_attach_anchor_budget_truncates_base_array_once_exhausted() {
-        // Regression test for the table-wide `MARK_ATTACH_ANCHOR_BUDGET`
-        // (`gpos_common.rs`): this subtable's own single sequential
+        // Regression test for the table-wide `mark_attach_anchors` budget
+        // (`OtlReadBudget`): this subtable's own single sequential
         // `base_reader` already bounds ITS OWN total against the real
         // buffer (that's what `anchor_array_shorter_than_class_count_
         // times_base_count_is_rejected` above confirms), so the budget's
@@ -424,12 +423,9 @@ mod otl_read_gpos_mark_to_single_tests {
         // the shared budget first) rather than by constructing multiple
         // real subtables, which is exactly equivalent from this function's
         // point of view (it only ever sees the budget's current value).
-        reset_mark_attach_anchor_budget();
-        assert!(try_spend_mark_attach_anchor_budget(
-            MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE as usize - 3
-        ));
+        let mut budget = OtlReadBudget { mark_attach_anchors: 3, ..OtlReadBudget::new() };
         let data = many_bases_data(10, 1);
-        let result = otl_read_gpos_mark_to_single(&data, 0, 0);
+        let result = otl_read_gpos_mark_to_single(&data, 0, 0, &mut budget);
         let Some(Subtable::GposMarkToSingle(ref subtable)) = result else {
             unreachable!()
         };
@@ -437,7 +433,6 @@ mod otl_read_gpos_mark_to_single_tests {
         // so 1 unit per base): the loop must stop there, not read (or
         // panic on) the other 7 bases the table itself declares.
         assert_eq!(subtable.base_array.len(), 3);
-        reset_mark_attach_anchor_budget();
     }
 
     #[test]
@@ -451,7 +446,7 @@ mod otl_read_gpos_mark_to_single_tests {
         // shortfall at an ordinary scale (class_count raised from 1 to 5,
         // but the base array still has room for only 1 anchor slot).
         let data = well_formed_data(5); // baseCount=1, but only 1 anchor slot is present, not 5
-        let result = otl_read_gpos_mark_to_single(&data, 0, 0);
+        let result = otl_read_gpos_mark_to_single(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 }

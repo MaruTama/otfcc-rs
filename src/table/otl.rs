@@ -1,4 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
+pub mod budget;
 pub mod build;
 pub mod classdef;
 pub mod constants;

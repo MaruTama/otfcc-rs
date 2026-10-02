@@ -2,6 +2,7 @@ use crate::support::handle::{
     GlyphHandle, handle_from_index, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
@@ -49,7 +50,12 @@ pub(crate) fn dispose_gsub_multi_subtable(arr: &mut GsubMultiSubtable) {
 // mapping every one of 65,535 glyphs to 4 outputs each is only 262,140)
 // while keeping worst-case adversarial cost to a fraction of a second.
 const MAX_TOTAL_GSUB_MULTI_OUTPUTS: u32 = 1_000_000;
-pub fn otl_read_gsub_multi(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+pub fn otl_read_gsub_multi(
+    data: &[u8],
+    offset: u32,
+    _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
+) -> Option<Subtable> {
     let mut subtable: GsubMultiSubtable = Vec::new();
 
     'parse: {
@@ -67,7 +73,7 @@ pub fn otl_read_gsub_multi(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Op
             break 'parse;
         };
 
-        let from: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32));
+        let from: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32), budget);
         if seq_count as usize != from.len() {
             break 'parse;
         }
@@ -235,7 +241,7 @@ mod otl_read_gsub_multi_tests {
     #[test]
     fn well_formed_table_reads_the_sequence() {
         let data = well_formed_data();
-        let result = otl_read_gsub_multi(&data, 0, 0);
+        let result = otl_read_gsub_multi(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GsubMulti(ref entries)) = result else {
             unreachable!()
         };
@@ -253,7 +259,7 @@ mod otl_read_gsub_multi_tests {
         // many glyph IDs.
         let mut data = well_formed_data();
         data[14..16].copy_from_slice(&100u16.to_be_bytes()); // glyphCount claims 100, far more than fits
-        let result = otl_read_gsub_multi(&data, 0, 0);
+        let result = otl_read_gsub_multi(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 
@@ -261,7 +267,7 @@ mod otl_read_gsub_multi_tests {
     fn sequence_offset_past_the_table_end_is_rejected_instead_of_reading_oob() {
         let mut data = well_formed_data();
         data[6..8].copy_from_slice(&9000u16.to_be_bytes()); // sequenceOffsets[0]: far past the table
-        let result = otl_read_gsub_multi(&data, 0, 0);
+        let result = otl_read_gsub_multi(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 
@@ -323,7 +329,7 @@ mod otl_read_gsub_multi_tests {
             data[pos..pos + 2].copy_from_slice(&seq_table_offset.to_be_bytes());
         }
 
-        let result = otl_read_gsub_multi(&data, 0, 0);
+        let result = otl_read_gsub_multi(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 }

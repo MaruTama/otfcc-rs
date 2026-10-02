@@ -7,6 +7,7 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name}
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::Pos;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 use crate::vendor::json::JsonType;
@@ -112,7 +113,11 @@ fn read_lig_caret_record(data: &[u8], offset: usize) -> CaretValueRecord {
 /// exactly. `lig_caret_offset == 0` (no LigCaretList at all) returns
 /// `Some(Vec::new())`, matching the original's `current_block` value for
 /// "nothing to do, continue on to mark_attach_class_def".
-fn read_lig_carets(data: &[u8], lig_caret_offset: usize) -> Option<LigCaretTable> {
+fn read_lig_carets(
+    data: &[u8],
+    lig_caret_offset: usize,
+    budget: &mut OtlReadBudget,
+) -> Option<LigCaretTable> {
     if lig_caret_offset == 0 {
         return Some(Vec::new());
     }
@@ -120,7 +125,7 @@ fn read_lig_carets(data: &[u8], lig_caret_offset: usize) -> Option<LigCaretTable
         return None;
     }
     let coverage_rel = FontReader::new(data).at(lig_caret_offset).ok()?.u16().ok()? as usize;
-    let cov: Coverage = read_coverage(data, (lig_caret_offset + coverage_rel) as u32);
+    let cov: Coverage = read_coverage(data, (lig_caret_offset + coverage_rel) as u32, budget);
     let lig_glyph_count = FontReader::new(data).at(lig_caret_offset + 2).ok()?.u16().ok()?;
     if cov.len() != lig_glyph_count as usize {
         return None;
@@ -144,11 +149,9 @@ pub fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     if data.len() < 12 {
         return None;
     }
-    // See `coverage::reset_coverage_entry_build_budget`'s own doc
-    // comment: must run once per table, before any of this table's
-    // `read_coverage` calls (reached below via `LigCaretList`'s own
-    // coverage table).
-    crate::table::otl::coverage::reset_coverage_entry_build_budget();
+    // One budget for this whole table's `read_coverage` calls (reached
+    // below via `LigCaretList`'s own coverage table) -- see `OtlReadBudget`.
+    let mut budget = OtlReadBudget::new();
     let classdef_offset = FontReader::new(data).at(4).ok()?.u16().ok()?;
     // is purely a narrow bridge.
     let glyph_class_def = if classdef_offset != 0 {
@@ -158,7 +161,7 @@ pub fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     };
 
     let lig_caret_offset = FontReader::new(data).at(8).ok()?.u16().ok()? as usize;
-    let lig_carets = read_lig_carets(data, lig_caret_offset)?;
+    let lig_carets = read_lig_carets(data, lig_caret_offset, &mut budget)?;
 
     let mark_attach_def_offset = FontReader::new(data).at(10).ok()?.u16().ok()?;
     let mark_attach_class_def = if mark_attach_def_offset != 0 {

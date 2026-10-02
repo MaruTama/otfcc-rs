@@ -2,6 +2,7 @@ use crate::support::handle::{
     GlyphHandle, handle_from_index, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
@@ -27,6 +28,7 @@ pub fn otl_read_gsub_single(
     data: &[u8],
     subtable_offset: u32,
     _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     let mut subtable: GsubSingleSubtable = Vec::new();
 
@@ -42,7 +44,7 @@ pub fn otl_read_gsub_single(
             break 'parse;
         };
 
-        let from: Coverage = read_coverage(data, subtable_offset.wrapping_add(from_rel as u32));
+        let from: Coverage = read_coverage(data, subtable_offset.wrapping_add(from_rel as u32), budget);
         if from.is_empty() {
             break 'parse;
         }
@@ -182,7 +184,7 @@ mod otl_read_gsub_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        let result = otl_read_gsub_single(&data, 0, 0);
+        let result = otl_read_gsub_single(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GsubSingle(ref entries)) = result else {
             unreachable!()
         };
@@ -202,7 +204,7 @@ mod otl_read_gsub_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        let result = otl_read_gsub_single(&data, 0, 0);
+        let result = otl_read_gsub_single(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GsubSingle(ref entries)) = result else {
             unreachable!()
         };
@@ -223,7 +225,7 @@ mod otl_read_gsub_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        let result = otl_read_gsub_single(&data, 0, 0);
+        let result = otl_read_gsub_single(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 }

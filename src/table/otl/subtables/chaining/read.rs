@@ -2,6 +2,7 @@ use crate::support::handle::{
     GlyphHandle, LookupHandle, handle_from_index,
 };
 use crate::table::otl::classdef::{ClassDef, read_class_def};
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
@@ -48,8 +49,8 @@ pub struct ClassDefs {
     pub ic: Option<Box<ClassDef>>,
     pub fc: Option<Box<ClassDef>>,
 }
-/// See the two budgets below (`CLASS_ZERO_BUDGET`/`CLASS_COVERAGE_CALL_
-/// BUDGET`) for what this bounds and why: a single `class_coverage` call
+/// The `class_zero_glyphs` limit of `OtlReadBudget`. See also
+/// `MAX_TOTAL_CLASS_COVERAGE_CALLS` below for what this bounds and why: a single `class_coverage` call
 /// can scan up to `max_glyphs` (the font's own declared glyph count, up
 /// to 65535) or `cd.glyphs.len()` candidates, and it is called once per
 /// input/backtrack/lookahead position in a rule (see
@@ -58,8 +59,8 @@ pub struct ClassDefs {
 /// glyphs, multiplies into gigabytes from a subtable of only a few
 /// hundred KB (ASan-confirmed: a fuzz-found font OOM'd at ~1.8GB this
 /// way). Sized around real usage, not just adversarial safety: this
-/// budget is global across a whole table now (see `CLASS_ZERO_BUDGET`'s
-/// own comment), and `tests/payload/NotoNastaliqUrdu-Regular.ttf` -- a
+/// budget is global across a whole table now (see the scope note after
+/// `MAX_TOTAL_CLASS_COVERAGE_CALLS`), and `tests/payload/NotoNastaliqUrdu-Regular.ttf` -- a
 /// real, legitimately complex Nastaliq-script font already in this
 /// repo's golden corpus -- genuinely uses ~10.7 million of these units in
 /// its own GSUB table alone (confirmed by instrumenting a debug build).
@@ -72,57 +73,31 @@ pub struct ClassDefs {
 /// turned out to matter far more for peak memory than this budget's exact
 /// size did, so this stays modestly above real usage rather than as
 /// generous as an earlier, since-retightened 200-million figure).
-const MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS: u32 = 20_000_000;
-/// See `CLASS_COVERAGE_CALL_BUDGET` below: bounds the number of
+pub(crate) const MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS: u32 = 20_000_000;
+/// The `class_coverage_calls` limit of `OtlReadBudget`: bounds the number of
 /// `class_coverage` *calls* themselves, independent of how much work (if
 /// any) each one does internally -- what actually stops a fuzz-found
-/// font whose rules reference an empty classdef, so `CLASS_ZERO_BUDGET`
-/// above never triggers at all, from taking 20-30s on sheer call volume
+/// font whose rules reference an empty classdef, so the `class_zero_glyphs`
+/// limit above never triggers at all, from taking 20-30s on sheer call volume
 /// (well past a million calls/second's worth of fixed per-call overhead).
-const MAX_TOTAL_CLASS_COVERAGE_CALLS: u32 = 70_000;
-/// These two budgets used to live as fields on `ClassDefs`, reset fresh
-/// for every subtable (one `ClassDefs` per `read_contextual_format2`/
-/// `read_chaining_format2` call). That bounded each *subtable's* cost,
-/// but not a *lookup's* or a *table's*: `otl/read.rs`'s
-/// `MAX_TOTAL_SUBTABLES_PER_LOOKUP` caps subtable count at 1,000 per
-/// lookup precisely because it was previously unbounded, and 1,000
-/// subtables each getting their own fresh 10-million/200,000 allowance
-/// multiplies right back into the same class of hang this budget exists
-/// to prevent (fuzzing confirmed it: capping rules-per-subtable and
-/// subtables-per-lookup individually still left a lookup with ~700
-/// subtables taking 20+ seconds in `class_coverage` alone). Global,
-/// process-wide statics -- reset once per `otfcc_read_otl` call (see
-/// `reset_class_coverage_budgets`), i.e. once per GSUB or GPOS table, not
-/// once per subtable -- close that gap by bounding the whole table's
-/// total `class_coverage` cost, not each subtable's independently. Safe
-/// as plain statics (no `Mutex`/`RefCell` needed) because this crate is
-/// single-threaded throughout, same reasoning as `Options::logger`'s own
-/// `RefCell`.
-static CLASS_ZERO_BUDGET: ::core::sync::atomic::AtomicU32 =
-    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS);
-static CLASS_COVERAGE_CALL_BUDGET: ::core::sync::atomic::AtomicU32 =
-    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_CLASS_COVERAGE_CALLS);
-/// Must be called once per `otfcc_read_otl` call (once per GSUB/GPOS table
-/// read), before that table's lookups are read -- see the doc comment on
-/// the two statics above for why table-wide scope, not per-subtable, is
-/// what actually bounds the cost.
-pub(crate) fn reset_class_coverage_budgets() {
-    CLASS_ZERO_BUDGET.store(
-        MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS,
-        ::core::sync::atomic::Ordering::Relaxed,
-    );
-    CLASS_COVERAGE_CALL_BUDGET.store(
-        MAX_TOTAL_CLASS_COVERAGE_CALLS,
-        ::core::sync::atomic::Ordering::Relaxed,
-    );
-    TOTAL_RULES_BUILT_BUDGET.store(
-        MAX_TOTAL_RULES_PER_TABLE,
-        ::core::sync::atomic::Ordering::Relaxed,
-    );
-}
+pub(crate) const MAX_TOTAL_CLASS_COVERAGE_CALLS: u32 = 70_000;
+// Scope of the two limits above: they used to live as fields on
+// `ClassDefs`, reset fresh for every subtable (one `ClassDefs` per
+// `read_contextual_format2`/`read_chaining_format2` call). That bounded
+// each *subtable's* cost, but not a *lookup's* or a *table's*:
+// `otl/read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP` caps subtable count at
+// 1,000 per lookup precisely because it was previously unbounded, and
+// 1,000 subtables each getting their own fresh allowance multiplies right
+// back into the same class of hang these limits exist to prevent (fuzzing
+// confirmed it: capping rules-per-subtable and subtables-per-lookup
+// individually still left a lookup with ~700 subtables taking 20+ seconds
+// in `class_coverage` alone). They are now `OtlReadBudget`'s
+// `class_zero_glyphs`/`class_coverage_calls`, created once per
+// `otfcc_read_otl` call (once per GSUB or GPOS table), which bounds the
+// whole table's total `class_coverage` cost.
 /// Bounds the number of contextual/chaining rules actually built across a
 /// *whole table* (every subtable of every lookup combined -- see
-/// `reset_class_coverage_budgets`, called once per `otfcc_read_otl` call).
+/// `OtlReadBudget::rules`, one budget per `otfcc_read_otl` call).
 /// Each `chainSubClassSet`/`subRuleSet` entry's own rule count is
 /// individually bounds-checked against the table (its rule-offset array
 /// must fit), but nothing stopped an attacker from declaring dozens of such
@@ -141,24 +116,7 @@ pub(crate) fn reset_class_coverage_budgets() {
 /// a few hundred contextual rules per subtable and nowhere near this many
 /// subtables per table, so this cap is far above any legitimate usage
 /// while keeping worst-case adversarial cost to well under a second.
-const MAX_TOTAL_RULES_PER_TABLE: u32 = 15_000;
-static TOTAL_RULES_BUILT_BUDGET: ::core::sync::atomic::AtomicU32 =
-    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_RULES_PER_TABLE);
-/// Atomically consumes one unit of `TOTAL_RULES_BUILT_BUDGET`; `true` means
-/// the caller may build (and push) one more rule, `false` means the
-/// table-wide budget is exhausted and the caller should stop adding rules
-/// to this subtable (and, transitively, stop processing further
-/// chainSubClassSets/subRuleSets/subtables/lookups in this table, since
-/// every further rule would hit the same exhausted budget).
-fn take_rule_budget() -> bool {
-    TOTAL_RULES_BUILT_BUDGET
-        .try_update(
-            ::core::sync::atomic::Ordering::Relaxed,
-            ::core::sync::atomic::Ordering::Relaxed,
-            |b| b.checked_sub(1),
-        )
-        .is_ok()
-}
+pub(crate) const MAX_TOTAL_RULES_PER_TABLE: u32 = 15_000;
 /// Bounds how many `ChainLookupApplication` entries a single contextual/
 /// chaining rule builds. `n_apply` is a raw `u16` read straight from the
 /// rule header; the only existing guard (`require_room`) just checks the
@@ -181,7 +139,7 @@ const MAX_APPLY_PER_RULE: usize = 50;
 /// TABLE` bounds how many *rules* get built, fuzzing found that a handful
 /// of rules with a huge position count each was enough on its own: every
 /// position triggers a `class_coverage`/`single_coverage` call (and its
-/// `Coverage` allocation) even once `CLASS_COVERAGE_CALL_BUDGET` makes
+/// `Coverage` allocation) even once `class_coverage_calls` makes
 /// that call's own internal work free, since the call itself -- and the
 /// allocation it always makes before checking anything -- still happens.
 /// Real rules match a handful of positions (single digits, rarely more
@@ -221,6 +179,7 @@ pub fn single_coverage(
     mut _offset: u32,
     mut _kind: ContextKind,
     _max_glyphs: GlyphId,
+    _budget: &mut OtlReadBudget,
 ) -> Coverage {
     let mut cov = Coverage::new();
     push_to_coverage(&mut cov, handle_from_index(gid) as GlyphHandle);
@@ -233,6 +192,7 @@ pub fn class_coverage(
     kind: ContextKind,
     max_glyphs: GlyphId,
     defs: &ClassDefs,
+    budget: &mut OtlReadBudget,
 ) -> Coverage {
     // `.expect()`, not a null-pointer deref: every caller that reaches here
     // (`general_read_contextual_rule`/`general_read_chaining_rule` via
@@ -259,14 +219,7 @@ pub fn class_coverage(
     // up at that volume, not anything inside the loops). Bounding the
     // call *count* itself, not just work done inside any one call, is
     // what actually stops this on that input.
-    if CLASS_COVERAGE_CALL_BUDGET
-        .try_update(
-            ::core::sync::atomic::Ordering::Relaxed,
-            ::core::sync::atomic::Ordering::Relaxed,
-            |b| b.checked_sub(1),
-        )
-        .is_err()
-    {
+    if !budget.take_class_coverage_call() {
         return Coverage::new();
     }
     let mut cov = Coverage::new();
@@ -300,22 +253,18 @@ pub fn class_coverage(
     // ahead only ever fed a since-removed `Vec::with_capacity`-style
     // early return, so folding it into one pass changes nothing
     // observable for any input this budget doesn't itself cut off.
-    let zero_budget_left =
-        || CLASS_ZERO_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) > 0;
-    let charge_zero_budget =
-        || CLASS_ZERO_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
     if cls as i32 == 0_i32 {
         let mut classified = vec![false; max_glyphs as usize];
         // `0..cd.glyphs.len()`: the bound is `cd.glyphs`'s own length,
         // fixed for this whole call (never mutated inside either loop),
         // and doesn't depend on `budget` -- the same range the `while`
-        // walked one step at a time. `zero_budget_left()` only ever
+        // walked one step at a time. `budget.class_zero_left()` only ever
         // causes an early `break`, checked first in the body, the same
-        // position the `while`'s own `&& zero_budget_left()` checked it
-        // in; `charge_zero_budget()` stays unconditional and in the same
+        // position the `while`'s own budget check checked it
+        // in; `budget.charge_class_zero()` stays unconditional and in the same
         // place, right before the loop variable would have advanced.
         for j in 0..cd.glyphs.len() {
-            if !zero_budget_left() {
+            if !budget.class_zero_left() {
                 break;
             }
             if cd.classes[j] as i32 > 0_i32 {
@@ -324,20 +273,20 @@ pub fn class_coverage(
                     classified[idx] = true;
                 }
             }
-            charge_zero_budget();
+            budget.charge_class_zero();
         }
         // `0..max_glyphs`: `max_glyphs` is a `GlyphId` (`u16`, so at most
         // 65535) fixed for the whole call, and, like the loop above,
         // doesn't depend on `budget` -- same range, same early-`break`
         // shape.
         for k in 0..max_glyphs {
-            if !zero_budget_left() {
+            if !budget.class_zero_left() {
                 break;
             }
             if !classified[k as usize] {
                 push_to_coverage(&mut cov, handle_from_index(k) as GlyphHandle);
             }
-            charge_zero_budget();
+            budget.charge_class_zero();
         }
     } else {
         // Left as a `while`, not converted: `j_2` is a `GlyphId` (`u16`),
@@ -353,7 +302,7 @@ pub fn class_coverage(
         // to `0` *before* `(j_2 as usize) < cd.glyphs.len()` ever goes
         // false, so the `while` keeps re-scanning the same 65536 entries
         // (each full pass re-charging and, on a matching `cls`, re-pushing
-        // every match) until `zero_budget_left()` alone ends it -- a
+        // every match) until `budget.class_zero_left()` alone ends it -- a
         // materially different outcome (many repeated passes, and
         // correspondingly many duplicate pushes) than a single `for j_2
         // in 0..cd.glyphs.len()` pass would produce. Converting this one
@@ -361,14 +310,14 @@ pub fn class_coverage(
         // per the task's own "leave it alone rather than guess" rule, it
         // stays a `while`.
         let mut j_2: GlyphId = 0 as GlyphId;
-        while (j_2 as usize) < cd.glyphs.len() && zero_budget_left() {
+        while (j_2 as usize) < cd.glyphs.len() && budget.class_zero_left() {
             if cd.classes[j_2 as usize] as i32 == cls as i32 {
                 push_to_coverage(
                     &mut cov,
                     cd.glyphs[j_2 as usize].clone(),
                 );
             }
-            charge_zero_budget();
+            budget.charge_class_zero();
             j_2 = j_2.wrapping_add(1);
         }
     }
@@ -380,8 +329,9 @@ pub fn format3_coverage(
     mut _offset: u32,
     mut _kind: ContextKind,
     _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
 ) -> Coverage {
-    return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32));
+    return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32), budget);
 }
 // Every guard below is expressed as a `FontReader` read or `require_room`
 // call in the exact sequence the original's hand-written `table_length <
@@ -400,8 +350,9 @@ pub fn general_read_contextual_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    mut fn_0: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId) -> Coverage,
+    mut fn_0: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
     max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingRule>> {
     let minus_one_q: u16 = minus_one as u16;
 
@@ -454,6 +405,7 @@ pub fn general_read_contextual_rule(
                 offset,
                 ContextKind::Input,
                 max_glyphs,
+                budget,
             ));
     }
     for j in 0..n_input_built {
@@ -469,6 +421,7 @@ pub fn general_read_contextual_rule(
                 offset,
                 ContextKind::Input,
                 max_glyphs,
+                budget,
             ));
     }
 
@@ -492,6 +445,7 @@ fn read_contextual_format1(
     offset: u32,
     max_glyphs: GlyphId,
     mut subtable: Box<ChainingSubtable>,
+    budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingSubtable>> {
     let result: Option<()> = 'parse: {
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
@@ -504,7 +458,7 @@ fn read_contextual_format1(
             break 'parse None;
         };
         let cov_offset = offset.wrapping_add(cov_rel as u32);
-        let first_coverage: Coverage = read_coverage(slice, cov_offset);
+        let first_coverage: Coverage = read_coverage(slice, cov_offset, budget);
         if chain_sub_rule_set_count as usize != first_coverage.len() {
             break 'parse None;
         }
@@ -558,7 +512,7 @@ fn read_contextual_format1(
                 .u16()
                 .unwrap();
             for k in 0..srs_count {
-                if !take_rule_budget() {
+                if !budget.take_rule() {
                     break 'rulesets;
                 }
                 let sr_rel = FontReader::new(slice)
@@ -574,6 +528,7 @@ fn read_contextual_format1(
                     true,
                     single_coverage,
                     max_glyphs,
+                    budget,
                 );
                 // A `None` here means this one rule's own offset/header was
                 // malformed (`general_read_contextual_rule`/`_chaining_rule`
@@ -599,6 +554,7 @@ fn read_contextual_format2(
     offset: u32,
     max_glyphs: GlyphId,
     mut subtable: Box<ChainingSubtable>,
+    budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingSubtable>> {
     let cds: Option<ClassDefs>;
 
@@ -679,7 +635,7 @@ fn read_contextual_format2(
                 .u16()
                 .unwrap();
             for k in 0..srs_count {
-                if !take_rule_budget() {
+                if !budget.take_rule() {
                     break 'class_sets;
                 }
                 let sr_rel = FontReader::new(slice)
@@ -695,10 +651,11 @@ fn read_contextual_format2(
                     sr_offset,
                     j,
                     true,
-                    |slice, cls, offset, kind, max_glyphs| {
-                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().unwrap())
+                    |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
+                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().unwrap(), budget)
                     },
                     max_glyphs,
+                    budget,
                 );
                 // A `None` here means this one rule's own offset/header was
                 // malformed (`general_read_contextual_rule`/`_chaining_rule`
@@ -729,6 +686,7 @@ pub fn otl_read_contextual(
     offset: u32,
     max_glyphs: GlyphId,
     options: &Options,
+    budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     // Built directly as an owned `Box`, a valid empty `Poly` ruleset from
     // the start -- Stage L-5 dropped the two-step `subtable_chaining_
@@ -743,11 +701,11 @@ pub fn otl_read_contextual(
         }
     match format {
         1 => {
-            return read_contextual_format1(data, offset, max_glyphs, subtable)
+            return read_contextual_format1(data, offset, max_glyphs, subtable, budget)
                 .map(|s| Subtable::Chaining(*s));
         }
         2 => {
-            return read_contextual_format2(data, offset, max_glyphs, subtable)
+            return read_contextual_format2(data, offset, max_glyphs, subtable, budget)
                 .map(|s| Subtable::Chaining(*s));
         }
         3 => {
@@ -758,6 +716,7 @@ pub fn otl_read_contextual(
                 false,
                 format3_coverage,
                 max_glyphs,
+                budget,
             );
             // Same "malformed individual rule, not the whole subtable" case
             // as the format1/format2 loops above -- see their comment.
@@ -783,8 +742,9 @@ pub fn general_read_chaining_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    mut fn_0: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId) -> Coverage,
+    mut fn_0: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
     max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingRule>> {
     let minus_one_q: u16 = minus_one as u16;
 
@@ -855,6 +815,7 @@ pub fn general_read_chaining_rule(
                 offset,
                 ContextKind::Backtrack,
                 max_glyphs,
+                budget,
             ));
     }
     if minus_one {
@@ -865,6 +826,7 @@ pub fn general_read_chaining_rule(
                 offset,
                 ContextKind::Input,
                 max_glyphs,
+                budget,
             ));
     }
     // Array positions derived the same way `header`'s cursor validated
@@ -888,6 +850,7 @@ pub fn general_read_chaining_rule(
                 offset,
                 ContextKind::Input,
                 max_glyphs,
+                budget,
             ));
     }
     let lookaround_base = input_base + 2 * n_input_read as usize + 2;
@@ -904,6 +867,7 @@ pub fn general_read_chaining_rule(
                 offset,
                 ContextKind::Lookahead,
                 max_glyphs,
+                budget,
             ));
     }
 
@@ -927,6 +891,7 @@ fn read_chaining_format1(
     offset: u32,
     max_glyphs: GlyphId,
     mut subtable: Box<ChainingSubtable>,
+    budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingSubtable>> {
     let result: Option<()> = 'parse: {
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
@@ -939,7 +904,7 @@ fn read_chaining_format1(
             break 'parse None;
         };
         let cov_offset = offset.wrapping_add(cov_rel as u32);
-        let first_coverage: Coverage = read_coverage(slice, cov_offset);
+        let first_coverage: Coverage = read_coverage(slice, cov_offset, budget);
         if chain_sub_rule_set_count as usize != first_coverage.len() {
             break 'parse None;
         }
@@ -985,7 +950,7 @@ fn read_chaining_format1(
                 .u16()
                 .unwrap();
             for k in 0..srs_count {
-                if !take_rule_budget() {
+                if !budget.take_rule() {
                     break 'rulesets;
                 }
                 let sr_rel = FontReader::new(slice)
@@ -1001,6 +966,7 @@ fn read_chaining_format1(
                     true,
                     single_coverage,
                     max_glyphs,
+                    budget,
                 );
                 // A `None` here means this one rule's own offset/header was
                 // malformed (`general_read_contextual_rule`/`_chaining_rule`
@@ -1026,6 +992,7 @@ fn read_chaining_format2(
     offset: u32,
     max_glyphs: GlyphId,
     mut subtable: Box<ChainingSubtable>,
+    budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingSubtable>> {
     let cds: Option<ClassDefs>;
 
@@ -1107,7 +1074,7 @@ fn read_chaining_format2(
                 .u16()
                 .unwrap();
             for k in 0..srs_count {
-                if !take_rule_budget() {
+                if !budget.take_rule() {
                     break 'class_sets;
                 }
                 let dsr_rel = FontReader::new(slice)
@@ -1123,10 +1090,11 @@ fn read_chaining_format2(
                     sr_offset,
                     j,
                     true,
-                    |slice, cls, offset, kind, max_glyphs| {
-                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().unwrap())
+                    |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
+                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().unwrap(), budget)
                     },
                     max_glyphs,
+                    budget,
                 );
                 // A `None` here means this one rule's own offset/header was
                 // malformed (`general_read_contextual_rule`/`_chaining_rule`
@@ -1155,6 +1123,7 @@ pub fn otl_read_chaining(
     offset: u32,
     max_glyphs: GlyphId,
     options: &Options,
+    budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     // See the identical comment in `otl_read_contextual`.
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
@@ -1165,11 +1134,11 @@ pub fn otl_read_chaining(
         }
     match format {
         1 => {
-            return read_chaining_format1(data, offset, max_glyphs, subtable)
+            return read_chaining_format1(data, offset, max_glyphs, subtable, budget)
                 .map(|s| Subtable::Chaining(*s));
         }
         2 => {
-            return read_chaining_format2(data, offset, max_glyphs, subtable)
+            return read_chaining_format2(data, offset, max_glyphs, subtable, budget)
                 .map(|s| Subtable::Chaining(*s));
         }
         3 => {
@@ -1180,6 +1149,7 @@ pub fn otl_read_chaining(
                 false,
                 format3_coverage,
                 max_glyphs,
+                budget,
             );
             // Same "malformed individual rule, not the whole subtable" case
             // as the format1/format2 loops above -- see their comment.
@@ -1225,22 +1195,15 @@ mod chaining_read_tests {
     #[test]
     fn class_coverage_cls_zero_budget_stops_mid_scan_at_the_exact_boundary() {
         // Pins both of `class_coverage`'s `cls == 0` loops -- the
-        // classified-bitmap build (`while j < cd.glyphs.len() &&
-        // zero_budget_left()`) and the unclassified-glyph push (`while (k
-        // as i32) < max_glyphs as i32 && zero_budget_left()`) -- converted
-        // to `for` + an explicit early `break` in Stage M-42. Both loops
-        // draw from the same shared, process-wide `CLASS_ZERO_BUDGET`,
-        // charged unconditionally once per iteration regardless of which
-        // loop, so a small combined budget must exhaust across the two
-        // loops in the exact same order the `while`s did: the first loop
-        // (3 glyphs) fully completes, leaving exactly 4 units for the
-        // second loop (`max_glyphs == 10`), which must then stop after
-        // processing indices `0..=3` and leave index `4` untouched. The
-        // budget statics are global, so this test resets them before and
-        // after, the same "leave global state clean" discipline
-        // `table/otl/coverage.rs`'s equivalent budget test uses.
-        reset_class_coverage_budgets();
-        CLASS_ZERO_BUDGET.store(7, ::core::sync::atomic::Ordering::Relaxed);
+        // classified-bitmap build and the unclassified-glyph push. Both
+        // loops draw from the same `class_zero_glyphs` budget, charged
+        // unconditionally once per iteration regardless of which loop, so
+        // a small combined budget must exhaust across the two loops in
+        // order: the first loop (3 glyphs) fully completes, leaving
+        // exactly 4 units for the second loop (`max_glyphs == 10`), which
+        // must then stop after processing indices `0..=3` and leave index
+        // `4` untouched.
+        let mut budget = OtlReadBudget { class_zero_glyphs: 7, ..OtlReadBudget::new() };
 
         let cd = ClassDef {
             maxclass: 1,
@@ -1257,11 +1220,10 @@ mod chaining_read_tests {
             fc: None,
         };
 
-        let cov = class_coverage(&[], 0, 0, ContextKind::Backtrack, 10, &defs);
+        let cov = class_coverage(&[], 0, 0, ContextKind::Backtrack, 10, &defs, &mut budget);
 
         assert_eq!(
-            CLASS_ZERO_BUDGET.load(::core::sync::atomic::Ordering::Relaxed),
-            0,
+            budget.class_zero_glyphs, 0,
             "the shared budget must be fully consumed across both loops"
         );
         assert_eq!(
@@ -1271,8 +1233,6 @@ mod chaining_read_tests {
              skipped (classified in the first loop), and index 4 is never \
              reached (budget ran out after processing 0..=3)"
         );
-
-        reset_class_coverage_budgets();
     }
 
     #[test]
@@ -1289,7 +1249,7 @@ mod chaining_read_tests {
         data[12..14].copy_from_slice(&1u16.to_be_bytes()); // glyphCount
         data[14..16].copy_from_slice(&42u16.to_be_bytes()); // glyph
         let options = zeroed_options();
-        let sub = otl_read_contextual(&data, 0, 100, &options).unwrap();
+        let sub = otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).unwrap();
         let Subtable::Chaining(ref sub) = sub else {
             unreachable!()
         };
@@ -1323,7 +1283,7 @@ mod chaining_read_tests {
         data[18..20].copy_from_slice(&1u16.to_be_bytes()); // glyphCount
         data[20..22].copy_from_slice(&5u16.to_be_bytes()); // glyph
         let options = zeroed_options();
-        let sub = otl_read_contextual(&data, 0, 100, &options).unwrap();
+        let sub = otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).unwrap();
         let Subtable::Chaining(ref sub) = sub else {
             unreachable!()
         };
@@ -1348,7 +1308,7 @@ mod chaining_read_tests {
         data[8..10].copy_from_slice(&1u16.to_be_bytes()); // glyphCount = 1
         data[10..12].copy_from_slice(&9u16.to_be_bytes());
         let options = zeroed_options();
-        assert!(otl_read_contextual(&data, 0, 100, &options).is_none());
+        assert!(otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).is_none());
     }
 
     #[test]
@@ -1365,7 +1325,7 @@ mod chaining_read_tests {
         data[6..8].copy_from_slice(&1u16.to_be_bytes()); // chainSubClassSetCnt
         data[8..10].copy_from_slice(&5000u16.to_be_bytes()); // classSetOffset[0]
         let options = zeroed_options();
-        assert!(otl_read_contextual(&data, 0, 100, &options).is_none());
+        assert!(otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).is_none());
     }
 
     #[test]
@@ -1379,7 +1339,7 @@ mod chaining_read_tests {
         data[6..8].copy_from_slice(&1u16.to_be_bytes());
         data[8..10].copy_from_slice(&0u16.to_be_bytes()); // classSetOffset[0] = 0
         let options = zeroed_options();
-        let sub = otl_read_contextual(&data, 0, 100, &options).unwrap();
+        let sub = otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).unwrap();
         let Subtable::Chaining(ref sub) = sub else {
             unreachable!()
         };
@@ -1417,7 +1377,7 @@ mod chaining_read_tests {
         data[34..36].copy_from_slice(&1u16.to_be_bytes());
         data[36..38].copy_from_slice(&3u16.to_be_bytes()); // lookaround glyph
         let options = zeroed_options();
-        let sub = otl_read_chaining(&data, 0, 100, &options).unwrap();
+        let sub = otl_read_chaining(&data, 0, 100, &options, &mut OtlReadBudget::new()).unwrap();
         let Subtable::Chaining(ref sub) = sub else {
             unreachable!()
         };
@@ -1455,7 +1415,7 @@ mod chaining_read_tests {
         data[2..4].copy_from_slice(&0u16.to_be_bytes()); // nInput (malformed: 0)
         data[4..6].copy_from_slice(&0u16.to_be_bytes()); // nLookaround
         data[6..8].copy_from_slice(&0u16.to_be_bytes()); // nApply
-        let rule = general_read_chaining_rule(&data, 0, 7, true, single_coverage, 100);
+        let rule = general_read_chaining_rule(&data, 0, 7, true, single_coverage, 100, &mut OtlReadBudget::new());
         let rule = rule.unwrap();
         // Only the `minus_one` slot (glyph 7, from `start_gid`) is
         // filled; the (empty) input array contributes nothing.
@@ -1471,6 +1431,6 @@ mod chaining_read_tests {
         // default()`'s `logger` is a real (if `LoggerTarget::Empty`, i.e.
         // no-op-push) `Logger` rather than a null pointer.
         let options = Options::default();
-        assert!(otl_read_contextual(&data, 0, 100, &options).is_none());
+        assert!(otl_read_contextual(&data, 0, 100, &options, &mut OtlReadBudget::new()).is_none());
     }
 }

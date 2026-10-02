@@ -1,5 +1,6 @@
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
@@ -34,7 +35,12 @@ pub(crate) fn subtable_gsub_ligature_replace(
     dispose_gsub_ligature_subtable(dst);
     *dst = src;
 }
-pub fn otl_read_gsub_ligature(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+pub fn otl_read_gsub_ligature(
+    data: &[u8],
+    offset: u32,
+    _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
+) -> Option<Subtable> {
     let mut subtable: GsubLigatureSubtable = Vec::new();
 
     'parse: {
@@ -52,7 +58,7 @@ pub fn otl_read_gsub_ligature(data: &[u8], offset: u32, _max_glyphs: GlyphId) ->
             break 'parse;
         };
 
-        let start_coverage: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32));
+        let start_coverage: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
         if set_count as usize != start_coverage.len() {
             break 'parse;
         }
@@ -250,7 +256,7 @@ mod otl_read_gsub_ligature_tests {
         data[18..20].copy_from_slice(&30u16.to_be_bytes());
         data[20..22].copy_from_slice(&2u16.to_be_bytes());
         data[22..24].copy_from_slice(&20u16.to_be_bytes());
-        let result = otl_read_gsub_ligature(&data, 0, 0);
+        let result = otl_read_gsub_ligature(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GsubLigature(ref entries)) = result else {
             unreachable!()
         };
@@ -272,7 +278,7 @@ mod otl_read_gsub_ligature_tests {
         data[8..10].copy_from_slice(&1u16.to_be_bytes());
         data[10..12].copy_from_slice(&1u16.to_be_bytes());
         data[12..14].copy_from_slice(&10u16.to_be_bytes());
-        let result = otl_read_gsub_ligature(&data, 0, 0);
+        let result = otl_read_gsub_ligature(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 }
