@@ -14,6 +14,7 @@ pub mod cff_string;
 pub mod cff_value;
 pub mod cff_writer;
 pub mod charstring_il;
+pub mod charstring_interp;
 pub mod subr;
 
 /// A cff DICT operator, in otfcc's own encoding: the operator byte, or
