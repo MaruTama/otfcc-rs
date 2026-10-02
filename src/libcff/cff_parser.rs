@@ -8,7 +8,7 @@ use crate::libcff::cff_fdselect::cff_extract_fd_select;
 use crate::libcff::cff_index::CffIndex;
 use crate::libcff::cff_index::{empty_index, extract_index, get_index_length, new_empty_cff_index};
 use crate::libcff::{
-    CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffStack, OP_CHAR_STRINGS, OP_CHARSET, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT,
+    CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, OP_CHAR_STRINGS, OP_CHARSET, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT,
     OP_PRIVATE, OP_SUBRS,
 };
 
@@ -472,17 +472,6 @@ pub(crate) fn compute_subr_bias(cnt: u16) -> u16 {
     } else {
         return 32768_u16;
     };
-}
-// The original's two-pointer swap-until-cross is a plain reversal of
-// `stack[left..=right]` -- but only when `left <= right`: `p1 < p2`
-// starts out false (a graceful no-op) whenever `left > right`, while
-// indexing with an inverted `a..=b` range panics rather than yielding
-// an empty slice, so that guard has to be explicit here where it was
-// implicit in the pointer comparison.
-pub(crate) fn reverse_stack(stack: &mut CffStack, left: u8, right: u8) {
-    if left <= right {
-        (&mut stack.stack)[left as usize..=right as usize].reverse();
-    }
 }
 pub use crate::libcff::charstring_interp::cff_parse_outline;
 
