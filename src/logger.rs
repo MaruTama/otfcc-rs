@@ -21,6 +21,8 @@ use std::fmt;
 use std::io::Write;
 use std::sync::Mutex;
 
+use crate::support::fmt::SdsPart;
+
 use tracing::field::{Field, Visit};
 use tracing::span::{Attributes, Id, Record};
 use tracing::subscriber::Interest;
@@ -54,18 +56,18 @@ pub const LOG_VL_PROGRESS: u8 = 10;
 
 pub static OTFCC_LOGGER_TYPE_NAMES: [&str; 3] = ["[ERROR]", "[WARNING]", "[NOTE]"];
 
-/// Displays a byte string (a glyph name, a table tag) the way the old
-/// byte-based log messages did: cut at the first NUL, and with any invalid
-/// UTF-8 shown as U+FFFD.
-pub struct ByteStr<'a>(pub &'a [u8]);
+/// Displays one piece of a log message exactly as the old byte-based
+/// `bytesbuild!` messages rendered it (via `SdsPart`): a `&Vec<u8>` (a
+/// glyph name) is cut at its first NUL, a `&[u8]`/`&[u8; N]` is written
+/// whole, and integers print in decimal. Bytes that are not valid UTF-8
+/// show as U+FFFD. Rendered only when the message is actually printed.
+pub struct ByteStr<T>(pub T);
 
-impl fmt::Display for ByteStr<'_> {
+impl<T: SdsPart + Copy> fmt::Display for ByteStr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let bytes = match self.0.iter().position(|&b| b == 0) {
-            Some(nul) => &self.0[..nul],
-            None => self.0,
-        };
-        fmt::Display::fmt(&String::from_utf8_lossy(bytes), f)
+        let mut bytes = Vec::new();
+        self.0.append_to_vec(&mut bytes);
+        fmt::Display::fmt(&String::from_utf8_lossy(&bytes), f)
     }
 }
 
@@ -416,7 +418,7 @@ impl Drop for Logger {
     }
 }
 pub fn logger_indent_sds(self_0: &mut Logger, segment: Vec<u8>) {
-    self_0.scopes.push(indent(ByteStr(&segment)));
+    self_0.scopes.push(indent(ByteStr(&segment[..])));
 }
 pub fn logger_dedent(self_0: &mut Logger) {
     if let Some(scope) = self_0.scopes.pop() {
@@ -427,7 +429,7 @@ pub fn logger_finish(self_0: &mut Logger) {
     self_0.scopes.pop();
 }
 pub fn logger_start_sds(self_0: &mut Logger, segment: Vec<u8>) {
-    self_0.scopes.push(stage(ByteStr(&segment)));
+    self_0.scopes.push(stage(ByteStr(&segment[..])));
 }
 /// `verbosity` is implied by `type_0` at every call site (errors are
 /// critical, warnings important, notes notices, progress progress), so the
@@ -676,8 +678,11 @@ mod tests {
     }
 
     #[test]
-    fn byte_str_cuts_at_nul_and_replaces_invalid_utf8() {
-        assert_eq!(ByteStr(b"abc\0def").to_string(), "abc");
+    fn byte_str_renders_like_the_old_message_parts() {
+        let name: Vec<u8> = b"abc\0def".to_vec();
+        assert_eq!(ByteStr(&name).to_string(), "abc", "a Vec is cut at NUL");
+        assert_eq!(ByteStr(&name[..]).to_string(), "abc\u{0}def", "a slice is not");
         assert_eq!(ByteStr(b"a\xffb").to_string(), "a\u{fffd}b");
+        assert_eq!(ByteStr(-7_i32).to_string(), "-7");
     }
 }
