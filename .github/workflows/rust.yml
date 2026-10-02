@@ -148,6 +148,11 @@ jobs:
           mkdir -p corpus/otf_parse corpus/otf_dump corpus/json_build
           cp ../tests/payload/*.ttf ../tests/payload/*.otf corpus/otf_parse/
           cp ../tests/payload/*.ttf ../tests/payload/*.otf corpus/otf_dump/
+          # Not a dump seed: its 65,535 glyphs dump to ~3.3M outline points
+          # (a 160MB JSON), which alone takes the whole time budget below
+          # and ~2GB under ASan -- libFuzzer's default -rss_limit_mb. It
+          # stays an otf_parse seed; FDArrayTest257 covers FDArray dumping.
+          rm corpus/otf_dump/FDArrayTest65535.otf
           echo '{}' > corpus/json_build/empty.json
           cp ../tests/payload/*.json corpus/json_build/ 2>/dev/null || true
 
