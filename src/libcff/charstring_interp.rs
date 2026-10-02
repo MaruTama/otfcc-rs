@@ -1290,18 +1290,17 @@ mod cff_parse_outline_stack_operator_tests {
 
     #[test]
     fn op_index_with_operand_count_multiple_of_256_does_not_panic() {
-        // Push 257 zero-operands (each 1 byte: value 0 encodes as byte
-        // 139), then `index` (escape `12 29` = OP_INDEX). The position of
-        // `i` was once truncated to a byte, 256 to 0, and then used as a
-        // modulus, panicking on the divide. `0 index` now copies the
-        // operand just below.
-        let mut data: Vec<u8> = vec![139u8; 257];
-        data.push(12);
-        data.push(29);
+        // Push 256 ones (byte 140) and `i` = 0 (byte 139), then `index`
+        // (escape `12 29` = OP_INDEX). The position of `i` was once
+        // truncated to a byte, 256 to 0, and then used as a modulus,
+        // panicking on the divide (and later skipping the operation).
+        // `0 index` copies the operand just below.
+        let mut data: Vec<u8> = vec![140u8; 256];
+        data.extend_from_slice(&[139, 12, 29]);
         let mut stack = fresh_stack();
         run(&data, &mut stack);
         assert_eq!(stack.index, 257);
-        assert_eq!(stack.num(256), 0.0);
+        assert_eq!(stack.num(256), 1.0);
     }
 }
 
