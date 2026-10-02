@@ -18,7 +18,7 @@ use crate::table::cff::{
     callback_draw_next_contour, callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
 };
 use crate::libcff::cff_parser::{
-    MAX_SUBR_CALL_DEPTH, MAX_TOTAL_SUBR_CALLS, compute_subr_bias, locate_subr, reverse_stack,
+    MAX_SUBR_CALL_DEPTH, MAX_TOTAL_SUBR_CALLS, compute_subr_bias, locate_subr,
 };
 use crate::libcff::{CffCharstringOperator, CffStack, TYPE2_TRANSIENT_ARRAY, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR, OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_ENDCHAR, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET, OP_HFLEX, OP_HFLEX1, OP_HHCURVETO, OP_HINTMASK, OP_HLINETO, OP_HMOVETO, OP_HSTEM, OP_HSTEMHM, OP_HVCURVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RANDOM, OP_RCURVELINE, OP_RETURN, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_ROLL, OP_RRCURVETO, OP_SQRT, OP_SUB, OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, OP_VVCURVETO};
 
@@ -714,58 +714,42 @@ fn op_exch(stack: &mut CffStack) -> Flow {
     Flow::Continue
 }
 
-/// `... i index`: replaces `i` with a copy of the operand `i` places below it.
+/// `num(N-1) ... num(0) i index`: replaces `i` with a copy of `num(i)`,
+/// the operand `i` places below it (`num(0)` when `i` is negative). An `i`
+/// past the bottom of the stack is out of range and ignored.
 fn op_index(stack: &mut CffStack) -> Flow {
     if stack.index < 2 {
         too_few_operands("op_index", OP_INDEX);
     } else {
-        // The position of `i` (the top operand), truncated to `u8`. That
-        // truncation wraps it to 0 whenever the real position is a multiple
-        // of 256 (a CharString pushing 257+ operands before `index`), and
-        // it is used below both as a stack position and as the modulus, so
-        // a 0 divided by zero and panicked. Skip the operation instead.
-        let top = (stack.index - 1) as u8;
-        if top == 0 {
-            tracing::warn!("[libcff] op_index ({:04x}) operand count overflowed a byte; this operation is ignored.\n", OP_INDEX.0 as u32);
+        let i = stack.top(1);
+        let below = stack.index - 1;
+        let depth = if i < 0.0 { 0 } else { i as Arity };
+        if depth >= below {
+            too_few_operands("op_index", OP_INDEX);
         } else {
-            let i = stack.num(top as Arity) as u8;
-            let from = (top as i32 - 1 - i as i32 % top as i32) as u8;
-            stack.stack[top as usize] = stack.stack[from as usize];
+            stack.stack[below as usize] = stack.stack[(below - 1 - depth) as usize];
         }
     }
     Flow::Continue
 }
 
 /// `num(N-1) ... num(0) N J roll`: rotates the `N` operands below `N J` by
-/// `J` places toward the top.
+/// `J` places toward the top (toward the bottom for a negative `J`). `N`
+/// and `J` are always popped; a negative `N` rolls nothing.
 fn op_roll(stack: &mut CffStack) -> Flow {
     if stack.index < 2 {
         too_few_operands("op_roll", OP_ROLL);
-    } else {
-        let j = stack.top(1) as i32;
-        let n = stack.top(2) as u32;
-        if stack.index < 2_u32.wrapping_add(n) {
-            too_few_operands("op_roll", OP_ROLL);
-        } else if n == 0 {
-            // `n` is a float operand cast `as u32`, which saturates any
-            // negative count to 0. Rolling 0 elements is a no-op (like a
-            // shift of 0 below), and `wrapping_rem(0)` would panic.
-        } else {
-            // Rotating by `j` toward the top is rotating by `-j mod n`
-            // toward the bottom: three reversals of the `n` operands.
-            let mut shift = (j.wrapping_neg() as u32).wrapping_rem(n) as i32;
-            if shift < 0 {
-                shift = (shift as u32).wrapping_add(n) as i32;
-            }
-            if shift != 0 {
-                let last = stack.index.wrapping_sub(3) as u8;
-                let first = (stack.index - 2).wrapping_sub(n) as u8;
-                reverse_stack(stack, first, last);
-                reverse_stack(stack, (last as i32 - shift + 1) as u8, last);
-                reverse_stack(stack, first, (last as i32 - shift) as u8);
-                stack.index -= 2;
-            }
-        }
+        return Flow::Continue;
+    }
+    let j = stack.top(1) as i64;
+    let n = stack.top(2) as Arity;
+    stack.index -= 2;
+    if n > stack.index {
+        too_few_operands("op_roll", OP_ROLL);
+    } else if n > 0 {
+        let end = stack.index as usize;
+        let rolled = &mut stack.stack[end - n as usize..end];
+        rolled.rotate_right(j.rem_euclid(n as i64) as usize);
     }
     Flow::Continue
 }
@@ -1242,40 +1226,81 @@ mod cff_parse_outline_stack_operator_tests {
     #[test]
     fn op_roll_with_zero_count_operand_does_not_panic() {
         // Push J=0, push N=0, then `roll` (escape `12 30` = OP_ROLL).
-        // `n_0` is `cffnum(...) as u32`, a saturating float-to-int cast
-        // (a *negative* N reaches the same `n_0 == 0` path this way,
-        // not just a literal 0 -- see the analogous comment in
-        // `cff_parse_outline_total_calls_tests`). The pre-fix code fell
-        // through to `wrapping_rem(n_0)` unconditionally once the
-        // "enough operands" guard passed, panicking on the zero
-        // divisor -- "roll 0 elements" is a legitimate no-op (the
-        // `j_2 == 0` case a few lines below already treats "nothing to
-        // rotate" the same way), not a malformed-input case.
+        // `wrapping_rem(n)` once panicked on this zero divisor. Rolling 0
+        // operands rotates nothing, and N and J are popped as usual.
         let data: Vec<u8> = vec![139, 139, 12, 30];
         let mut stack = fresh_stack();
         run(&data, &mut stack);
-        // No-op: both pushed operands (J and N) are still on the stack,
-        // untouched, exactly like the pre-existing `j_2 == 0` no-op case.
-        assert_eq!(stack.index, 2);
+        assert_eq!(stack.index, 0);
+    }
+
+    fn numbers(stack: &CffStack) -> Vec<f64> {
+        (0..stack.index).map(|i| stack.num(i)).collect()
+    }
+
+    #[test]
+    fn op_roll_rotates_toward_the_top_and_pops_n_and_j() {
+        // `1 2 3 3 1 roll` -> `3 1 2`; `1 2 3 3 -1 roll` -> `2 3 1`.
+        let mut stack = fresh_stack();
+        run(&[140, 141, 142, 142, 140, 12, 30], &mut stack);
+        assert_eq!(numbers(&stack), [3.0, 1.0, 2.0]);
+        let mut stack = fresh_stack();
+        run(&[140, 141, 142, 142, 138, 12, 30], &mut stack);
+        assert_eq!(numbers(&stack), [2.0, 3.0, 1.0]);
+        // A shift of 0 (or a multiple of N) still pops N and J.
+        let mut stack = fresh_stack();
+        run(&[140, 141, 142, 142, 145, 12, 30], &mut stack);
+        assert_eq!(numbers(&stack), [1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn op_roll_past_256_operands_rolls_the_top_ones() {
+        // 300 zeros, then `1 2 3 3 1 roll`: positions are no longer
+        // truncated to a byte, so the three operands at the top roll.
+        let mut data: Vec<u8> = vec![139u8; 300];
+        data.extend_from_slice(&[140, 141, 142, 142, 140, 12, 30]);
+        let mut stack = fresh_stack();
+        run(&data, &mut stack);
+        assert_eq!(stack.index, 303);
+        assert_eq!(numbers(&stack)[300..], [3.0, 1.0, 2.0]);
+    }
+
+    #[test]
+    fn op_roll_of_more_operands_than_the_stack_holds_is_ignored() {
+        // `1 2 5 1 roll`: only two operands below N and J.
+        let mut stack = fresh_stack();
+        run(&[140, 141, 144, 140, 12, 30], &mut stack);
+        assert_eq!(numbers(&stack), [1.0, 2.0]);
+    }
+
+    #[test]
+    fn op_index_copies_the_operand_i_places_below() {
+        // `1 2 3 1 index` -> `1 2 3 2`; a negative `i` copies the top one.
+        let mut stack = fresh_stack();
+        run(&[140, 141, 142, 140, 12, 29], &mut stack);
+        assert_eq!(numbers(&stack), [1.0, 2.0, 3.0, 2.0]);
+        let mut stack = fresh_stack();
+        run(&[140, 141, 142, 138, 12, 29], &mut stack);
+        assert_eq!(numbers(&stack), [1.0, 2.0, 3.0, 3.0]);
+        // `i` past the bottom of the stack is ignored.
+        let mut stack = fresh_stack();
+        run(&[140, 141, 142, 143, 12, 29], &mut stack);
+        assert_eq!(numbers(&stack), [1.0, 2.0, 3.0, 4.0]);
     }
 
     #[test]
     fn op_index_with_operand_count_multiple_of_256_does_not_panic() {
-        // Push 257 zero-operands (each 1 byte: value 0 encodes as byte
-        // 139), then `index` (escape `12 29` = OP_INDEX). `(*stack).index
-        // - 1 == 256` truncates to `0` once cast `as u8` -- the pre-fix
-        // code then used that truncated `0` as both a stack offset and a
-        // modulus divisor, panicking on the divide.
-        let mut data: Vec<u8> = vec![139u8; 257];
-        data.push(12);
-        data.push(29);
+        // Push 256 ones (byte 140) and `i` = 0 (byte 139), then `index`
+        // (escape `12 29` = OP_INDEX). The position of `i` was once
+        // truncated to a byte, 256 to 0, and then used as a modulus,
+        // panicking on the divide (and later skipping the operation).
+        // `0 index` copies the operand just below.
+        let mut data: Vec<u8> = vec![140u8; 256];
+        data.extend_from_slice(&[139, 12, 29]);
         let mut stack = fresh_stack();
         run(&data, &mut stack);
-        // The operation was skipped (truncated `n == 0`), not executed
-        // -- reaching this assertion at all (rather than panicking
-        // mid-parse) is the regression signal. All 257 pushed operands
-        // are still on the stack, untouched.
         assert_eq!(stack.index, 257);
+        assert_eq!(stack.num(256), 1.0);
     }
 }
 
