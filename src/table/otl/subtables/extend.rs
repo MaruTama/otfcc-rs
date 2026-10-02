@@ -2,6 +2,7 @@ use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::read::otfcc_read_otl_subtable;
 use crate::table::otl::{
     ExtendSubtable, LookupType, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_UNKNOWN, Subtable,
@@ -38,6 +39,7 @@ fn read_otl_extend(
     basis: LookupType,
     max_glyphs: GlyphId,
     options: &Options,
+    budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     let mut r = FontReader::new(data).at(subtable_offset as usize).ok()?;
     let header = r.bytes(8).ok()?;
@@ -50,7 +52,7 @@ fn read_otl_extend(
     // boundary. A nested read that fails still yields an `Extend` with an
     // empty `subtable` (only a bad *header* above rejects the whole thing),
     // exactly as before.
-    let subtable = otfcc_read_otl_subtable(data, real_subtable_offset, type_0, max_glyphs, options);
+    let subtable = otfcc_read_otl_subtable(data, real_subtable_offset, type_0, max_glyphs, options, budget);
     Some(Subtable::Extend(ExtendSubtable { type_0, subtable }))
 }
 pub fn otfcc_read_otl_gsub_extend(
@@ -58,16 +60,18 @@ pub fn otfcc_read_otl_gsub_extend(
     subtable_offset: u32,
     max_glyphs: GlyphId,
     options: &Options,
+    budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
-    read_otl_extend(data, subtable_offset, OTL_TYPE_GSUB_UNKNOWN, max_glyphs, options)
+    read_otl_extend(data, subtable_offset, OTL_TYPE_GSUB_UNKNOWN, max_glyphs, options, budget)
 }
 pub fn otfcc_read_otl_gpos_extend(
     data: &[u8],
     subtable_offset: u32,
     max_glyphs: GlyphId,
     options: &Options,
+    budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
-    read_otl_extend(data, subtable_offset, OTL_TYPE_GPOS_UNKNOWN, max_glyphs, options)
+    read_otl_extend(data, subtable_offset, OTL_TYPE_GPOS_UNKNOWN, max_glyphs, options, budget)
 }
 
 #[cfg(test)]
@@ -89,7 +93,7 @@ mod caryll_read_otl_extend_tests {
         data[18..20].copy_from_slice(&1u16.to_be_bytes()); // extensionLookupType
         data[20..24].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes()); // extensionOffset
         let options = Options::default();
-        let result = read_otl_extend(&data, 16, OTL_TYPE_GSUB_UNKNOWN, 0, &options);
+        let result = read_otl_extend(&data, 16, OTL_TYPE_GSUB_UNKNOWN, 0, &options, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 
@@ -97,7 +101,7 @@ mod caryll_read_otl_extend_tests {
     fn truncated_extension_header_is_rejected_not_read_oob() {
         let data = [0u8; 20]; // subtable_offset=16 needs 8 more bytes, only 4 remain
         let options = Options::default();
-        let result = read_otl_extend(&data, 16, OTL_TYPE_GSUB_UNKNOWN, 0, &options);
+        let result = read_otl_extend(&data, 16, OTL_TYPE_GSUB_UNKNOWN, 0, &options, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 }

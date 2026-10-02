@@ -3,6 +3,7 @@ use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::classdef::{
     ClassDef, expand_class_def, read_class_def,
 };
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage, shrink_coverage};
 
 use crate::support::font_reader::FontReader;
@@ -84,7 +85,12 @@ pub struct IndividualGposPair {
 // square grid otherwise reaching 4.29 billion cells) firmly out of reach
 // regardless of `stride`.
 const MAX_TOTAL_GPOS_PAIR_CLASS_CELLS: usize = 2_000_000;
-pub fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+pub fn otl_read_gpos_pair(
+    data: &[u8],
+    offset: u32,
+    _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
+) -> Option<Subtable> {
     let mut subtable = GposPairSubtable {
         first: None,
         second: None,
@@ -116,7 +122,7 @@ pub fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Opt
             // dodge the borrow checker. Every `break 'parse` below returns
             // `None` and drops `subtable`, so moving the assignment to the
             // end changes nothing observable.
-            let cov: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32));
+            let cov: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
             let first_cd = ClassDef {
                 maxclass: (cov.len() as i32 - 1) as GlyphClass,
                 classes: (0..cov.len()).map(|j| j as GlyphClass).collect(),
@@ -269,7 +275,7 @@ pub fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Opt
             let len1_0 = position_format_length(format1_0);
             let len2_0 = position_format_length(format2_0);
 
-            let cov_0: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32));
+            let cov_0: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
             // `expand_class_def` consumes the `ocd` it is handed and
             // returns a fresh one; both are plain values now, so the
             // `Box::from_raw`/`classdef_from_raw` pair that used to bridge
@@ -648,7 +654,7 @@ mod otl_read_gpos_pair_tests {
         data[18..20].copy_from_slice(&1u16.to_be_bytes());
         data[20..22].copy_from_slice(&20i16.to_be_bytes());
         data[22..24].copy_from_slice(&50i16.to_be_bytes());
-        let result = otl_read_gpos_pair(&data, 0, 0);
+        let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GposPair(ref subtable)) = result else {
             unreachable!()
         };
@@ -673,7 +679,7 @@ mod otl_read_gpos_pair_tests {
         // 2` -- just the 2-byte format field itself -- so a table this
         // short claiming format 1 read straight past its own end.
         let data = [0u8, 1]; // format = 1, nothing else
-        let result = otl_read_gpos_pair(&data, 0, 0);
+        let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 
@@ -704,7 +710,7 @@ mod otl_read_gpos_pair_tests {
         data[40..42].copy_from_slice(&20u16.to_be_bytes());
         data[42..44].copy_from_slice(&1u16.to_be_bytes());
         data[44..46].copy_from_slice(&1u16.to_be_bytes());
-        let result = otl_read_gpos_pair(&data, 0, 0);
+        let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GposPair(ref subtable)) = result else {
             unreachable!()
         };
@@ -747,7 +753,7 @@ mod otl_read_gpos_pair_tests {
         data[36..38].copy_from_slice(&20u16.to_be_bytes());
         data[38..40].copy_from_slice(&20u16.to_be_bytes());
         data[40..42].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
-        let result = otl_read_gpos_pair(&data, 0, 0);
+        let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 
@@ -787,7 +793,7 @@ mod otl_read_gpos_pair_tests {
         data[36..38].copy_from_slice(&20u16.to_be_bytes());
         data[38..40].copy_from_slice(&20u16.to_be_bytes());
         data[40..42].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
-        let result = otl_read_gpos_pair(&data, 0, 0);
+        let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 }

@@ -5,6 +5,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::{GlyphId, count_u16};
+use crate::table::otl::budget::OtlReadBudget;
 /// A glyph coverage set: C by way of c2rust had this as a hand-rolled
 /// `malloc`/`realloc` array (`num_glyphs`/`capacity`/`glyphs: *mut
 /// GlyphHandle`); it was never anything but a growable array of
@@ -12,12 +13,11 @@ use crate::support::primitives::{GlyphId, count_u16};
 /// wrapping one -- same "C-native vector shape becomes a bare `pub type`"
 /// call as `ColrTable`/`TsiTable` earlier in this migration.
 pub type Coverage = Vec<GlyphHandle>;
-/// Bounds the total cost of *building* a `Coverage` -- format 1's `for _ in
+/// The `coverage_entries` limit of `OtlReadBudget`. It bounds the total cost of *building* a `Coverage` -- format 1's `for _ in
 /// 0..glyph_count { h.insert(...) }` loop and format 2's `while k <= end`
 /// range-expansion loop, both in `read_coverage` below -- across a *whole*
 /// GSUB/GPOS/GDEF table, every `read_coverage` call combined, not just one.
-/// Originally guarded only format 2's range expansion (hence the name this
-/// budget/its reset function still carry); a `cargo fuzz run otf_parse` CI
+/// Originally guarded only format 2's range expansion; a `cargo fuzz run otf_parse` CI
 /// job later found that format 1 has the exact same "per-call cap alone
 /// still multiplies into a table-wide cost explosion" gap -- `glyph_count`
 /// is individually bounded (`require_room` against the table, at most
@@ -32,7 +32,7 @@ pub type Coverage = Vec<GlyphHandle>;
 /// dispatches repeatedly, independently built full ~65,535-glyph `Coverage`
 /// values this way, pushing RSS well past a 2048MB limit. Same
 /// "per-subtable cap alone still multiplies into a table-wide hang" shape
-/// `chaining/read.rs`'s `CLASS_ZERO_BUDGET`/`CLASS_COVERAGE_CALL_BUDGET`
+/// `OtlReadBudget`'s `class_zero_glyphs`/`class_coverage_calls`
 /// document and fix for a different call site (see that file's own
 /// comments for the fuller reasoning). Sized at ~76x the largest amount of
 /// work any single legitimate coverage table could ever need (65,536
@@ -41,21 +41,7 @@ pub type Coverage = Vec<GlyphHandle>;
 /// adversarial cost bounded (confirmed against both the original
 /// format-2-only fuzz-found font, which otherwise timed out at 1753s under
 /// CI's fuzz job, and the format-1 OOM this comment now also documents).
-const MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE: u32 = 5_000_000;
-static COVERAGE_ENTRY_BUILD_BUDGET: ::core::sync::atomic::AtomicU32 =
-    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE);
-/// Must be called once per top-level table read (`otfcc_read_otl`,
-/// `otfcc_read_gdef`), before any of that table's `read_coverage` calls
-/// happen -- see the budget's own doc comment for why table-wide scope,
-/// not per-call, is what actually bounds the cost. Safe as a plain
-/// static (no `Mutex`/`RefCell` needed): this crate is single-threaded
-/// throughout, same reasoning as `chaining/read.rs`'s own budgets.
-pub(crate) fn reset_coverage_entry_build_budget() {
-    COVERAGE_ENTRY_BUILD_BUDGET.store(
-        MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE,
-        ::core::sync::atomic::Ordering::Relaxed,
-    );
-}
+pub(crate) const MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE: u32 = 5_000_000;
 pub(crate) fn push_to_coverage(coverage: &mut Coverage, h: GlyphHandle) {
     coverage.push(h);
 }
@@ -75,7 +61,7 @@ pub(crate) fn push_to_coverage(coverage: &mut Coverage, h: GlyphHandle) {
 // defeats-guard shape as `cmap.rs`'s bugs, just via addition instead of
 // multiplication. `FontReader::at`/`require_room` use `checked_add`/
 // `checked_mul` throughout, closing this.
-pub(crate) fn read_coverage(data: &[u8], offset: u32) -> Coverage {
+pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Coverage {
     let mut coverage: Coverage = Vec::new();
     let Ok(mut r) = FontReader::new(data).at(offset as usize) else {
         return coverage;
@@ -104,15 +90,14 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> Coverage {
             // 2's range expansion below, nothing capped how many separate
             // `read_coverage` calls across a table's many lookups/
             // subtables could each pay that cost -- see
-            // `COVERAGE_ENTRY_BUILD_BUDGET`'s own doc comment for the
+            // `MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE`'s doc comment for the
             // fuzz-found OOM this loop's own missing budget check caused.
             let mut h: indexmap::IndexSet<GlyphId> = indexmap::IndexSet::new();
             'glyphs: for _ in 0..glyph_count {
-                if COVERAGE_ENTRY_BUILD_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) == 0 {
+                if !budget.take_coverage_entry() {
                     break 'glyphs;
                 }
                 h.insert(r.u16().unwrap());
-                COVERAGE_ENTRY_BUILD_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
             }
             for gid in h.into_iter() {
                 push_to_coverage(&mut coverage, handle_from_index(gid) as GlyphHandle);
@@ -154,10 +139,10 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> Coverage {
             // bytes, multiplying a fast single call back into the same
             // hang -- confirmed by instrumenting this exact fuzz-found
             // font, which kept timing out under a per-call-only cap.
-            // `COVERAGE_ENTRY_BUILD_BUDGET` (reset once per table, see
-            // `reset_coverage_entry_build_budget`) closes that gap the
-            // same way `chaining/read.rs`'s `CLASS_ZERO_BUDGET`/
-            // `CLASS_COVERAGE_CALL_BUDGET` do for a different call site.
+            // The table-wide `OtlReadBudget::coverage_entries` (one
+            // budget per table read) closes that gap the
+            // same way `class_zero_glyphs`/`class_coverage_calls` do for
+            // `chaining/read.rs`'s `class_coverage`.
             // No coverage table can ever usefully describe more than
             // 65,536 distinct glyphs (the whole `GlyphId` space), so
             // this budget -- many multiples of that -- only ever
@@ -181,12 +166,11 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> Coverage {
                 // just this expanded range) on exhaustion, unchanged by
                 // this loop's own shape becoming a `for`.
                 for k in start as i32..=end as i32 {
-                    if COVERAGE_ENTRY_BUILD_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) == 0 {
+                    if !budget.take_coverage_entry() {
                         break 'ranges;
                     }
                     let cov_index = start_coverage_index as i32 + k;
                     h.entry(k as GlyphId).or_insert(cov_index);
-                    COVERAGE_ENTRY_BUILD_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
                 }
             }
             let mut entries: Vec<(GlyphId, i32)> = h.into_iter().collect();
@@ -341,7 +325,7 @@ mod read_coverage_tests {
         data.extend_from_slice(&5u16.to_be_bytes());
         data.extend_from_slice(&9u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes()); // duplicate, deduped
-        let cov = read_coverage(&data, 0);
+        let cov = read_coverage(&data, 0, &mut OtlReadBudget::new());
         assert_eq!(cov.iter().map(|h| h.index).collect::<Vec<_>>(), vec![5, 9]);
     }
 
@@ -353,7 +337,7 @@ mod read_coverage_tests {
         data.extend_from_slice(&10u16.to_be_bytes()); // startGlyphID
         data.extend_from_slice(&12u16.to_be_bytes()); // endGlyphID
         data.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
-        let cov = read_coverage(&data, 0);
+        let cov = read_coverage(&data, 0, &mut OtlReadBudget::new());
         assert_eq!(
             cov.iter().map(|h| h.index).collect::<Vec<_>>(),
             vec![10, 11, 12]
@@ -362,39 +346,25 @@ mod read_coverage_tests {
 
     #[test]
     fn format2_budget_stops_mid_range_at_the_exact_boundary() {
-        // Pins the `while k <= end as i32` -> `for k in start as
-        // i32..=end as i32 { if ... == 0 { break 'ranges } ... }`
-        // conversion (Stage M-42): a single format-2 range spanning 16
-        // glyphs (10..=25), given a `COVERAGE_ENTRY_BUILD_BUDGET` of only
-        // 5, must expand exactly the first 5 glyphs in the range's own
-        // order and leave the shared, process-wide budget fully spent --
-        // not skip one, not expand one extra. The budget is a global
-        // static shared with every other `read_coverage` call (including
-        // every other test in this module), so it is force-set low here
-        // and restored to its full default before returning, the same
-        // "leave global state clean for whichever test runs next"
-        // discipline this crate already applies to `Options::logger`-
-        // adjacent statics.
-        COVERAGE_ENTRY_BUILD_BUDGET.store(5, ::core::sync::atomic::Ordering::Relaxed);
+        // A single format-2 range spanning 16 glyphs (10..=25), given a
+        // coverage budget of only 5, must expand exactly the first 5 glyphs
+        // in the range's own order and leave the budget fully spent -- not
+        // skip one, not expand one extra.
+        let mut budget = OtlReadBudget { coverage_entries: 5, ..OtlReadBudget::new() };
         let mut data = Vec::new();
         data.extend_from_slice(&2u16.to_be_bytes()); // format
         data.extend_from_slice(&1u16.to_be_bytes()); // rangeCount
         data.extend_from_slice(&10u16.to_be_bytes()); // startGlyphID
         data.extend_from_slice(&25u16.to_be_bytes()); // endGlyphID (16 glyphs total)
         data.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
-        let cov = read_coverage(&data, 0);
+        let cov = read_coverage(&data, 0, &mut budget);
 
-        assert_eq!(
-            COVERAGE_ENTRY_BUILD_BUDGET.load(::core::sync::atomic::Ordering::Relaxed),
-            0,
-            "the shared budget must be fully consumed"
-        );
+        assert_eq!(budget.coverage_entries, 0, "the budget must be fully consumed");
         assert_eq!(
             cov.iter().map(|h| h.index).collect::<Vec<_>>(),
             vec![10, 11, 12, 13, 14],
             "exactly `budget` glyphs expanded, in range order, not fewer or more"
         );
-        reset_coverage_entry_build_budget();
     }
 
     #[test]
@@ -404,14 +374,14 @@ mod read_coverage_tests {
         // number, which could pass the `table_length < ...` guard even
         // though `offset` itself points nowhere near the table.
         let data = [0u8; 8];
-        let cov = read_coverage(&data, 0xFFFF_FFF0);
+        let cov = read_coverage(&data, 0xFFFF_FFF0, &mut OtlReadBudget::new());
         assert!(cov.is_empty());
     }
 
     #[test]
     fn truncated_header_is_empty_not_oob() {
         let data = [0u8; 1];
-        let cov = read_coverage(&data, 0);
+        let cov = read_coverage(&data, 0, &mut OtlReadBudget::new());
         assert!(cov.is_empty());
     }
 }

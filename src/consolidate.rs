@@ -595,13 +595,13 @@ fn __declare_otl_consolidation(
     // to `MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000) subtables and a table up
     // to `MAX_TOTAL_LOOKUPS_PER_TABLE` (300) lookups, so a font whose
     // subtables mostly fail to parse (e.g. many aliased offsets tripping
-    // `coverage::reset_coverage_entry_build_budget`'s own guard) can
+    // `OtlReadBudget::coverage_entries`' table-wide guard) can
     // drive the "Ignored empty subtable" branch below up to 300,000 times
     // -- CI fuzz found exactly this shape, and the wasted construction
     // alone (not any of this function's real per-subtable work) still
     // added tens of seconds under sanitizer instrumentation. Same
     // "per-call construction cost, not per-call semantics, is what adds
-    // up" reasoning as `chaining/read.rs`'s `CLASS_COVERAGE_CALL_BUDGET`.
+    // up" reasoning as `OtlReadBudget::class_coverage_calls`.
     let show_important =
         options.logger.borrow().verbosity_limit as i32 >= LOG_VL_IMPORTANT as i32;
     for (j, slot) in lookup.subtables.iter_mut().enumerate() {

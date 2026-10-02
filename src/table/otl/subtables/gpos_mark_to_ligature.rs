@@ -2,6 +2,7 @@ use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -17,7 +18,7 @@ use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
     bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array, otl_read_anchor,
-    otl_read_mark_array, try_spend_mark_attach_anchor_budget,
+    otl_read_mark_array,
 };
 use crate::table::otl::{
     Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
@@ -43,6 +44,7 @@ pub fn otl_read_gpos_mark_to_ligature(
     data: &[u8],
     offset: u32,
     _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     let mut subtable = GposMarkToLigatureSubtable {
         class_count: 0,
@@ -74,8 +76,8 @@ pub fn otl_read_gpos_mark_to_ligature(
             break 'parse;
         };
 
-        let marks: Coverage = read_coverage(data, offset.wrapping_add(marks_rel as u32));
-        let bases: Coverage = read_coverage(data, offset.wrapping_add(bases_rel as u32));
+        let marks: Coverage = read_coverage(data, offset.wrapping_add(marks_rel as u32), budget);
+        let bases: Coverage = read_coverage(data, offset.wrapping_add(bases_rel as u32), budget);
         if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
@@ -116,7 +118,7 @@ pub fn otl_read_gpos_mark_to_ligature(
             if ar.require_room(total_anchors, 2).is_err() {
                 break 'parse;
             }
-            // See `try_spend_mark_attach_anchor_budget`'s own doc comment
+            // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
             // (`gpos_common.rs`): each ligAttachOffset is read via its own
             // fresh reader, so `require_room` above only ever bounds THIS
             // entry's cost against the buffer -- it can't see that an
@@ -129,7 +131,7 @@ pub fn otl_read_gpos_mark_to_ligature(
             // entries (not just this one) -- there's no reason to expect
             // a later entry to fare any better, and the entries already
             // built stay valid.
-            if !try_spend_mark_attach_anchor_budget(total_anchors) {
+            if !budget.try_spend_mark_attach_anchors(total_anchors) {
                 break;
             }
             let mut lig = LigatureBaseRecord {
@@ -371,9 +373,7 @@ pub fn otfcc_build_gpos_mark_to_ligature(
 #[cfg(test)]
 mod otl_read_gpos_mark_to_ligature_tests {
     use super::*;
-    use crate::table::otl::subtables::gpos_common::{
-        MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE, reset_mark_attach_anchor_budget,
-    };
+    use crate::table::otl::subtables::gpos_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE;
 
     // format(2)@0, marksOffset(2)@2 -> 12, ligatureOffset(2)@4 -> 18,
     // classCount(2)@6, markArrayOffset(2)@8 -> 24, ligatureArrayOffset(2)
@@ -406,7 +406,7 @@ mod otl_read_gpos_mark_to_ligature_tests {
     #[test]
     fn well_formed_table_reads_the_ligature_array() {
         let data = well_formed_data();
-        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
+        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GposMarkToLigature(ref subtable)) = result else {
             unreachable!()
         };
@@ -421,7 +421,7 @@ mod otl_read_gpos_mark_to_ligature_tests {
     fn ligature_count_mismatch_with_coverage_is_rejected() {
         let mut data = well_formed_data();
         data[26..28].copy_from_slice(&2u16.to_be_bytes()); // ligatureCount claims 2, coverage has only 1
-        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
+        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 
@@ -437,7 +437,7 @@ mod otl_read_gpos_mark_to_ligature_tests {
         let mut data = well_formed_data();
         data[6..8].copy_from_slice(&u16::MAX.to_be_bytes()); // classCount
         data[30..32].copy_from_slice(&u16::MAX.to_be_bytes()); // componentCount
-        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
+        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 
@@ -445,7 +445,7 @@ mod otl_read_gpos_mark_to_ligature_tests {
     // Coverage range, so the coverage table itself stays a few bytes
     // regardless of `n`) whose `n` ligAttachOffsets ALL alias one shared
     // LigatureAttach blob (`componentCount` components, one class each).
-    // See `try_spend_mark_attach_anchor_budget`'s doc comment
+    // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
     // (`gpos_common.rs`) for why this specific shape -- every entry's own
     // `require_room` check is individually satisfied against the same
     // small blob, so nothing but the table-wide budget bounds the total.
@@ -523,11 +523,11 @@ mod otl_read_gpos_mark_to_ligature_tests {
         // itself needing anywhere near that much memory) and must
         // terminate as a merely-truncated result, not a hang or a
         // multi-hundred-MB allocation.
-        reset_mark_attach_anchor_budget();
+        let mut budget = OtlReadBudget::new();
         let n: u16 = 200;
         let component_count: u16 = 20_000; // n * component_count = 4,000,000
         let data = mark_to_ligature_aliased_data(n, component_count);
-        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
+        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0, &mut budget);
         let Some(Subtable::GposMarkToLigature(ref subtable)) = result else {
             unreachable!()
         };
@@ -547,6 +547,5 @@ mod otl_read_gpos_mark_to_ligature_tests {
             .map(|lig| lig.anchors.len() as u64)
             .sum();
         assert!(total_anchors <= MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE as u64);
-        reset_mark_attach_anchor_budget();
     }
 }

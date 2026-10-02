@@ -246,8 +246,8 @@ mod regression_tests {
     /// per-subtable-only version of this cap still let many subtables
     /// each spend their own full allowance) caps rules built across the
     /// whole table; `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` cap one
-    /// rule's own apply/position counts; and `CLASS_ZERO_BUDGET`/
-    /// `CLASS_COVERAGE_CALL_BUDGET` (also globalized from an earlier,
+    /// rule's own apply/position counts; and `OtlReadBudget`'s
+    /// `class_zero_glyphs`/`class_coverage_calls` (also made table-wide from an earlier,
     /// per-subtable version for the same reason) cap `class_coverage`'s
     /// total work across the whole table. A fifth, unrelated bug fell out
     /// of the same file: `general_read_contextual_rule`/`_chaining_rule`
@@ -533,7 +533,7 @@ mod regression_tests {
     ///    are each individually bounded, but their *product* was not --
     ///    this font's coverage table expanded into billions of
     ///    `IndexMap::entry` calls. Fixed by
-    ///    `reset_coverage_entry_build_budget`'s table-wide budget.
+    ///    a table-wide budget, now `OtlReadBudget::coverage_entries`.
     /// 2. `consolidate.rs::__declare_otl_consolidation`: once (1)'s fix
     ///    made most of this font's ~300,000 possible subtable slots
     ///    (`MAX_TOTAL_LOOKUPS_PER_TABLE` * `MAX_TOTAL_SUBTABLES_PER_

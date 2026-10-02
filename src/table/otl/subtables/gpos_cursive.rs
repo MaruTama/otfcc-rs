@@ -1,6 +1,7 @@
 use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -23,7 +24,12 @@ use crate::table::otl::{GposCursiveEntry, GposCursiveSubtable, Subtable};
 pub(crate) fn dispose_gpos_cursive_subtable(arr: &mut GposCursiveSubtable) {
     *arr = Vec::new();
 }
-pub fn otl_read_gpos_cursive(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+pub fn otl_read_gpos_cursive(
+    data: &[u8],
+    offset: u32,
+    _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
+) -> Option<Subtable> {
     let mut subtable: GposCursiveSubtable = Vec::new();
 
     'parse: {
@@ -41,7 +47,7 @@ pub fn otl_read_gpos_cursive(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> 
             break 'parse;
         };
 
-        let targets: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32));
+        let targets: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32), budget);
         if targets.is_empty() {
             break 'parse;
         }
@@ -158,7 +164,7 @@ mod otl_read_gpos_cursive_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        let result = otl_read_gpos_cursive(&data, 0, 0);
+        let result = otl_read_gpos_cursive(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GposCursive(ref entries)) = result else {
             unreachable!()
         };
@@ -180,7 +186,7 @@ mod otl_read_gpos_cursive_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        let result = otl_read_gpos_cursive(&data, 0, 0);
+        let result = otl_read_gpos_cursive(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 }

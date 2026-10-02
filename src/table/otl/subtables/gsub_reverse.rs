@@ -1,5 +1,6 @@
 use crate::support::handle::{GlyphHandle, handle_from_index};
 use crate::support::parsed_json::ParsedValue;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
@@ -30,7 +31,12 @@ use crate::table::otl::{GsubReverseSubtable, Subtable};
 fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
     match_0[..input_index as usize].reverse();
 }
-pub fn otl_read_gsub_reverse(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+pub fn otl_read_gsub_reverse(
+    data: &[u8],
+    offset: u32,
+    _max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
+) -> Option<Subtable> {
     let mut subtable = GsubReverseSubtable {
         match_count: 0,
         input_index: 0,
@@ -108,11 +114,11 @@ pub fn otl_read_gsub_reverse(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> 
         subtable.input_index = n_backtrack;
 
         for (j, &cov_offset) in backtrack_offsets.iter().enumerate() {
-            subtable.match_0[j] = read_coverage(data, cov_offset);
+            subtable.match_0[j] = read_coverage(data, cov_offset, budget);
         }
 
         let input_cov_offset = offset.wrapping_add(input_cov_rel as u32);
-        subtable.match_0[subtable.input_index as usize] = read_coverage(data, input_cov_offset);
+        subtable.match_0[subtable.input_index as usize] = read_coverage(data, input_cov_offset, budget);
 
         if n_replacement as usize != subtable.match_0[subtable.input_index as usize].len() {
             break 'parse;
@@ -120,7 +126,7 @@ pub fn otl_read_gsub_reverse(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> 
 
         for (j, &cov_offset) in forward_offsets.iter().enumerate() {
             let fwd_idx = n_backtrack as usize + 1 + j;
-            subtable.match_0[fwd_idx] = read_coverage(data, cov_offset);
+            subtable.match_0[fwd_idx] = read_coverage(data, cov_offset, budget);
         }
 
         subtable.to = Coverage::new();
@@ -275,7 +281,7 @@ mod otl_read_gsub_reverse_tests {
         data[20..22].copy_from_slice(&1u16.to_be_bytes());
         data[22..24].copy_from_slice(&1u16.to_be_bytes());
         data[24..26].copy_from_slice(&21u16.to_be_bytes());
-        let result = otl_read_gsub_reverse(&data, 0, 0);
+        let result = otl_read_gsub_reverse(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GsubReverse(ref subtable)) = result else {
             unreachable!()
         };
@@ -328,7 +334,7 @@ mod otl_read_gsub_reverse_tests {
         let n_replacement_pos = n_forward_pos + 2 + 2;
         data[n_replacement_pos..n_replacement_pos + 2].copy_from_slice(&0u16.to_be_bytes()); // glyphCount
         assert_eq!(data.len(), n_replacement_pos + 2);
-        let result = otl_read_gsub_reverse(&data, 0, 0);
+        let result = otl_read_gsub_reverse(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
     }
 }
