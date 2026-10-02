@@ -40,12 +40,43 @@ pub struct PostscriptStemDef {
     pub map: u16,
 }
 pub type StemDefList = Vec<PostscriptStemDef>;
+/// One axis of a hint mask: an on/off flag per stem hint, for up to 256
+/// stems, packed into bits (it used to be a `[bool; 256]`, 256 bytes per
+/// axis per mask -- a CID font with tens of thousands of hinted glyphs held
+/// over 100 MB of them).
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub struct StemMask([u64; 4]);
+impl StemMask {
+    /// The number of stems a mask can hold.
+    pub const LEN: usize = 256;
+
+    /// Whether stem `i` is on. Panics for `i >= 256`, as indexing the
+    /// array it replaces did.
+    pub fn get(&self, i: usize) -> bool {
+        self.0[i / 64] >> (i % 64) & 1 != 0
+    }
+
+    /// Turns stem `i` on or off. Panics for `i >= 256`.
+    pub fn set(&mut self, i: usize, on: bool) {
+        let bit = 1_u64 << (i % 64);
+        if on {
+            self.0[i / 64] |= bit;
+        } else {
+            self.0[i / 64] &= !bit;
+        }
+    }
+
+    /// All 256 flags, stem 0 first.
+    pub fn bits(&self) -> impl Iterator<Item = bool> + '_ {
+        (0..Self::LEN).map(|i| self.get(i))
+    }
+}
 #[derive(Copy, Clone, Debug)]
 pub struct PostscriptHintMask {
     pub points_before: u16,
     pub contours_before: u16,
-    pub mask_h: [bool; 256],
-    pub mask_v: [bool; 256],
+    pub mask_h: StemMask,
+    pub mask_v: StemMask,
 }
 pub type MaskList = Vec<PostscriptHintMask>;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -435,16 +466,15 @@ fn glyf_glyph_dump_maskdefs(masks: &MaskList, hh: &StemDefList, vv: &StemDefList
             BuiltValue::Int(entry.contours_before as i64),
         );
         mask.push_field(b"pointsBefore", BuiltValue::Int(entry.points_before as i64));
-        // Bounded by `hh`/`vv`'s own length, not `mask_h`/`mask_v`'s
-        // fixed 256-entry size -- `.take()` reproduces the original's
-        // explicit bound exactly.
+        // Bounded by the glyph's own stem counts (and by the mask's 256
+        // flags).
         let mut h = BuiltValue::new_array(hh.len());
-        for &bit in entry.mask_h.iter().take(hh.len()) {
+        for bit in entry.mask_h.bits().take(hh.len()) {
             h.push_item(BuiltValue::Bool(bit));
         }
         mask.push_field(b"maskH", h);
         let mut v = BuiltValue::new_array(vv.len());
-        for &bit in entry.mask_v.iter().take(vv.len()) {
+        for bit in entry.mask_v.bits().take(vv.len()) {
             v.push_item(BuiltValue::Bool(bit));
         }
         mask.push_field(b"maskV", v);
@@ -640,22 +670,21 @@ fn parse_stems(sd: Option<&ParsedValue>, stems: &mut StemDefList) {
         }
     }
 }
-/// `arr` is always a freshly zero-initialized `[bool; 256]` field (both call
-/// sites in `parse_masks` construct `PostscriptHintMask` with `mask_h`/
-/// `mask_v: [false; 256]` immediately beforehand), so there's no separate
-/// "no bits given" branch to re-zero it -- entries past `bits`'s length just
-/// keep their already-`false` initial value.
-fn parse_maskbits(arr: &mut [bool], bits: Option<&ParsedValue>) {
+/// Reads up to 256 flags into `mask`, which starts all off (both call sites
+/// in `parse_masks` pass a fresh mask), so flags past the end of `bits`
+/// stay off.
+fn parse_maskbits(mask: &mut StemMask, bits: Option<&ParsedValue>) {
     let Some(items) = bits.and_then(ParsedValue::as_array) else {
         return;
     };
-    for (slot, b) in arr.iter_mut().zip(items) {
-        *slot = match b {
+    for (i, b) in items.iter().take(StemMask::LEN).enumerate() {
+        let on = match b {
             ParsedValue::Bool(v) => *v,
             ParsedValue::Int(v) => *v != 0,
             ParsedValue::Double(v) => *v != 0.,
             _ => false,
         };
+        mask.set(i, on);
     }
 }
 fn parse_masks(md: Option<&ParsedValue>, masks: &mut MaskList) {
@@ -669,8 +698,8 @@ fn parse_masks(md: Option<&ParsedValue>, masks: &mut MaskList) {
         let mut mask = PostscriptHintMask {
             points_before: m.get_int(b"pointsBefore") as u16,
             contours_before: m.get_int(b"contoursBefore") as u16,
-            mask_h: [false; 256],
-            mask_v: [false; 256],
+            mask_h: StemMask::default(),
+            mask_v: StemMask::default(),
         };
         parse_maskbits(&mut mask.mask_h, m.get_typed(b"maskH", JsonType::Array));
         parse_maskbits(&mut mask.mask_v, m.get_typed(b"maskV", JsonType::Array));
@@ -902,5 +931,31 @@ mod tests {
         assert_eq!(RefAnchorStatus::AnchorConsolidated as u32, 3);
         assert_eq!(RefAnchorStatus::AnchorConsolidatingAnchor as u32, 4);
         assert_eq!(RefAnchorStatus::AnchorConsolidatingXy as u32, 5);
+    }
+}
+
+#[cfg(test)]
+mod stem_mask_tests {
+    use super::StemMask;
+
+    #[test]
+    fn set_and_get_each_stem_independently() {
+        let mut mask = StemMask::default();
+        for i in [0, 1, 63, 64, 127, 128, 200, 255] {
+            mask.set(i, true);
+        }
+        let on: Vec<usize> = (0..StemMask::LEN).filter(|&i| mask.get(i)).collect();
+        assert_eq!(on, [0, 1, 63, 64, 127, 128, 200, 255]);
+        mask.set(64, false);
+        assert!(!mask.get(64));
+        assert!(mask.get(63) && mask.get(127));
+        assert_eq!(mask.bits().count(), 256);
+        assert_eq!(mask.bits().filter(|&b| b).count(), 7);
+    }
+
+    #[test]
+    #[should_panic]
+    fn stem_256_is_out_of_range() {
+        StemMask::default().get(256);
     }
 }

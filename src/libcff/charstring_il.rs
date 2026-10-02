@@ -161,7 +161,7 @@ fn _il_push_maskgroup(
         let mut bits: u8 = 0_u8;
         for j in 0..stems.h {
             mask_byte = ((mask_byte as i32) << 1_i32
-                | masks[*jm as usize].mask_h[j as usize] as i32 & 1_i32)
+                | masks[*jm as usize].mask_h.get(j as usize) as i32)
                 as u8;
             bits = (bits as i32 + 1_i32) as u8;
             if bits as i32 == 8_i32 {
@@ -171,7 +171,7 @@ fn _il_push_maskgroup(
         }
         for j_0 in 0..stems.v {
             mask_byte = ((mask_byte as i32) << 1_i32
-                | masks[*jm as usize].mask_v[j_0 as usize] as i32 & 1_i32)
+                | masks[*jm as usize].mask_v.get(j_0 as usize) as i32)
                 as u8;
             bits = (bits as i32 + 1_i32) as u8;
             if bits as i32 == 8_i32 {
