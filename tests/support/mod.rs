@@ -93,7 +93,15 @@ pub fn update_golden() -> bool {
 /// clobbering each other. Sorted by label, matching the committed file's
 /// own `sort -k2` convention (the original shell script's), so `git diff`
 /// shows only the labels that actually changed.
+/// Serializes `write_golden_checksum`'s read-modify-write of
+/// `checksums.sha256`: tests in one binary run in parallel, and two
+/// unsynchronized updates would each drop the other's entry. (Test
+/// binaries themselves run one after another, so a per-process lock is
+/// enough.)
+static CHECKSUMS_FILE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn write_golden_checksum(label: &str, hash: &str) {
+    let _guard = CHECKSUMS_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = repo_root().join("tests/golden/checksums.sha256");
     let mut checksums = golden_checksums();
     checksums.insert(label.to_string(), hash.to_string());

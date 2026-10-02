@@ -22,17 +22,17 @@ use support::{
     check_against_golden, golden_checksums, otfccbuild, otfccdump, payload, run_ok, scratch_dir,
 };
 
-fn build_dir() -> PathBuf {
-    scratch_dir("compare-with-golden-rs")
+/// Each test gets its own scratch subdirectory: `cargo test` runs the
+/// tests in this file in parallel, and a shared directory let one test
+/// delete or rewrite an intermediate file (`iosevka-r.json`,
+/// `KRName-Regular.json`) while another was reading it.
+fn build_dir(test: &str) -> PathBuf {
+    scratch_dir(&format!("compare-with-golden-rs/{test}"))
 }
 
-/// Dumps `input` and checks against the golden `{name}.json` checksum,
-/// then builds from the GOLDEN json (not the just-produced dump, so a dump
-/// regression and a build regression are reported independently) and
-/// checks against the golden `{name}.{ext}` checksum -- same two-step
-/// shape as the shell script's own `compare_payload`.
-fn compare_payload(name: &str, ext: &str, input: &Path, checksums: &HashMap<String, String>, errors: &mut Vec<String>) {
-    let build = build_dir();
+/// Dumps `input` to `{name}.json` under `build`, replacing any copy left
+/// by an earlier run, and returns its path.
+fn dump_fresh(build: &Path, name: &str, input: &Path) -> PathBuf {
     let json_path = build.join(format!("{name}.json"));
     let _ = std::fs::remove_file(&json_path);
     run_ok(
@@ -40,6 +40,23 @@ fn compare_payload(name: &str, ext: &str, input: &Path, checksums: &HashMap<Stri
         &otfccdump(),
         &[input.as_os_str(), OsStr::new("-o"), json_path.as_os_str(), OsStr::new("--pretty")],
     );
+    json_path
+}
+
+/// Dumps `input` and checks against the golden `{name}.json` checksum,
+/// then builds from the GOLDEN json (not the just-produced dump, so a dump
+/// regression and a build regression are reported independently) and
+/// checks against the golden `{name}.{ext}` checksum -- same two-step
+/// shape as the shell script's own `compare_payload`.
+fn compare_payload(
+    build: &Path,
+    name: &str,
+    ext: &str,
+    input: &Path,
+    checksums: &HashMap<String, String>,
+    errors: &mut Vec<String>,
+) {
+    let json_path = dump_fresh(build, name, input);
     if let Err(e) = check_against_golden(&json_path, &format!("{name}.json"), checksums) {
         errors.push(e);
     }
@@ -65,6 +82,7 @@ fn compare_payload(name: &str, ext: &str, input: &Path, checksums: &HashMap<Stri
 #[test]
 fn fixed_payloads_match_golden() {
     let checksums = golden_checksums();
+    let build = build_dir("fixed-payloads");
     let mut errors = Vec::new();
 
     let payloads: &[(&str, &str, &str)] = &[
@@ -84,7 +102,7 @@ fn fixed_payloads_match_golden() {
         ("gvar-test", "ttf", "gvar-test.ttf"),
     ];
     for (name, ext, input_file) in payloads {
-        compare_payload(name, ext, &payload(input_file), &checksums, &mut errors);
+        compare_payload(&build, name, ext, &payload(input_file), &checksums, &mut errors);
     }
 
     assert!(errors.is_empty(), "{} payload(s) failed:\n{}", errors.len(), errors.join("\n"));
@@ -92,25 +110,12 @@ fn fixed_payloads_match_golden() {
 
 #[test]
 fn krname_cff_subroutinize_o2_matches_golden() {
-    // CFF subroutinization (-O2): reuses the KRName-Regular.json the
-    // fixed_payloads test produces -- if that test hasn't run yet in this
-    // process, produce it fresh here too (cargo test runs test fns in
-    // parallel/any order, so this can't assume the other test already ran).
+    // CFF subroutinization (-O2), built from this test's own fresh dump of
+    // KRName-Regular.otf (fixed_payloads_match_golden checks that dump
+    // against golden).
     let checksums = golden_checksums();
-    let build = build_dir();
-    let json_path = build.join("KRName-Regular.json");
-    if !json_path.exists() {
-        run_ok(
-            "KRName-Regular dump (for -O2)",
-            &otfccdump(),
-            &[
-                payload("KRName-Regular.otf").as_os_str(),
-                OsStr::new("-o"),
-                json_path.as_os_str(),
-                OsStr::new("--pretty"),
-            ],
-        );
-    }
+    let build = build_dir("krname-o2");
+    let json_path = dump_fresh(&build, "KRName-Regular", &payload("KRName-Regular.otf"));
 
     let out_path = build.join("KRName-Regular-O2.otf");
     let _ = std::fs::remove_file(&out_path);
@@ -146,27 +151,6 @@ fn skip_if_no_python3(check_name: &str) -> bool {
     !has_python3
 }
 
-fn ensure_iosevka_r_json(build: &Path, checksums: &HashMap<String, String>) -> PathBuf {
-    let json_path = build.join("iosevka-r.json");
-    if !json_path.exists() {
-        run_ok(
-            "iosevka-r dump (for synthetic payloads)",
-            &otfccdump(),
-            &[
-                payload("iosevka-r.ttf").as_os_str(),
-                OsStr::new("-o"),
-                json_path.as_os_str(),
-                OsStr::new("--pretty"),
-            ],
-        );
-        // Not asserted here -- fixed_payloads_match_golden already checks
-        // iosevka-r.json against golden; this fn's only job is to make sure
-        // the file exists as an *input* for the synthetic-payload makers.
-        let _ = check_against_golden(&json_path, "iosevka-r.json", checksums);
-    }
-    json_path
-}
-
 #[test]
 fn unknown_lookup_dump_matches_golden() {
     // A lookup type otfcc does not recognise is *kept*, not clamped -- see
@@ -177,7 +161,7 @@ fn unknown_lookup_dump_matches_golden() {
         return;
     }
     let checksums = golden_checksums();
-    let build = build_dir();
+    let build = build_dir("unknown-lookup");
     let ttf_path = build.join("unknown-lookup.ttf");
     run_ok(
         "make-test-unknown-lookup.py",
@@ -202,9 +186,14 @@ fn unknown_lookup_dump_matches_golden() {
 /// `iosevka-r.json` into a synthetic input, which is built and then
 /// dump-of-build is checked against golden -- same shape as the shell
 /// script's own `synth_payload`.
-fn synth_payload(name: &str, maker_script: &str, checksums: &HashMap<String, String>, errors: &mut Vec<String>) {
-    let build = build_dir();
-    let iosevka_json = ensure_iosevka_r_json(&build, checksums);
+fn synth_payload(
+    build: &Path,
+    iosevka_json: &Path,
+    name: &str,
+    maker_script: &str,
+    checksums: &HashMap<String, String>,
+    errors: &mut Vec<String>,
+) {
     let input_path = build.join(format!("{name}-input.json"));
     run_ok(
         &format!("{maker_script} (for {name})"),
@@ -251,6 +240,10 @@ fn synthetic_dedup_and_table_payloads_match_golden() {
         return;
     }
     let checksums = golden_checksums();
+    let build = build_dir("synthetic");
+    // The makers' shared input. Not checked against golden here --
+    // fixed_payloads_match_golden already checks iosevka-r.json.
+    let iosevka_json = dump_fresh(&build, "iosevka-r", &payload("iosevka-r.ttf"));
     let mut errors = Vec::new();
 
     let synths: &[(&str, &str)] = &[
@@ -265,7 +258,7 @@ fn synthetic_dedup_and_table_payloads_match_golden() {
         ("mark-consolidate-dedup", "scripts/make-test-mark-consolidate-dedup.py"),
     ];
     for (name, maker) in synths {
-        synth_payload(name, maker, &checksums, &mut errors);
+        synth_payload(&build, &iosevka_json, name, maker, &checksums, &mut errors);
     }
 
     assert!(errors.is_empty(), "{} synthetic payload(s) failed:\n{}", errors.len(), errors.join("\n"));

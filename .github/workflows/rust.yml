@@ -111,14 +111,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --release --all-targets --locked -- -D warnings
 
-      # --test-threads=1: tests/golden.rs has two #[test] fns
-      # (fixed_payloads_match_golden and
-      # synthetic_dedup_and_table_payloads_match_golden) that share a
-      # scratch file (build/compare-with-golden-rs/iosevka-r.json) and can
-      # race under the default multi-threaded runner -- a known,
-      # separately-tracked issue, not fixed here.
+      # Default (parallel) test runner: the OTL read budgets are per-table
+      # values rather than process-wide statics, and each tests/golden.rs
+      # test writes to its own scratch subdirectory, so tests no longer
+      # share mutable state.
       - name: cargo test
-        run: cargo test --release --locked -- --test-threads=1
+        run: cargo test --release --locked
 
   # Advisory, NOT a merge gate (continue-on-error on every step): this is new
   # dynamic-analysis tooling added specifically because the byte-comparison
