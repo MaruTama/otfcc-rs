@@ -1,6 +1,5 @@
 use crate::support::handle::{Handle, HandleState, handle_from_index};
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
 use crate::font::caryll_font::{Font, FontSubtype};
 use crate::support::options::Options;
@@ -47,7 +46,6 @@ pub fn stat_single_glyph(
     stated: &mut [StatStatus],
     depth: u8,
     topj: GlyphId,
-    options: &Options,
 ) -> GlyphStat {
     let mut stat: GlyphStat = GlyphStat {
         x_min: 0_i32 as Pos,
@@ -65,18 +63,7 @@ pub fn stat_single_glyph(
         return stat;
     }
     if stated[j as usize] == StatStatus::Doing {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"[Stat] Circular glyph reference found in gid ",
-                topj as i32,
-                b" to gid ",
-                j as i32,
-                b". The reference will be dropped.\n",
-            ),
-        );
+        tracing::warn!("[Stat] Circular glyph reference found in gid {} to gid {}. The reference will be dropped.\n", topj as i32, j as i32);
         stated[j as usize] = StatStatus::Completed;
         return stat;
     }
@@ -165,7 +152,6 @@ pub fn stat_single_glyph(
             stated,
             (depth as i32 + 1_i32) as u8,
             topj,
-            options,
         );
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
@@ -212,7 +198,7 @@ pub fn stat_single_glyph(
     stated[j as usize] = StatStatus::Completed;
     return stat;
 }
-pub fn stat_glyf(font: &mut Font, options: &Options) {
+pub fn stat_glyf(font: &mut Font) {
     // Only ever called (from `otfcc_stat_font`) under a `.head.is_some()`/
     // `.glyf.is_some()` guard, so `.unwrap()` here just turns "this
     // invariant broke" from a null-pointer dereference into a panic.
@@ -251,7 +237,7 @@ pub fn stat_glyf(font: &mut Font, options: &Options) {
         gr.b = 0_i32 as Scale;
         gr.c = 0_i32 as Scale;
         gr.d = 1_i32 as Scale;
-        let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0_u8, j, options);
+        let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0_u8, j);
         glyf[j as usize].as_mut().unwrap().stat = thatstat;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
@@ -1206,7 +1192,7 @@ fn stat_ltsh(font: &mut Font) {
 // `*_roll` functions.
 pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
     if font.glyf.is_some() && font.head.is_some() {
-        stat_glyf(font, options);
+        stat_glyf(font);
         if !options.keep_modified_time {
             // `std::time::SystemTime` measured against `UNIX_EPOCH` gives the
             // same "whole seconds since 1970-01-01 UTC" value `libc::time`'s

@@ -1,6 +1,4 @@
-use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
 use crate::support::buffer::Buffer;
-use crate::support::options::Options;
 
 use crate::libcff::CffCharstringOperator;
 use crate::libcff::cff_index::CffIndex;
@@ -855,21 +853,11 @@ fn serialize_node_to_buffer(
 }
 pub fn cff_il_graph_to_buffers(
     g: &mut CffSubrGraph,
-    options: &Options,
 ) -> (Buffer, Buffer, Buffer) {
     let root = g.root;
     cff_stat_height(g, root, 0_u32);
     let max_subroutines: u32 = cff_number_subroutines(g);
-    logger_log_sds(
-        &mut options.logger.borrow_mut(),
-        LOG_VL_PROGRESS,
-        LoggerType::Progress,
-        crate::bytesbuild!(
-            b"[libcff] Total ",
-            max_subroutines,
-            b" subroutines extracted."
-        ),
-    );
+    tracing::debug!("[libcff] Total {} subroutines extracted.", max_subroutines);
     let mut max_l_subrs: u32 = max_subroutines;
     let mut max_g_subrs: u32 = 0_u32;
     if max_l_subrs > TYPE2_MAX_SUBRS {
@@ -998,14 +986,7 @@ mod subr_graph_tests {
         for il in glyphs {
             cff_insert_il_to_graph(&mut g, il);
         }
-        // `cff_il_graph_to_buffers` always logs a progress message
-        // unconditionally, so `options.logger` must be a real, usable
-        // `Logger`, not null -- automatic now that `Options::default()`'s
-        // `logger` is a real (if `LoggerTarget::Empty`, i.e. no-op-push)
-        // `Logger` rather than a null pointer; no separate construction or
-        // disposal needed the way the old raw-pointer field required.
-        let options = Options::default();
-        let result = cff_il_graph_to_buffers(&mut g, &options);
+        let result = cff_il_graph_to_buffers(&mut g);
         cff_subr_graph_dispose(&mut g);
         result
     }

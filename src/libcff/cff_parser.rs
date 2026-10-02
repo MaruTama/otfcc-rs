@@ -1,4 +1,4 @@
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::logger::ByteStr;
 use crate::support::font_reader::FontReader;
 
 use crate::libcff::cff_charset::CffCharset;
@@ -18,13 +18,11 @@ use crate::libcff::{
     OP_PRIVATE, OP_PUT, OP_RMOVETO, OP_ROLL, OP_SQRT, OP_SUB, OP_SUBRS, OP_VMOVETO, OP_VSTEM,
     OP_VSTEMHM, TYPE2_TRANSIENT_ARRAY,
 };
-use crate::support::options::Options;
 use crate::support::primitives::Arity;
 use crate::table::cff::{
     OutlineBuilderContext, callback_draw_curveto, callback_draw_getrand, callback_draw_lineto,
     callback_draw_next_contour, callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
 };
-use crate::support::fmt::Hex4;
 
 /// The Top DICT's Encoding offset is overloaded by spec: values 0 and 1
 /// select the two predefined (Standard/Expert) encodings outright, and
@@ -153,7 +151,7 @@ fn parse_encoding(cff: &CffFile, offset: i32) -> CffEncoding {
     };
     result.unwrap_or(CffEncoding::Unspecified)
 }
-fn parse_cff_bytecode(cff: &mut CffFile, options: &Options) {
+fn parse_cff_bytecode(cff: &mut CffFile) {
     let mut pos: u32;
     let offset: i32;
     // No length check guarded these 4 header-byte reads at all -- a `raw_
@@ -178,18 +176,7 @@ fn parse_cff_bytecode(cff: &mut CffFile, options: &Options) {
     pos = 4_u32.wrapping_add(get_index_length(&cff.name));
     extract_index(header_slice, pos, &mut cff.top_dict);
     if cff.name.count != cff.top_dict.count {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"[libcff] Bad CFF font: (",
-                cff.name.count,
-                b", name), (",
-                cff.top_dict.count,
-                b", top_dict).\n",
-            ),
-        );
+        tracing::warn!("[libcff] Bad CFF font: ({}, name), ({}, top_dict).\n", cff.name.count, cff.top_dict.count);
     }
     pos = 4_u32
         .wrapping_add(get_index_length(&cff.name))
@@ -228,12 +215,7 @@ fn parse_cff_bytecode(cff: &mut CffFile, options: &Options) {
             cff.cnt_glyph = cff.char_strings.count as u16;
         } else {
             empty_index(&mut cff.char_strings);
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"[libcff] Bad CFF font: no any glyph data.\n"),
-            );
+            tracing::warn!("[libcff] Bad CFF font: no any glyph data.\n");
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_ENCODING, 0_u32);
         if offset_0 != -1_i32 {
@@ -301,7 +283,7 @@ fn parse_cff_bytecode(cff: &mut CffFile, options: &Options) {
         empty_index(&mut cff.local_subr);
     };
 }
-pub fn cff_open_stream(data: &[u8], options: &Options) -> Box<CffFile> {
+pub fn cff_open_stream(data: &[u8]) -> Box<CffFile> {
     // `CffFile` owns several `Vec`-backed fields (each `CffIndex`'s
     // `offset`/`data`, and `CffEncoding`/`CffCharset`/`CffFdSelect`'s
     // `Vec`-carrying variants) -- calloc'ing it and then letting
@@ -366,7 +348,7 @@ pub fn cff_open_stream(data: &[u8], options: &Options) -> Box<CffFile> {
     // slice.
     file.raw_data = data.to_vec();
     file.cnt_glyph = 0_u16;
-    parse_cff_bytecode(&mut file, options);
+    parse_cff_bytecode(&mut file);
     return file;
 }
 // No longer `extern "C"`: `&CffFdSelect` has no C spelling. Only called
@@ -537,21 +519,11 @@ pub fn cff_parse_outline(
     lsubr: &CffIndex,
     stack: &mut CffStack,
     outline: &mut OutlineBuilderContext,
-    options: &Options,
     depth: u32,
     total_calls: &mut u32,
 ) {
     if depth > MAX_SUBR_CALL_DEPTH {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(
-                b"[libcff] Subroutine call nesting exceeded ",
-                MAX_SUBR_CALL_DEPTH as i32,
-                b"; the rest of this outline is ignored.\n",
-            ),
-        );
+        tracing::warn!("[libcff] Subroutine call nesting exceeded {}; the rest of this outline is ignored.\n", MAX_SUBR_CALL_DEPTH as i32);
         return;
     }
     let gsubr_bias: u16 = compute_subr_bias(gsubr.count as u16);
@@ -708,18 +680,7 @@ pub fn cff_parse_outline(
                     }
                     4 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_vmoveto",
-                                    b" (",
-                                    Hex4(OP_VMOVETO.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_vmoveto"), OP_VMOVETO.0 as u32);
                         } else {
                             if stack.index > 1 as Arity {
                                 callback_draw_setwidth(
@@ -743,18 +704,7 @@ pub fn cff_parse_outline(
                     }
                     21 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_rmoveto",
-                                    b" (",
-                                    Hex4(OP_RMOVETO.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_rmoveto"), OP_RMOVETO.0 as u32);
                         } else {
                             if stack.index > 2 as Arity {
                                 callback_draw_setwidth(
@@ -780,18 +730,7 @@ pub fn cff_parse_outline(
                     }
                     22 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_hmoveto",
-                                    b" (",
-                                    Hex4(OP_HMOVETO.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hmoveto"), OP_HMOVETO.0 as u32);
                         } else {
                             if stack.index > 1 as Arity {
                                 callback_draw_setwidth(
@@ -943,15 +882,7 @@ pub fn cff_parse_outline(
                     }
                     24 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    b"op_rcurveline (24). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for op_rcurveline (24). This operation is ignored.\n");
                         } else {
                             for i in (0..stack.index.wrapping_sub(2 as Arity)).step_by(6) {
                                 callback_draw_curveto(
@@ -988,15 +919,7 @@ pub fn cff_parse_outline(
                     }
                     25 => {
                         if stack.index < 6 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    b"op_rlinecurve (25). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for op_rlinecurve (25). This operation is ignored.\n");
                         } else {
                             for i in (0..stack.index.wrapping_sub(6 as Arity)).step_by(2) {
                                 callback_draw_lineto(
@@ -1161,15 +1084,7 @@ pub fn cff_parse_outline(
                         if stack.index.wrapping_rem(4 as Arity) == 1 as Arity
                             && stack.index < 5 as Arity
                         {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    b"op_vhcurveto (30). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for op_vhcurveto (30). This operation is ignored.\n");
                         } else {
                             if stack.index.wrapping_rem(4 as Arity) == 1 as Arity {
                                 cnt_bezier = stack
@@ -1276,15 +1191,7 @@ pub fn cff_parse_outline(
                         if stack.index.wrapping_rem(4 as Arity) == 1 as Arity
                             && stack.index < 5 as Arity
                         {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    b"op_hvcurveto (31). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for op_hvcurveto (31). This operation is ignored.\n");
                         } else {
                             if stack.index.wrapping_rem(4 as Arity) == 1 as Arity {
                                 cnt_bezier = stack
@@ -1386,18 +1293,7 @@ pub fn cff_parse_outline(
                     }
                     3106 => {
                         if stack.index < 7 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_hflex",
-                                    b" (",
-                                    Hex4(OP_HFLEX.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hflex"), OP_HFLEX.0 as u32);
                         } else {
                             callback_draw_curveto(
                                 outline,
@@ -1438,18 +1334,7 @@ pub fn cff_parse_outline(
                     }
                     3107 => {
                         if stack.index < 12 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_flex",
-                                    b" (",
-                                    Hex4(OP_FLEX.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_flex"), OP_FLEX.0 as u32);
                         } else {
                             callback_draw_curveto(
                                 outline,
@@ -1498,18 +1383,7 @@ pub fn cff_parse_outline(
                     }
                     3108 => {
                         if stack.index < 9 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_hflex1",
-                                    b" (",
-                                    Hex4(OP_HFLEX1.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hflex1"), OP_HFLEX1.0 as u32);
                         } else {
                             callback_draw_curveto(
                                 outline,
@@ -1558,18 +1432,7 @@ pub fn cff_parse_outline(
                     }
                     3109 => {
                         if stack.index < 11 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_flex1",
-                                    b" (",
-                                    Hex4(OP_FLEX1.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_flex1"), OP_FLEX1.0 as u32);
                         } else {
                             let mut dx: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(0_i32 as isize) as usize],
@@ -1647,18 +1510,7 @@ pub fn cff_parse_outline(
                     }
                     3075 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_and",
-                                    b" (",
-                                    Hex4(OP_AND.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_and"), OP_AND.0 as u32);
                         } else {
                             let num1: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1677,18 +1529,7 @@ pub fn cff_parse_outline(
                     }
                     3076 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_or",
-                                    b" (",
-                                    Hex4(OP_OR.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_or"), OP_OR.0 as u32);
                         } else {
                             let num1_0: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1707,18 +1548,7 @@ pub fn cff_parse_outline(
                     }
                     3077 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_not",
-                                    b" (",
-                                    Hex4(OP_NOT.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_not"), OP_NOT.0 as u32);
                         } else {
                             let num: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1729,18 +1559,7 @@ pub fn cff_parse_outline(
                     }
                     3081 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_abs",
-                                    b" (",
-                                    Hex4(OP_ABS.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_abs"), OP_ABS.0 as u32);
                         } else {
                             let num_0: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1751,18 +1570,7 @@ pub fn cff_parse_outline(
                     }
                     3082 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_add",
-                                    b" (",
-                                    Hex4(OP_ADD.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_add"), OP_ADD.0 as u32);
                         } else {
                             let num1_1: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1777,18 +1585,7 @@ pub fn cff_parse_outline(
                     }
                     3083 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_sub",
-                                    b" (",
-                                    Hex4(OP_SUB.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_sub"), OP_SUB.0 as u32);
                         } else {
                             let num1_2: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
@@ -1803,18 +1600,7 @@ pub fn cff_parse_outline(
                     }
                     3084 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_div",
-                                    b" (",
-                                    Hex4(OP_DIV.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_div"), OP_DIV.0 as u32);
                         } else {
                             let num1_3: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
@@ -1829,18 +1615,7 @@ pub fn cff_parse_outline(
                     }
                     3086 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_neg",
-                                    b" (",
-                                    Hex4(OP_NEG.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_neg"), OP_NEG.0 as u32);
                         } else {
                             let num_1: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1851,18 +1626,7 @@ pub fn cff_parse_outline(
                     }
                     3087 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_eq",
-                                    b" (",
-                                    Hex4(OP_EQ.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_eq"), OP_EQ.0 as u32);
                         } else {
                             let num1_4: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1877,36 +1641,14 @@ pub fn cff_parse_outline(
                     }
                     3090 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_drop",
-                                    b" (",
-                                    Hex4(OP_DROP.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_drop"), OP_DROP.0 as u32);
                         } else {
                             stack.index = stack.index.wrapping_sub(1 as Arity);
                         }
                     }
                     3092 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_put",
-                                    b" (",
-                                    Hex4(OP_PUT.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_put"), OP_PUT.0 as u32);
                         } else {
                             let val_0: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
@@ -1934,18 +1676,7 @@ pub fn cff_parse_outline(
                     }
                     3093 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_get",
-                                    b" (",
-                                    Hex4(OP_GET.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_get"), OP_GET.0 as u32);
                         } else {
                             let i_1: i32 = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1963,18 +1694,7 @@ pub fn cff_parse_outline(
                     }
                     3094 => {
                         if stack.index < 4 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_ifelse",
-                                    b" (",
-                                    Hex4(OP_IFELSE.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_ifelse"), OP_IFELSE.0 as u32);
                         } else {
                             let v2: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -1999,32 +1719,13 @@ pub fn cff_parse_outline(
                                 CffValue::Double(callback_draw_getrand(outline));
                             stack.index = stack.index.wrapping_add(1 as Arity);
                         } else {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Operand stack overflow in Type 2 CharString; ",
-                                    b"the rest of this outline is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n");
                             return;
                         }
                     }
                     3096 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_mul",
-                                    b" (",
-                                    Hex4(OP_MUL.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_mul"), OP_MUL.0 as u32);
                         } else {
                             let num1_5: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -2039,18 +1740,7 @@ pub fn cff_parse_outline(
                     }
                     3098 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_sqrt",
-                                    b" (",
-                                    Hex4(OP_SQRT.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_sqrt"), OP_SQRT.0 as u32);
                         } else {
                             let num_2: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -2061,49 +1751,19 @@ pub fn cff_parse_outline(
                     }
                     3099 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_dup",
-                                    b" (",
-                                    Hex4(OP_DUP.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_dup"), OP_DUP.0 as u32);
                         } else if (stack.index as usize) < stack.stack.len() {
                             (&mut stack.stack)[(stack.index as isize) as usize] =
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize];
                             stack.index = stack.index.wrapping_add(1 as Arity);
                         } else {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Operand stack overflow in Type 2 CharString; ",
-                                    b"the rest of this outline is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n");
                             return;
                         }
                     }
                     3100 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_exch",
-                                    b" (",
-                                    Hex4(OP_EXCH.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_exch"), OP_EXCH.0 as u32);
                         } else {
                             let num1_6: ::core::ffi::c_double = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -2119,18 +1779,7 @@ pub fn cff_parse_outline(
                     }
                     3101 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_index",
-                                    b" (",
-                                    Hex4(OP_INDEX.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_index"), OP_INDEX.0 as u32);
                         } else {
                             let n: u8 = stack.index.wrapping_sub(1 as Arity) as u8;
                             // `n` is `(*stack).index - 1` truncated to `u8`
@@ -2148,17 +1797,7 @@ pub fn cff_parse_outline(
                             // same as "not enough operands": skip the
                             // operation instead.
                             if n == 0 {
-                                logger_log_sds(
-                                    &mut options.logger.borrow_mut(),
-                                    LOG_VL_IMPORTANT,
-                                    LoggerType::Warning,
-                                    crate::bytesbuild!(
-                                        b"[libcff] op_index",
-                                        b" (",
-                                        Hex4(OP_INDEX.0 as u32),
-                                        b") operand count overflowed a byte; this operation is ignored.\n",
-                                    ),
-                                );
+                                tracing::warn!("[libcff] op_index ({:04x}) operand count overflowed a byte; this operation is ignored.\n", OP_INDEX.0 as u32);
                             } else {
                                 let j_1: u8 = (n as i32
                                     - 1_i32
@@ -2173,18 +1812,7 @@ pub fn cff_parse_outline(
                     }
                     3102 => {
                         if stack.index < 2 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_roll",
-                                    b" (",
-                                    Hex4(OP_ROLL.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_roll"), OP_ROLL.0 as u32);
                         } else {
                             let mut j_2: i32 = cffnum(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
@@ -2193,18 +1821,7 @@ pub fn cff_parse_outline(
                                 (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
                             ) as u32;
                             if stack.index < 2_u32.wrapping_add(n_0) {
-                                logger_log_sds(
-                                    &mut options.logger.borrow_mut(),
-                                    LOG_VL_IMPORTANT,
-                                    LoggerType::Warning,
-                                    crate::bytesbuild!(
-                                        b"[libcff] Stack cannot provide enough parameters for ",
-                                        "op_roll",
-                                        b" (",
-                                        Hex4(OP_ROLL.0 as u32),
-                                        b"). This operation is ignored.\n",
-                                    ),
-                                );
+                                tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_roll"), OP_ROLL.0 as u32);
                             } else if n_0 == 0 {
                                 // `n_0` (the roll's element count operand)
                                 // is charstring-supplied and cast `as u32`
@@ -2245,18 +1862,7 @@ pub fn cff_parse_outline(
                     11 => return,
                     10 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_callsubr",
-                                    b" (",
-                                    Hex4(OP_CALLSUBR.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_callsubr"), OP_CALLSUBR.0 as u32);
                         } else {
                             stack.index = stack.index.wrapping_sub(1);
                             let subr: u32 = cffnum(
@@ -2266,16 +1872,7 @@ pub fn cff_parse_outline(
                                 *total_calls = (*total_calls).wrapping_add(1);
                                 if *total_calls > MAX_TOTAL_SUBR_CALLS {
                                     if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
-                                        logger_log_sds(
-                                            &mut options.logger.borrow_mut(),
-                                            LOG_VL_IMPORTANT,
-                                            LoggerType::Warning,
-                                            crate::bytesbuild!(
-                                                b"[libcff] Subroutine call budget (",
-                                                MAX_TOTAL_SUBR_CALLS as i32,
-                                                b") exceeded; the rest of this outline is ignored.\n",
-                                            ),
-                                        );
+                                        tracing::warn!("[libcff] Subroutine call budget ({}) exceeded; the rest of this outline is ignored.\n", MAX_TOTAL_SUBR_CALLS as i32);
                                     }
                                 } else {
                                     cff_parse_outline(
@@ -2284,41 +1881,18 @@ pub fn cff_parse_outline(
                                         lsubr,
                                         stack,
                                         outline,
-                                        options,
                                         depth + 1,
                                         total_calls,
                                     );
                                 }
                             } else {
-                                logger_log_sds(
-                                    &mut options.logger.borrow_mut(),
-                                    LOG_VL_IMPORTANT,
-                                    LoggerType::Warning,
-                                    crate::bytesbuild!(
-                                        b"[libcff] Invalid local subroutine index for ",
-                                        "op_callsubr",
-                                        b" (",
-                                        Hex4(OP_CALLSUBR.0 as u32),
-                                        b"). This call is ignored.\n",
-                                    ),
-                                );
+                                tracing::warn!("[libcff] Invalid local subroutine index for {} ({:04x}). This call is ignored.\n", ByteStr("op_callsubr"), OP_CALLSUBR.0 as u32);
                             }
                         }
                     }
                     29 => {
                         if stack.index < 1 as Arity {
-                            logger_log_sds(
-                                &mut options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[libcff] Stack cannot provide enough parameters for ",
-                                    "op_callgsubr",
-                                    b" (",
-                                    Hex4(OP_CALLGSUBR.0 as u32),
-                                    b"). This operation is ignored.\n",
-                                ),
-                            );
+                            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_callgsubr"), OP_CALLGSUBR.0 as u32);
                         } else {
                             stack.index = stack.index.wrapping_sub(1);
                             let subr_0: u32 = cffnum(
@@ -2328,16 +1902,7 @@ pub fn cff_parse_outline(
                                 *total_calls = (*total_calls).wrapping_add(1);
                                 if *total_calls > MAX_TOTAL_SUBR_CALLS {
                                     if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
-                                        logger_log_sds(
-                                            &mut options.logger.borrow_mut(),
-                                            LOG_VL_IMPORTANT,
-                                            LoggerType::Warning,
-                                            crate::bytesbuild!(
-                                                b"[libcff] Subroutine call budget (",
-                                                MAX_TOTAL_SUBR_CALLS as i32,
-                                                b") exceeded; the rest of this outline is ignored.\n",
-                                            ),
-                                        );
+                                        tracing::warn!("[libcff] Subroutine call budget ({}) exceeded; the rest of this outline is ignored.\n", MAX_TOTAL_SUBR_CALLS as i32);
                                     }
                                 } else {
                                     cff_parse_outline(
@@ -2346,38 +1911,17 @@ pub fn cff_parse_outline(
                                         lsubr,
                                         stack,
                                         outline,
-                                        options,
                                         depth + 1,
                                         total_calls,
                                     );
                                 }
                             } else {
-                                logger_log_sds(
-                                    &mut options.logger.borrow_mut(),
-                                    LOG_VL_IMPORTANT,
-                                    LoggerType::Warning,
-                                    crate::bytesbuild!(
-                                        b"[libcff] Invalid global subroutine index for ",
-                                        "op_callgsubr",
-                                        b" (",
-                                        Hex4(OP_CALLGSUBR.0 as u32),
-                                        b"). This call is ignored.\n",
-                                    ),
-                                );
+                                tracing::warn!("[libcff] Invalid global subroutine index for {} ({:04x}). This call is ignored.\n", ByteStr("op_callgsubr"), OP_CALLGSUBR.0 as u32);
                             }
                         }
                     }
                     _ => {
-                        logger_log_sds(
-                            &mut options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"Warning: unknown operator ",
-                                op,
-                                b" occurs in Type 2 CharString. It may caused by file corruption.",
-                            ),
-                        );
+                        tracing::warn!("Warning: unknown operator {} occurs in Type 2 CharString. It may caused by file corruption.", op);
                         return;
                     }
                 }
@@ -2387,15 +1931,7 @@ pub fn cff_parse_outline(
                     (&mut stack.stack)[(stack.index as isize) as usize] = val;
                     stack.index = stack.index.wrapping_add(1);
                 } else {
-                    logger_log_sds(
-                        &mut options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[libcff] Operand stack overflow in Type 2 CharString; ",
-                            b"the rest of this outline is ignored.\n",
-                        ),
-                    );
+                    tracing::warn!("[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n");
                     return;
                 }
             }
@@ -2455,8 +1991,7 @@ mod cff_header_and_encoding_tests {
         // is never reached. A default `Options` stands in for "never
         // used" now that the parameter is a real reference and can't be
         // null the way the old raw pointer could.
-        let options: Options = Options::default();
-        parse_cff_bytecode(&mut cff, &options);
+        parse_cff_bytecode(&mut cff);
         assert_eq!(cff.head.major, 1);
         assert_eq!(cff.head.minor, 0);
         assert_eq!(cff.head.hdr_size, 0);
@@ -2518,8 +2053,7 @@ mod cff_header_and_encoding_tests {
             0, 0, 0,
         ];
         let mut cff = cff_file_over(&data);
-        let options: Options = Options::default();
-        parse_cff_bytecode(&mut cff, &options);
+        parse_cff_bytecode(&mut cff);
         assert_eq!(cff.top_dict.count, 1, "sanity: Top DICT INDEX parsed");
         assert_eq!(cff.local_subr.count, 0);
         assert!(cff.local_subr.data.is_empty());
@@ -2529,7 +2063,7 @@ mod cff_header_and_encoding_tests {
 #[cfg(test)]
 mod cff_open_stream_tests {
     use super::*;
-    use crate::support::options::Options;
+
 
     // A minimal CFF blob whose Top DICT INDEX is empty (`count == 0`):
     // header + 4 empty INDEXes (Name/Top DICT/String/Global Subr). With
@@ -2567,8 +2101,7 @@ mod cff_open_stream_tests {
             0, 0, 0, // String INDEX: empty
             0, 0, 0, // Global Subr INDEX: empty
         ];
-        let options = Options::default();
-        let file = cff_open_stream(&data, &options);
+        let file = cff_open_stream(&data);
         assert_eq!(file.top_dict.count, 0);
         assert_eq!(file.char_strings.count, 0);
         assert!(file.char_strings.data.is_empty());
@@ -2690,7 +2223,7 @@ mod cff_parse_subr_tests {
 mod cff_parse_outline_total_calls_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
-    use crate::support::options::Options;
+
     use crate::table::glyf::{Glyph, otfcc_new_glyf_glyph};
 
     fn empty_cff_index() -> CffIndex {
@@ -2790,7 +2323,6 @@ mod cff_parse_outline_total_calls_tests {
             index: 0,
             stem: 0,
         };
-        let options = Options::default();
         let mut total_calls: u32 = 0;
         // This charstring only calls `callgsubr`; it never reaches a draw
         // operator, so the outline context is never actually touched --
@@ -2805,7 +2337,6 @@ mod cff_parse_outline_total_calls_tests {
             &lsubr,
             &mut stack,
             &mut ctx,
-            &options,
             0,
             &mut total_calls,
         );
@@ -2842,7 +2373,6 @@ mod cff_parse_outline_total_calls_tests {
             index: 0,
             stem: 0,
         };
-        let options = Options::default();
         let mut total_calls: u32 = 0;
         let mut g = otfcc_new_glyf_glyph();
         let mut ctx = dummy_outline_context(&mut g);
@@ -2852,7 +2382,6 @@ mod cff_parse_outline_total_calls_tests {
             &lsubr,
             &mut stack,
             &mut ctx,
-            &options,
             0,
             &mut total_calls,
         );
@@ -2877,7 +2406,7 @@ mod cff_parse_outline_total_calls_tests {
 mod cff_parse_outline_hintmask_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
-    use crate::support::options::Options;
+
     use crate::table::cff::OutlineBuilderContext;
     use crate::table::glyf::otfcc_new_glyf_glyph;
 
@@ -2916,7 +2445,6 @@ mod cff_parse_outline_hintmask_tests {
             index: 0,
             stem: 0,
         };
-        let options = Options::default();
         let mut total_calls: u32 = 0;
         let mut g = otfcc_new_glyf_glyph();
         let mut ctx = OutlineBuilderContext {
@@ -2937,7 +2465,6 @@ mod cff_parse_outline_hintmask_tests {
             &lsubr,
             &mut stack,
             &mut ctx,
-            &options,
             0,
             &mut total_calls,
         );
@@ -2978,7 +2505,6 @@ mod cff_parse_outline_hintmask_tests {
             index: 0,
             stem: 0,
         };
-        let options = Options::default();
         let mut total_calls: u32 = 0;
         let mut g = otfcc_new_glyf_glyph();
         let mut ctx = OutlineBuilderContext {
@@ -2999,7 +2525,6 @@ mod cff_parse_outline_hintmask_tests {
             &lsubr,
             &mut stack,
             &mut ctx,
-            &options,
             0,
             &mut total_calls,
         );
@@ -3012,7 +2537,7 @@ mod cff_parse_outline_hintmask_tests {
 mod cff_parse_outline_stack_operator_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
-    use crate::support::options::Options;
+
     use crate::table::glyf::otfcc_new_glyf_glyph;
 
     // A charstring's `put`/`get`/`index`/`roll` operators each take a
@@ -3061,7 +2586,6 @@ mod cff_parse_outline_stack_operator_tests {
     fn run(data: &[u8], stack: &mut CffStack) {
         let gsubr = empty_cff_index();
         let lsubr = empty_cff_index();
-        let options = Options::default();
         let mut total_calls: u32 = 0;
         // None of this module's `put`/`get`/`index`/`roll` charstrings
         // reach a draw operator -- still needs a real `&mut Glyph`-backed
@@ -3085,7 +2609,6 @@ mod cff_parse_outline_stack_operator_tests {
             &lsubr,
             stack,
             &mut ctx,
-            &options,
             0,
             &mut total_calls,
         );
