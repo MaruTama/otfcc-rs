@@ -1,16 +1,4 @@
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments,
-    unused_mut
-)]
-#[allow(unused_imports)]
 use otfcc_rust::logger::ByteStr;
-use ::otfcc_rust;
-
-
 use otfcc_rust::support::buffer::Buffer;
 use otfcc_rust::support::options::Options;
 
@@ -20,13 +8,13 @@ use otfcc_rust::font::caryll_font::Font;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
+use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
 use otfcc_rust::support::options::otfcc_options_optimize_to;
 use otfcc_rust::support::parsed_json::ParsedValue;
 use otfcc_rust::support::parsed_json::parse_json;
 use otfcc_rust::support::cstd::strtol::strtol;
-use otfcc_rust::support::cli::stopwatch::{push_stopwatch, time_now};
+use otfcc_rust::support::cli::stopwatch::{log_step_time, time_now};
 use otfcc_rust::support::EXIT_FAILURE;
-use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
@@ -34,20 +22,14 @@ use std::os::unix::ffi::OsStrExt;
 // text (the only variadic args are plain integers substituted by
 // value, not by reference or pointer), so there was never a genuine
 // unsafe operation here, just the c2rust libc-call idiom. `stdout` is
-// no longer needed by this file's `printInfo`/`printHelp`.
-pub fn printInfo() {
-    println!(
-        "This is Polymorphic otfccbuild, version {}.{}.{}.",
-        MAIN_VER, SECONDARY_VER, PATCH_VER,
-    );
-}
-pub fn printHelp() {
+// no longer needed by this file's `printInfo`/`print_help`.
+pub fn print_help() {
     print!(
         "\nUsage : otfccbuild [OPTIONS] [input.json] -o output.[ttf|otf]\n\n input.json                : Path to input file. When absent the input will be\n                             read from the STDIN.\n\n -h, --help                : Display this help message and exit.\n -v, --version             : Display version information and exit.\n -o <file>                 : Set output file path to <file>.\n -s, --dummy-dsig          : Include an empty DSIG table in the font. For some\n                             Microsoft applications, DSIG is required to enable\n                             OpenType features.\n -O<n>                     : Specify the level for optimization.\n     -O0                     Turn off any optimization.\n     -O1                     Default optimization.\n     -O2                     More aggressive optimizations for web font. In this\n                             level, the following options will be set:\n                               --merge-features\n                               --short-post\n                               --subroutinize\n     -O3                     Most aggressive opptimization strategy will be\n                             used. In this level, these options will be set:\n                               --force-cid\n                               --ignore-glyph-order\n --verbose                 : Show more information when building.\n -q, --quiet               : Be silent when building.\n\n --ignore-hints            : Ignore the hinting information in the input.\n --keep-average-char-width : Keep the OS/2.xAvgCharWidth value from the input\n                             instead of stating the average width of glyphs.\n                             Useful when creating a monospaced font.\n --keep-unicode-ranges     : Keep the OS/2.ulUnicodeRange[1-4] as-is.\n --keep-modified-time      : Keep the head.modified time in the json, instead of\n                             using current time.\n\n --short-post              : Don't export glyph names in the result font.\n --ignore-glyph-order, -i  : Ignore the glyph order information in the input.\n --keep-glyph-order, -k    : Keep the glyph order information in the input.\n                             Use to preserve glyph order under -O2 and -O3.\n --dont-ignore-glyph-order : Same as --keep-glyph-order.\n --merge-features          : Merge duplicate OpenType feature definitions.\n --dont-merge-features     : Keep duplicate OpenType feature definitions.\n --merge-lookups           : Merge duplicate OpenType lookups.\n --dont-merge-lookups      : Keep duplicate OpenType lookups.\n --force-cid               : Convert name-keyed CFF OTF into CID-keyed.\n --subroutinize            : Subroutinize CFF table.\n --stub-cmap4              : Create a stub `cmap` format 4 subtable if format\n                             12 subtable is present.\n\n"
     );
 }
 // `false` means the file couldn't be opened or read -- the caller
-// (`main_0`) returns `EXIT_FAILURE` itself instead of this function
+// (`run`) returns `EXIT_FAILURE` itself instead of this function
 // calling `exit()` deep inside a helper, the same "propagate a failure
 // signal up to the one place that already owns process-exit semantics"
 // shape `font/caryll_sfnt.rs`'s `otfcc_get16u`/`otfcc_get32u` -> `Option`
@@ -62,20 +44,20 @@ pub fn printHelp() {
 // read, so there is no way for a short read to go unnoticed.
 //
 // `_buffer`/`_length` out-params and the `malloc`'d backing storage are
-// gone entirely -- the single caller (`main_0`) now just owns the
+// gone entirely -- the single caller (`run`) now just owns the
 // returned `Vec<u8>` directly and hands it to `parse_json` (since Stage
 // M-7 as a plain `&[u8]`; it used to be `.as_ptr()`/`.len()` into the
-// raw-pointer `json_parse` wrapper). `readEntireFile` itself has no
+// raw-pointer `json_parse` wrapper). `read_entire_file` itself has no
 // remaining unsafe operation other than the `fprintf` error-path call.
-pub fn readEntireFile(inPath: &::core::ffi::CStr) -> Option<Vec<u8>> {
-    let os_path = std::ffi::OsStr::from_bytes(inPath.to_bytes());
+pub fn read_entire_file(in_path: &::core::ffi::CStr) -> Option<Vec<u8>> {
+    let os_path = std::ffi::OsStr::from_bytes(in_path.to_bytes());
     let Ok(bytes) = std::fs::read(std::path::Path::new(os_path)) else {
-        // Written as raw bytes, not through `eprint!`/`format!`: `inPath` is
+        // Written as raw bytes, not through `eprint!`/`format!`: `in_path` is
         // an OS path and need not be UTF-8, which a `str` formatter would
         // either reject or mangle into U+FFFD. `%s` printed the bytes as-is.
         use std::io::Write;
         let mut msg = b"Cannot read JSON file \"".to_vec();
-        msg.extend_from_slice(inPath.to_bytes());
+        msg.extend_from_slice(in_path.to_bytes());
         msg.extend_from_slice(b"\". Exit.\n");
         let _ = std::io::stderr().write_all(&msg);
         return None;
@@ -88,15 +70,15 @@ pub fn readEntireFile(inPath: &::core::ffi::CStr) -> Option<Vec<u8>> {
 // text handed to `json_parse`) instead of erroring or being kept.
 // `Read::read_to_end` copies exactly the bytes it receives with no such
 // assumption, closing that class of bug structurally, the same way
-// `readEntireFile`'s `std::fs::read` closed the short-read class of bug.
-// Same out-param/`malloc` removal as `readEntireFile` above -- this
+// `read_entire_file`'s `std::fs::read` closed the short-read class of bug.
+// Same out-param/`malloc` removal as `read_entire_file` above -- this
 // function has no unsafe operation left at all.
-pub fn readEntireStdin() -> Vec<u8> {
+pub fn read_entire_stdin() -> Vec<u8> {
     let mut bytes = Vec::new();
     let _ = std::io::stdin().lock().read_to_end(&mut bytes);
     bytes
 }
-fn main_0(args: Vec<String>) -> i32 {
+fn run(args: Vec<String>) -> i32 {
     let mut begin: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
@@ -104,14 +86,13 @@ fn main_0(args: Vec<String>) -> i32 {
     time_now(&mut begin);
     let mut show_help: bool = false;
     let mut show_version: bool = false;
-    let mut outputPath: Option<::std::ffi::CString> = None;
-    let mut inPath: Option<::std::ffi::CString> = None;
+    let mut output_path: Option<::std::ffi::CString> = None;
     let mut options: Box<Options> = Box::default();
     otfcc_options_optimize_to(&mut options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     // `--keep-glyph-order` and `--dont-ignore-glyph-order` are documented as
-    // synonyms (see `printHelp` above) and always had identical intended
+    // synonyms (see `print_help` above) and always had identical intended
     // effect. The old c2rust match block checked the long option's name via
     // `strcmp(..., "dont-keep-glyph-order")` -- a string that was never
     // actually registered in `longopts` (which spelled it
@@ -179,7 +160,7 @@ fn main_0(args: Vec<String>) -> i32 {
                 OPT_KEEP_GLYPH_ORDER => options.ignore_glyph_order = false,
                 OPT_IGNORE_GLYPH_ORDER => options.ignore_glyph_order = true,
                 OPT_OUTPUT => {
-                    outputPath = Some(
+                    output_path = Some(
                         ::std::ffi::CString::new(arg.unwrap())
                             .expect("output path must not contain a NUL byte"),
                     );
@@ -210,66 +191,44 @@ fn main_0(args: Vec<String>) -> i32 {
                 OPT_VERBOSE => options.verbose = true,
                 _ => {}
             },
-            GetoptItem::UnknownLong(s) => {
-                eprintln!("otfccbuild: unrecognized option '{s}'");
-            }
-            GetoptItem::UnknownShort(ch) => {
-                eprintln!("otfccbuild: invalid option -- '{ch}'");
-            }
-            GetoptItem::AmbiguousLong { given, matches } => {
-                let possibilities =
-                    matches.iter().map(|m| format!("'--{m}'")).collect::<Vec<_>>().join(" ");
-                eprintln!("otfccbuild: option '{given}' is ambiguous; possibilities: {possibilities}");
-            }
-            GetoptItem::MissingArgument(s) => {
-                eprintln!("otfccbuild: option '{s}' requires an argument");
-            }
+            other => report_getopt_error("otfccbuild", other),
         }
     }
-    let verbosity: u8 = (if options.quiet as i32 != 0 {
-        0_i32
-    } else if options.verbose as i32 != 0 {
-        0xff_i32
-    } else {
-        1_i32
-    }) as u8;
-    // Installed only now that `--quiet`/`--verbose` are known; nothing is
-    // logged before this point (argument errors go straight to stderr).
-    otfcc_rust::logger::install_stderr(verbosity);
-    // Every line logged from here on is indented under the program name.
-    let _root_scope = otfcc_rust::logger::indent("otfccbuild");
+    // Logging starts only now that `--quiet`/`--verbose` are known; nothing
+    // is logged before this point (argument errors go straight to stderr).
+    let _root_scope = start_logging("otfccbuild", &options);
     if show_help {
-        printInfo();
-        printHelp();
+        print_version_info("otfccbuild");
+        print_help();
         return 0_i32;
     }
     if show_version {
-        printInfo();
+        print_version_info("otfccbuild");
         return 0_i32;
     }
-    inPath = positionals.into_iter().next().map(|p| {
+    let in_path: Option<::std::ffi::CString> = positionals.into_iter().next().map(|p| {
         ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte")
     });
-    if outputPath.is_none() {
+    if output_path.is_none() {
         tracing::error!("Unable to build OpenType font tile : output path not specified. Exit.\n");
-        printHelp();
+        print_help();
         return EXIT_FAILURE;
     }
-    let mut buffer: Vec<u8> = Vec::new();
+    let buffer: Vec<u8>;
     let stage = otfcc_rust::logger::stage("Load file");
     {
-        if let Some(ref in_path) = inPath {
+        if let Some(ref in_path) = in_path {
             let substage = otfcc_rust::logger::stage(format_args!("Load from file {}", ByteStr(in_path.as_bytes())));
             {
-                let Some(b) = readEntireFile(in_path.as_c_str()) else {
+                let Some(b) = read_entire_file(in_path.as_c_str()) else {
                     return EXIT_FAILURE;
                 };
                 buffer = b;
-                // No longer freed here (was: `sdsfree(inPath)`) -- doing
+                // No longer freed here (was: `sdsfree(in_path)`) -- doing
                 // so used to leave a dangling pointer that the two later
                 // "Cannot parse JSON file" error messages below still
-                // read from (`bytesbuild!(..., inPath, ...)`), a genuine
-                // pre-existing use-after-free. `inPath` now just lives
+                // read from (`bytesbuild!(..., in_path, ...)`), a genuine
+                // pre-existing use-after-free. `in_path` now just lives
                 // for the rest of the function and drops naturally at
                 // the end, which is exactly what those later reads
                 // needed all along.
@@ -278,42 +237,42 @@ fn main_0(args: Vec<String>) -> i32 {
         } else {
             let substage = otfcc_rust::logger::stage("Load from stdin");
             {
-                buffer = readEntireStdin();
+                buffer = read_entire_stdin();
                 substage.finish();
             }
         }
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
-    let mut json_root: Option<ParsedValue> = None;
+    let mut json_root: Option<ParsedValue>;
     let stage = otfcc_rust::logger::stage("Parse into JSON");
     {
         json_root = parse_json(&buffer);
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         if json_root.is_none() {
-            tracing::error!("Cannot parse JSON file \"{}\". Exit.\n", ByteStr(inPath.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
+            tracing::error!("Cannot parse JSON file \"{}\". Exit.\n", ByteStr(in_path.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
             return EXIT_FAILURE;
         }
         stage.finish();
     }
-    let mut font: Option<Box<Font>> = None;
+    let mut font: Option<Box<Font>>;
     let stage = otfcc_rust::logger::stage("Parse");
     {
         // `read_json` is a plain safe `pub fn` as of Stage M-34 -- see its
         // own doc comment for why it now takes `&mut ParsedValue`.
         font = read_json(json_root.as_mut().unwrap(), &options);
         if font.is_none() {
-            tracing::error!("Cannot parse JSON file \"{}\" as a font. Exit.\n", ByteStr(inPath.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
+            tracing::error!("Cannot parse JSON file \"{}\" as a font. Exit.\n", ByteStr(in_path.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
             return EXIT_FAILURE;
         }
         drop(json_root.take());
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
     let stage = otfcc_rust::logger::stage("Consolidate");
     {
         otfcc_consolidate_font(font.as_mut().unwrap(), &options);
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
     let stage = otfcc_rust::logger::stage("Build");
@@ -324,9 +283,9 @@ fn main_0(args: Vec<String>) -> i32 {
         let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &options);
         let substage = otfcc_rust::logger::stage("Write to file");
         {
-            // Always `Some` here -- the `outputPath.is_none()` branch
+            // Always `Some` here -- the `output_path.is_none()` branch
             // above already exited.
-            let output_path = outputPath.as_ref().unwrap();
+            let output_path = output_path.as_ref().unwrap();
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
             if std::fs::write(std::path::Path::new(os_path), &otf.data).is_err() {
                 tracing::error!("Cannot write to file \"{}\". Exit.\n", ByteStr(output_path.as_bytes()));
@@ -334,9 +293,9 @@ fn main_0(args: Vec<String>) -> i32 {
             }
             substage.finish();
         }
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         drop(font.take());
-        // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
+        // `in_path`/`output_path` are `Option<CString>` now -- both drop on
         // their own at the end of this function's scope, no explicit
         // free needed.
         stage.finish();
@@ -345,5 +304,5 @@ fn main_0(args: Vec<String>) -> i32 {
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();
-    ::std::process::ExitCode::from(main_0(args) as u8)
+    ::std::process::ExitCode::from(run(args) as u8)
 }
