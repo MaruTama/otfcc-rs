@@ -9,7 +9,7 @@ use crate::table::glyf::{
 };
 use crate::table::head::HeadTable;
 
-use crate::support::primitives::otfcc_to_f2dot14;
+use crate::support::primitives::to_f2dot14;
 use crate::vf::vq::vq_get_still;
 pub fn shrink_flags(flags: Buffer) -> Buffer {
     if flags.is_empty() {
@@ -181,15 +181,15 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
             gbuf.write_u8(arg2 as u8);
         }
         if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
-            gbuf.write_u16be(otfcc_to_f2dot14(r.a) as u16);
+            gbuf.write_u16be(to_f2dot14(r.a) as u16);
         } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
-            gbuf.write_u16be(otfcc_to_f2dot14(r.a) as u16);
-            gbuf.write_u16be(otfcc_to_f2dot14(r.d) as u16);
+            gbuf.write_u16be(to_f2dot14(r.a) as u16);
+            gbuf.write_u16be(to_f2dot14(r.d) as u16);
         } else if flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
-            gbuf.write_u16be(otfcc_to_f2dot14(r.a) as u16);
-            gbuf.write_u16be(otfcc_to_f2dot14(r.b) as u16);
-            gbuf.write_u16be(otfcc_to_f2dot14(r.c) as u16);
-            gbuf.write_u16be(otfcc_to_f2dot14(r.d) as u16);
+            gbuf.write_u16be(to_f2dot14(r.a) as u16);
+            gbuf.write_u16be(to_f2dot14(r.b) as u16);
+            gbuf.write_u16be(to_f2dot14(r.c) as u16);
+            gbuf.write_u16be(to_f2dot14(r.d) as u16);
         }
     }
     if !g.instructions.is_empty() {
@@ -197,7 +197,7 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         gbuf.write_bytes(&g.instructions);
     }
 }
-pub fn otfcc_build_glyf(table: Option<&GlyfTable>, head: Option<&mut HeadTable>) -> GlyfAndLocaBuffers {
+pub fn build_glyf(table: Option<&GlyfTable>, head: Option<&mut HeadTable>) -> GlyfAndLocaBuffers {
     let mut bufglyf = Buffer::new();
     let mut bufloca = Buffer::new();
     if let (Some(table), Some(head)) = (table, head) {

@@ -7,7 +7,7 @@ use crate::support::primitives::GlyphId;
 
 use crate::table::otl::{Anchor, GposCursiveEntry, Subtable};
 
-use crate::support::glyph_order::otfcc_gord_consolidate_handle;
+use crate::support::glyph_order::gord_consolidate_handle;
 use crate::table::otl::subtables::gpos_cursive::dispose_gpos_cursive_subtable;
 
 pub fn consolidate_gpos_cursive(
@@ -30,10 +30,10 @@ pub fn consolidate_gpos_cursive(
         std::collections::BTreeMap::new();
     for entry in subtable.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
-        // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
+        // only ever runs when `glyf` is present, and `consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.target) {
+        if !gord_consolidate_handle(glyph_order, &mut entry.target) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.target.name));
         } else {
             let fromid: i32 = entry.target.index as i32;

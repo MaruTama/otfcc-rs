@@ -5,7 +5,7 @@ use crate::bk::bkblock::bk_new_block_from_bytes;
 use crate::bk::bkgraph::bk_build_block;
 use crate::table::meta::types::{MetaEntry, MetaTable};
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_meta(meta: Option<&MetaTable>) -> Option<Buffer> {
+pub fn build_meta(meta: Option<&MetaTable>) -> Option<Buffer> {
     let meta = match meta {
         Some(m) if !m.entries.is_empty() => m,
         _ => return None,

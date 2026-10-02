@@ -805,7 +805,7 @@ mod cff_parse_outline_total_calls_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
 
-    use crate::table::glyf::{Glyph, otfcc_new_glyf_glyph};
+    use crate::table::glyf::{Glyph, new_glyf_glyph};
 
     fn empty_cff_index() -> CffIndex {
         CffIndex {
@@ -910,7 +910,7 @@ mod cff_parse_outline_total_calls_tests {
         // still needs to be a real `&mut Glyph`-backed context now that
         // `cff_parse_outline` takes one unconditionally rather than a
         // nullable `*mut c_void`.
-        let mut g = otfcc_new_glyf_glyph();
+        let mut g = new_glyf_glyph();
         let mut ctx = dummy_outline_context(&mut g);
         cff_parse_outline(
             &data,
@@ -955,7 +955,7 @@ mod cff_parse_outline_total_calls_tests {
             stem: 0,
         };
         let mut total_calls: u32 = 0;
-        let mut g = otfcc_new_glyf_glyph();
+        let mut g = new_glyf_glyph();
         let mut ctx = dummy_outline_context(&mut g);
         cff_parse_outline(
             &data,
@@ -989,7 +989,7 @@ mod cff_parse_outline_hintmask_tests {
     use crate::libcff::cff_index::CffIndexCountType;
 
     use crate::table::cff::OutlineBuilderContext;
-    use crate::table::glyf::otfcc_new_glyf_glyph;
+    use crate::table::glyf::new_glyf_glyph;
 
     fn empty_cff_index() -> CffIndex {
         CffIndex {
@@ -1027,7 +1027,7 @@ mod cff_parse_outline_hintmask_tests {
             stem: 0,
         };
         let mut total_calls: u32 = 0;
-        let mut g = otfcc_new_glyf_glyph();
+        let mut g = new_glyf_glyph();
         let mut ctx = OutlineBuilderContext {
             g: &mut g,
             j_contour: 0,
@@ -1087,7 +1087,7 @@ mod cff_parse_outline_hintmask_tests {
             stem: 0,
         };
         let mut total_calls: u32 = 0;
-        let mut g = otfcc_new_glyf_glyph();
+        let mut g = new_glyf_glyph();
         let mut ctx = OutlineBuilderContext {
             g: &mut g,
             j_contour: 0,
@@ -1119,7 +1119,7 @@ mod cff_parse_outline_stack_operator_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
 
-    use crate::table::glyf::otfcc_new_glyf_glyph;
+    use crate::table::glyf::new_glyf_glyph;
 
     // A charstring's `put`/`get`/`index`/`roll` operators each take a
     // charstring-supplied stack *value* (not the trusted `(*stack).index`
@@ -1171,7 +1171,7 @@ mod cff_parse_outline_stack_operator_tests {
         // None of this module's `put`/`get`/`index`/`roll` charstrings
         // reach a draw operator -- still needs a real `&mut Glyph`-backed
         // context now that `cff_parse_outline` takes one unconditionally.
-        let mut g = otfcc_new_glyf_glyph();
+        let mut g = new_glyf_glyph();
         let mut ctx = OutlineBuilderContext {
             g: &mut g,
             j_contour: 0,
@@ -1309,7 +1309,7 @@ mod cff_parse_outline_subr_number_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
 
-    use crate::table::glyf::otfcc_new_glyf_glyph;
+    use crate::table::glyf::new_glyf_glyph;
 
     // Subroutine numbers are signed: with the bias of 107 that applies to
     // INDEXes of fewer than 1240 subroutines, the first one is called as
@@ -1355,7 +1355,7 @@ mod cff_parse_outline_subr_number_tests {
             stem: 0,
         };
         let mut total_calls: u32 = 0;
-        let mut g = otfcc_new_glyf_glyph();
+        let mut g = new_glyf_glyph();
         let mut ctx = OutlineBuilderContext {
             g: &mut g,
             j_contour: 0,
@@ -1394,7 +1394,7 @@ mod cff_parse_outline_operand_group_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
 
-    use crate::table::glyf::otfcc_new_glyf_glyph;
+    use crate::table::glyf::new_glyf_glyph;
 
     // The line/curve operators take their operands in fixed-size groups
     // (2 for `rlineto`, 6 for `rrcurveto`, 4 for `vvcurveto`/`hhcurveto`).
@@ -1432,7 +1432,7 @@ mod cff_parse_outline_operand_group_tests {
             stem: 0,
         };
         let mut total_calls: u32 = 0;
-        let mut g = otfcc_new_glyf_glyph();
+        let mut g = new_glyf_glyph();
         let mut ctx = OutlineBuilderContext {
             g: &mut g,
             j_contour: 0,

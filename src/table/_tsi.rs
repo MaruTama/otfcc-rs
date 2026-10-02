@@ -4,7 +4,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_empty,
+    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, handle_empty,
 };
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphId;
@@ -64,7 +64,7 @@ fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
 // full 8 bytes are actually present -- unlike the original's `j * 8 <
 // index_part.length` loop guard, which admits a final *partial* record
 // whenever `index_part.length` isn't a multiple of 8 (the same off-by-one
-// class `table/tsi5.rs::otfcc_read_tsi5` had, fixed two PRs ago).
+// class `table/tsi5.rs::read_tsi5` had, fixed two PRs ago).
 #[derive(Debug)]
 struct TsiIndexEntry {
     gid: u16,
@@ -81,7 +81,7 @@ fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, Re
 }
 
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_read_tsi(
+pub fn read_tsi(
     packet: &Packet,
     tag_index: u32,
     tag_text: u32,
@@ -163,7 +163,7 @@ pub fn otfcc_read_tsi(
     return Some(tsi);
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
+pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
     let tsi = match tsi {
         Some(t) => t,
         None => return,
@@ -197,7 +197,7 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8])
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
+pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
     let _tsi = root.get_typed(tag, JsonType::Object)?;
     let mut tsi: TsiTable = Vec::new();
     let stage = crate::logger::stage(ByteStr(tag));
@@ -232,7 +232,7 @@ pub fn otfcc_parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
             };
             tsi.push(TsiEntry {
                 type_0,
-                glyph: otfcc_handle_empty() as GlyphHandle,
+                glyph: handle_empty() as GlyphHandle,
                 content: bytes.to_vec(),
             });
         }
@@ -253,7 +253,7 @@ pub fn otfcc_parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
 // `push_tsi_entries` (below) passes a null `entry` from its own
 // `min_n`-padding loop, but only ever calls this with `type_0 ==
 // TsiEntryType::Glyph` when `min_n` is `0`, which keeps that loop from
-// running at all for `Glyph` (see `otfcc_build_tsi`'s call sites), so the
+// running at all for `Glyph` (see `build_tsi`'s call sites), so the
 // null never actually reaches this arm.
 fn propergid(entry: Option<&TsiEntry>, type_0: TsiEntryType) -> GlyphId {
     match type_0 {
@@ -292,7 +292,7 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, type_0: TsiEntr
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
+pub fn build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
     let Some(tsi) = tsi else {
         return TsiBuildTarget {
             index_part: None,
@@ -361,7 +361,7 @@ mod otfcc_read_tsi_tests {
 
     fn read(index_data: Vec<u8>, text_data: Vec<u8>) -> TsiTable {
         let p = packet(index_data, text_data);
-        otfcc_read_tsi(&p, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1).unwrap()
+        read_tsi(&p, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1).unwrap()
     }
 
     #[test]

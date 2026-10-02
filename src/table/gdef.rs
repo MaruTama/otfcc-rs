@@ -103,7 +103,7 @@ fn read_lig_caret_record(data: &[u8], offset: usize) -> CaretValueRecord {
     g
 }
 /// The LigCaretList (`CoverageOffset`/`LigGlyphCount`/`LigGlyphOffset[]`),
-/// isolated out of `otfcc_read_gdef` because its three failure conditions
+/// isolated out of `read_gdef` because its three failure conditions
 /// each abort the *whole* GDEF table (matching the original's `current_
 /// block` goto-emulation, which skipped straight past `mark_attach_class_
 /// def` and returned `None` on any of them) rather than just leaving
@@ -141,7 +141,7 @@ fn read_lig_carets(
     }
     Some(result)
 }
-pub fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
+pub fn read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GDEF)?;
     let data: &[u8] = &table.data;
     if data.len() < 12 {
@@ -192,7 +192,7 @@ fn dump_gdef_lig_carets(gdef: &GdefTable) -> BuiltValue {
     }
     _carets
 }
-pub fn otfcc_dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue) {
+pub fn dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue) {
     let Some(gdef) = gdef else {
         return;
     };
@@ -242,7 +242,7 @@ fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
         lc.push(v);
     }
 }
-pub fn otfcc_parse_gdef(root: &ParsedValue) -> Option<Box<GdefTable>> {
+pub fn parse_gdef(root: &ParsedValue) -> Option<Box<GdefTable>> {
     let table = root.get_typed(b"GDEF", JsonType::Object)?;
     let stage = crate::logger::stage("GDEF");
     let mut gdef: Box<GdefTable> = Box::new(GdefTable {
@@ -312,7 +312,7 @@ fn write_lig_carets(records: &LigCaretTable) -> BkBlock {
     }
     lct
 }
-pub fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
+pub fn build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
     let gdef = gdef?;
     let mut b_glyph_class_def: Option<BkBlock> = None;
     let b_attach_list: Option<BkBlock> = None;
@@ -389,7 +389,7 @@ mod otfcc_read_gdef_tests {
     #[test]
     fn well_formed_table_reads_the_lig_caret() {
         let packet = packet_with_gdef(well_formed_gdef_table());
-        let gdef = otfcc_read_gdef(&packet).unwrap();
+        let gdef = read_gdef(&packet).unwrap();
         assert_eq!(gdef.lig_carets.len(), 1);
         assert_eq!(gdef.lig_carets[0].glyph.index, 7);
         assert_eq!(gdef.lig_carets[0].carets.len(), 1);
@@ -402,7 +402,7 @@ mod otfcc_read_gdef_tests {
         let mut data = well_formed_gdef_table();
         data.truncate(10);
         let packet = packet_with_gdef(data);
-        assert!(otfcc_read_gdef(&packet).is_none());
+        assert!(read_gdef(&packet).is_none());
     }
 
     #[test]
@@ -410,7 +410,7 @@ mod otfcc_read_gdef_tests {
         let mut data = well_formed_gdef_table();
         data[8..10].copy_from_slice(&0u16.to_be_bytes()); // LigCaretListOffset = 0
         let packet = packet_with_gdef(data);
-        let gdef = otfcc_read_gdef(&packet).unwrap();
+        let gdef = read_gdef(&packet).unwrap();
         assert!(gdef.lig_carets.is_empty());
     }
 
@@ -419,13 +419,13 @@ mod otfcc_read_gdef_tests {
         // LigGlyphCount says 1 but the Coverage table only has 1 glyph too
         // in the fixture -- flip it to 2 so they disagree. The original
         // treated this as fatal for the entire GDEF table, not just the
-        // LigCaretList, so `otfcc_read_gdef` must return `None` even
+        // LigCaretList, so `read_gdef` must return `None` even
         // though `GlyphClassDefOffset`/`MarkAttachClassDefOffset` are both
         // absent (0) and would otherwise be trivially fine.
         let mut data = well_formed_gdef_table();
         data[14..16].copy_from_slice(&2u16.to_be_bytes()); // LigGlyphCount = 2
         let packet = packet_with_gdef(data);
-        assert!(otfcc_read_gdef(&packet).is_none());
+        assert!(read_gdef(&packet).is_none());
     }
 
     #[test]
@@ -433,6 +433,6 @@ mod otfcc_read_gdef_tests {
         let mut data = well_formed_gdef_table();
         data[8..10].copy_from_slice(&1000u16.to_be_bytes()); // LigCaretListOffset
         let packet = packet_with_gdef(data);
-        assert!(otfcc_read_gdef(&packet).is_none());
+        assert!(read_gdef(&packet).is_none());
     }
 }

@@ -1,7 +1,7 @@
 // `read_16u`/friends -- factored out of the ~40 per-file private copies
 // c2rust emitted (one per translation unit that #included
 // c/lib/support/bin-io.h's `static inline` helpers) -- lost their last
-// caller in Stage 11 Phase 11 (`table/cvt.rs`'s `otfcc_parse_cvt`, the only
+// caller in Stage 11 Phase 11 (`table/cvt.rs`'s `parse_cvt`, the only
 // remaining parse-side consumer, converted to `u16::from_be_bytes` directly
 // on its own already-safe `&[u8]`) and were deleted; every binary-format
 // reader in the crate now goes through `support/font_reader.rs`'s

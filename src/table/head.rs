@@ -4,7 +4,7 @@ use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
-use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::support::primitives::{from_fixed, to_fixed};
 use crate::vendor::json::JsonType;
 #[derive(Copy, Clone, Debug)]
 pub struct HeadTable {
@@ -32,7 +32,7 @@ pub struct HeadTable {
 // The entire vtable is deleted: grepping the bare `TABLE_I_HEAD`
 // identifier confirmed only `.create`/`.free` were ever called, both
 // internal to this crate.
-fn parse_head(data: &[u8]) -> Result<HeadTable, ReadError> {
+fn decode_head(data: &[u8]) -> Result<HeadTable, ReadError> {
     let mut r = FontReader::new(data);
     Ok(HeadTable {
         version: r.i32()? as F16Dot16,
@@ -54,12 +54,12 @@ fn parse_head(data: &[u8]) -> Result<HeadTable, ReadError> {
         glyph_data_format: r.i16()?,
     })
 }
-pub fn otfcc_read_head(packet: &Packet) -> Option<Box<HeadTable>> {
+pub fn read_head(packet: &Packet) -> Option<Box<HeadTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_HEAD)?;
-    match parse_head(&table.data) {
+    match decode_head(&table.data) {
         Ok(head) => Some(Box::new(head)),
         Err(_) => {
             tracing::warn!("table 'head' corrupted.\n");
@@ -94,7 +94,7 @@ static MAC_STYLE_LABELS: [&str; 7] = [
     "extended",
 ];
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
+pub fn dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
@@ -102,11 +102,11 @@ pub fn otfcc_dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     let mut head = BuiltValue::new_object(15);
     head.push_field(
         b"version",
-        BuiltValue::Double(otfcc_from_fixed(table.version)),
+        BuiltValue::Double(from_fixed(table.version)),
     );
     head.push_field(
         b"fontRevision",
-        BuiltValue::Double(otfcc_from_fixed(table.font_revision as F16Dot16)),
+        BuiltValue::Double(from_fixed(table.font_revision as F16Dot16)),
     );
     head.push_field(
         b"flags",
@@ -142,7 +142,7 @@ pub fn otfcc_dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     root.push_field(b"head", head);
     stage.finish();
 }
-pub fn otfcc_parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
+pub fn parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
     // Reproduces `init_head`'s two non-zero defaults exactly:
     // `.magic_number` is never set anywhere in this function's body below
     // (unlike every other field), so it must carry this default through;
@@ -171,8 +171,8 @@ pub fn otfcc_parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
         return Some(Box::new(head));
     };
     let stage = crate::logger::stage("head");
-    head.version = otfcc_to_fixed(table.get_num_or(b"version", 0.0));
-    head.font_revision = otfcc_to_fixed(table.get_num_or(b"fontRevision", 0.0)) as u32;
+    head.version = to_fixed(table.get_num_or(b"version", 0.0));
+    head.font_revision = to_fixed(table.get_num_or(b"fontRevision", 0.0)) as u32;
     head.flags = table
         .get(b"flags")
         .map_or(0, |v| v.flags(&HEAD_FLAGS_LABELS)) as u16;
@@ -194,7 +194,7 @@ pub fn otfcc_parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
     Some(Box::new(head))
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_head(head: Option<&HeadTable>) -> Option<Buffer> {
+pub fn build_head(head: Option<&HeadTable>) -> Option<Buffer> {
     let head = head?;
     let mut buf = Buffer::new();
     buf.write_u32be(head.version as u32);
@@ -231,7 +231,7 @@ mod parse_head_tests {
 
     #[test]
     fn well_formed_54_byte_table_parses_every_field() {
-        let head = parse_head(&well_formed_head()).unwrap();
+        let head = decode_head(&well_formed_head()).unwrap();
         assert_eq!(head.version, 0x0001_0000);
         assert_eq!(head.units_per_em, 1000);
         assert_eq!(head.index_to_loc_format, 1);
@@ -241,6 +241,6 @@ mod parse_head_tests {
     fn table_one_byte_short_of_54_is_rejected_instead_of_reading_oob() {
         let mut data = well_formed_head();
         data.truncate(53);
-        assert!(parse_head(&data).is_err());
+        assert!(decode_head(&data).is_err());
     }
 }

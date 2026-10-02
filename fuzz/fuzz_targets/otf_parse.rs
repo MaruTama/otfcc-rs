@@ -1,6 +1,6 @@
 #![no_main]
 
-// Fuzzes the sfnt/OTF binary-parsing path: otfcc_read_sfnt (table directory
+// Fuzzes the sfnt/OTF binary-parsing path: read_sfnt (table directory
 // + table data) followed by read_otf (per-table readers -- head, cmap, glyf,
 // otl, CFF, ...). This is the path RUST_MIGRATION.md's Phase 5 plan calls out
 // as having real, C-inherited memory-safety bugs on malformed input (see
@@ -12,25 +12,24 @@
 // crash-free forever after.
 //
 // The otfccdump binary's equivalent flow (src/bin/otfccdump.rs) reads a real
-// file by path via otfcc_read_sfnt and process-exits on failure, so its
+// file by path via read_sfnt and process-exits on failure, so its
 // error paths never have to worry about freeing what came before -- this
 // harness runs thousands of iterations in one process, so it can't take
 // that shortcut: every path here (bad file, bad ttcindex, bad font, good
 // font) explicitly frees sfnt/font/options before returning, unlike the CLI.
 //
-// otfcc_read_sfnt itself is path-based (Stage 7-4 moved it off a `FILE*`
+// read_sfnt itself is path-based (Stage 7-4 moved it off a `FILE*`
 // onto `std::fs`/`std::io`), so this uses its `Read + Seek`-generic sibling
-// `otfcc_read_sfnt_from_reader` with a `Cursor` over the fuzzer-provided
+// `read_sfnt_from_reader` with a `Cursor` over the fuzzer-provided
 // bytes instead -- the same "wrap this byte slice, no real file on disk"
 // shape `fmemopen` gave the old `FILE*`-based reader, without needing a
 // real temp file written to disk on every one of this target's
 // thousands-per-process iterations.
 
 use libfuzzer_sys::fuzz_target;
-use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
+use otfcc_rust::font::caryll_sfnt::read_sfnt_from_reader;
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::options::Options;
-use std::cell::RefCell;
 use std::io::Cursor;
 
 fuzz_target!(|data: &[u8]| {
@@ -38,14 +37,14 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-    let Some(sfnt) = otfcc_read_sfnt_from_reader(&mut Cursor::new(data)) else {
+    let Some(sfnt) = read_sfnt_from_reader(&mut Cursor::new(data)) else {
         return;
     };
     if sfnt.count == 0 {
         return;
     }
 
-    let mut options: Box<Options> = Box::default();
+    let options: Box<Options> = Box::default();
 
     // Subfont index 0 always exists once `count > 0` -- fuzzing which
     // TTC subfont gets selected would mostly re-exercise the same

@@ -28,7 +28,7 @@ pub const GASP_DOGRAY: i32 = 0x2_i32;
 pub const GASP_GRIDFIT: i32 = 0x1_i32;
 pub const GASP_SYMMETRIC_GRIDFIT: i32 = 0x4_i32;
 pub const GASP_SYMMETRIC_SMOOTHING: i32 = 0x8_i32;
-fn parse_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
+fn decode_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.u16()?;
     let num_ranges = r.u16()? as usize;
@@ -47,12 +47,12 @@ fn parse_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
     }
     Ok(GaspTable { version, records })
 }
-pub fn otfcc_read_gasp(packet: &Packet) -> Option<Box<GaspTable>> {
+pub fn read_gasp(packet: &Packet) -> Option<Box<GaspTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_GASP)?;
-    match parse_gasp(&table.data) {
+    match decode_gasp(&table.data) {
         Ok(gasp) => Some(Box::new(gasp)),
         Err(_) => {
             tracing::warn!("table 'gasp' corrupted.\n");
@@ -60,7 +60,7 @@ pub fn otfcc_read_gasp(packet: &Packet) -> Option<Box<GaspTable>> {
         }
     }
 }
-pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
+pub fn dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
@@ -81,7 +81,7 @@ pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
     root.push_field(b"gasp", t);
     stage.finish();
 }
-pub fn otfcc_parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
+pub fn parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
     let table = root.get_typed(b"gasp", JsonType::Array)?;
     let stage = crate::logger::stage("gasp");
     let mut gasp = GaspTable {
@@ -104,7 +104,7 @@ pub fn otfcc_parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
     stage.finish();
     Some(Box::new(gasp))
 }
-pub fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {
+pub fn build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {
     let gasp = gasp?;
     let mut buf = Buffer::new();
     buf.write_u16be(1_u16);
@@ -142,7 +142,7 @@ mod parse_gasp_tests {
         data.extend_from_slice(
             &(GASP_GRIDFIT as u16 | GASP_SYMMETRIC_SMOOTHING as u16).to_be_bytes(),
         );
-        let gasp = parse_gasp(&data).unwrap();
+        let gasp = decode_gasp(&data).unwrap();
         assert_eq!(gasp.records.len(), 1);
         assert_eq!(gasp.records[0].range_max_ppem, 65535);
         assert!(gasp.records[0].gridfit);
@@ -155,11 +155,11 @@ mod parse_gasp_tests {
         let mut data = Vec::new();
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // numRanges, far more than the data holds
-        assert!(parse_gasp(&data).is_err());
+        assert!(decode_gasp(&data).is_err());
     }
 
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
-        assert!(parse_gasp(&[0x00, 0x01]).is_err());
+        assert!(decode_gasp(&[0x00, 0x01]).is_err());
     }
 }

@@ -117,7 +117,7 @@ pub fn otl_gpos_parse_single(
     }
     Some(Subtable::GposSingle(subtable))
 }
-pub fn otfcc_build_gpos_single(
+pub fn build_gpos_single(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {

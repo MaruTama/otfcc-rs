@@ -61,11 +61,11 @@ fn create_segment(tag: u32, mut buffer: Buffer) -> SfntTableEntry {
     }
 }
 // Deduplicates by `tag`, first registration wins -- a later
-// `otfcc_sfnt_builder_push_table` call for a tag already present just
+// `sfnt_builder_push_table` call for a tag already present just
 // frees the newly-passed `buffer` and returns, silently, no warning
 // logged (unlike the `consolidate/otl/*.rs` uthash instances earlier in
 // this migration, which mostly do warn on a duplicate). `BTreeMap`, not
-// `IndexMap`/`Vec`: `otfcc_sfnt_builder_serialize` (below) sorts entries
+// `IndexMap`/`Vec`: `sfnt_builder_serialize` (below) sorts entries
 // by tag before writing the table directory -- required by the SFNT
 // format itself, which mandates the directory be sorted ascending by
 // tag -- so `BTreeMap`'s always-sorted iteration is exactly right here,
@@ -78,7 +78,7 @@ fn create_segment(tag: u32, mut buffer: Buffer) -> SfntTableEntry {
 // `__caryll_allocate_clean` aborts via `handle_alloc_error` on OOM rather
 // than returning null for a nonzero size (`size_of::<SfntBuilder>()` is
 // never zero) -- see `support/alloc.rs`. Dropped along with the pointer.
-pub fn otfcc_sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer: Option<Buffer>) {
+pub fn sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer: Option<Buffer>) {
     let Some(buffer) = buffer else {
         return;
     };
@@ -92,8 +92,8 @@ pub fn otfcc_sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer
     tracing::debug!("OpenType table {}{}{}{} successfully built.\n", ByteStr(Byte((tag >> 24_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag >> 16_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag >> 8_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag & 0xff_u32) as u8)));
 }
 // `builder.is_null()` was dead here too, same reasoning as
-// `otfcc_sfnt_builder_push_table` above.
-pub fn otfcc_sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
+// `sfnt_builder_push_table` above.
+pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
     let mut buffer = Buffer::new();
     let n_tables: u16 = builder.tables.len() as u16;
     let search_range: u16 = ((if (n_tables as i32) < 16_i32 {

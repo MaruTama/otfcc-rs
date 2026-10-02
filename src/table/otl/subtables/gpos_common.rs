@@ -54,7 +54,7 @@ pub(crate) fn dispose_mark_array(arr: &mut MarkArray) {
 /// same maximal-cost bytes).
 ///
 /// This is the `mark_attach_anchors` limit of `OtlReadBudget`, which
-/// `otl/read.rs`'s `otfcc_read_otl` creates once per table, not per
+/// `otl/read.rs`'s `read_otl` creates once per table, not per
 /// subtable -- a table-wide ceiling closes the many-subtables variant
 /// above too, the same reasoning the other `OtlReadBudget` limits give.
 /// `OtlReadBudget::try_spend_mark_attach_anchors` charges a whole request

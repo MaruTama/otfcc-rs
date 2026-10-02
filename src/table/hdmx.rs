@@ -24,7 +24,7 @@ pub struct HdmxTable {
     pub size_device_record: u32,
     pub records: Vec<DeviceRecord>,
 }
-// Stage 6-4 "Box化": `HdmxTable` is entirely dead code -- `otfcc_read_hdmx`
+// Stage 6-4 "Box化": `HdmxTable` is entirely dead code -- `read_hdmx`
 // is never called from `otf_reader.rs` (HDMX has no wired build/dump path
 // in this crate at all, confirmed by grepping the whole crate for
 // `HdmxTable`/`hdmx` outside this file and `Font`'s own field list), so
@@ -63,7 +63,7 @@ fn parse_hdmx(
     Ok((version, num_records, size_device_record, records))
 }
 
-pub fn otfcc_read_hdmx(packet: &Packet, maxp: &MaxpTable) -> Option<Box<HdmxTable>> {
+pub fn read_hdmx(packet: &Packet, maxp: &MaxpTable) -> Option<Box<HdmxTable>> {
     let table = packet
         .pieces
         .iter()

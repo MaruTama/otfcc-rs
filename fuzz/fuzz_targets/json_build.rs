@@ -4,7 +4,7 @@
 // point (otfccbuild_json_otf), which is the one boundary a real embedder
 // calls -- unlike otf_parse.rs, this target needs no internal reflection at
 // all. Covers ParsedValue's own parser (support/parsed_json.rs) plus
-// json_reader.rs's font-shape assembly, otfcc_consolidate_font, and every
+// json_reader.rs's font-shape assembly, consolidate_font, and every
 // table's build/serialize path, all from attacker-controlled bytes.
 //
 // json_reader.rs walks its input permissively -- missing or wrong-shaped

@@ -36,7 +36,7 @@ pub struct BkBlock {
 // p: *mut BkBlock } } }`. Unlike the crate's other tag+union conversions,
 // `t`'s ten values don't map 1:1 onto the union's two arms -- `B8`/`B16`/
 // `B32` share `.z`, `P16`/`P32`/`Sp16`/`Sp32`/`Copy`/`Embed` share `.p`, and
-// `Over` uses neither (see `bkpushitems`/`otfcc_build_bkblock`'s catch-all
+// `Over` uses neither (see `bkpushitems`/`build_bkblock`'s catch-all
 // `_ => {}` arms) -- so `t` stays a separate field carrying the width/kind
 // distinctions the two-variant `BkCellValue` enum below can't express on
 // its own; `bk_cell_is_pointer`'s `t >= BkCellType::P16` still decides

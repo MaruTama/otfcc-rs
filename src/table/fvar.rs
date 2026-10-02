@@ -4,7 +4,7 @@ use crate::support::primitives::Pos;
 
 use crate::font::caryll_sfnt::Packet;
 use crate::support::built_json::BuiltValue;
-use crate::support::primitives::otfcc_from_fixed;
+use crate::support::primitives::from_fixed;
 use crate::vf::axis::{VfAxes, VfAxis};
 use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::region::vq_axis_span_is_one;
@@ -77,7 +77,7 @@ impl RegionKey {
 //
 // `masters`（uthash `FvarMaster` テーブル）は`IndexMap<RegionKey, FvarMaster>`
 // に変換 —— `BTreeMap`ではない。挿入順に「m1」「m2」…と命名され
-// （`fvar_register_region`が挿入直前の`.len()`から採番）、`otfcc_dump_fvar`が
+// （`fvar_register_region`が挿入直前の`.len()`から採番）、`dump_fvar`が
 // その順序のまま`masters`オブジェクトを書き出す。この uthash テーブルには
 // `HASH_SORT`呼び出しが1つも無い（`grep`で確認済み）ので、出力は挿入順で
 // タグ順ではない —— `ScriptStatHash`（`table/otl/build.rs`）と同じ理由で
@@ -229,9 +229,9 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
         let axis_name_id = r.u16().ok()?;
         axes.push(VfAxis {
             tag,
-            min_value: otfcc_from_fixed(min_value) as Pos,
-            default_value: otfcc_from_fixed(default_value) as Pos,
-            max_value: otfcc_from_fixed(max_value) as Pos,
+            min_value: from_fixed(min_value) as Pos,
+            default_value: from_fixed(default_value) as Pos,
+            max_value: from_fixed(max_value) as Pos,
             flags,
             axis_name_id,
         });
@@ -249,7 +249,7 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
         let mut coordinates: VV = Vec::with_capacity(axis_count as usize);
         for _ in 0..axis_count {
             let v = r.i32().ok()?;
-            coordinates.push(otfcc_from_fixed(v) as Pos);
+            coordinates.push(from_fixed(v) as Pos);
         }
         coordinates.shrink_to_fit();
         let post_script_name_id = if has_postscript_name_id { r.u16().ok()? } else { 0 };
@@ -271,7 +271,7 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
         masters: indexmap::IndexMap::new(),
     })
 }
-pub fn otfcc_read_fvar(packet: &Packet) -> Option<Box<FvarTable>> {
+pub fn read_fvar(packet: &Packet) -> Option<Box<FvarTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_FVAR)?;
     match parse_fvar(&table.data) {
         Some(fvar) => Some(Box::new(fvar)),
@@ -281,7 +281,7 @@ pub fn otfcc_read_fvar(packet: &Packet) -> Option<Box<FvarTable>> {
         }
     }
 }
-pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
+pub fn dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
     let Some(table) = table else { return };
     let stage = crate::logger::stage("fvar");
     let axes: &Vec<VfAxis> = &table.axes;

@@ -49,9 +49,9 @@ use crate::libcff::subr::{
     cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
 };
 use crate::support::built_json::BuiltValue;
-use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::support::primitives::{from_fixed, to_fixed};
 use crate::table::fvar::json_new_vq;
-use crate::table::glyf::{glyf_point_init, otfcc_new_glyf_glyph, table_glyf_create_n};
+use crate::table::glyf::{glyf_point_init, new_glyf_glyph, table_glyf_create_n};
 use crate::vf::vq::{
     vq_compare, vq_create_still, vq_get_still, vq_inplace_plus, vq_neutral, vq_point_linear_tfm,
     vq_scale,
@@ -93,7 +93,7 @@ pub struct CffPrivateDict {
 // `CffTable.fd_array`'s own still-raw-pointer status then) are now plain
 // `Vec<f64>`, so the custom `Drop` impl that used to free each one by hand
 // is gone entirely: Rust's own field-by-field drop glue reaches them.
-// Construction goes through `otfcc_new_cff_private()` returning
+// Construction goes through `new_cff_private()` returning
 // `Box<CffPrivateDict>` directly at each call site, matching the
 // `new_lookup`/`new_feature`/`GaspTable` precedent.
 // `Copy`/`Clone` dropped: nine fields are now `Vec<u8>` (the `sds` sweep
@@ -151,16 +151,16 @@ pub struct CffTable {
 // on top of it; see this file's own note there).
 // Was one `CffAndGlyf { meta: *mut CffTable, glyphs: *mut GlyfTable }`,
 // `Copy`/`Clone`, shared between two genuinely different use shapes: the
-// *read* side (`otfcc_read_cff_and_glyf_tables`) always builds a fresh,
+// *read* side (`read_cff_and_glyf_tables`) always builds a fresh,
 // owned pair (or leaves both `None` for a font with no `CFF ` table at
-// all), while the *write* side (`otfcc_build_cff`) only ever borrows into
+// all), while the *write* side (`build_cff`) only ever borrows into
 // a `Font`'s already-owned `cff`/`glyf` fields. A single raw-pointer
 // struct could paper over both (null standing in for `Option` on read,
 // and for a borrow with no owner on write), but that's exactly the "one
 // type, two lifetimes of ownership" shape this migration's later stages
 // keep finding and splitting apart. Stage M-10 gives each side its own
 // type instead.
-/// The owned result of reading a `CFF ` table (`otfcc_read_cff_and_glyf_tables`).
+/// The owned result of reading a `CFF ` table (`read_cff_and_glyf_tables`).
 /// Both fields are `None` when the packet has no `CFF ` table, or its Top
 /// DICT INDEX is empty -- the same "nothing to read" case the old
 /// `CffAndGlyf { meta: null, glyphs: null }` represented.
@@ -169,7 +169,7 @@ pub struct CffAndGlyfOwned {
     pub meta: Option<Box<CffTable>>,
     pub glyphs: Option<GlyfTable>,
 }
-/// The borrowed view `otfcc_build_cff` needs: a `Font`'s own `cff`/`glyf`
+/// The borrowed view `build_cff` needs: a `Font`'s own `cff`/`glyf`
 /// fields, reborrowed for the duration of one build. `meta` is `&mut`
 /// (`writecff_cid_keyed` mutates it -- `cff_compile_nameindex` clears
 /// `font_name` once it's been written out) and required, matching every
@@ -187,14 +187,14 @@ pub struct CffAndGlyfRef<'a> {
 }
 // Scoped to the Top/Font/Private DICT extraction phase only -- `glyphs`
 // doesn't exist yet when `callback_extract_fd`/`callback_extract_private`
-// run (`otfcc_read_cff_and_glyf_tables` only builds it after this phase's
+// run (`read_cff_and_glyf_tables` only builds it after this phase's
 // loop completes), so it is deliberately not a field here rather than an
 // `Option<&mut GlyfTable>` no caller would ever populate. Was a single
 // `CffExtractContext` struct with all four fields as raw pointers,
 // constructed once (all-null) and incrementally filled in -- that shape
 // only worked because raw pointers can represent "not yet populated" as
 // null; a real `&'a mut CffTable` field cannot. See
-// `otfcc_read_cff_and_glyf_tables`'s doc comment for how this phase hands
+// `read_cff_and_glyf_tables`'s doc comment for how this phase hands
 // off to the (separate, plain-reference-parameter) glyph-outline phase.
 #[derive(Debug)]
 struct CffFdExtractContext<'a> {
@@ -245,7 +245,7 @@ pub static DEFAULT_BLUE_SHIFT: f64 =
 pub static DEFAULT_BLUE_FUZZ: f64 =
     1_f64;
 pub static DEFAULT_EXPANSION_FACTOR: f64 = 0.06f64;
-fn otfcc_new_cff_private() -> Box<CffPrivateDict> {
+fn new_cff_private() -> Box<CffPrivateDict> {
     Box::new(CffPrivateDict {
         blue_values: Vec::new(),
         other_blues: Vec::new(),
@@ -300,7 +300,7 @@ fn table_cff_new() -> Box<CffTable> {
 // `table_cff_create`/`unwrap_cff_table` (a `Box::into_raw`/`Box::from_raw`
 // shell around `table_cff_new()`, `table_glyf_create_n`'s `unwrap_glyf_table`
 // sibling) are gone as of Stage M-10: their one caller
-// (`otfcc_read_cff_and_glyf_tables`) now calls `table_cff_new()` directly
+// (`read_cff_and_glyf_tables`) now calls `table_cff_new()` directly
 // and keeps the `Box<CffTable>` it already returns, instead of boxing it,
 // erasing it to a raw pointer, and immediately re-adopting it.
 // Reaches zero `unsafe` -- every field access below is a plain safe
@@ -605,7 +605,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
                 let private_offset: u32 = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as u32;
-                meta.private_dict = Some(otfcc_new_cff_private());
+                meta.private_dict = Some(new_cff_private());
                 // `private_offset`/`private_length` are DICT operator-18's
                 // own operands -- attacker-controlled bytes from the font's
                 // Top/Font DICT, not yet checked against the real buffer.
@@ -841,7 +841,7 @@ pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> f64 
     return f64::from_bits(bits) - q;
 }
 // `stack` is caller-owned and reused across every glyph in the font
-// (`otfcc_read_cff_and_glyf_tables`'s per-glyph loop constructs it once,
+// (`read_cff_and_glyf_tables`'s per-glyph loop constructs it once,
 // outside the loop) rather than a fresh `CffStack` built on every call --
 // `stack.stack` is a `Vec<CffValue>` fixed at `0x10000` entries (see
 // `libcff.rs`'s `CffStack` doc comment: "generous", never approached by
@@ -880,7 +880,7 @@ fn build_outline(
     stack.stem = 0;
     stack.transient = [CffValue::Unset; TYPE2_TRANSIENT_ARRAY];
     let f: &CffFile = cff_file;
-    let g_owner: Box<Glyph> = otfcc_new_glyf_glyph();
+    let g_owner: Box<Glyph> = new_glyf_glyph();
     glyphs[i as usize] = Some(g_owner);
     let seed_val: u64 = *seed;
     let mut local_subrs: CffIndex = CffIndex {
@@ -1116,10 +1116,10 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
     };
 }
 fn qround(x: f64) -> f64 {
-    return otfcc_from_fixed(otfcc_to_fixed(x));
+    return from_fixed(to_fixed(x));
 }
 // `head: Option<&HeadTable>`, not a nullable `*const HeadTable` -- the
-// caller (`otfcc_read_cff_and_glyf_tables`) used to build this from
+// caller (`read_cff_and_glyf_tables`) used to build this from
 // `Font.head`'s `Option<Box<HeadTable>>` via `.map_or(ptr::null(), ...)`
 // and then unconditionally dereference it (`&*head`) *before* even
 // calling this function, which segfaulted `otfccdump` on any CFF font
@@ -1202,7 +1202,7 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Option<&HeadTabl
 // pointer never outliving this scope and never aliased. Passing
 // `&table.data` straight through removes the decompose/reconstruct round
 // trip along with the unsafe wrapping it required.
-pub fn otfcc_read_cff_and_glyf_tables(
+pub fn read_cff_and_glyf_tables(
     packet: &Packet,
     head: Option<&HeadTable>,
 ) -> CffAndGlyfOwned {
@@ -1210,7 +1210,7 @@ pub fn otfcc_read_cff_and_glyf_tables(
     // Only the first `CFF ` table in the packet is ever read. No longer a
     // c2rust `__fortable_*`/`__notfound`-flagged loop simulating the
     // original's `for` + `goto` out on first match -- same "find the one
-    // piece with this tag" idiom `otfcc_read_otl` (`table/otl/read.rs`)
+    // piece with this tag" idiom `read_otl` (`table/otl/read.rs`)
     // already uses for the identical kind of lookup.
     if let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CFF) {
         // `meta`/`glyphs` (this function's own two results) are plain
@@ -1510,7 +1510,7 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
     }
     _cff
 }
-pub fn otfcc_dump_cff(table: Option<&CffTable>, root: &mut BuiltValue) {
+pub fn dump_cff(table: Option<&CffTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
@@ -1526,7 +1526,7 @@ fn pd_delta_from_json(dump: Option<&ParsedValue>) -> Vec<f64> {
 }
 fn pd_from_json(dump: Option<&ParsedValue>) -> Option<Box<CffPrivateDict>> {
     let dump = dump.filter(|v| v.as_object().is_some())?;
-    let mut pd_box: Box<CffPrivateDict> = otfcc_new_cff_private();
+    let mut pd_box: Box<CffPrivateDict> = new_cff_private();
     pd_box.blue_values = pd_delta_from_json(dump.get(b"blueValues"));
     pd_box.other_blues = pd_delta_from_json(dump.get(b"otherBlues"));
     pd_box.family_blues = pd_delta_from_json(dump.get(b"familyBlues"));
@@ -1598,12 +1598,12 @@ fn fd_from_json(dump: Option<&ParsedValue>, options: &Options, top_level: bool) 
         table.font_name = b"CARYLL_CFFFONT".to_vec();
     }
     if table.private_dict.is_none() {
-        table.private_dict = Some(otfcc_new_cff_private());
+        table.private_dict = Some(new_cff_private());
     }
     if top_level && options.force_cid && table.fd_array.is_empty() {
         let mut fd0_box: Box<CffTable> = table_cff_new();
         fd0_box.private_dict = table.private_dict.take();
-        table.private_dict = Some(otfcc_new_cff_private());
+        table.private_dict = Some(new_cff_private());
         let mut subfont0_name = table.font_name.clone();
         subfont0_name.extend_from_slice(b"-subfont0");
         fd0_box.font_name = subfont0_name;
@@ -1618,7 +1618,7 @@ fn fd_from_json(dump: Option<&ParsedValue>, options: &Options, top_level: bool) 
     }
     table
 }
-pub fn otfcc_parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffTable>> {
+pub fn parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffTable>> {
     let dump = root.get_typed(b"CFF_", JsonType::Object)?;
     let stage = crate::logger::stage("CFF");
     let cff = fd_from_json(Some(dump), options, true);
@@ -2155,13 +2155,13 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
     }
     return blob;
 }
-// `otfcc_build_cff`/`writecff_cid_keyed` are plain safe `fn`s now (Stage
+// `build_cff`/`writecff_cid_keyed` are plain safe `fn`s now (Stage
 // M-10): `cff`/`glyf` are `CffAndGlyfRef`'s own borrows, `fd_array_index`
 // is an owned `Option<CffIndex>`, and every dict/index producer this
 // function calls returns an owned value -- no raw pointer, and no
 // `cff_dict_free`/`cff_index_free` call, is left anywhere in this
 // function's body.
-pub fn otfcc_build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Buffer {
+pub fn build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Buffer {
     writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options)
 }
 #[inline]
@@ -2178,7 +2178,7 @@ mod cff_matrix_no_head_regression_tests {
     // `otfccdump` SIGSEGV'd (exit code 139) on any CFF font with a Top
     // DICT `FontMatrix` whose `head` table had been stripped: `read_otf`
     // built `head: *const HeadTable` from `Font.head` via
-    // `.map_or(ptr::null(), ...)` and `otfcc_read_cff_and_glyf_tables`
+    // `.map_or(ptr::null(), ...)` and `read_cff_and_glyf_tables`
     // immediately did `apply_cff_matrix(meta_ref, glyphs_ref, &*head)` --
     // an unconditional deref of that null pointer, before
     // `apply_cff_matrix` even got a chance to check anything. Reproduced
@@ -2196,7 +2196,7 @@ mod cff_matrix_no_head_regression_tests {
     // through the crate's own writer (`writecff_cid_keyed`) to get a
     // genuine CFF Top DICT `FontMatrix` operator in the bytes, then fed
     // back through the real read entry point
-    // (`otfcc_read_cff_and_glyf_tables`) with `head: None` -- exactly the
+    // (`read_cff_and_glyf_tables`) with `head: None` -- exactly the
     // "font has no `head` table" case. Before Stage M-10's fix this
     // segfaults the whole test process instead of failing a `#[test]]`
     // assertion; after it, `apply_cff_matrix` takes its `None` branch and
@@ -2204,7 +2204,7 @@ mod cff_matrix_no_head_regression_tests {
     #[test]
     fn cff_font_matrix_with_no_head_table_does_not_crash() {
         let mut cff = table_cff_new();
-        cff.private_dict = Some(otfcc_new_cff_private());
+        cff.private_dict = Some(new_cff_private());
         cff.font_matrix = Some(Box::new(CffFontMatrix {
             a: 0.5,
             b: 0.0,
@@ -2220,7 +2220,7 @@ mod cff_matrix_no_head_regression_tests {
             },
         }));
 
-        let mut glyph = otfcc_new_glyf_glyph();
+        let mut glyph = new_glyf_glyph();
         glyph.contours.push(vec![
             Point {
                 x: VQ {
@@ -2278,7 +2278,7 @@ mod cff_matrix_no_head_regression_tests {
 
         // The call that used to segfault: `head: None`, matching a
         // `Font` with no `head` table at all.
-        let result = otfcc_read_cff_and_glyf_tables(&packet, None);
+        let result = read_cff_and_glyf_tables(&packet, None);
 
         // Sanity: the FontMatrix really did round-trip through the
         // writer and back, and there is a real glyph to (not) scale --
@@ -2321,7 +2321,7 @@ mod cff_matrix_no_head_regression_tests {
                 shift: Vec::new(),
             },
         }));
-        let mut glyph = otfcc_new_glyf_glyph();
+        let mut glyph = new_glyf_glyph();
         glyph.contours.push(vec![Point {
             x: VQ {
                 kernel: 10.0,

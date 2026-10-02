@@ -4,7 +4,7 @@ use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
-use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::support::primitives::{from_fixed, to_fixed};
 use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone, Debug)]
@@ -37,7 +37,7 @@ pub struct VheaTable {
 // only zeroed -- matching the original, which set them directly rather than
 // reading bytes 24..34; only `num_of_long_ver_metrics` at offset 34 follows
 // that gap.
-fn parse_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
+fn decode_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.i32()? as F16Dot16;
     let ascent = r.i16()?;
@@ -72,12 +72,12 @@ fn parse_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
         num_of_long_ver_metrics,
     })
 }
-pub fn otfcc_read_vhea(packet: &Packet) -> Option<Box<VheaTable>> {
+pub fn read_vhea(packet: &Packet) -> Option<Box<VheaTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_VHEA)?;
-    match parse_vhea(&table.data) {
+    match decode_vhea(&table.data) {
         Ok(vhea) => Some(Box::new(vhea)),
         Err(_) => {
             tracing::warn!("Table 'vhea' corrupted.");
@@ -85,7 +85,7 @@ pub fn otfcc_read_vhea(packet: &Packet) -> Option<Box<VheaTable>> {
         }
     }
 }
-pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
+pub fn dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
@@ -93,7 +93,7 @@ pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     let mut vhea = BuiltValue::new_object(11);
     vhea.push_field(
         b"version",
-        BuiltValue::Double(otfcc_from_fixed(table.version)),
+        BuiltValue::Double(from_fixed(table.version)),
     );
     vhea.push_field(b"ascent", BuiltValue::Int(table.ascent as i64));
     vhea.push_field(b"descent", BuiltValue::Int(table.descent as i64));
@@ -117,11 +117,11 @@ pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     root.push_field(b"vhea", vhea);
     stage.finish();
 }
-pub fn otfcc_parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
+pub fn parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
     let table = root.get_typed(b"vhea", JsonType::Object)?;
     let stage = crate::logger::stage("vhea");
     let vhea = VheaTable {
-        version: otfcc_to_fixed(table.get_num(b"version")),
+        version: to_fixed(table.get_num(b"version")),
         ascent: table.get_num(b"ascent") as i16,
         descent: table.get_num(b"descent") as i16,
         line_gap: table.get_num(b"lineGap") as i16,
@@ -143,7 +143,7 @@ pub fn otfcc_parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
     Some(Box::new(vhea))
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_vhea(vhea: Option<&VheaTable>) -> Option<Buffer> {
+pub fn build_vhea(vhea: Option<&VheaTable>) -> Option<Buffer> {
     let vhea = vhea?;
     let mut buf = Buffer::new();
     buf.write_u32be(vhea.version as u32);
@@ -180,7 +180,7 @@ mod parse_vhea_tests {
 
     #[test]
     fn well_formed_36_byte_table_parses_and_zeroes_the_unread_reserved_fields() {
-        let vhea = parse_vhea(&well_formed_vhea()).unwrap();
+        let vhea = decode_vhea(&well_formed_vhea()).unwrap();
         assert_eq!(vhea.version, 0x0001_0000);
         assert_eq!(vhea.ascent, 950);
         assert_eq!(vhea.num_of_long_ver_metrics, 7);
@@ -192,6 +192,6 @@ mod parse_vhea_tests {
     fn table_one_byte_short_of_36_is_rejected_instead_of_reading_oob() {
         let mut data = well_formed_vhea();
         data.truncate(35);
-        assert!(parse_vhea(&data).is_err());
+        assert!(decode_vhea(&data).is_err());
     }
 }

@@ -48,7 +48,7 @@ pub(crate) fn consolidate_chaining(
     let rule: &mut ChainingRule = chaining_rule_mut(subtable);
     // Guaranteed `Some`: `consolidate_otl` (and hence every caller that
     // reaches here) only ever runs when `glyf` is present, and
-    // `otfcc_consolidate_font` always populates `glyph_order` before
+    // `consolidate_font` always populates `glyph_order` before
     // that, whenever `glyf` is present.
     let mut possible: bool = true;
     let match_count = rule.match_count as usize;

@@ -182,8 +182,8 @@ impl ParsedValue {
     /// [`get_typed`](Self::get_typed), but returns a mutable reference to
     /// the found child instead of a shared one -- for the Stage 7-4
     /// JSON-parse-side `unsafe fn` trio (`json_reader::read_json`,
-    /// `table::glyf::otfcc_parse_glyf`, `table::otl::parse::
-    /// otfcc_parse_otl`; see `RUST_MIGRATION.md`'s "Stage 7-4 plan"
+    /// `table::glyf::parse_glyf`, `table::otl::parse::
+    /// parse_otl`; see `RUST_MIGRATION.md`'s "Stage 7-4 plan"
     /// section), which each need to resolve a named child and then mutate
     /// it in place (`set_field`/`take_field` on it, or recurse into it
     /// mutably) instead of just reading it. Same first-match-only
@@ -192,7 +192,7 @@ impl ParsedValue {
     /// conditions `get_typed` returns `None` for (no such member, or the
     /// first match has the wrong type). Stage M-31 adds this method alone
     /// -- nothing in the crate calls it yet; M-32/M-33 are what actually
-    /// use it, once `otfcc_parse_glyf`/`otfcc_parse_otl` take `&mut
+    /// use it, once `parse_glyf`/`parse_otl` take `&mut
     /// ParsedValue` themselves.
     pub fn get_typed_mut(&mut self, key: &[u8], kind: JsonType) -> Option<&mut ParsedValue> {
         let fields = match self {
@@ -690,7 +690,7 @@ impl<'a> Parser<'a> {
 // this comment used to describe has been fully migrated away and deleted
 // -- every former consumer now calls the safe `impl ParsedValue` API
 // above directly. `otfcc_parse_flags`, its last raw-pointer-shaped
-// survivor (bridging `table/head.rs`'s `otfcc_parse_head`), lost its own
+// survivor (bridging `table/head.rs`'s `parse_head`), lost its own
 // last caller once that function switched to calling `ParsedValue::flags`
 // directly and was deleted here too. `json_parse`/`json_value_free` above
 // remain, as the legitimate FFI-adjacent generation/destruction pair

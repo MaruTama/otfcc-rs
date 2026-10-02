@@ -24,7 +24,7 @@ pub type Tsi5Table = ClassDef;
 // bytes to actually be present, so the loop below now stops one entry
 // earlier on an odd-length table instead of reading past the end; a
 // well-formed (even-length) table parses identically to before.
-pub fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
+pub fn read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     let table = packet
         .pieces
         .iter()
@@ -47,20 +47,20 @@ pub fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     }
     Some(Box::new(tsi5))
 }
-pub fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) {
+pub fn dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
     root.push_field(b"TSI5", dump_class_def(table));
 }
-pub fn otfcc_parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
+pub fn parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
     let tsi = root.get_typed(b"TSI5", JsonType::Object)?;
     // `parse_class_def` genuinely can answer "no class def here" (an
     // empty/absent object), which is why it returns `Option` where
     // `read_class_def` returns a plain value.
     parse_class_def(Some(tsi)).map(Box::new)
 }
-pub fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {
+pub fn build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {
     let tsi5 = tsi5?;
     let mut tsi5cls: Vec<u16> = vec![0; num_glyphs as usize];
     for j in 0..tsi5.glyphs.len() {
@@ -102,7 +102,7 @@ mod otfcc_read_tsi5_tests {
         // Two glyphs: gid 0 -> class 5, gid 1 -> class 300.
         let data = vec![0x00, 0x05, 0x01, 0x2C];
         let packet = packet_with_tsi5(data);
-        let table = otfcc_read_tsi5(&packet).unwrap();
+        let table = read_tsi5(&packet).unwrap();
         assert_eq!(table.classes, vec![5, 300]);
         assert_eq!(table.glyphs.len(), 2);
     }
@@ -117,14 +117,14 @@ mod otfcc_read_tsi5_tests {
         // instead of read.
         let data = vec![0x00, 0x05, 0xFF]; // one full entry + one stray byte
         let packet = packet_with_tsi5(data);
-        let table = otfcc_read_tsi5(&packet).unwrap();
+        let table = read_tsi5(&packet).unwrap();
         assert_eq!(table.classes, vec![5]);
     }
 
     #[test]
     fn empty_table_produces_an_empty_class_def() {
         let packet = packet_with_tsi5(Vec::new());
-        let table = otfcc_read_tsi5(&packet).unwrap();
+        let table = read_tsi5(&packet).unwrap();
         assert!(table.classes.is_empty());
     }
 }

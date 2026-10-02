@@ -6,30 +6,30 @@ use crate::support::built_json::BuiltValue;
 
 use crate::table::glyf::GlyfIOContext;
 
-use crate::table::_tsi::otfcc_dump_tsi;
-use crate::table::base::otfcc_dump_base;
-use crate::table::cff::otfcc_dump_cff;
-use crate::table::cmap::otfcc_dump_cmap;
-use crate::table::colr::otfcc_dump_colr;
-use crate::table::cpal::otfcc_dump_cpal;
-use crate::table::cvt::otfcc_dump_cvt;
+use crate::table::_tsi::dump_tsi;
+use crate::table::base::dump_base;
+use crate::table::cff::dump_cff;
+use crate::table::cmap::dump_cmap;
+use crate::table::colr::dump_colr;
+use crate::table::cpal::dump_cpal;
+use crate::table::cvt::dump_cvt;
 use crate::table::fpgm_prep::table_dump_table_fpgm_prep;
-use crate::table::fvar::otfcc_dump_fvar;
-use crate::table::gasp::otfcc_dump_gasp;
-use crate::table::gdef::otfcc_dump_gdef;
-use crate::table::glyf::otfcc_dump_glyf;
-use crate::table::head::otfcc_dump_head;
-use crate::table::hhea::otfcc_dump_hhea;
-use crate::table::maxp::otfcc_dump_maxp;
-use crate::table::meta::dump::otfcc_dump_meta;
-use crate::table::name::otfcc_dump_name;
-use crate::table::os_2::otfcc_dump_os_2;
-use crate::table::otl::dump::otfcc_dump_otl;
-use crate::table::post::otfcc_dump_post;
-use crate::table::svg::otfcc_dump_svg;
-use crate::table::tsi5::otfcc_dump_tsi5;
-use crate::table::vdmx::funcs::otfcc_dump_vdmx;
-use crate::table::vhea::otfcc_dump_vhea;
+use crate::table::fvar::dump_fvar;
+use crate::table::gasp::dump_gasp;
+use crate::table::gdef::dump_gdef;
+use crate::table::glyf::dump_glyf;
+use crate::table::head::dump_head;
+use crate::table::hhea::dump_hhea;
+use crate::table::maxp::dump_maxp;
+use crate::table::meta::dump::dump_meta;
+use crate::table::name::dump_name;
+use crate::table::os_2::dump_os_2;
+use crate::table::otl::dump::dump_otl;
+use crate::table::post::dump_post;
+use crate::table::svg::dump_svg;
+use crate::table::tsi5::dump_tsi5;
+use crate::table::vdmx::funcs::dump_vdmx;
+use crate::table::vhea::dump_vhea;
 
 /// Dumps a consolidated font into the JSON value tree otfccdump prints.
 ///
@@ -40,23 +40,23 @@ use crate::table::vhea::otfcc_dump_vhea;
 /// existed on this path.
 pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
     let mut root = BuiltValue::new_object(48);
-    otfcc_dump_fvar(font.fvar.as_deref(), &mut root);
-    otfcc_dump_head(font.head.as_deref(), &mut root);
-    otfcc_dump_hhea(font.hhea.as_deref(), &mut root);
-    otfcc_dump_maxp(font.maxp.as_deref(), &mut root);
-    otfcc_dump_vhea(font.vhea.as_deref(), &mut root);
-    otfcc_dump_post(font.post.as_deref(), &mut root);
-    otfcc_dump_os_2(font.os_2.as_deref(), &mut root);
-    otfcc_dump_name(font.name.as_ref(), &mut root);
-    otfcc_dump_meta(font.meta.as_deref(), &mut root);
-    otfcc_dump_cmap(font.cmap.as_deref(), &mut root, options);
-    otfcc_dump_cff(font.cff.as_deref(), &mut root);
+    dump_fvar(font.fvar.as_deref(), &mut root);
+    dump_head(font.head.as_deref(), &mut root);
+    dump_hhea(font.hhea.as_deref(), &mut root);
+    dump_maxp(font.maxp.as_deref(), &mut root);
+    dump_vhea(font.vhea.as_deref(), &mut root);
+    dump_post(font.post.as_deref(), &mut root);
+    dump_os_2(font.os_2.as_deref(), &mut root);
+    dump_name(font.name.as_ref(), &mut root);
+    dump_meta(font.meta.as_deref(), &mut root);
+    dump_cmap(font.cmap.as_deref(), &mut root, options);
+    dump_cff(font.cff.as_deref(), &mut root);
     // `GlyfIOContext` needs both `head` (for `index_to_loc_format`) and
     // `maxp` (for `num_glyphs`) -- a malformed/CFF-flavored font can
     // legitimately have neither, the same "head+maxp missing" case
     // `read_otf`'s own TTF branch already treats as "no glyf
     // data" (leaving `font.glyf` at `None`) rather than panicking.
-    // `otfcc_dump_glyf` itself already no-ops on a `None` table, so
+    // `dump_glyf` itself already no-ops on a `None` table, so
     // building `ctx` (which unconditionally unwrapped both) was the
     // only thing that could panic here -- skip the whole block instead.
     if let (Some(head), Some(maxp)) = (font.head.as_deref(), font.maxp.as_deref()) {
@@ -68,7 +68,7 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
             has_vertical_metrics: font.vhea.is_some(),
             export_fd_select: font.cff.as_deref().is_some_and(|c| c.is_cid),
         };
-        otfcc_dump_glyf(font.glyf.as_ref(), &mut root, options, &ctx);
+        dump_glyf(font.glyf.as_ref(), &mut root, options, &ctx);
     }
     if !options.ignore_hints {
         table_dump_table_fpgm_prep(
@@ -83,39 +83,39 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
             options,
             b"prep",
         );
-        otfcc_dump_cvt(
+        dump_cvt(
             font.cvt_.as_deref(),
             &mut root,
             b"cvt_",
         );
-        otfcc_dump_gasp(font.gasp.as_deref(), &mut root);
+        dump_gasp(font.gasp.as_deref(), &mut root);
     }
-    otfcc_dump_vdmx(font.vdmx.as_deref(), &mut root);
-    otfcc_dump_otl(
+    dump_vdmx(font.vdmx.as_deref(), &mut root);
+    dump_otl(
         font.gsub.as_deref(),
         &mut root,
         b"GSUB",
     );
-    otfcc_dump_otl(
+    dump_otl(
         font.gpos.as_deref(),
         &mut root,
         b"GPOS",
     );
-    otfcc_dump_gdef(font.gdef.as_deref(), &mut root);
-    otfcc_dump_base(font.base.as_deref(), &mut root);
-    otfcc_dump_cpal(font.cpal.as_deref(), &mut root);
-    otfcc_dump_colr(font.colr.as_ref(), &mut root);
-    otfcc_dump_svg(font.svg.as_ref(), &mut root);
-    otfcc_dump_tsi(
+    dump_gdef(font.gdef.as_deref(), &mut root);
+    dump_base(font.base.as_deref(), &mut root);
+    dump_cpal(font.cpal.as_deref(), &mut root);
+    dump_colr(font.colr.as_ref(), &mut root);
+    dump_svg(font.svg.as_ref(), &mut root);
+    dump_tsi(
         font.tsi_01.as_ref(),
         &mut root,
         b"TSI_01",
     );
-    otfcc_dump_tsi(
+    dump_tsi(
         font.tsi_23.as_ref(),
         &mut root,
         b"TSI_23",
     );
-    otfcc_dump_tsi5(font.tsi5.as_deref(), &mut root);
+    dump_tsi5(font.tsi5.as_deref(), &mut root);
     return root;
 }

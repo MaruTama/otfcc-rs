@@ -18,7 +18,7 @@ use crate::table::meta::types::{MetaEntry, MetaTable};
 // a single entry failing this check does not drop the whole table --
 // matching the original, which silently skipped just that one entry and
 // kept going.
-fn parse_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
+fn decode_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.u32()?;
     let flags = r.u32()?;
@@ -46,12 +46,12 @@ fn parse_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
         entries,
     })
 }
-pub fn otfcc_read_meta(packet: &Packet) -> Option<Box<MetaTable>> {
+pub fn read_meta(packet: &Packet) -> Option<Box<MetaTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_META)?;
-    match parse_meta(&table.data) {
+    match decode_meta(&table.data) {
         Ok(meta) => Some(Box::new(meta)),
         Err(_) => {
             tracing::warn!("Table 'meta' corrupted.\n");
@@ -80,14 +80,14 @@ mod parse_meta_tests {
         data.extend_from_slice(&28u32.to_be_bytes()); // offset: right after the 16-byte header + 12-byte entry
         data.extend_from_slice(&3u32.to_be_bytes()); // length
         data.extend_from_slice(b"en-US");
-        let meta = parse_meta(&data).unwrap();
+        let meta = decode_meta(&data).unwrap();
         assert_eq!(meta.entries.len(), 1);
         assert_eq!(meta.entries[0].data, b"en-".to_vec());
     }
 
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
-        assert!(parse_meta(&header(1, 0, 0)[..10]).is_err());
+        assert!(decode_meta(&header(1, 0, 0)[..10]).is_err());
     }
 
     #[test]
@@ -96,7 +96,7 @@ mod parse_meta_tests {
         // small number under wrapping arithmetic; `require_room`'s
         // `checked_mul` must reject this instead of wrapping through it.
         let data = header(1, 0, 0x1555_5556);
-        assert!(parse_meta(&data).is_err());
+        assert!(decode_meta(&data).is_err());
     }
 
     #[test]
@@ -105,7 +105,7 @@ mod parse_meta_tests {
         data.extend_from_slice(b"dlng");
         data.extend_from_slice(&0xFFFF_FFF0u32.to_be_bytes()); // offset
         data.extend_from_slice(&0x0000_0020u32.to_be_bytes()); // length; offset+length overflows u32
-        let meta = parse_meta(&data).unwrap();
+        let meta = decode_meta(&data).unwrap();
         assert!(meta.entries.is_empty());
     }
 
@@ -115,7 +115,7 @@ mod parse_meta_tests {
         data.extend_from_slice(b"dlng");
         data.extend_from_slice(&100u32.to_be_bytes()); // offset past the table end
         data.extend_from_slice(&3u32.to_be_bytes());
-        let meta = parse_meta(&data).unwrap();
+        let meta = decode_meta(&data).unwrap();
         assert!(meta.entries.is_empty());
     }
 }

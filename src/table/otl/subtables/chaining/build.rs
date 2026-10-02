@@ -15,7 +15,7 @@ use crate::table::otl::subtables::chaining::common::{
 use crate::table::otl::{
     ChainingRule, ChainingSubtable, Lookup, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING,
 };
-pub fn otfcc_chaining_lookup_is_contextual_lookup(lookup: &Lookup) -> bool {
+pub fn chaining_lookup_is_contextual_lookup(lookup: &Lookup) -> bool {
     if !(lookup.type_0 == OTL_TYPE_GPOS_CHAINING || lookup.type_0 == OTL_TYPE_GSUB_CHAINING) {
         return false;
     }
@@ -42,7 +42,7 @@ pub fn otfcc_chaining_lookup_is_contextual_lookup(lookup: &Lookup) -> bool {
     }
     is_contextual
 }
-pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
+pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let ChainingSubtable::Canonical(rule) = _subtable else {
         unreachable!()
     };
@@ -115,7 +115,7 @@ pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     }
     return bk_build_block(root);
 }
-pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
+pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
     else {
         unreachable!()
@@ -165,7 +165,7 @@ pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
                     rule.match_0[rule.input_begins as usize][0].index as GlyphClass;
                 if start_class_0 as usize == j_1 {
                     // Same clone-then-reverse-locally treatment as
-                    // `otfcc_build_chaining_coverage` above.
+                    // `build_chaining_coverage` above.
                     let mut backtrack: Vec<Coverage> =
                         rule.match_0[..rule.input_begins as usize].to_vec();
                     backtrack.reverse();
@@ -234,25 +234,25 @@ pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
     }
     return bk_build_block(root);
 }
-pub fn otfcc_build_chaining(_subtable: &ChainingSubtable) -> Buffer {
+pub fn build_chaining(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
-        return otfcc_build_chaining_classes(_subtable);
+        return build_chaining_classes(_subtable);
     } else {
-        return otfcc_build_chaining_coverage(_subtable);
+        return build_chaining_coverage(_subtable);
     };
 }
-pub fn otfcc_build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
+pub fn build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let ChainingSubtable::Canonical(rule) = _subtable else {
         unreachable!()
     };
     let n_input: TableId = (rule.input_ends as i32 - rule.input_begins as i32) as TableId;
     let n_subst: TableId = rule.apply.len() as TableId;
-    // Unlike `otfcc_build_chaining_coverage`, this function never reads any
+    // Unlike `build_chaining_coverage`, this function never reads any
     // backtrack-region index (the `j` loop below starts at `input_begins`,
     // not 0) -- the equivalent `reverse_backtracks` call the C-shaped code
     // made here had no observable effect on this function's output and is
     // simply not needed, rather than needing the clone-then-reverse
-    // treatment `otfcc_build_chaining_coverage` needs.
+    // treatment `build_chaining_coverage` needs.
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3_u32)]);
     bk_push(
         &mut root,
@@ -285,7 +285,7 @@ pub fn otfcc_build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
     }
     return bk_build_block(root);
 }
-pub fn otfcc_build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
+pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
     else {
         unreachable!()
@@ -327,7 +327,7 @@ pub fn otfcc_build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
                     rule.match_0[rule.input_begins as usize][0].index as GlyphClass;
                 if start_class_0 as usize == j_1 {
                     // Same "no observable effect" reasoning as
-                    // `otfcc_build_contextual_coverage` -- the loop below
+                    // `build_contextual_coverage` -- the loop below
                     // starts at `input_begins + 1`, never reading a
                     // backtrack-region index, so the reversal this rule
                     // used to get is dropped rather than reproduced.
@@ -372,10 +372,10 @@ pub fn otfcc_build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     }
     return bk_build_block(root);
 }
-pub fn otfcc_build_contextual(_subtable: &ChainingSubtable) -> Buffer {
+pub fn build_contextual(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
-        return otfcc_build_contextual_classes(_subtable);
+        return build_contextual_classes(_subtable);
     } else {
-        return otfcc_build_contextual_coverage(_subtable);
+        return build_contextual_coverage(_subtable);
     };
 }

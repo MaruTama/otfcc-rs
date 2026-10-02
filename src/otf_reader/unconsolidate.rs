@@ -14,9 +14,9 @@ use crate::table::otl::{
 
 use crate::support::unicode::aglfn::aglfn_name;
 use crate::support::glyph_order::{
-    gord_lookup_name, otfcc_gord_name_a_field_shared, otfcc_set_glyph_order_by_gid,
+    gord_lookup_name, gord_name_a_field_shared, set_glyph_order_by_gid,
 };
-use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
+use crate::support::primitives::{to_f2dot14, to_fixed};
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_inplace_plus};
 use sha1::{Digest, Sha1};
@@ -29,7 +29,7 @@ fn hash_vqs(buf: &mut Buffer, s: &VqSegment) {
     buf.write_u8(s.discriminant_byte());
     match s {
         VqSegment::Still(still) => {
-            buf.write_u32be(otfcc_to_fixed(*still) as u32);
+            buf.write_u32be(to_fixed(*still) as u32);
         }
         VqSegment::Delta(delta) => {
             // `delta.region: Rc<VqRegion>` is shared ownership of the same
@@ -37,18 +37,18 @@ fn hash_vqs(buf: &mut Buffer, s: &VqSegment) {
             // field/method access through `Rc`'s `Deref`, no `unsafe {}`
             // needed (unlike the raw-pointer form this replaces).
             let region = &delta.region;
-            buf.write_u32be(otfcc_to_fixed(delta.quantity) as u32);
+            buf.write_u32be(to_fixed(delta.quantity) as u32);
             buf.write_u32be(region.dimensions as u32);
             for span in &region.spans {
-                buf.write_u32be(otfcc_to_f2dot14(span.start) as u32);
-                buf.write_u32be(otfcc_to_f2dot14(span.peak) as u32);
-                buf.write_u32be(otfcc_to_f2dot14(span.end) as u32);
+                buf.write_u32be(to_f2dot14(span.start) as u32);
+                buf.write_u32be(to_f2dot14(span.peak) as u32);
+                buf.write_u32be(to_f2dot14(span.end) as u32);
             }
         }
     }
 }
 fn hash_vq(buf: &mut Buffer, x: VQ) {
-    buf.write_u32be(otfcc_to_fixed(x.kernel) as u32);
+    buf.write_u32be(to_fixed(x.kernel) as u32);
     buf.write_u32be(x.shift.len() as u32);
     for s in &x.shift {
         hash_vqs(buf, s);
@@ -99,26 +99,26 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
         buf.write_bytes(&h.hash);
         hash_vq(buf, r.x.borrow().clone());
         hash_vq(buf, r.y.borrow().clone());
-        buf.write_u32be(otfcc_to_f2dot14(r.a) as u32);
-        buf.write_u32be(otfcc_to_f2dot14(r.b) as u32);
-        buf.write_u32be(otfcc_to_f2dot14(r.c) as u32);
-        buf.write_u32be(otfcc_to_f2dot14(r.d) as u32);
+        buf.write_u32be(to_f2dot14(r.a) as u32);
+        buf.write_u32be(to_f2dot14(r.b) as u32);
+        buf.write_u32be(to_f2dot14(r.c) as u32);
+        buf.write_u32be(to_f2dot14(r.d) as u32);
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('s' as i32 as u8);
     buf.write_u8('H' as i32 as u8);
     buf.write_u8('(' as i32 as u8);
     for stem in g.stem_h.iter() {
-        buf.write_u32be(otfcc_to_fixed(stem.position) as u32);
-        buf.write_u32be(otfcc_to_fixed(stem.width) as u32);
+        buf.write_u32be(to_fixed(stem.position) as u32);
+        buf.write_u32be(to_fixed(stem.width) as u32);
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('s' as i32 as u8);
     buf.write_u8('V' as i32 as u8);
     buf.write_u8('(' as i32 as u8);
     for stem in g.stem_v.iter() {
-        buf.write_u32be(otfcc_to_fixed(stem.position) as u32);
-        buf.write_u32be(otfcc_to_fixed(stem.width) as u32);
+        buf.write_u32be(to_fixed(stem.position) as u32);
+        buf.write_u32be(to_fixed(stem.width) as u32);
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('m' as i32 as u8);
@@ -151,7 +151,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         by_gid: std::collections::BTreeMap::new(),
         by_name: std::collections::HashMap::new(),
     };
-    // Only ever called (from `otfcc_unconsolidate_font`) under a
+    // Only ever called (from `unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
     let num_glyphs: GlyphId = count_u16(font.glyf.as_ref().unwrap().len());
     let prefix: Vec<u8> = options.glyph_name_prefix.clone().unwrap_or_default();
@@ -188,9 +188,9 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
                 }
                 let newname_0: Vec<u8> =
                     crate::bytesbuild!(&gname, b"-", &prefix, n as i32);
-                otfcc_set_glyph_order_by_gid(&mut glyph_order, j, newname_0)
+                set_glyph_order_by_gid(&mut glyph_order, j, newname_0)
             } else {
-                otfcc_set_glyph_order_by_gid(&mut glyph_order, j, gname)
+                set_glyph_order_by_gid(&mut glyph_order, j, gname)
             };
             font.glyf.as_mut().unwrap()[j as usize]
                 .as_mut()
@@ -200,7 +200,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
             let existing_name = glyf[j as usize].as_deref().unwrap().name.clone();
             if !existing_name.is_empty() {
                 let gname_0: Vec<u8> = crate::bytesbuild!(&prefix, &existing_name);
-                let shared_name_1 = otfcc_set_glyph_order_by_gid(&mut glyph_order, j, gname_0);
+                let shared_name_1 = set_glyph_order_by_gid(&mut glyph_order, j, gname_0);
                 font.glyf.as_mut().unwrap()[j as usize]
                     .as_mut()
                     .unwrap()
@@ -217,7 +217,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
             for &idx in post_name_map.by_gid.values() {
                 let entry = &post_name_map.entries[idx];
                 let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
-                otfcc_set_glyph_order_by_gid(&mut glyph_order, entry.gid, gname_1);
+                set_glyph_order_by_gid(&mut glyph_order, entry.gid, gname_1);
             }
         }
     if let Some(cmap) = font.cmap.as_ref().filter(|_| !options.name_glyphs_by_gid) {
@@ -232,7 +232,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
                     Some(n) => crate::bytesbuild!(&prefix, n),
                     None => crate::bytesbuild!(&prefix, b"uni", Hex4Upper(unicode as u32)),
                 };
-                otfcc_set_glyph_order_by_gid(&mut glyph_order, glyph.index, name);
+                set_glyph_order_by_gid(&mut glyph_order, glyph.index, name);
             }
         }
     }
@@ -253,18 +253,18 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         } else {
             name_0 = crate::bytesbuild!(&prefix, b".notdef");
         }
-        otfcc_set_glyph_order_by_gid(&mut glyph_order, j_1, name_0);
+        set_glyph_order_by_gid(&mut glyph_order, j_1, name_0);
     }
     glyph_order
 }
 fn name_glyphs(font: &mut Font, gord: &GlyphOrder) {
-    // Only ever called (from `otfcc_unconsolidate_font`) under a
+    // Only ever called (from `unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
     let glyf = font.glyf.as_mut().unwrap();
     for (gid, slot) in glyf.iter_mut().enumerate() {
         let g = slot.as_mut().unwrap();
         let mut glyph_name: Vec<u8> = Vec::new();
-        otfcc_gord_name_a_field_shared(gord, gid as GlyphId, &mut glyph_name);
+        gord_name_a_field_shared(gord, gid as GlyphId, &mut glyph_name);
         g.name = glyph_name;
     }
 }
@@ -463,7 +463,7 @@ fn merge_ltsh(font: &mut Font) {
             }
         }
 }
-pub fn otfcc_unconsolidate_font(font: &mut Font, options: &Options) {
+pub fn unconsolidate_font(font: &mut Font, options: &Options) {
     merge_hmtx(font);
     merge_vmtx(font);
     merge_ltsh(font);

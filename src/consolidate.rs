@@ -40,9 +40,9 @@ use crate::consolidate::otl::gsub_multi::{consolidate_gsub_alternative, consolid
 use crate::consolidate::otl::gsub_reverse::consolidate_gsub_reverse;
 use crate::consolidate::otl::gsub_single::consolidate_gsub_single;
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
-use crate::support::glyph_order::{otfcc_gord_consolidate_handle, otfcc_set_glyph_order_by_name};
+use crate::support::glyph_order::{gord_consolidate_handle, set_glyph_order_by_name};
 use crate::table::_tsi::tsi_entry_dup;
-use crate::table::glyf::{glyf_component_reference_empty, otfcc_new_glyf_glyph};
+use crate::table::glyf::{glyf_component_reference_empty, new_glyf_glyph};
 use crate::table::otl::{
     otl_feature_list_punch_holes, otl_feature_ref_list_filter_env, otl_lookup_list_punch_holes,
     otl_lookup_ref_list_filter_env,
@@ -50,13 +50,13 @@ use crate::table::otl::{
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm};
 
-// Stage L-7: of the 13 dispatch call sites in `otfcc_consolidate_lookup`
+// Stage L-7: of the 13 dispatch call sites in `consolidate_lookup`
 // below, only `consolidate_chaining` (2 of the 13) ever reads anything
 // about the table beyond the one `&mut Subtable` it's handed -- the other
 // 11 calls (10 distinct functions) never touched `table` at all, so it is
 // gone from their signatures entirely. `__declare_otl_consolidation` takes
 // `fn_0` as `impl Fn(&Font, &mut Subtable, &Options) -> bool` (not a bare
-// `fn` pointer) precisely so `otfcc_consolidate_lookup` can pass a
+// `fn` pointer) precisely so `consolidate_lookup` can pass a
 // capturing closure for the two chaining calls (closing over the
 // `lookups`/`self_index`/`self_name` it now receives) while every other
 // call site just passes the plain function -- no shared function-pointer
@@ -97,7 +97,7 @@ fn consolidate_glyph_contours(g: &mut Glyph) {
 fn consolidate_glyph_references(g: &mut Glyph, glyph_order: &GlyphOrder) {
     let name = &g.name;
     g.references.retain_mut(|r| {
-        let ok = otfcc_gord_consolidate_handle(glyph_order, &mut r.glyph);
+        let ok = gord_consolidate_handle(glyph_order, &mut r.glyph);
         if !ok {
             tracing::warn!("[Consolidate] Ignored absent glyph component reference /{} within /{}.\n", ByteStr(&r.glyph.name), ByteStr(name));
             // `retain_mut` drops rejected elements itself -- every
@@ -422,7 +422,7 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
         if let Some(glyph) = slot {
             consolidate_glyph(glyph, glyph_order, cff);
         } else {
-            *slot = Some(otfcc_new_glyf_glyph());
+            *slot = Some(new_glyf_glyph());
         }
     }
     // `consolidate_anchor_ref` recurses over the reference graph and can
@@ -458,7 +458,7 @@ pub fn consolidate_cmap(font: &mut Font) {
         // removing the entry -- `dump_cmap`'s "skip if name is null"
         // check is what actually hides it later.
         for (&unicode, glyph) in font.cmap.as_mut().unwrap().unicodes.iter_mut() {
-            if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
+            if !gord_consolidate_handle(glyph_order, glyph) {
                 tracing::warn!("[Consolidate] Ignored mapping U+{:04X} to non-existent glyph /{}.\n", unicode as u32, ByteStr(&glyph.name));
                 *glyph = Handle::default();
             }
@@ -466,7 +466,7 @@ pub fn consolidate_cmap(font: &mut Font) {
     }
     if let Some(glyph_order) = glyph_order.filter(|_| font.cmap.is_some()) {
         for (key, glyph) in font.cmap.as_mut().unwrap().uvs.iter_mut() {
-            if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
+            if !gord_consolidate_handle(glyph_order, glyph) {
                 tracing::warn!("[Consolidate] Ignored UVS mapping [U+{:04X} U+{:04X}] to non-existent glyph /{}.\n", key.unicode, key.selector, ByteStr(&glyph.name));
                 *glyph = Handle::default();
             }
@@ -523,7 +523,7 @@ fn __declare_otl_consolidation(
     }
     stage.finish();
 }
-pub fn otfcc_consolidate_lookup(
+pub fn consolidate_lookup(
     glyph_order: &GlyphOrder,
     lookups: &LookupList,
     self_index: TableId,
@@ -577,7 +577,7 @@ pub fn otfcc_consolidate_lookup(
 }
 // Stage L-7: `table` is a real `&mut OtlTable` now, not a raw pointer --
 // closing the aliasing hazard the plan doc flagged this stage for. The one
-// wrinkle: `otfcc_consolidate_lookup`'s call into `consolidate_chaining`
+// wrinkle: `consolidate_lookup`'s call into `consolidate_chaining`
 // still needs read access to *every* lookup, including the very one whose
 // `&mut Lookup` this loop is holding at the time (a chaining rule can name
 // its own containing lookup -- `k == self_index` below). A blanket
@@ -616,7 +616,7 @@ fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut Ot
             let mut current = table.lookups[j].take();
             if let Some(lookup) = current.as_deref_mut() {
                 let self_name = lookup.name.clone();
-                otfcc_consolidate_lookup(
+                consolidate_lookup(
                     glyph_order,
                     &table.lookups,
                     j as TableId,
@@ -646,7 +646,7 @@ fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut Ot
             // same pass, by the same rule, as every other reference to
             // that feature -- closing a real fuzzer-found use-after-free
             // (heap-use-after-free reading a freed `Feature`'s `name` from
-            // `otfcc_dump_otl`, ASan-confirmed). `feature_at` resolving to
+            // `dump_otl`, ASan-confirmed). `feature_at` resolving to
             // `None` (an out-of-range index, never expected here, or a
             // hole punched by an *earlier* iteration of this same loop)
             // is treated the same as "empty": either way, nothing valid to
@@ -703,7 +703,7 @@ fn consolidate_colr(font: &mut Font) {
     let mut consolidated: ColrTable = Vec::new();
     let source: &mut Vec<ColrMapping> = font.colr.as_mut().unwrap();
     for mapping in source.iter_mut() {
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut mapping.glyph) {
+        if !gord_consolidate_handle(glyph_order, &mut mapping.glyph) {
             tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&mapping.glyph.name));
         } else {
             let mut m: ColrMapping = ColrMapping {
@@ -711,7 +711,7 @@ fn consolidate_colr(font: &mut Font) {
                 layers: Vec::new(),
             };
             for layer in mapping.layers.iter_mut() {
-                if !otfcc_gord_consolidate_handle(glyph_order, &mut layer.glyph) {
+                if !gord_consolidate_handle(glyph_order, &mut layer.glyph) {
                     tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&layer.glyph.name));
                 } else {
                     m.layers.push(layer.clone());
@@ -733,7 +733,7 @@ fn consolidate_colr(font: &mut Font) {
 // `font: &mut Font` alongside `tsi: &mut Option<TsiTable>`, which would
 // be two simultaneous borrows of the same `Font` whenever a caller
 // passes `&mut font.tsi_01`/`&mut font.tsi_23`) -- the caller
-// (`otfcc_consolidate_font`) borrows `font.glyf`/`font.glyph_order`
+// (`consolidate_font`) borrows `font.glyf`/`font.glyph_order`
 // (shared) and `font.tsi_01`/`font.tsi_23` (mutable, one at a time) as
 // disjoint fields directly off `font`, which Rust allows even though a
 // single `&Font`/`&mut Font` funneled through this function's own
@@ -753,7 +753,7 @@ fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<
     let entries: &mut Vec<TsiEntry> = tsi.as_mut().unwrap();
     for entry in entries.iter_mut() {
         if entry.type_0 == TsiEntryType::Glyph {
-            if otfcc_gord_consolidate_handle(glyph_order, &mut entry.glyph) {
+            if gord_consolidate_handle(glyph_order, &mut entry.glyph) {
                 gid_entries[entry.glyph.index as usize] =
                     Some(::core::mem::take(&mut entry.content));
             } else {
@@ -773,7 +773,7 @@ fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<
         };
         e_0.type_0 = TsiEntryType::Glyph;
         e_0.glyph = handle_from_index(j as GlyphId) as GlyphHandle;
-        otfcc_gord_consolidate_handle(glyph_order, &mut e_0.glyph);
+        gord_consolidate_handle(glyph_order, &mut e_0.glyph);
         e_0.content = entry.take().unwrap_or_default();
         consolidated.push(e_0);
     }
@@ -786,7 +786,7 @@ fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<
     // assignment overwrites it -- no explicit `table_tsi_free` needed.
     *tsi = Some(consolidated);
 }
-pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
+pub fn consolidate_font(font: &mut Font, options: &Options) {
     // See `Options::consolidate_warning_budget`'s own doc comment: reset
     // once per font here, not just once at `Options` creation, since one
     // `Options` can drive many conversions over its life.
@@ -824,18 +824,18 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
             } else {
                 g.name.clone()
             };
-            // `.clone()`, not a move: `otfcc_set_glyph_order_by_name` always
+            // `.clone()`, not a move: `set_glyph_order_by_name` always
             // consumes its own copy (no ownership contract to track any
             // more -- see its doc comment), but `name` is still needed
             // below regardless of whether this call succeeds or fails, for
             // the log message and/or the retry loop.
-            if !otfcc_set_glyph_order_by_name(go, name.clone(), gid) {
+            if !set_glyph_order_by_name(go, name.clone(), gid) {
                 tracing::warn!("[Consolidate] Glyph name {} is already in use.", ByteStr(&name));
                 let mut suffix: u32 = 2_u32;
                 let mut success: bool;
                 loop {
                     let newname: Vec<u8> = crate::bytesbuild!(&name, b"_", suffix);
-                    success = otfcc_set_glyph_order_by_name(go, newname.clone(), gid);
+                    success = set_glyph_order_by_name(go, newname.clone(), gid);
                     if !success {
                         suffix = suffix.wrapping_add(1_u32);
                     } else {
@@ -943,10 +943,10 @@ mod consolidate_otl_table_tests {
     // lookups (every lookup referencing it turned out to have zero usable
     // subtables) and gets dropped from `table.features` by this same
     // consolidation pass, `required_feature` was left dangling -- read
-    // later by `otfcc_dump_otl`/the build path, an actual heap-use-after-
+    // later by `dump_otl`/the build path, an actual heap-use-after-
     // free (confirmed via a debug-std ASan build: `AddressSanitizer:
     // heap-use-after-free ... freed by ... otl_feature_list_filter_env ...
-    // READ of size 8 ... in otfcc_dump_otl`). `lang.features` (the *list* of
+    // READ of size 8 ... in dump_otl`). `lang.features` (the *list* of
     // borrowed feature refs) was already correctly pruned in this same
     // pass; `required_feature` (the lone one) was not.
     #[test]
@@ -986,7 +986,7 @@ mod consolidate_otl_table_tests {
 
     // `consolidate_otl_table` takes the font's glyph order alone (the only
     // thing any lookup consolidator reads), and returns without touching the
-    // table when there is none. `otfcc_consolidate_font` cannot actually
+    // table when there is none. `consolidate_font` cannot actually
     // reach it that way today -- it errors out earlier for `glyf` without a
     // glyph order -- so no fixture exercises the guard, which is exactly why
     // it is pinned here: an emptied-out lookup would be punched away below
@@ -1130,9 +1130,9 @@ mod composite_reference_cycle_tests {
     // anchor) reference to the other -- no anchor points needed to
     // reproduce get_point_coordinates's own unbounded self-recursion.
     fn cyclic_glyf_table() -> GlyfTable {
-        let mut g0 = otfcc_new_glyf_glyph();
+        let mut g0 = new_glyf_glyph();
         g0.references.push(reference_to(1));
-        let mut g1 = otfcc_new_glyf_glyph();
+        let mut g1 = new_glyf_glyph();
         g1.references.push(reference_to(0));
         vec![Some(g0), Some(g1)]
     }

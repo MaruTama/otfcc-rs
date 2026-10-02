@@ -91,11 +91,11 @@ pub(crate) const MAX_TOTAL_CLASS_COVERAGE_CALLS: u32 = 70_000;
 // individually still left a lookup with ~700 subtables taking 20+ seconds
 // in `class_coverage` alone). They are now `OtlReadBudget`'s
 // `class_zero_glyphs`/`class_coverage_calls`, created once per
-// `otfcc_read_otl` call (once per GSUB or GPOS table), which bounds the
+// `read_otl` call (once per GSUB or GPOS table), which bounds the
 // whole table's total `class_coverage` cost.
 /// Bounds the number of contextual/chaining rules actually built across a
 /// *whole table* (every subtable of every lookup combined -- see
-/// `OtlReadBudget::rules`, one budget per `otfcc_read_otl` call).
+/// `OtlReadBudget::rules`, one budget per `read_otl` call).
 /// Each `chainSubClassSet`/`subRuleSet` entry's own rule count is
 /// individually bounds-checked against the table (its rule-offset array
 /// must fit), but nothing stopped an attacker from declaring dozens of such
@@ -380,7 +380,7 @@ pub fn general_read_contextual_rule(
 
     // `Box` is the allocation, the struct literal is the zero-init the old
     // `__caryll_allocate_clean` provided -- same shape as `new_lookup`/
-    // `otfcc_new_glyf_glyph`.
+    // `new_glyf_glyph`.
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
         match_count: match_count as TableId,
         input_begins: 0 as TableId,

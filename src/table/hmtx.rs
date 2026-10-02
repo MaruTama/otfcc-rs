@@ -41,7 +41,7 @@ fn parse_hmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<HmtxTable, 
         left_side_bearing,
     })
 }
-pub fn otfcc_read_hmtx(
+pub fn read_hmtx(
     packet: &Packet,
     hhea: Option<&HheaTable>,
     maxp: Option<&MaxpTable>,
@@ -66,7 +66,7 @@ pub fn otfcc_read_hmtx(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_hmtx(hmtx: Option<&HmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
+pub fn build_hmtx(hmtx: Option<&HmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
     let mut buf = Buffer::new();
     let hmtx = match hmtx {
         Some(h) => h,

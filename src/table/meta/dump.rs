@@ -6,7 +6,7 @@ use crate::table::meta::types::{MetaEntry, MetaTable};
 fn is_string_tag(tag: u32) -> bool {
     return tag == crate::tag::TAG_DLNG || tag == crate::tag::TAG_SLNG;
 }
-pub fn otfcc_dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue) {
+pub fn dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue) {
     let Some(meta) = meta else {
         return;
     };

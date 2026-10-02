@@ -54,7 +54,7 @@ fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
 /// shape as `table/cpal.rs`'s `offset_first_color_record` bug, just with
 /// three operands chained instead of one. `FontReader::sub`'s
 /// `checked_add` (used twice below, once per addition) closes it.
-fn parse_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
+fn decode_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
     if data.len() < 10 {
         return Err(ReadError { needed: 10, available: data.len() });
     }
@@ -80,9 +80,9 @@ fn parse_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
     Ok(svg)
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
+pub fn read_svg(packet: &Packet) -> Option<SvgTable> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_SVG)?;
-    parse_svg(&table.data).ok()
+    decode_svg(&table.data).ok()
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {
     return doc.len() > 4_usize
@@ -97,7 +97,7 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && doc[3_usize] as i32 == 'm' as i32
             && doc[4_usize] as i32 == 'l' as i32;
 }
-pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
+pub fn dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
     let svg = match svg {
         Some(s) => s,
         None => return,
@@ -124,7 +124,7 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
         stage.finish();
     }
 }
-pub fn otfcc_parse_svg(root: &ParsedValue) -> Option<SvgTable> {
+pub fn parse_svg(root: &ParsedValue) -> Option<SvgTable> {
     let svg_val = root.get_typed(b"SVG_", JsonType::Array)?;
     let mut svg: SvgTable = Vec::new();
     let stage = crate::logger::stage("SVG ");
@@ -153,7 +153,7 @@ pub fn otfcc_parse_svg(root: &ParsedValue) -> Option<SvgTable> {
     return Some(svg);
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
+pub fn build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     let _svg = match _svg {
         Some(s) if !s.is_empty() => s,
         _ => return None,
@@ -220,7 +220,7 @@ mod parse_svg_tests {
     #[test]
     fn well_formed_table_reads_the_document() {
         let data = well_formed_svg_table();
-        let svg = parse_svg(&data).unwrap();
+        let svg = decode_svg(&data).unwrap();
         assert_eq!(svg.len(), 1);
         assert_eq!(svg[0].start, 5);
         assert_eq!(svg[0].end, 5);
@@ -229,14 +229,14 @@ mod parse_svg_tests {
 
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
-        assert!(parse_svg(&well_formed_svg_table()[..8]).is_err());
+        assert!(decode_svg(&well_formed_svg_table()[..8]).is_err());
     }
 
     #[test]
     fn entry_count_larger_than_available_is_rejected_instead_of_reading_oob() {
         let mut data = well_formed_svg_table();
         data[10..12].copy_from_slice(&5u16.to_be_bytes()); // numEntries = 5, only 1 record present
-        assert!(parse_svg(&data).is_err());
+        assert!(decode_svg(&data).is_err());
     }
 
     #[test]
@@ -248,7 +248,7 @@ mod parse_svg_tests {
         // span points nowhere near this table.
         let mut data = well_formed_svg_table();
         data[16..20].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes()); // svgDocOffset
-        let svg = parse_svg(&data).unwrap();
+        let svg = decode_svg(&data).unwrap();
         assert_eq!(svg.len(), 1);
         assert!(svg[0].document.is_empty());
     }

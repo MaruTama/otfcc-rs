@@ -24,7 +24,7 @@ use crate::table::otl::{GsubReverseSubtable, Subtable};
 // empty range, no separate guard needed. Only the parse side
 // (`otl_read_gsub_reverse`, below) still calls this in place -- it owns
 // `subtable`'s only reference during construction, so the `&mut` it takes
-// is sound there; the build side (`otfcc_build_gsub_reverse`) needed a
+// is sound there; the build side (`build_gsub_reverse`) needed a
 // different fix (clone-then-reverse a local instead) once it started
 // taking a shared `&Subtable`.
 fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
@@ -178,7 +178,7 @@ pub fn otl_gsub_parse_reverse(
     };
     Some(Subtable::GsubReverse(subtable))
 }
-pub fn otfcc_build_gsub_reverse(
+pub fn build_gsub_reverse(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {

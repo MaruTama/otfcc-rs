@@ -17,7 +17,7 @@ pub(crate) fn chaining_rule_mut(subtable: &mut ChainingSubtable) -> &mut Chainin
 }
 /// Returns a shared reference into the `Canonical` variant's payload.
 /// Safe `&ChainingRule` (not a raw pointer): every call site (`build.rs`'s
-/// `otfcc_chaining_lookup_is_contextual_lookup`, `dump.rs`, and -- since
+/// `chaining_lookup_is_contextual_lookup`, `dump.rs`, and -- since
 /// Stage L-6 -- `classifier.rs`'s `try_classify_around`) only ever reads
 /// through it, so there is no `*const` boundary left to preserve here.
 pub(crate) fn chaining_rule_const(subtable: &ChainingSubtable) -> &ChainingRule {
@@ -44,7 +44,7 @@ pub(crate) fn chaining_ruleset_mut(subtable: &mut ChainingSubtable) -> &mut Chai
 }
 /// Shared reference counterpart of `chaining_ruleset_mut`, above -- same
 /// "safe reference, not a raw pointer" reasoning: `build.rs`'s
-/// `otfcc_chaining_lookup_is_contextual_lookup` only ever reads through it.
+/// `chaining_lookup_is_contextual_lookup` only ever reads through it.
 pub(crate) fn chaining_ruleset_const(subtable: &ChainingSubtable) -> &ChainingRuleSet {
     match subtable {
         ChainingSubtable::Poly(rs) | ChainingSubtable::Classified(rs) => rs,
@@ -72,7 +72,7 @@ pub(crate) fn chaining_is_canonical(subtable: &ChainingSubtable) -> bool {
 /// ever calls this on a lookup already known to be an
 /// `OTL_TYPE_{GSUB,GPOS}_{CHAINING,CONTEXT}` one, so every slot's payload is
 /// a `ChainingSubtable` by construction. Shared by `classifier.rs` and
-/// `build.rs`'s `otfcc_chaining_lookup_is_contextual_lookup` -- both used to
+/// `build.rs`'s `chaining_lookup_is_contextual_lookup` -- both used to
 /// reach the same slot via `subtable_at` (a raw `*mut Subtable`) followed by
 /// their own `let Subtable::Chaining(..) = &*ptr else { unreachable!() }`;
 /// this is that same match, but starting from (and staying) a safe

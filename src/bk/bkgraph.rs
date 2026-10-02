@@ -286,7 +286,7 @@ fn minimize_graph(graph: &mut BkGraph) {
 pub fn bk_minimize_graph(f: &mut BkGraph) {
     minimize_graph(f);
 }
-fn otfcc_bkblock_size(block: &ArenaBlock) -> usize {
+fn bkblock_size(block: &ArenaBlock) -> usize {
     let mut size: usize = 0;
     for cell in block.cells.iter() {
         match cell.t {
@@ -316,7 +316,7 @@ fn getoffset(
     if (bits as i32) < 32_i32 && (offtgt < offref || offtgt.wrapping_sub(offref) >> bits as i32 != 0)
     {
         // No `Logger`/`Options` reaches this deep into the bk-block
-        // serializer (`otfcc_build_bkblock` is called from ~19 unrelated
+        // serializer (`build_bkblock` is called from ~19 unrelated
         // table builders, none of which carry one this far down), so this
         // stays a plain diagnostic print rather than forcing a `Logger`
         // parameter through that whole call graph for a rarely-hit
@@ -483,7 +483,7 @@ fn compute_block_offsets(blocks: &[ArenaBlock], entries: &[BkGraphNode]) -> Vec<
         let block = &blocks[entry.block.0 as usize];
         let running = offsets[j];
         offsets[j + 1] = if block.visitstate == BkCellVisitState::Black {
-            running.wrapping_add(otfcc_bkblock_size(block))
+            running.wrapping_add(bkblock_size(block))
         } else {
             running
         };
@@ -503,7 +503,7 @@ fn try_untangle(graph: &mut BkGraph) -> bool {
     }
     did_untangle
 }
-fn otfcc_build_bkblock(buf: &mut Buffer, blocks: &[ArenaBlock], id: BlockId, offsets: &[usize]) {
+fn build_bkblock(buf: &mut Buffer, blocks: &[ArenaBlock], id: BlockId, offsets: &[usize]) {
     for cell in blocks[id.0 as usize].cells.iter() {
         match cell.t {
             BkCellType::B8 => {
@@ -538,7 +538,7 @@ fn build_graph(graph: &BkGraph) -> Buffer {
     let offsets: Vec<usize> = compute_block_offsets(&graph.blocks, &graph.entries);
     for entry in graph.entries.iter() {
         if graph.blocks[entry.block.0 as usize].visitstate == BkCellVisitState::Black {
-            otfcc_build_bkblock(&mut buf, &graph.blocks, entry.block, &offsets);
+            build_bkblock(&mut buf, &graph.blocks, entry.block, &offsets);
         }
     }
     buf

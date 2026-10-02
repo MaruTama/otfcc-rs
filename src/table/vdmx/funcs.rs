@@ -17,7 +17,7 @@ use crate::table::vdmx::types::{VdmxRatioRange, VdmxRecord, VdmxTable};
 // offset below -- the ratio range, the offset table, and the group itself
 // -- now goes through `FontReader::at`, so an out-of-range offset fails the
 // read instead of dereferencing it.
-fn parse_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
+fn decode_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.u16()?;
     r.skip(2)?; // numRecs: unused, each group carries its own record count
@@ -54,12 +54,12 @@ fn parse_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
     }
     Ok(VdmxTable { version, ratios })
 }
-pub fn otfcc_read_vdmx(packet: &Packet) -> Option<Box<VdmxTable>> {
+pub fn read_vdmx(packet: &Packet) -> Option<Box<VdmxTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_VDMX)?;
-    match parse_vdmx(&table.data) {
+    match decode_vdmx(&table.data) {
         Ok(vdmx) => Some(Box::new(vdmx)),
         Err(_) => {
             tracing::warn!("Table 'VDMX' corrupted.\n");
@@ -67,7 +67,7 @@ pub fn otfcc_read_vdmx(packet: &Packet) -> Option<Box<VdmxTable>> {
         }
     }
 }
-pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue) {
+pub fn dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue) {
     let Some(vdmx) = vdmx else {
         return;
     };
@@ -97,7 +97,7 @@ pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue) {
     root.push_field(b"VDMX", _vdmx);
     stage.finish();
 }
-pub fn otfcc_parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
+pub fn parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
     let vdmx_dump = root.get_typed(b"VDMX", JsonType::Object)?;
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable {
         version: 0,
@@ -146,7 +146,7 @@ pub fn otfcc_parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
     Some(vdmx)
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
+pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
     let vdmx = vdmx?;
     let ratios: &Vec<VdmxRatioRange> = &vdmx.ratios;
     if ratios.is_empty() {
@@ -230,7 +230,7 @@ mod parse_vdmx_tests {
 
     #[test]
     fn well_formed_table_follows_the_group_offset() {
-        let vdmx = parse_vdmx(&well_formed_one_ratio_vdmx()).unwrap();
+        let vdmx = decode_vdmx(&well_formed_one_ratio_vdmx()).unwrap();
         assert_eq!(vdmx.ratios.len(), 1);
         assert_eq!(vdmx.ratios[0].records.len(), 1);
         assert_eq!(vdmx.ratios[0].records[0].y_pel_height, 12);
@@ -246,7 +246,7 @@ mod parse_vdmx_tests {
         let mut data = well_formed_one_ratio_vdmx();
         let bogus_offset = (data.len() as u16) + 1000;
         data[10..12].copy_from_slice(&bogus_offset.to_be_bytes());
-        assert!(parse_vdmx(&data).is_err());
+        assert!(decode_vdmx(&data).is_err());
     }
 
     #[test]
@@ -254,7 +254,7 @@ mod parse_vdmx_tests {
         let mut data = well_formed_one_ratio_vdmx();
         let recs_field_start = 12;
         data[recs_field_start..recs_field_start + 2].copy_from_slice(&9000u16.to_be_bytes());
-        assert!(parse_vdmx(&data).is_err());
+        assert!(decode_vdmx(&data).is_err());
     }
 
     #[test]
@@ -263,11 +263,11 @@ mod parse_vdmx_tests {
         data.extend_from_slice(&0u16.to_be_bytes());
         data.extend_from_slice(&0u16.to_be_bytes());
         data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // numRatios
-        assert!(parse_vdmx(&data).is_err());
+        assert!(decode_vdmx(&data).is_err());
     }
 
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
-        assert!(parse_vdmx(&[0x00, 0x00]).is_err());
+        assert!(decode_vdmx(&[0x00, 0x00]).is_err());
     }
 }

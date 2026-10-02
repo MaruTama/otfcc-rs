@@ -3,13 +3,13 @@ use otfcc_rust::support::buffer::Buffer;
 use otfcc_rust::support::options::Options;
 
 use libc::timespec;
-use otfcc_rust::consolidate::otfcc_consolidate_font;
+use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::caryll_font::Font;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
-use otfcc_rust::support::options::otfcc_options_optimize_to;
+use otfcc_rust::support::options::options_optimize_to;
 use otfcc_rust::support::parsed_json::ParsedValue;
 use otfcc_rust::support::parsed_json::parse_json;
 use otfcc_rust::support::cstd::strtol::strtol;
@@ -32,7 +32,7 @@ pub fn print_help() {
 // (`run`) returns `EXIT_FAILURE` itself instead of this function
 // calling `exit()` deep inside a helper, the same "propagate a failure
 // signal up to the one place that already owns process-exit semantics"
-// shape `font/caryll_sfnt.rs`'s `otfcc_get16u`/`otfcc_get32u` -> `Option`
+// shape `font/caryll_sfnt.rs`'s `get16u`/`get32u` -> `Option`
 // conversion used.
 //
 // The bug this fixes: the old `fseek`/`ftell`/`fread` version discarded
@@ -88,7 +88,7 @@ fn run(args: Vec<String>) -> i32 {
     let mut show_version: bool = false;
     let mut output_path: Option<::std::ffi::CString> = None;
     let mut options: Box<Options> = Box::default();
-    otfcc_options_optimize_to(&mut options, 1_u8);
+    options_optimize_to(&mut options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     // `--keep-glyph-order` and `--dont-ignore-glyph-order` are documented as
@@ -168,7 +168,7 @@ fn run(args: Vec<String>) -> i32 {
                 OPT_DUMMY_DSIG => options.dummy_dsig = true,
                 OPT_QUIET => options.quiet = true,
                 OPT_OPTIMIZE => {
-                    otfcc_options_optimize_to(&mut options, strtol(arg.unwrap().as_bytes(), 10) as u8);
+                    options_optimize_to(&mut options, strtol(arg.unwrap().as_bytes(), 10) as u8);
                 }
                 OPT_TIME => {}
                 OPT_IGNORE_HINTS => options.ignore_hints = true,
@@ -271,7 +271,7 @@ fn run(args: Vec<String>) -> i32 {
     }
     let stage = otfcc_rust::logger::stage("Consolidate");
     {
-        otfcc_consolidate_font(font.as_mut().unwrap(), &options);
+        consolidate_font(font.as_mut().unwrap(), &options);
         log_step_time(&mut begin);
         stage.finish();
     }

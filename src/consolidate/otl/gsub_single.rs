@@ -6,7 +6,7 @@ use crate::support::primitives::GlyphId;
 
 use crate::table::otl::{GsubSingleEntry, Subtable};
 
-use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
+use crate::support::glyph_order::{GlyphOrder, gord_consolidate_handle};
 use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
 pub fn consolidate_gsub_single(
@@ -14,7 +14,7 @@ pub fn consolidate_gsub_single(
     _subtable: &mut Subtable,
 ) -> bool {
     // Guaranteed `Some`: `consolidate_otl` (and hence this function) only
-    // ever runs when `glyf` is present, and `otfcc_consolidate_font`
+    // ever runs when `glyf` is present, and `consolidate_font`
     // always populates `glyph_order` before that, whenever `glyf` is
     // present.
     let Subtable::GsubSingle(subtable) = _subtable else {
@@ -30,9 +30,9 @@ pub fn consolidate_gsub_single(
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
     for entry in subtable.iter_mut() {
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.from) {
+        if !gord_consolidate_handle(glyph_order, &mut entry.from) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.from.name));
-        } else if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.to) {
+        } else if !gord_consolidate_handle(glyph_order, &mut entry.to) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.to.name));
         } else {
             let fromid: i32 = entry.from.index as i32;

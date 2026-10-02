@@ -43,12 +43,12 @@ pub struct Options {
     // write, tens of seconds of pure logging overhead. This
     // is the backstop that bounds the *product*, not just each factor.
     // Reset to `CONSOLIDATE_WARNING_BUDGET` at the start of every
-    // `otfcc_consolidate_font` call (not just once at `Options` creation),
+    // `consolidate_font` call (not just once at `Options` creation),
     // since one `Options` can drive many font conversions over its life
     // (the FFI/DLL entry points, in particular).
     pub consolidate_warning_budget: std::cell::Cell<u32>,
 }
-pub fn otfcc_options_optimize_to(options: &mut Options, level: u8) {
+pub fn options_optimize_to(options: &mut Options, level: u8) {
     options.cff_roll_char_string = false;
     options.short_post = false;
     options.ignore_glyph_order = false;
