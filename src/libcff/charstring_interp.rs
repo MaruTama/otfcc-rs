@@ -3,9 +3,10 @@
 //! `OutlineBuilderContext` callbacks in `table/cff.rs`.
 //!
 //! `cff_parse_outline` reads tokens and pushes operands; each operator is
-//! one `op_*` function below, named after its `OP_*` constant. An operator
-//! returns [`Flow::Stop`] when the rest of the outline must be ignored
-//! (operand stack overflow, malformed hint mask data).
+//! one `op_*` function below, named after its `OP_*` constant, and families
+//! of operators that differ only in direction or arity share a helper. An
+//! operator returns [`Flow::Stop`] when the rest of the outline must be
+//! ignored (operand stack overflow, malformed hint mask data).
 
 use crate::logger::ByteStr;
 use crate::libcff::cff_codecs::cff_decode_cs2_token;
@@ -48,32 +49,31 @@ impl CffStack {
         cffnum(self.stack[(self.index - n) as usize])
     }
 
+    /// Replaces the operand `n` places from the top with the number `value`.
+    fn set_top(&mut self, n: Arity, value: f64) {
+        self.stack[(self.index - n) as usize] = CffValue::Double(value);
+    }
+
     /// Pops every operand (path and hint operators consume the whole stack).
     fn clear(&mut self) {
         self.index = 0;
     }
+
+    /// Whether another operand fits on the stack.
+    fn has_room(&self) -> bool {
+        (self.index as usize) < self.stack.len()
+    }
+
+    /// Pushes `value`; the caller has checked `has_room`.
+    fn push(&mut self, value: CffValue) {
+        self.stack[self.index as usize] = value;
+        self.index += 1;
+    }
 }
 
-// `methods: CffIOutlineBuilder` parameter dropped: this was called from
-// exactly one call site (`table/cff.rs`), always passing the single static
-// `DRAW_PASS` -- degenerate polymorphism like every other collapsed
-// vtable, just structured as a by-value struct argument instead of a
-// global static. Every field of `DRAW_PASS` is always `Some`, so the old
-// per-field `.is_none()` fallback-to-`callback_nop_*` branches below were
-// already unreachable dead code; deleted along with the extraction, not
-// just the vtable shell.
-//
-// `outline` itself used to be a `*mut c_void`, cast back to `*mut
-// OutlineBuilderContext` at each `callback_draw_*` call site -- more type
-// erasure that was never actually needed, the same pattern as the vtable
-// above: every one of the ~40 call sites below (including the two
-// recursive `cff_parse_outline` calls for `callsubr`/`callgsubr`) already
-// knows the concrete type at compile time. A real `&mut
-// OutlineBuilderContext` carries the same information with no cast, and
-// Rust's implicit-reborrow rule for `&mut` places (the same mechanism
-// that lets a loop call `f(r)` on a `&mut` binding `r` repeatedly without
-// "value moved" errors) means every one of those call sites, recursive
-// calls included, keeps working unchanged.
+/// Runs the CharString `data` and draws it into `outline`. Each subroutine
+/// call runs this again on the same stack and outline, with `depth` one
+/// deeper; `total_calls` counts the subroutine calls made for this glyph.
 pub fn cff_parse_outline(
     data: &[u8],
     gsubr: &CffIndex,
@@ -84,7 +84,7 @@ pub fn cff_parse_outline(
     total_calls: &mut u32,
 ) {
     if depth > MAX_SUBR_CALL_DEPTH {
-        tracing::warn!("[libcff] Subroutine call nesting exceeded {}; the rest of this outline is ignored.\n", MAX_SUBR_CALL_DEPTH as i32);
+        tracing::warn!("[libcff] Subroutine call nesting exceeded {}; the rest of this outline is ignored.\n", MAX_SUBR_CALL_DEPTH);
         return;
     }
     let subrs = Subroutines {
@@ -93,35 +93,27 @@ pub fn cff_parse_outline(
         gsubr_bias: compute_subr_bias(gsubr.count as u16),
         lsubr_bias: compute_subr_bias(lsubr.count as u16),
     };
-    // `pos` (into `data`) replaces `start` (a `*mut u8` cursor), the same
-    // "cursor into a safe slice instead of raw pointer arithmetic" shape
-    // the rest of this crate's parse-boundary work already uses.
-    // `cff_decode_cs2_token` takes `&data[pos..]` directly.
-    let data_slice: &[u8] = data;
-    let mut pos: usize = 0;
-    let mut advance: u32;
-    let mut val: CffValue = CffValue::Unset;
-    while pos < data_slice.len() {
-        // The outer loop already bounds where a token can *start*, but
-        // not that the token itself stays within `len` -- a token
-        // starting near the end of a truncated CharString used to read
-        // past it (see `cff_codecs.rs`'s own conversion). Stop cleanly
-        // instead of reading on. (`op_hint_mask` bounds its mask bytes,
-        // which follow the operator outside any token, the same way.)
-        let Some(adv) = cff_decode_cs2_token(&data_slice[pos..], &mut val) else {
+    let mut pos = 0;
+    let mut val = CffValue::Unset;
+    while pos < data.len() {
+        // A token starting near the end of a truncated CharString would
+        // run past it; stop instead of reading on. (`op_hint_mask` bounds
+        // its mask bytes, which follow the operator outside any token, the
+        // same way.)
+        let Some(token_length) = cff_decode_cs2_token(&data[pos..], &mut val) else {
             break;
         };
-        advance = adv;
+        let mut advance = token_length as usize;
         match val {
             CffValue::Operator(op) => {
                 let flow = match CffCharstringOperator(op) {
                     OP_HSTEM | OP_VSTEM | OP_HSTEMHM | OP_VSTEMHM => op_stem_hints(stack, outline, op),
                     OP_HINTMASK | OP_CNTRMASK => {
                         // The mask bytes follow the operator directly.
-                        let mask_bytes = data_slice.get(pos + advance as usize..).unwrap_or(&[]);
+                        let mask_bytes = data.get(pos + advance..).unwrap_or(&[]);
                         match op_hint_mask(stack, outline, op, mask_bytes) {
                             Some(mask_length) => {
-                                advance = advance.wrapping_add(mask_length);
+                                advance += mask_length as usize;
                                 Flow::Continue
                             }
                             None => Flow::Stop,
@@ -178,149 +170,78 @@ pub fn cff_parse_outline(
                 }
             }
             CffValue::Integer(_) | CffValue::Double(_) => {
-                if (stack.index as usize) < stack.stack.len() {
-                    (&mut stack.stack)[(stack.index as isize) as usize] = val;
-                    stack.index = stack.index.wrapping_add(1);
+                if stack.has_room() {
+                    stack.push(val);
                 } else {
-                    tracing::warn!("[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n");
+                    stack_overflow();
                     return;
                 }
             }
             CffValue::Unset => {}
         }
-        pos += advance as usize;
+        pos += advance;
     }
 }
 
+/// Reads the stem hints on the stack: pairs of `edge width`, each edge
+/// relative to the end of the previous stem. An odd operand count means
+/// the first operand is the glyph's advance width.
+fn read_stem_hints(stack: &mut CffStack, outline: &mut OutlineBuilderContext, vertical: bool) {
+    if !stack.index.is_multiple_of(2) {
+        callback_draw_setwidth(outline, stack.num(0));
+    }
+    // `saturating_add`, not `wrapping_add`: this counter sizes the
+    // `hintmask`/`cntrmask` bit array below and must never wrap back down
+    // to a small value while `stem_h`/`stem_v` (unbounded, real counts)
+    // keep growing -- see the `stem` field's doc comment.
+    stack.stem = stack.stem.saturating_add(stack.index / 2);
+    let mut previous_end = 0.0;
+    for j in (stack.index % 2..stack.index).step_by(2) {
+        let (edge, width) = (stack.num(j), stack.num(j + 1));
+        callback_draw_sethint(outline, vertical, edge + previous_end, width);
+        previous_end += edge + width;
+    }
+}
+
+/// `hstem`, `vstem`, `hstemhm`, `vstemhm`
 fn op_stem_hints(stack: &mut CffStack, outline: &mut OutlineBuilderContext, op: i32) -> Flow {
-    let mut hint_base: f64;
-    if stack.index.wrapping_rem(2 as Arity) != 0 {
-        callback_draw_setwidth(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-        );
-    }
-    // `saturating_add`, not `wrapping_add`: this counter
-    // sizes the `hintmask`/`cntrmask` bit array below and
-    // must never wrap back down to a small value while
-    // `stem_h`/`stem_v` (unbounded, real counts) keep
-    // growing -- see the `stem` field's doc comment.
-    stack.stem = stack.stem.saturating_add(stack.index >> 1_i32);
-    hint_base = 0_i32 as ::core::ffi::c_double;
-    let j_start: Arity = stack.index.wrapping_rem(2 as Arity);
-    for j in (j_start..stack.index).step_by(2) {
-        let pos: ::core::ffi::c_double =
-            cffnum((&mut stack.stack)[(j as isize) as usize]);
-        let width: ::core::ffi::c_double =
-            cffnum((&mut stack.stack)[(
-                (j as i32 + 1_i32) as isize) as usize]);
-        callback_draw_sethint(
-            outline,
-            op == OP_VSTEM.0 || op == OP_VSTEMHM.0,
-            pos + hint_base,
-            width,
-        );
-        hint_base += pos + width;
-    }
-    stack.index = 0 as Arity;
+    read_stem_hints(stack, outline, op == OP_VSTEM.0 || op == OP_VSTEMHM.0);
+    stack.clear();
     Flow::Continue
 }
 
+/// `hintmask`/`cntrmask`: one bit per stem hint, in bytes that follow the
+/// operator in the CharString. Operands before it are stem hints too:
+/// vertical ones when some stems were declared already (the implicit
+/// `vstem` after `hstem`s), horizontal otherwise. Returns the number of
+/// mask bytes read, or `None` when the CharString ends before them.
 fn op_hint_mask(stack: &mut CffStack, outline: &mut OutlineBuilderContext, op: i32, mask_bytes: &[u8]) -> Option<u32> {
-    if stack.index.wrapping_rem(2 as Arity) != 0 {
-        callback_draw_setwidth(
-            outline,
-            cffnum(
-                (&mut stack.stack)[(0_i32 as isize) as usize],
-            ),
-        );
-    }
-    let is_vertical: bool =
-        stack.stem as i32 > 0_i32;
-    // `saturating_add`, not `wrapping_add`: this counter
-    // sizes the `hintmask`/`cntrmask` bit array below and
-    // must never wrap back down to a small value while
-    // `stem_h`/`stem_v` (unbounded, real counts) keep
-    // growing -- see the `stem` field's doc comment.
-    stack.stem = stack.stem.saturating_add(stack.index >> 1_i32);
-    let mut hint_base_0: ::core::ffi::c_double =
-        0_i32 as ::core::ffi::c_double;
-    let j_0_start: Arity = stack.index.wrapping_rem(2 as Arity);
-    for j_0 in (j_0_start..stack.index).step_by(2) {
-        let pos_0: ::core::ffi::c_double =
-            cffnum((&mut stack.stack)[(j_0 as isize) as usize]);
-        let width_0: ::core::ffi::c_double =
-            cffnum((&mut stack.stack)[(
-                (j_0 as i32 + 1_i32) as isize) as usize]);
-        callback_draw_sethint(
-            outline,
-            is_vertical,
-            pos_0 + hint_base_0,
-            width_0,
-        );
-        hint_base_0 += pos_0 + width_0;
-    }
-    let mask_length: u32 =
-        ((stack.stem as i32 + 7_i32)
-            >> 3_i32) as u32;
-    // `hintmask`/`cntrmask`'s mask bytes are raw payload
-    // embedded directly in the charstring right after
-    // the opcode -- unlike every other operand, they
-    // never go through `cff_decode_cs2_token`'s own
-    // bounds checking, so nothing here previously
-    // stopped `mask_length` (driven by `(*stack).stem`,
-    // the accumulated hint count from every `hstem`/
-    // `vstem` operator already seen) from reading past
-    // the actual CharString buffer. A fuzz-found input
-    // pushed enough stem hints to make `mask_length`
-    // exceed what was left of the charstring by a
-    // single byte -- an ASan-confirmed heap-buffer-
-    // overflow. `mask_bytes` is exactly what is left of
-    // the charstring after the operator; stop cleanly
-    // instead of reading past it.
+    let vertical = stack.stem > 0;
+    read_stem_hints(stack, outline, vertical);
+    let mask_length = stack.stem.div_ceil(8);
+    // The mask bytes never go through `cff_decode_cs2_token`'s bounds
+    // checking, and `mask_length` follows the stem count: a fuzz-found
+    // input declared enough stems to read one byte past the CharString
+    // (an ASan-confirmed heap-buffer-overflow). `mask_bytes` is exactly
+    // what is left of the CharString; stop cleanly instead.
     if mask_length as usize > mask_bytes.len() {
         return None;
     }
-    // Sized to exactly `(*stack).stem + 7` bools, same
-    // as the original's `__caryll_allocate_clean` call
-    // -- the largest index any byte in `0..mask_length`
-    // writes is `((mask_length - 1) << 3) + 7`, and
-    // `mask_length == ((*stack).stem + 7) >> 3` keeps
-    // that within `(*stack).stem + 6` (one shy of this
-    // Vec's length) regardless of whether `stem + 7` is
-    // itself a multiple of 8.
-    let mut mask: Vec<bool> =
-        vec![false; (stack.stem as i32 + 7_i32) as usize];
-    for byte in 0..mask_length {
-        let mask_byte: u8 =
-            mask_bytes[byte as usize];
-        mask[(byte << 3_i32).wrapping_add(0_u32) as usize] =
-            mask_byte as i32 >> 7_i32 & 1_i32 != 0;
-        mask[(byte << 3_i32).wrapping_add(1_u32) as usize] =
-            mask_byte as i32 >> 6_i32 & 1_i32 != 0;
-        mask[(byte << 3_i32).wrapping_add(2_u32) as usize] =
-            mask_byte as i32 >> 5_i32 & 1_i32 != 0;
-        mask[(byte << 3_i32).wrapping_add(3_u32) as usize] =
-            mask_byte as i32 >> 4_i32 & 1_i32 != 0;
-        mask[(byte << 3_i32).wrapping_add(4_u32) as usize] =
-            mask_byte as i32 >> 3_i32 & 1_i32 != 0;
-        mask[(byte << 3_i32).wrapping_add(5_u32) as usize] =
-            mask_byte as i32 >> 2_i32 & 1_i32 != 0;
-        mask[(byte << 3_i32).wrapping_add(6_u32) as usize] =
-            mask_byte as i32 >> 1_i32 & 1_i32 != 0;
-        mask[(byte << 3_i32).wrapping_add(7_u32) as usize] =
-            (mask_byte as i32) & 1_i32 != 0;
+    // One flag per stem, plus room for the last byte's padding bits.
+    let mut mask = vec![false; stack.stem as usize + 7];
+    for (byte, &bits) in mask_bytes[..mask_length as usize].iter().enumerate() {
+        for bit in 0..8 {
+            mask[byte * 8 + bit] = bits & (0x80 >> bit) != 0;
+        }
     }
     callback_draw_setmask(outline, op == OP_CNTRMASK.0, &mask);
-    stack.index = 0 as Arity;
+    stack.clear();
     Some(mask_length)
 }
 
 fn op_vmoveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 1 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_vmoveto"), OP_VMOVETO.0 as u32);
+        too_few_operands("op_vmoveto", OP_VMOVETO);
     } else {
         if stack.index > 1 {
             callback_draw_setwidth(outline, stack.top(2));
@@ -334,7 +255,7 @@ fn op_vmoveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow
 
 fn op_rmoveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 2 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_rmoveto"), OP_RMOVETO.0 as u32);
+        too_few_operands("op_rmoveto", OP_RMOVETO);
     } else {
         if stack.index > 2 {
             callback_draw_setwidth(outline, stack.top(3));
@@ -348,7 +269,7 @@ fn op_rmoveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow
 
 fn op_hmoveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 1 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hmoveto"), OP_HMOVETO.0 as u32);
+        too_few_operands("op_hmoveto", OP_HMOVETO);
     } else {
         if stack.index > 1 {
             callback_draw_setwidth(outline, stack.top(2));
@@ -574,7 +495,7 @@ fn op_hvcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Fl
 /// `dx1 dx2 dy2 dx3 dx4 dx5 dx6 hflex`
 fn op_hflex(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 7 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hflex"), OP_HFLEX.0 as u32);
+        too_few_operands("op_hflex", OP_HFLEX);
     } else {
         let [dx1, dx2, dy2, dx3, dx4, dx5, dx6] = std::array::from_fn(|i| stack.num(i as Arity));
         callback_draw_curveto(outline, dx1, 0.0, dx2, dy2, dx3, 0.0);
@@ -588,7 +509,7 @@ fn op_hflex(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
 /// flex depth, is ignored: the curves are always drawn).
 fn op_flex(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 12 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_flex"), OP_FLEX.0 as u32);
+        too_few_operands("op_flex", OP_FLEX);
     } else {
         curve_at(stack, outline, 0);
         curve_at(stack, outline, 6);
@@ -601,7 +522,7 @@ fn op_flex(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
 /// starting height.
 fn op_hflex1(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 9 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_hflex1"), OP_HFLEX1.0 as u32);
+        too_few_operands("op_hflex1", OP_HFLEX1);
     } else {
         let [dx1, dy1, dx2, dy2, dx3, dx4, dx5, dy5, dx6] = std::array::from_fn(|i| stack.num(i as Arity));
         callback_draw_curveto(outline, dx1, dy1, dx2, dy2, dx3, 0.0);
@@ -616,7 +537,7 @@ fn op_hflex1(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow 
 /// returns to the start along the other.
 fn op_flex1(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 11 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_flex1"), OP_FLEX1.0 as u32);
+        too_few_operands("op_flex1", OP_FLEX1);
     } else {
         let dx = stack.num(0) + stack.num(2) + stack.num(4) + stack.num(6) + stack.num(8);
         let dy = stack.num(1) + stack.num(3) + stack.num(5) + stack.num(7) + stack.num(9);
@@ -629,462 +550,270 @@ fn op_flex1(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     Flow::Continue
 }
 
-fn op_and(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_and"), OP_AND.0 as u32);
+fn too_few_operands(name: &str, op: CffCharstringOperator) {
+    tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr(name), op.0 as u32);
+}
+
+fn stack_overflow() {
+    tracing::warn!("[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n");
+}
+
+fn truth(condition: bool) -> f64 {
+    if condition { 1.0 } else { 0.0 }
+}
+
+/// Replaces the top operand `a` with `f(a)`.
+fn unary(stack: &mut CffStack, name: &str, op: CffCharstringOperator, f: impl FnOnce(f64) -> f64) -> Flow {
+    if stack.index < 1 {
+        too_few_operands(name, op);
     } else {
-        let num1: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        let num2: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize]) =
-            CffValue::Double(if num1 != 0. && num2 != 0. {
-                1.0f64
-            } else {
-                0.0f64
-            });
-        stack.index = stack.index.wrapping_sub(1 as Arity);
+        let a = stack.top(1);
+        stack.set_top(1, f(a));
     }
     Flow::Continue
+}
+
+/// Replaces the top two operands `a b` (`b` pushed last) with `f(a, b)`.
+fn binary(stack: &mut CffStack, name: &str, op: CffCharstringOperator, f: impl FnOnce(f64, f64) -> f64) -> Flow {
+    if stack.index < 2 {
+        too_few_operands(name, op);
+    } else {
+        let (a, b) = (stack.top(2), stack.top(1));
+        stack.set_top(2, f(a, b));
+        stack.index -= 1;
+    }
+    Flow::Continue
+}
+
+fn op_and(stack: &mut CffStack) -> Flow {
+    binary(stack, "op_and", OP_AND, |a, b| truth(b != 0.0 && a != 0.0))
 }
 
 fn op_or(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_or"), OP_OR.0 as u32);
-    } else {
-        let num1_0: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        let num2_0: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize]) =
-            CffValue::Double(if num1_0 != 0. || num2_0 != 0. {
-                1.0f64
-            } else {
-                0.0f64
-            });
-        stack.index = stack.index.wrapping_sub(1 as Arity);
-    }
-    Flow::Continue
+    binary(stack, "op_or", OP_OR, |a, b| truth(b != 0.0 || a != 0.0))
 }
 
 fn op_not(stack: &mut CffStack) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_not"), OP_NOT.0 as u32);
-    } else {
-        let num: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize]) =
-            CffValue::Double(if num != 0. { 0.0f64 } else { 1.0f64 });
-    }
-    Flow::Continue
+    unary(stack, "op_not", OP_NOT, |a| truth(a == 0.0))
 }
 
 fn op_abs(stack: &mut CffStack) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_abs"), OP_ABS.0 as u32);
-    } else {
-        let num_0: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize]) =
-            CffValue::Double(if num_0 < 0.0f64 { -num_0 } else { num_0 });
-    }
-    Flow::Continue
+    // Not `f64::abs`: that would also clear the sign of `-0.0` and NaN.
+    unary(stack, "op_abs", OP_ABS, |a| if a < 0.0 { -a } else { a })
 }
 
 fn op_add(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_add"), OP_ADD.0 as u32);
-    } else {
-        let num1_1: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        let num2_1: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize]) =
-            CffValue::Double(num1_1 + num2_1);
-        stack.index = stack.index.wrapping_sub(1 as Arity);
-    }
-    Flow::Continue
+    binary(stack, "op_add", OP_ADD, |a, b| b + a)
 }
 
 fn op_sub(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_sub"), OP_SUB.0 as u32);
-    } else {
-        let num1_2: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        let num2_2: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize]) =
-            CffValue::Double(num1_2 - num2_2);
-        stack.index = stack.index.wrapping_sub(1 as Arity);
-    }
-    Flow::Continue
+    binary(stack, "op_sub", OP_SUB, |a, b| a - b)
 }
 
 fn op_div(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_div"), OP_DIV.0 as u32);
-    } else {
-        let num1_3: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        let num2_3: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize]) =
-            CffValue::Double(num1_3 / num2_3);
-        stack.index = stack.index.wrapping_sub(1 as Arity);
-    }
-    Flow::Continue
+    binary(stack, "op_div", OP_DIV, |a, b| a / b)
 }
 
 fn op_neg(stack: &mut CffStack) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_neg"), OP_NEG.0 as u32);
-    } else {
-        let num_1: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize]) =
-            CffValue::Double(-num_1);
-    }
-    Flow::Continue
+    unary(stack, "op_neg", OP_NEG, |a| -a)
 }
 
 fn op_eq(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_eq"), OP_EQ.0 as u32);
-    } else {
-        let num1_4: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        let num2_4: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize]) =
-            CffValue::Double(if num1_4 == num2_4 { 1.0f64 } else { 0.0f64 });
-        stack.index = stack.index.wrapping_sub(1 as Arity);
-    }
-    Flow::Continue
+    binary(stack, "op_eq", OP_EQ, |a, b| truth(b == a))
+}
+
+fn op_mul(stack: &mut CffStack) -> Flow {
+    binary(stack, "op_mul", OP_MUL, |a, b| b * a)
+}
+
+fn op_sqrt(stack: &mut CffStack) -> Flow {
+    unary(stack, "op_sqrt", OP_SQRT, |a| a.sqrt())
 }
 
 fn op_drop(stack: &mut CffStack) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_drop"), OP_DROP.0 as u32);
+    if stack.index < 1 {
+        too_few_operands("op_drop", OP_DROP);
     } else {
-        stack.index = stack.index.wrapping_sub(1 as Arity);
+        stack.index -= 1;
     }
     Flow::Continue
 }
 
+/// The transient array slot an operand names. Real CharStrings only use
+/// small in-range indices; `rem_euclid` (never negative, unlike `%`) maps
+/// anything else to some slot instead of an out-of-bounds index.
+fn transient_slot(i: f64) -> usize {
+    (i as i32).rem_euclid(TYPE2_TRANSIENT_ARRAY as i32) as usize
+}
+
+/// `val i put`
 fn op_put(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_put"), OP_PUT.0 as u32);
+    if stack.index < 2 {
+        too_few_operands("op_put", OP_PUT);
     } else {
-        let val_0: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        let i_0: i32 = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        ) as i32;
-        // `i_0` is a charstring-supplied operand, not a
-        // trusted cursor -- Rust's `%` keeps the
-        // dividend's sign, so a negative `i_0` (e.g.
-        // pushing `-1` before `put`) made this a
-        // negative array index once cast `as usize`
-        // (wrapping to a huge value), panicking. Real
-        // Type 2 charstrings only ever address this
-        // array with small in-range indices, so
-        // `rem_euclid` (always non-negative for a
-        // positive divisor) matches well-formed input
-        // exactly and just gives malformed input a
-        // well-defined slot instead of a crash.
-        stack.transient
-            [i_0.rem_euclid(TYPE2_TRANSIENT_ARRAY as i32) as usize] =
-            CffValue::Double(val_0);
-        stack.index = stack.index.wrapping_sub(2 as Arity);
+        stack.transient[transient_slot(stack.top(1))] = CffValue::Double(stack.top(2));
+        stack.index -= 2;
     }
     Flow::Continue
 }
 
+/// `i get`
 fn op_get(stack: &mut CffStack) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_get"), OP_GET.0 as u32);
+    if stack.index < 1 {
+        too_few_operands("op_get", OP_GET);
     } else {
-        let i_1: i32 = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        ) as i32;
-        ((&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize]) =
-            CffValue::Double(cffnum(
-                // Same fix as `op_put` above: `rem_euclid`
-                // instead of `%` so a negative `i_1`
-                // can't turn into an out-of-bounds
-                // array index.
-                stack.transient
-                    [i_1.rem_euclid(TYPE2_TRANSIENT_ARRAY as i32) as usize],
-            ));
+        let value = cffnum(stack.transient[transient_slot(stack.top(1))]);
+        stack.set_top(1, value);
     }
     Flow::Continue
 }
 
+/// `s1 s2 v1 v2 ifelse`: `s1` if `v1 <= v2`, else `s2`.
 fn op_ifelse(stack: &mut CffStack) -> Flow {
-    if stack.index < 4 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_ifelse"), OP_IFELSE.0 as u32);
+    if stack.index < 4 {
+        too_few_operands("op_ifelse", OP_IFELSE);
     } else {
-        let v2: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        let v1: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        let s2: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(3 as Arity) as isize) as usize],
-        );
-        let s1: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(4 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(4 as Arity) as isize) as usize]) =
-            CffValue::Double(if v1 <= v2 { s1 } else { s2 });
-        stack.index = stack.index.wrapping_sub(3 as Arity);
+        let (s1, s2, v1, v2) = (stack.top(4), stack.top(3), stack.top(2), stack.top(1));
+        stack.set_top(4, if v1 <= v2 { s1 } else { s2 });
+        stack.index -= 3;
     }
     Flow::Continue
 }
 
 fn op_random(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
-    if (stack.index as usize) < stack.stack.len() {
-        (&mut stack.stack)[(stack.index as isize) as usize] =
-            CffValue::Double(callback_draw_getrand(outline));
-        stack.index = stack.index.wrapping_add(1 as Arity);
-    } else {
-        tracing::warn!("[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n");
+    // Check for room before drawing the number, so a full stack leaves the
+    // generator's state untouched.
+    if !stack.has_room() {
+        stack_overflow();
         return Flow::Stop;
     }
-    Flow::Continue
-}
-
-fn op_mul(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_mul"), OP_MUL.0 as u32);
-    } else {
-        let num1_5: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        let num2_5: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize]) =
-            CffValue::Double(num1_5 * num2_5);
-        stack.index = stack.index.wrapping_sub(1 as Arity);
-    }
-    Flow::Continue
-}
-
-fn op_sqrt(stack: &mut CffStack) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_sqrt"), OP_SQRT.0 as u32);
-    } else {
-        let num_2: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize]) =
-            CffValue::Double(num_2.sqrt());
-    }
+    stack.push(CffValue::Double(callback_draw_getrand(outline)));
     Flow::Continue
 }
 
 fn op_dup(stack: &mut CffStack) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_dup"), OP_DUP.0 as u32);
-    } else if (stack.index as usize) < stack.stack.len() {
-        (&mut stack.stack)[(stack.index as isize) as usize] =
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize];
-        stack.index = stack.index.wrapping_add(1 as Arity);
+    if stack.index < 1 {
+        too_few_operands("op_dup", OP_DUP);
+    } else if stack.has_room() {
+        stack.push(stack.stack[stack.index as usize - 1]);
     } else {
-        tracing::warn!("[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n");
+        stack_overflow();
         return Flow::Stop;
     }
     Flow::Continue
 }
 
 fn op_exch(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_exch"), OP_EXCH.0 as u32);
+    if stack.index < 2 {
+        too_few_operands("op_exch", OP_EXCH);
     } else {
-        let num1_6: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        );
-        let num2_6: ::core::ffi::c_double = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        );
-        ((&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize]) =
-            CffValue::Double(num2_6);
-        ((&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize]) =
-            CffValue::Double(num1_6);
+        let (a, b) = (stack.top(2), stack.top(1));
+        stack.set_top(1, a);
+        stack.set_top(2, b);
     }
     Flow::Continue
 }
 
+/// `... i index`: replaces `i` with a copy of the operand `i` places below it.
 fn op_index(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_index"), OP_INDEX.0 as u32);
+    if stack.index < 2 {
+        too_few_operands("op_index", OP_INDEX);
     } else {
-        let n: u8 = stack.index.wrapping_sub(1 as Arity) as u8;
-        // `n` is `(*stack).index - 1` truncated to `u8`
-        // -- the real value is always >= 1 here (the
-        // `index < 2` guard above already ensures at
-        // least 2 operands are on the stack), but
-        // truncation wraps `n` back to 0 whenever the
-        // real value is a multiple of 256 (a
-        // charstring pushing 257+ operands before
-        // `index`, well within the stack's real
-        // capacity). `n` is used below both as the
-        // modulus and as the stack offset the index
-        // operand itself was read from, so a truncated
-        // 0 divided by zero and panicked. Treat it the
-        // same as "not enough operands": skip the
-        // operation instead.
-        if n == 0 {
+        // The position of `i` (the top operand), truncated to `u8`. That
+        // truncation wraps it to 0 whenever the real position is a multiple
+        // of 256 (a CharString pushing 257+ operands before `index`), and
+        // it is used below both as a stack position and as the modulus, so
+        // a 0 divided by zero and panicked. Skip the operation instead.
+        let top = (stack.index - 1) as u8;
+        if top == 0 {
             tracing::warn!("[libcff] op_index ({:04x}) operand count overflowed a byte; this operation is ignored.\n", OP_INDEX.0 as u32);
         } else {
-            let j_1: u8 = (n as i32
-                - 1_i32
-                - cffnum((&mut stack.stack)[(n as isize) as usize]) as u8
-                    as i32
-                    % n as i32)
-                as u8;
-            (&mut stack.stack)[(n as isize) as usize] =
-                (&mut stack.stack)[(j_1 as isize) as usize];
+            let i = stack.num(top as Arity) as u8;
+            let from = (top as i32 - 1 - i as i32 % top as i32) as u8;
+            stack.stack[top as usize] = stack.stack[from as usize];
         }
     }
     Flow::Continue
 }
 
+/// `num(N-1) ... num(0) N J roll`: rotates the `N` operands below `N J` by
+/// `J` places toward the top.
 fn op_roll(stack: &mut CffStack) -> Flow {
-    if stack.index < 2 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_roll"), OP_ROLL.0 as u32);
+    if stack.index < 2 {
+        too_few_operands("op_roll", OP_ROLL);
     } else {
-        let mut j_2: i32 = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(1 as Arity) as isize) as usize],
-        ) as i32;
-        let n_0: u32 = cffnum(
-            (&mut stack.stack)[(stack.index.wrapping_sub(2 as Arity) as isize) as usize],
-        ) as u32;
-        if stack.index < 2_u32.wrapping_add(n_0) {
-            tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_roll"), OP_ROLL.0 as u32);
-        } else if n_0 == 0 {
-            // `n_0` (the roll's element count operand)
-            // is charstring-supplied and cast `as u32`
-            // from a float, which saturates any
-            // negative value to 0 -- so pushing `0` or
-            // a negative count for N reaches here.
-            // "roll 0 elements" is a legitimate no-op
-            // (the `j_2 == 0` branch a few lines down
-            // already treats "nothing to rotate" as a
-            // no-op the same way), but the
-            // `wrapping_rem(n_0)` below panics on a
-            // zero divisor -- skip it instead.
+        let j = stack.top(1) as i32;
+        let n = stack.top(2) as u32;
+        if stack.index < 2_u32.wrapping_add(n) {
+            too_few_operands("op_roll", OP_ROLL);
+        } else if n == 0 {
+            // `n` is a float operand cast `as u32`, which saturates any
+            // negative count to 0. Rolling 0 elements is a no-op (like a
+            // shift of 0 below), and `wrapping_rem(0)` would panic.
         } else {
-            j_2 = (-j_2 as u32).wrapping_rem(n_0) as i32;
-            if j_2 < 0_i32 {
-                j_2 = (j_2 as u32).wrapping_add(n_0) as i32;
+            // Rotating by `j` toward the top is rotating by `-j mod n`
+            // toward the bottom: three reversals of the `n` operands.
+            let mut shift = (j.wrapping_neg() as u32).wrapping_rem(n) as i32;
+            if shift < 0 {
+                shift = (shift as u32).wrapping_add(n) as i32;
             }
-            if !(j_2 == 0) {
-                let last: u8 =
-                    stack.index.wrapping_sub(3 as Arity) as u8;
-                let first: u8 = stack
-                    .index
-                    .wrapping_sub(2 as Arity)
-                    .wrapping_sub(n_0 as Arity)
-                    as u8;
-                reverse_stack(&mut *stack, first, last);
-                reverse_stack(
-                    &mut *stack,
-                    (last as i32 - j_2 + 1_i32) as u8,
-                    last,
-                );
-                reverse_stack(&mut *stack, first, (last as i32 - j_2) as u8);
-                stack.index = stack.index.wrapping_sub(2 as Arity);
+            if shift != 0 {
+                let last = stack.index.wrapping_sub(3) as u8;
+                let first = (stack.index - 2).wrapping_sub(n) as u8;
+                reverse_stack(stack, first, last);
+                reverse_stack(stack, (last as i32 - shift + 1) as u8, last);
+                reverse_stack(stack, first, (last as i32 - shift) as u8);
+                stack.index -= 2;
             }
         }
+    }
+    Flow::Continue
+}
+
+/// `subr# callsubr` / `subr# callgsubr`: runs a local or global subroutine
+/// on the same stack and outline.
+fn call_subroutine(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    subrs: &Subroutines<'_>,
+    global: bool,
+    depth: u32,
+    total_calls: &mut u32,
+) -> Flow {
+    let (name, op, kind, index, bias) = if global {
+        ("op_callgsubr", OP_CALLGSUBR, "global", subrs.gsubr, subrs.gsubr_bias)
+    } else {
+        ("op_callsubr", OP_CALLSUBR, "local", subrs.lsubr, subrs.lsubr_bias)
+    };
+    if stack.index < 1 {
+        too_few_operands(name, op);
+        return Flow::Continue;
+    }
+    stack.index -= 1;
+    // `as i32`, not `as u32`: subroutine numbers are signed, and a
+    // float-to-unsigned cast turns every negative one into 0.
+    let number = stack.num(stack.index) as i32;
+    let Some(sub_data) = locate_subr(index, bias, number) else {
+        tracing::warn!("[libcff] Invalid {} subroutine index for {} ({:04x}). This call is ignored.\n", kind, ByteStr(name), op.0 as u32);
+        return Flow::Continue;
+    };
+    *total_calls = total_calls.wrapping_add(1);
+    if *total_calls > MAX_TOTAL_SUBR_CALLS {
+        if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
+            tracing::warn!("[libcff] Subroutine call budget ({}) exceeded; the rest of this outline is ignored.\n", MAX_TOTAL_SUBR_CALLS);
+        }
+    } else {
+        cff_parse_outline(sub_data, subrs.gsubr, subrs.lsubr, stack, outline, depth + 1, total_calls);
     }
     Flow::Continue
 }
 
 fn op_callsubr(stack: &mut CffStack, outline: &mut OutlineBuilderContext, subrs: &Subroutines<'_>, depth: u32, total_calls: &mut u32) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_callsubr"), OP_CALLSUBR.0 as u32);
-    } else {
-        stack.index = stack.index.wrapping_sub(1);
-        // `as i32`, not `as u32`: subroutine numbers are signed, and a
-        // float-to-unsigned cast turns every negative one into 0.
-        let subr: i32 = cffnum(
-            (&mut stack.stack)[(stack.index as isize) as usize],
-        ) as i32;
-        if let Some(sub_data) = locate_subr(subrs.lsubr, subrs.lsubr_bias, subr) {
-            *total_calls = (*total_calls).wrapping_add(1);
-            if *total_calls > MAX_TOTAL_SUBR_CALLS {
-                if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
-                    tracing::warn!("[libcff] Subroutine call budget ({}) exceeded; the rest of this outline is ignored.\n", MAX_TOTAL_SUBR_CALLS as i32);
-                }
-            } else {
-                cff_parse_outline(
-                    sub_data,
-                    subrs.gsubr,
-                    subrs.lsubr,
-                    stack,
-                    outline,
-                    depth + 1,
-                    total_calls,
-                );
-            }
-        } else {
-            tracing::warn!("[libcff] Invalid local subroutine index for {} ({:04x}). This call is ignored.\n", ByteStr("op_callsubr"), OP_CALLSUBR.0 as u32);
-        }
-    }
-    Flow::Continue
+    call_subroutine(stack, outline, subrs, false, depth, total_calls)
 }
 
 fn op_callgsubr(stack: &mut CffStack, outline: &mut OutlineBuilderContext, subrs: &Subroutines<'_>, depth: u32, total_calls: &mut u32) -> Flow {
-    if stack.index < 1 as Arity {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr("op_callgsubr"), OP_CALLGSUBR.0 as u32);
-    } else {
-        stack.index = stack.index.wrapping_sub(1);
-        // Signed, as in `op_callsubr`.
-        let subr_0: i32 = cffnum(
-            (&mut stack.stack)[(stack.index as isize) as usize],
-        ) as i32;
-        if let Some(sub_data) = locate_subr(subrs.gsubr, subrs.gsubr_bias, subr_0) {
-            *total_calls = (*total_calls).wrapping_add(1);
-            if *total_calls > MAX_TOTAL_SUBR_CALLS {
-                if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
-                    tracing::warn!("[libcff] Subroutine call budget ({}) exceeded; the rest of this outline is ignored.\n", MAX_TOTAL_SUBR_CALLS as i32);
-                }
-            } else {
-                cff_parse_outline(
-                    sub_data,
-                    subrs.gsubr,
-                    subrs.lsubr,
-                    stack,
-                    outline,
-                    depth + 1,
-                    total_calls,
-                );
-            }
-        } else {
-            tracing::warn!("[libcff] Invalid global subroutine index for {} ({:04x}). This call is ignored.\n", ByteStr("op_callgsubr"), OP_CALLGSUBR.0 as u32);
-        }
-    }
-    Flow::Continue
+    call_subroutine(stack, outline, subrs, true, depth, total_calls)
 }
 
 #[cfg(test)]
