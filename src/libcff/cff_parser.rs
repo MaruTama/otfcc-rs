@@ -450,8 +450,11 @@ pub fn cff_parse_subr(
 // len()`), so it was pure c2rust residue on top of an already-safe
 // design: `.get(data_offset..)?.get(..data_len)` expresses the exact
 // same guarantee as a bounds-checked slice instead of a raw offset.
-pub(crate) fn locate_subr(subr_index: &CffIndex, bias: u16, subr: u32) -> Option<&[u8]> {
-    let idx = (bias as u32).checked_add(subr)? as usize;
+// `subr` is the signed operand of `callsubr`/`callgsubr`: subroutine
+// numbers run from `-bias` upward, so a font with more than 107
+// subroutines calls the lower ones with negative numbers.
+pub(crate) fn locate_subr(subr_index: &CffIndex, bias: u16, subr: i32) -> Option<&[u8]> {
+    let idx = usize::try_from(i64::from(bias) + i64::from(subr)).ok()?;
     let start = *subr_index.offset.get(idx)?;
     let end = *subr_index.offset.get(idx.checked_add(1)?)?;
     if start < 1 || end < start {
@@ -689,9 +692,18 @@ mod locate_subr_tests {
     }
 
     #[test]
-    fn bias_plus_subr_overflow_is_rejected() {
+    fn negative_subroutine_numbers_count_up_from_minus_the_bias() {
+        let idx = subr_index(vec![1, 3, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
+        assert_eq!(locate_subr(&idx, 2, -2).unwrap(), &[0xAA, 0xBB]);
+        assert_eq!(locate_subr(&idx, 2, -1).unwrap(), &[0xCC, 0xDD]);
+    }
+
+    #[test]
+    fn subroutine_number_below_minus_the_bias_is_rejected() {
         let idx = subr_index(vec![1, 3], vec![0xAA, 0xBB]);
-        assert!(locate_subr(&idx, u16::MAX, u32::MAX).is_none());
+        assert!(locate_subr(&idx, 107, -108).is_none());
+        assert!(locate_subr(&idx, u16::MAX, i32::MIN).is_none());
+        assert!(locate_subr(&idx, u16::MAX, i32::MAX).is_none());
     }
 
     #[test]
