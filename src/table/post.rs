@@ -1,7 +1,4 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
@@ -391,7 +388,7 @@ fn parse_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
     })
 }
 
-pub fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTable>> {
+pub fn otfcc_read_post(packet: &Packet) -> Option<Box<PostTable>> {
     let table = packet
         .pieces
         .iter()
@@ -399,12 +396,7 @@ pub fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTab
     let parsed = match parse_post(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'post' corrupted.\n"),
-            );
+            tracing::warn!("table 'post' corrupted.\n");
             return None;
         }
     };
@@ -434,14 +426,11 @@ pub fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTab
     }
     Some(Box::new(post_val))
 }
-pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"post"),
-    );
+    let stage = crate::logger::stage("post");
     let mut post = BuiltValue::new_object(10);
     post.push_field(
         b"version",
@@ -477,7 +466,7 @@ pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue, options
         BuiltValue::Int(table.max_mem_type1 as i64),
     );
     root.push_field(b"post", post);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
 pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
@@ -497,10 +486,7 @@ pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<Pos
         post_name_map: None,
     };
     if let Some(table) = root.get_typed(b"post", JsonType::Object) {
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            crate::bytesbuild!(b"post"),
-        );
+        let stage = crate::logger::stage("post");
         if options.short_post {
             post.version = 0x30000_i32 as F16Dot16;
         } else {
@@ -514,7 +500,7 @@ pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<Pos
         post.max_mem_type42 = table.get_num(b"maxMemType42") as u32;
         post.min_mem_type1 = table.get_num(b"minMemType1") as u32;
         post.max_mem_type1 = table.get_num(b"maxMemType1") as u32;
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
     Some(Box::new(post))
 }

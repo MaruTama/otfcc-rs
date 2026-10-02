@@ -1,11 +1,7 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
@@ -86,7 +82,7 @@ fn parse_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
     }
     Ok(maxp)
 }
-pub fn otfcc_read_maxp(packet: &Packet, options: &Options) -> Option<Box<MaxpTable>> {
+pub fn otfcc_read_maxp(packet: &Packet) -> Option<Box<MaxpTable>> {
     let table = packet
         .pieces
         .iter()
@@ -94,24 +90,16 @@ pub fn otfcc_read_maxp(packet: &Packet, options: &Options) -> Option<Box<MaxpTab
     match parse_maxp(&table.data) {
         Ok(maxp) => Some(Box::new(maxp)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'maxp' corrupted.\n"),
-            );
+            tracing::warn!("table 'maxp' corrupted.\n");
             None
         }
     }
 }
-pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"maxp"),
-    );
+    let stage = crate::logger::stage("maxp");
     let mut maxp = BuiltValue::new_object(15);
     maxp.push_field(
         b"version",
@@ -159,9 +147,9 @@ pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue, options
         BuiltValue::Int(table.max_component_depth as i64),
     );
     root.push_field(b"maxp", maxp);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
-pub fn otfcc_parse_maxp(root: &ParsedValue, options: &Options) -> Option<Box<MaxpTable>> {
+pub fn otfcc_parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
     // "maxp" JSON key is absent (never overwritten below in that case);
     // `.max_size_of_instructions`/`.max_component_elements`/
@@ -186,10 +174,7 @@ pub fn otfcc_parse_maxp(root: &ParsedValue, options: &Options) -> Option<Box<Max
         max_component_depth: 0,
     };
     if let Some(table) = root.get_typed(b"maxp", JsonType::Object) {
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            crate::bytesbuild!(b"maxp"),
-        );
+        let stage = crate::logger::stage("maxp");
         maxp.version = otfcc_to_fixed(table.get_num(b"version"));
         maxp.num_glyphs = table.get_num(b"numGlyphs") as u16;
         maxp.max_zones = table.get_num(b"maxZones") as u16;
@@ -198,7 +183,7 @@ pub fn otfcc_parse_maxp(root: &ParsedValue, options: &Options) -> Option<Box<Max
         maxp.max_function_defs = table.get_num(b"maxFunctionDefs") as u16;
         maxp.max_instruction_defs = table.get_num(b"maxInstructionDefs") as u16;
         maxp.max_stack_elements = table.get_num(b"maxStackElements") as u16;
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
     Some(Box::new(maxp))
 }

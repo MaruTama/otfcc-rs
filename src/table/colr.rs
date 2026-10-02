@@ -4,12 +4,8 @@ use crate::support::parsed_json::ParsedValue;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::primitives::{ColorId, GlyphId};
 use crate::vendor::json::JsonType;
 
@@ -94,29 +90,21 @@ fn parse_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     Ok(colr)
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> {
+pub fn otfcc_read_colr(packet: &Packet) -> Option<ColrTable> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_COLR)?;
     match parse_colr(&table.data) {
         Ok(colr) => Some(colr),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"Table 'COLR' corrupted.\n"),
-            );
+            tracing::warn!("Table 'COLR' corrupted.\n");
             None
         }
     }
 }
-pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
     let Some(mappings) = colr else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"COLR"),
-    );
+    let stage = crate::logger::stage("COLR");
     let mut _colr = BuiltValue::new_array(mappings.len());
     for mapping in mappings.iter() {
         let mut _map = BuiltValue::new_object(2);
@@ -132,15 +120,12 @@ pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue, options:
         _colr.push_item(_map);
     }
     root.push_field(b"COLR", _colr);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
-pub fn otfcc_parse_colr(root: &ParsedValue, options: &Options) -> Option<ColrTable> {
+pub fn otfcc_parse_colr(root: &ParsedValue) -> Option<ColrTable> {
     let colr_val = root.get_typed(b"COLR", JsonType::Array)?;
     let mut colr: ColrTable = Vec::new();
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"COLR"),
-    );
+    let stage = crate::logger::stage("COLR");
     if let Some(mappings) = colr_val.as_array() {
         for mapping in mappings {
             if mapping.as_object().is_none() {
@@ -174,7 +159,7 @@ pub fn otfcc_parse_colr(root: &ParsedValue, options: &Options) -> Option<ColrTab
             }
         }
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(colr)
 }
 #[allow(improper_ctypes_definitions)]

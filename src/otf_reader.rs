@@ -87,27 +87,25 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
         let sfnt_packets = &sfnt.packets;
         let packet: &Packet = &sfnt_packets[index as usize];
         font.subtype = decide_font_subtype_otf(sfnt, index);
-        font.fvar = otfcc_read_fvar(packet, options);
-        font.head = otfcc_read_head(packet, options);
-        font.maxp = otfcc_read_maxp(packet, options);
-        font.name = otfcc_read_name(packet, options);
-        font.meta = otfcc_read_meta(packet, options);
-        font.os_2 = otfcc_read_os_2(packet, options);
-        font.post = otfcc_read_post(packet, options);
-        font.hhea = otfcc_read_hhea(packet, options);
-        font.cmap = otfcc_read_cmap(packet, options);
+        font.fvar = otfcc_read_fvar(packet);
+        font.head = otfcc_read_head(packet);
+        font.maxp = otfcc_read_maxp(packet);
+        font.name = otfcc_read_name(packet);
+        font.meta = otfcc_read_meta(packet);
+        font.os_2 = otfcc_read_os_2(packet);
+        font.post = otfcc_read_post(packet);
+        font.hhea = otfcc_read_hhea(packet);
+        font.cmap = otfcc_read_cmap(packet);
         if font.subtype == FontSubtype::Ttf {
             font.hmtx = otfcc_read_hmtx(
                 packet,
-                options,
                 font.hhea.as_deref(),
                 font.maxp.as_deref(),
             );
-            font.vhea = otfcc_read_vhea(packet, options);
+            font.vhea = otfcc_read_vhea(packet);
             if font.vhea.is_some() {
                 font.vmtx = otfcc_read_vmtx(
                     packet,
-                    options,
                     font.vhea.as_deref(),
                     font.maxp.as_deref(),
                 );
@@ -115,9 +113,9 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
             font.fpgm = otfcc_read_fpgm_prep(packet, crate::tag::TAG_FPGM);
             font.prep = otfcc_read_fpgm_prep(packet, crate::tag::TAG_PREP);
             font.cvt_ = otfcc_read_cvt(packet, crate::tag::TAG_CVT);
-            font.gasp = otfcc_read_gasp(packet, options);
-            font.vdmx = otfcc_read_vdmx(packet, options);
-            font.ltsh = otfcc_read_ltsh(packet, options);
+            font.gasp = otfcc_read_gasp(packet);
+            font.vdmx = otfcc_read_vdmx(packet);
+            font.ltsh = otfcc_read_ltsh(packet);
             // `loca_is_long`/`num_glyphs` come from `head`/`maxp`, which
             // -- unlike the CFF branch below, which already tolerates a
             // missing `head` via `.map_or(null(), ...)` -- this branch
@@ -138,22 +136,21 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
                     has_vertical_metrics: false,
                     export_fd_select: false,
                 };
-                font.glyf = otfcc_read_glyf(packet, options, &mut ctx);
+                font.glyf = otfcc_read_glyf(packet, &mut ctx);
             }
         } else {
             let cffpr: CffAndGlyfOwned =
                 otfcc_read_cff_and_glyf_tables(packet, options, font.head.as_deref());
             font.cff = cffpr.meta;
             font.glyf = cffpr.glyphs;
-            font.vhea = otfcc_read_vhea(packet, options);
+            font.vhea = otfcc_read_vhea(packet);
             if font.vhea.is_some() {
                 font.vmtx = otfcc_read_vmtx(
                     packet,
-                    options,
                     font.vhea.as_deref(),
                     font.maxp.as_deref(),
                 );
-                font.vorg = otfcc_read_vorg(packet, options);
+                font.vorg = otfcc_read_vorg(packet);
             }
         }
         if let Some(glyf) = font.glyf.as_ref() {
@@ -162,9 +159,9 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
             font.gpos = otfcc_read_otl(packet, options, crate::tag::TAG_GPOS, num_glyphs);
             font.gdef = otfcc_read_gdef(packet);
         }
-        font.base = otfcc_read_base(packet, options);
+        font.base = otfcc_read_base(packet);
         font.cpal = otfcc_read_cpal(packet);
-        font.colr = otfcc_read_colr(packet, options);
+        font.colr = otfcc_read_colr(packet);
         font.svg = otfcc_read_svg(packet);
         font.tsi_01 = otfcc_read_tsi(packet, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1);
         font.tsi_23 = otfcc_read_tsi(packet, crate::tag::TAG_TSI2, crate::tag::TAG_TSI3);

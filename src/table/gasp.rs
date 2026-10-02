@@ -1,11 +1,7 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphSize;
 use crate::vendor::json::JsonType;
@@ -51,7 +47,7 @@ fn parse_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
     }
     Ok(GaspTable { version, records })
 }
-pub fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<GaspTable>> {
+pub fn otfcc_read_gasp(packet: &Packet) -> Option<Box<GaspTable>> {
     let table = packet
         .pieces
         .iter()
@@ -59,24 +55,16 @@ pub fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<GaspTab
     match parse_gasp(&table.data) {
         Ok(gasp) => Some(Box::new(gasp)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'gasp' corrupted.\n"),
-            );
+            tracing::warn!("table 'gasp' corrupted.\n");
             None
         }
     }
 }
-pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"gasp"),
-    );
+    let stage = crate::logger::stage("gasp");
     let mut t = BuiltValue::new_array(table.records.len());
     for r in &table.records {
         let mut rec = BuiltValue::new_object(5);
@@ -91,14 +79,11 @@ pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue, options
         t.push_item(rec);
     }
     root.push_field(b"gasp", t);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
-pub fn otfcc_parse_gasp(root: &ParsedValue, options: &Options) -> Option<Box<GaspTable>> {
+pub fn otfcc_parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
     let table = root.get_typed(b"gasp", JsonType::Array)?;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"gasp"),
-    );
+    let stage = crate::logger::stage("gasp");
     let mut gasp = GaspTable {
         version: 1,
         records: Vec::new(),
@@ -116,7 +101,7 @@ pub fn otfcc_parse_gasp(root: &ParsedValue, options: &Options) -> Option<Box<Gas
             }
         }
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(Box::new(gasp))
 }
 pub fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {

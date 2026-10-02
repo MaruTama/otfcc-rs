@@ -1,11 +1,7 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
@@ -58,7 +54,7 @@ fn parse_head(data: &[u8]) -> Result<HeadTable, ReadError> {
         glyph_data_format: r.i16()?,
     })
 }
-pub fn otfcc_read_head(packet: &Packet, options: &Options) -> Option<Box<HeadTable>> {
+pub fn otfcc_read_head(packet: &Packet) -> Option<Box<HeadTable>> {
     let table = packet
         .pieces
         .iter()
@@ -66,12 +62,7 @@ pub fn otfcc_read_head(packet: &Packet, options: &Options) -> Option<Box<HeadTab
     match parse_head(&table.data) {
         Ok(head) => Some(Box::new(head)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'head' corrupted.\n"),
-            );
+            tracing::warn!("table 'head' corrupted.\n");
             None
         }
     }
@@ -103,14 +94,11 @@ static MAC_STYLE_LABELS: [&str; 7] = [
     "extended",
 ];
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_dump_head(table: Option<&HeadTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"head"),
-    );
+    let stage = crate::logger::stage("head");
     let mut head = BuiltValue::new_object(15);
     head.push_field(
         b"version",
@@ -152,9 +140,9 @@ pub fn otfcc_dump_head(table: Option<&HeadTable>, root: &mut BuiltValue, options
         BuiltValue::Int(table.glyph_data_format as i64),
     );
     root.push_field(b"head", head);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
-pub fn otfcc_parse_head(root: &ParsedValue, options: &Options) -> Option<Box<HeadTable>> {
+pub fn otfcc_parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
     // Reproduces `init_head`'s two non-zero defaults exactly:
     // `.magic_number` is never set anywhere in this function's body below
     // (unlike every other field), so it must carry this default through;
@@ -182,10 +170,7 @@ pub fn otfcc_parse_head(root: &ParsedValue, options: &Options) -> Option<Box<Hea
     let Some(table) = root.get_typed(b"head", JsonType::Object) else {
         return Some(Box::new(head));
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"head"),
-    );
+    let stage = crate::logger::stage("head");
     head.version = otfcc_to_fixed(table.get_num_or(b"version", 0.0));
     head.font_revision = otfcc_to_fixed(table.get_num_or(b"fontRevision", 0.0)) as u32;
     head.flags = table
@@ -205,7 +190,7 @@ pub fn otfcc_parse_head(root: &ParsedValue, options: &Options) -> Option<Box<Hea
     head.font_directory_hint = table.get_num_or(b"fontDirectoryHint", 0.0) as i16;
     head.index_to_loc_format = table.get_num_or(b"indexToLocFormat", 0.0) as i16;
     head.glyph_data_format = table.get_num_or(b"glyphDataFormat", 0.0) as i16;
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(Box::new(head))
 }
 #[allow(improper_ctypes_definitions)]

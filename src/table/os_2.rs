@@ -1,11 +1,7 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::vendor::json::JsonType;
 #[derive(Copy, Clone, Debug)]
@@ -197,7 +193,7 @@ fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     }
     Ok(os2)
 }
-pub fn otfcc_read_os_2(packet: &Packet, options: &Options) -> Option<Box<Os2Table>> {
+pub fn otfcc_read_os_2(packet: &Packet) -> Option<Box<Os2Table>> {
     let table = packet
         .pieces
         .iter()
@@ -205,12 +201,7 @@ pub fn otfcc_read_os_2(packet: &Packet, options: &Options) -> Option<Box<Os2Tabl
     match parse_os_2(&table.data) {
         Ok(os2) => Some(Box::new(os2)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'OS/2' corrupted.\n"),
-            );
+            tracing::warn!("table 'OS/2' corrupted.\n");
             None
         }
     }
@@ -411,14 +402,11 @@ pub static UNICODE_RANGE_LABELS4: [&str; 27] = [
     "Domino_and_Mahjong_Tiles",
 ];
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"OS/2"),
-    );
+    let stage = crate::logger::stage("OS/2");
     let mut os_2 = BuiltValue::new_object(30);
     os_2.push_field(b"version", BuiltValue::Int(table.version as i64));
     os_2.push_field(
@@ -563,9 +551,9 @@ pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue, options:
         BuiltValue::Int(table.us_upper_optical_point_size as i64),
     );
     root.push_field(b"OS_2", os_2);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
-pub fn otfcc_parse_os_2(root: &ParsedValue, options: &Options) -> Option<Box<Os2Table>> {
+pub fn otfcc_parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     let mut os_2 = Os2Table {
         version: 4,
         x_avg_char_width: 0,
@@ -608,10 +596,7 @@ pub fn otfcc_parse_os_2(root: &ParsedValue, options: &Options) -> Option<Box<Os2
         us_upper_optical_point_size: 0,
     };
     if let Some(table) = root.get_typed(b"OS_2", JsonType::Object) {
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            crate::bytesbuild!(b"OS/2"),
-        );
+        let stage = crate::logger::stage("OS/2");
         os_2.version = table.get_num(b"version") as u16;
         os_2.x_avg_char_width = table.get_num(b"xAvgCharWidth") as i16;
         os_2.us_weight_class = table.get_num(b"usWeightClass") as u16;
@@ -682,7 +667,7 @@ pub fn otfcc_parse_os_2(root: &ParsedValue, options: &Options) -> Option<Box<Os2
                 os_2.ach_vend_id[..n].copy_from_slice(&bytes[..n]);
             }
         }
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
     if (os_2.version as i32) < 1_i32 {
         os_2.version = 1_u16;

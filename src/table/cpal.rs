@@ -1,9 +1,7 @@
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::ColorId;
 use crate::vendor::json::JsonType;
@@ -211,15 +209,12 @@ fn dump_palette(palette: &CpalPalette) -> BuiltValue {
     _palette.push_field(b"colors", a);
     _palette
 }
-pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue) {
     let table = match table {
         Some(t) => t,
         None => return,
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"CPAL"),
-    );
+    let stage = crate::logger::stage("CPAL");
     let palettes: &Vec<CpalPalette> = &table.palettes;
     {
         let mut _t = BuiltValue::new_object(2);
@@ -230,7 +225,7 @@ pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue, options
         }
         _t.push_field(b"palettes", _a);
         root.push_field(b"CPAL", _t);
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
 }
 #[inline]
@@ -246,21 +241,20 @@ fn parse_color(color: Option<&ParsedValue>) -> CpalColor {
     c.label = color.get_int_or(b"label", 0xffff) as u16;
     c
 }
-pub fn otfcc_parse_cpal(root: &ParsedValue, options: &Options) -> Option<Box<CpalTable>> {
+pub fn otfcc_parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
     let table = root.get_typed(b"CPAL", JsonType::Object)?;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"CPAL"),
-    );
-    // Matches the pre-migration control flow exactly: an empty/missing
-    // `palettes` array returns `None` here without ever calling
-    // `logger_finish` -- an unbalanced logger start/finish that predates
-    // this conversion, preserved rather than fixed (see the crate's
-    // "no behavior change" rule).
-    let palette_items = table
+    let stage = crate::logger::stage("CPAL");
+    // An empty/missing `palettes` array returns `None` without a `Finish`
+    // line, as it always has. (The old logger also left the "CPAL" indent
+    // open for the rest of the run; the scope is closed properly now.)
+    let Some(palette_items) = table
         .get_typed(b"palettes", JsonType::Array)
         .and_then(ParsedValue::as_array)
-        .filter(|items| !items.is_empty())?;
+        .filter(|items| !items.is_empty())
+    else {
+        stage.abandon();
+        return None;
+    };
     let version = table.get_int(b"version") as u16;
     let mut cpal: Box<CpalTable> = Box::new(CpalTable {
         version,
@@ -286,7 +280,7 @@ pub fn otfcc_parse_cpal(root: &ParsedValue, options: &Options) -> Option<Box<Cpa
         }
         cpal.palettes.push(palette);
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(cpal)
 }
 #[inline]

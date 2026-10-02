@@ -1,12 +1,11 @@
+use crate::logger::ByteStr;
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_empty,
 };
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
@@ -164,12 +163,12 @@ pub fn otfcc_read_tsi(
     return Some(tsi);
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &Options, tag: &[u8]) {
+pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
     let tsi = match tsi {
         Some(t) => t,
         None => return,
     };
-    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    let stage = crate::logger::stage(ByteStr(tag));
     let entries: &Vec<TsiEntry> = tsi;
     {
         let mut _tsi = BuiltValue::new_object(2);
@@ -194,14 +193,14 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &O
         _tsi.push_field(b"glyphs", _glyphs);
         _tsi.push_field(b"extra", _extra);
         root.push_field(tag, _tsi);
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_parse_tsi(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<TsiTable> {
+pub fn otfcc_parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
     let _tsi = root.get_typed(tag, JsonType::Object)?;
     let mut tsi: TsiTable = Vec::new();
-    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    let stage = crate::logger::stage(ByteStr(tag));
     if let Some(fields) = _tsi
         .get_typed(b"glyphs", JsonType::Object)
         .and_then(ParsedValue::as_object)
@@ -238,7 +237,7 @@ pub fn otfcc_parse_tsi(root: &ParsedValue, options: &Options, tag: &[u8]) -> Opt
             });
         }
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(tsi)
 }
 // c2rust residue: the original had this as a numeric `switch` over

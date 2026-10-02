@@ -1,9 +1,7 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::cstd::binio::pos_to_u16;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Length, Pos};
 
 use crate::table::maxp::MaxpTable;
@@ -44,7 +42,6 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
 }
 pub fn otfcc_read_vmtx(
     packet: &Packet,
-    options: &Options,
     vhea: Option<&VheaTable>,
     maxp: Option<&MaxpTable>,
 ) -> Option<Box<VmtxTable>> {
@@ -62,12 +59,7 @@ pub fn otfcc_read_vmtx(
     match parse_vmtx(&table.data, count_a, count_k) {
         Ok(vmtx) => Some(Box::new(vmtx)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"Table 'vmtx' corrupted.\n"),
-            );
+            tracing::warn!("Table 'vmtx' corrupted.\n");
             None
         }
     }

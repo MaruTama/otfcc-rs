@@ -1,10 +1,8 @@
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::Pos;
 use crate::table::otl::budget::OtlReadBudget;
@@ -194,14 +192,11 @@ fn dump_gdef_lig_carets(gdef: &GdefTable) -> BuiltValue {
     }
     _carets
 }
-pub fn otfcc_dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue) {
     let Some(gdef) = gdef else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"GDEF"),
-    );
+    let stage = crate::logger::stage("GDEF");
     let mut _gdef = BuiltValue::new_object(4);
     if let Some(cd) = gdef.glyph_class_def.as_deref() {
         _gdef.push_field(b"glyphClassDef", dump_class_def(cd));
@@ -213,7 +208,7 @@ pub fn otfcc_dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue, options:
         _gdef.push_field(b"ligCarets", dump_gdef_lig_carets(gdef));
     }
     root.push_field(b"GDEF", _gdef);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
 fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
     let Some(fields) = carets.and_then(ParsedValue::as_object) else {
@@ -247,12 +242,9 @@ fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
         lc.push(v);
     }
 }
-pub fn otfcc_parse_gdef(root: &ParsedValue, options: &Options) -> Option<Box<GdefTable>> {
+pub fn otfcc_parse_gdef(root: &ParsedValue) -> Option<Box<GdefTable>> {
     let table = root.get_typed(b"GDEF", JsonType::Object)?;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"GDEF"),
-    );
+    let stage = crate::logger::stage("GDEF");
     let mut gdef: Box<GdefTable> = Box::new(GdefTable {
         glyph_class_def: None,
         mark_attach_class_def: None,
@@ -264,7 +256,7 @@ pub fn otfcc_parse_gdef(root: &ParsedValue, options: &Options) -> Option<Box<Gde
     gdef.mark_attach_class_def =
         parse_class_def(table.get(b"markAttachClassDef")).map(Box::new);
     lig_caret_from_json(table.get(b"ligCarets"), &mut gdef.lig_carets);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(gdef)
 }
 // `bk_new_block`/`bk_push`/`bk_new_block_from_buffer`/`bk_build_block`

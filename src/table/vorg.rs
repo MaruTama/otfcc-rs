@@ -1,10 +1,8 @@
 
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::cstd::binio::pos_to_u16;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos};
 
 #[derive(Copy, Clone, Debug)]
@@ -47,18 +45,13 @@ fn parse_vorg(data: &[u8]) -> Result<(GlyphId, Pos, Vec<VorgEntry>), ReadError> 
     Ok((num_vert_origin_y_metrics, default_vertical_origin, entries))
 }
 
-pub fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTable>> {
+pub fn otfcc_read_vorg(packet: &Packet) -> Option<Box<VorgTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VORG)?;
     let (num_vert_origin_y_metrics, default_vertical_origin, entries) =
         match parse_vorg(&table.data) {
             Ok(parsed) => parsed,
             Err(_) => {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(b"Table 'VORG' corrupted."),
-                );
+                tracing::warn!("Table 'VORG' corrupted.");
                 return None;
             }
         };

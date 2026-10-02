@@ -1,11 +1,7 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
@@ -76,7 +72,7 @@ fn parse_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
         num_of_long_ver_metrics,
     })
 }
-pub fn otfcc_read_vhea(packet: &Packet, options: &Options) -> Option<Box<VheaTable>> {
+pub fn otfcc_read_vhea(packet: &Packet) -> Option<Box<VheaTable>> {
     let table = packet
         .pieces
         .iter()
@@ -84,24 +80,16 @@ pub fn otfcc_read_vhea(packet: &Packet, options: &Options) -> Option<Box<VheaTab
     match parse_vhea(&table.data) {
         Ok(vhea) => Some(Box::new(vhea)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"Table 'vhea' corrupted."),
-            );
+            tracing::warn!("Table 'vhea' corrupted.");
             None
         }
     }
 }
-pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"vhea"),
-    );
+    let stage = crate::logger::stage("vhea");
     let mut vhea = BuiltValue::new_object(11);
     vhea.push_field(
         b"version",
@@ -127,14 +115,11 @@ pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue, options
     );
     vhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
     root.push_field(b"vhea", vhea);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
-pub fn otfcc_parse_vhea(root: &ParsedValue, options: &Options) -> Option<Box<VheaTable>> {
+pub fn otfcc_parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
     let table = root.get_typed(b"vhea", JsonType::Object)?;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"vhea"),
-    );
+    let stage = crate::logger::stage("vhea");
     let vhea = VheaTable {
         version: otfcc_to_fixed(table.get_num(b"version")),
         ascent: table.get_num(b"ascent") as i16,
@@ -154,7 +139,7 @@ pub fn otfcc_parse_vhea(root: &ParsedValue, options: &Options) -> Option<Box<Vhe
         metric_data_format: 0,
         num_of_long_ver_metrics: 0,
     };
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(Box::new(vhea))
 }
 #[allow(improper_ctypes_definitions)]

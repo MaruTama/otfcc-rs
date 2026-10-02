@@ -1,3 +1,4 @@
+use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::support::cstd::strtol::strtol;
 use crate::support::parsed_json::ParsedValue;
@@ -6,9 +7,6 @@ use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
 use crate::bk::bkgraph::bk_build_block;
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
@@ -595,7 +593,7 @@ fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     }
     Ok(cmap_box)
 }
-pub fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTable>> {
+pub fn otfcc_read_cmap(packet: &Packet) -> Option<Box<CmapTable>> {
     let table = packet
         .pieces
         .iter()
@@ -603,12 +601,7 @@ pub fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTab
     match parse_cmap(&table.data) {
         Ok(cmap) => Some(cmap),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'cmap' corrupted.\n"),
-            );
+            tracing::warn!("table 'cmap' corrupted.\n");
             None
         }
     }
@@ -620,10 +613,7 @@ pub fn otfcc_dump_cmap(
     options: &Options,
 ) {
     let Some(table) = table else { return };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"cmap"),
-    );
+    let stage = crate::logger::stage("cmap");
     if !table.unicodes.is_empty() {
         let mut cmap = BuiltValue::new_object(table.unicodes.len());
         for (&unicode, glyph) in table.unicodes.iter() {
@@ -657,7 +647,7 @@ pub fn otfcc_dump_cmap(
         }
         root.push_field(b"cmap_uvs", uvs);
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
 // `unicode_str` borrows the object key's own storage directly (the trailing
 // storage NUL stripped by the caller, same as every other `ParsedValue`
@@ -670,7 +660,7 @@ pub(crate) fn parse_unicode(unicode_str: &[u8]) -> Unicode {
         strtol(unicode_str, 10) as Unicode
     }
 }
-fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &Options) {
+fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
     };
@@ -685,20 +675,7 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, option
         let gname: Vec<u8> = bytes.to_vec();
         if !otfcc_encode_cmap_by_name(cmap, unicode as i32, gname.clone())
             && let Some(current_map) = otfcc_cmap_lookup(cmap, unicode as i32) {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"U+",
-                        Hex4Upper(unicode as u32),
-                        b" is already mapped to ",
-                        &current_map.name,
-                        b". Assignment to ",
-                        &gname,
-                        b" is ignored.",
-                    ),
-                );
+                tracing::warn!("U+{:04X} is already mapped to {}. Assignment to {} is ignored.", unicode as u32, ByteStr(&current_map.name), ByteStr(&gname));
             }
     }
 }
@@ -719,7 +696,7 @@ fn parse_uvs_key(uvs_str: &[u8]) -> CmapUvsKey {
     }
     k
 }
-fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &Options) {
+fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
     };
@@ -738,48 +715,26 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &O
         let gname: Vec<u8> = bytes.to_vec();
         if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone())
             && let Some(current_map) = otfcc_cmap_lookup_uvs(cmap, k) {
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"UVS U+",
-                        Hex4Upper(k.unicode),
-                        b" U+",
-                        Hex4Upper(k.selector),
-                        b" is already mapped to ",
-                        &current_map.name,
-                        b". Assignment to ",
-                        &gname,
-                        b" is ignored.",
-                    ),
-                );
+                tracing::warn!("UVS U+{:04X} U+{:04X} is already mapped to {}. Assignment to {} is ignored.", k.unicode, k.selector, ByteStr(&current_map.name), ByteStr(&gname));
             }
     }
 }
-pub fn otfcc_parse_cmap(root: &ParsedValue, options: &Options) -> Option<Box<CmapTable>> {
+pub fn otfcc_parse_cmap(root: &ParsedValue) -> Option<Box<CmapTable>> {
     root.as_object()?;
     let mut cmap_box: Box<CmapTable> = Box::new(CmapTable {
         unicodes: std::collections::BTreeMap::new(),
         uvs: std::collections::BTreeMap::new(),
     });
     let cmap: &mut CmapTable = cmap_box.as_mut();
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"cmap"),
-    );
-    parse_cmap_unicodes(cmap, root.get_typed(b"cmap", JsonType::Object), options);
-    logger_finish(&mut options.logger.borrow_mut());
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"cmap_uvs"),
-    );
+    let stage = crate::logger::stage("cmap");
+    parse_cmap_unicodes(cmap, root.get_typed(b"cmap", JsonType::Object));
+    drop(stage);
+    let stage = crate::logger::stage("cmap_uvs");
     parse_cmap_uvs(
         cmap,
         root.get_typed(b"cmap_uvs", JsonType::Object),
-        options,
     );
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(cmap_box)
 }
 fn otfcc_build_cmap_format4(cmap: &CmapTable) -> Buffer {

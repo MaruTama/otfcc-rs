@@ -1,5 +1,3 @@
-use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::vendor::json::JsonType;
 
@@ -30,7 +28,7 @@ pub fn parse_meta_data(v: Option<&ParsedValue>) -> Option<Vec<u8>> {
     }
     None
 }
-pub fn otfcc_parse_meta(root: &ParsedValue, options: &Options) -> Option<Box<MetaTable>> {
+pub fn otfcc_parse_meta(root: &ParsedValue) -> Option<Box<MetaTable>> {
     let _meta = root.get_typed(b"meta", JsonType::Object)?;
     let entries = _meta
         .get_typed(b"entries", JsonType::Array)
@@ -40,10 +38,7 @@ pub fn otfcc_parse_meta(root: &ParsedValue, options: &Options) -> Option<Box<Met
         flags: 0,
         entries: Vec::new(),
     });
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"meta"),
-    );
+    let stage = crate::logger::stage("meta");
     for _e in entries {
         let Some(tag_bytes) = _e
             .get_typed(b"tag", JsonType::String)
@@ -57,7 +52,7 @@ pub fn otfcc_parse_meta(root: &ParsedValue, options: &Options) -> Option<Box<Met
             meta.entries.push(MetaEntry { tag, data });
         }
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(meta)
 }
 #[inline]

@@ -1,9 +1,7 @@
 use crate::support::handle::{GlyphHandle, handle_from_index};
 
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::FontReader;
-use crate::support::options::Options;
 use crate::support::primitives::{F2Dot14, F16Dot16, GlyphId, Pos, Scale, ShapeId};
 
 use crate::table::fvar::FvarTable;
@@ -228,7 +226,7 @@ fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<B
     // when this function returns -- no explicit dispose call is needed.
     Some(g)
 }
-fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyph>> {
+fn otfcc_read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     let mut r = FontReader::new(body);
     let mut glyph_has_instruction: bool = false;
@@ -280,12 +278,7 @@ fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyp
             && (flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
                 || flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
         {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
-            );
+            tracing::warn!("glyf: SCALED_COMPONENT_OFFSET is not supported.");
         }
         if flags.contains(ComponentFlags::WE_HAVE_INSTRUCTIONS) {
             glyph_has_instruction = true;
@@ -304,7 +297,7 @@ fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyp
     }
     Some(g)
 }
-fn otfcc_read_glyph(body: &[u8], offset: usize, length: usize, options: &Options) -> Option<Box<Glyph>> {
+fn otfcc_read_glyph(body: &[u8], offset: usize, length: usize) -> Option<Box<Glyph>> {
     let glyph_bytes = body.get(offset..)?.get(..length)?;
     let mut r = FontReader::new(glyph_bytes);
     let number_of_contours: i16 = r.i16().ok()?;
@@ -318,7 +311,7 @@ fn otfcc_read_glyph(body: &[u8], offset: usize, length: usize, options: &Options
     let mut g = if number_of_contours > 0 {
         otfcc_read_simple_glyph(body, number_of_contours as ShapeId)?
     } else {
-        otfcc_read_composite_glyph(body, options)?
+        otfcc_read_composite_glyph(body)?
     };
     g.stat.x_min = x_min;
     g.stat.y_min = y_min;
@@ -884,7 +877,7 @@ fn polymorphize_glyph(
 // (`otl/subtables/chaining/read.rs`). `__fortable_*` (goto emulation) ->
 // the same `.iter().find()` idiom every other migrated table reader uses.
 #[inline]
-fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'_>) {
+fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'_>) {
     // `ctx.fvar` is a real `Option<&mut FvarTable>` (Stage M-12): reading
     // its length here only needs `.as_deref()`, a shared reborrow, even
     // though `ctx` itself is `&mut` (the mutable access, for
@@ -912,12 +905,7 @@ fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &
     } // majorVersion/minorVersion: never read by the original either
     let Ok(axis_count) = header.u16() else { return };
     if axis_count as usize != axes_len {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(b"Axes number in GVAR and FVAR are inequal"),
-        );
+        tracing::warn!("Axes number in GVAR and FVAR are inequal");
         return;
     }
     let Ok(shared_tuple_count) = header.u16() else {
@@ -975,7 +963,7 @@ fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &
         polymorphize_glyph(glyph_slot.as_deref_mut().unwrap(), &mut tpctx, gvar, gvd_offset);
     }
 }
-pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTable> {
+pub fn otfcc_read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTable> {
     let num_glyphs = ctx.num_glyphs;
     // A local `Vec<u32>` now, not a `__caryll_allocate_clean`'d/`free`'d
     // buffer -- `Vec`'s own allocator aborts rather than returning null on
@@ -988,12 +976,7 @@ pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOConte
     // `.iter().find()` idiom every other already-migrated table reader in
     // this crate uses.
     let loca_corrupted = || {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(b"table 'loca' corrupted.\n"),
-        );
+        tracing::warn!("table 'loca' corrupted.\n");
     };
     let Some(loca) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_LOCA) else {
         loca_corrupted();
@@ -1043,12 +1026,7 @@ pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOConte
         .iter()
         .find(|p| p.tag == crate::tag::TAG_GLYF)?;
     if glyf_piece.length < offsets[num_glyphs as usize] {
-        logger_log_sds(
-            &mut options.logger.borrow_mut(),
-            LOG_VL_IMPORTANT,
-            LoggerType::Warning,
-            crate::bytesbuild!(b"table 'glyf' corrupted.\n"),
-        );
+        tracing::warn!("table 'glyf' corrupted.\n");
         return None;
     }
     let mut glyf_val: GlyfTable = Vec::with_capacity(num_glyphs as usize);
@@ -1066,7 +1044,6 @@ pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOConte
                 &glyf_piece.data,
                 offsets[j0 as usize] as usize,
                 glyph_length as usize,
-                options,
             )
             .unwrap_or_else(otfcc_new_glyf_glyph);
             glyf_val.push(Some(g));
@@ -1076,7 +1053,7 @@ pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOConte
     }
     let mut glyf = Some(glyf_val);
     if let Some(g) = glyf.as_mut() {
-        polymorphize(packet, options, g, ctx);
+        polymorphize(packet, g, ctx);
     }
     glyf
 }
@@ -1085,10 +1062,6 @@ pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOConte
 mod glyf_read_tests {
     use super::*;
     use crate::vf::vq::vq_get_still;
-
-    fn zeroed_options() -> Options {
-        Options::default()
-    }
 
     fn still(v: &VQ) -> Pos {
         vq_get_still(v.clone())
@@ -1109,13 +1082,11 @@ mod glyf_read_tests {
         data[18..20].copy_from_slice(&7i16.to_be_bytes()); // x1
         data[20..22].copy_from_slice(&3i16.to_be_bytes()); // y0
         data[22..24].copy_from_slice(&9i16.to_be_bytes()); // y1
-        let options = zeroed_options();
         {
             let g = otfcc_read_glyph(
                 &data,
                 0,
                 data.len(),
-                &options,
             );
             let g = g.unwrap();
             assert_eq!(g.contours.len(), 1);
@@ -1141,13 +1112,11 @@ mod glyf_read_tests {
         data[12..14].copy_from_slice(&5u16.to_be_bytes()); // glyphIndex
         data[14..16].copy_from_slice(&10i16.to_be_bytes());
         data[16..18].copy_from_slice(&20i16.to_be_bytes());
-        let options = zeroed_options();
         {
             let g = otfcc_read_glyph(
                 &data,
                 0,
                 data.len(),
-                &options,
             );
             let g = g.unwrap();
             assert_eq!(g.references.len(), 1);
@@ -1168,13 +1137,11 @@ mod glyf_read_tests {
         data[10..12].copy_from_slice(&1u16.to_be_bytes());
         data[12..14].copy_from_slice(&0u16.to_be_bytes());
         data[14] = 0x01;
-        let options = zeroed_options();
         {
             let g = otfcc_read_glyph(
                 &data,
                 0,
                 data.len(),
-                &options,
             );
             assert!(g.is_none());
         }
@@ -1209,13 +1176,11 @@ mod glyf_read_tests {
         data[22..24].copy_from_slice(&7i16.to_be_bytes()); // x1
         data[24..26].copy_from_slice(&3i16.to_be_bytes()); // y0
         data[26..28].copy_from_slice(&9i16.to_be_bytes()); // y1
-        let options = zeroed_options();
         {
             let g = otfcc_read_glyph(
                 &data,
                 0,
                 data.len(),
-                &options,
             );
             let g = g.unwrap();
             assert_eq!(g.contours.len(), 3);
@@ -1241,13 +1206,11 @@ mod glyf_read_tests {
         data[12..14].copy_from_slice(&5u16.to_be_bytes());
         data[14..16].copy_from_slice(&10i16.to_be_bytes());
         data[16..18].copy_from_slice(&20i16.to_be_bytes());
-        let options = zeroed_options();
         {
             let g = otfcc_read_glyph(
                 &data,
                 0,
                 data.len(),
-                &options,
             );
             assert!(g.is_none());
         }
@@ -1265,13 +1228,11 @@ mod glyf_read_tests {
         data[0..2].copy_from_slice(&2i16.to_be_bytes());
         data[10..12].copy_from_slice(&5u16.to_be_bytes());
         data[12..14].copy_from_slice(&2u16.to_be_bytes());
-        let options = zeroed_options();
         {
             let g = otfcc_read_glyph(
                 &data,
                 0,
                 data.len(),
-                &options,
             );
             assert!(g.is_none());
         }
@@ -1292,13 +1253,11 @@ mod glyf_read_tests {
         data[12..14].copy_from_slice(&0u16.to_be_bytes());
         data[14] = 0x09; // REPEAT | ON_CURVE
         data[15] = 5; // repeat count
-        let options = zeroed_options();
         {
             let g = otfcc_read_glyph(
                 &data,
                 0,
                 data.len(),
-                &options,
             );
             assert!(g.is_none());
         }
@@ -1307,13 +1266,11 @@ mod glyf_read_tests {
     #[test]
     fn header_shorter_than_ten_bytes_is_rejected_instead_of_reading_oob() {
         let data = [0u8; 5];
-        let options = zeroed_options();
         {
             let g = otfcc_read_glyph(
                 &data,
                 0,
                 data.len(),
-                &options,
             );
             assert!(g.is_none());
         }

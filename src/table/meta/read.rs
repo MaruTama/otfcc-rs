@@ -1,7 +1,5 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 // The original guarded the entry array with `table.length <
@@ -48,7 +46,7 @@ fn parse_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
         entries,
     })
 }
-pub fn otfcc_read_meta(packet: &Packet, options: &Options) -> Option<Box<MetaTable>> {
+pub fn otfcc_read_meta(packet: &Packet) -> Option<Box<MetaTable>> {
     let table = packet
         .pieces
         .iter()
@@ -56,12 +54,7 @@ pub fn otfcc_read_meta(packet: &Packet, options: &Options) -> Option<Box<MetaTab
     match parse_meta(&table.data) {
         Ok(meta) => Some(Box::new(meta)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"Table 'meta' corrupted.\n"),
-            );
+            tracing::warn!("Table 'meta' corrupted.\n");
             None
         }
     }

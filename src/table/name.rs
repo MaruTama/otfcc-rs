@@ -1,12 +1,8 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::unicode::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
 use crate::vendor::json::JsonType;
@@ -104,7 +100,7 @@ fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
     Ok(name)
 }
 
-pub fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> {
+pub fn otfcc_read_name(packet: &Packet) -> Option<NameTable> {
     let table = packet
         .pieces
         .iter()
@@ -112,25 +108,17 @@ pub fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> 
     match parse_name(&table.data) {
         Ok(name) => Some(name),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'name' corrupted.\n"),
-            );
+            tracing::warn!("table 'name' corrupted.\n");
             None
         }
     }
 }
-pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue) {
     let name = match name {
         Some(n) => n,
         None => return,
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"name"),
-    );
+    let stage = crate::logger::stage("name");
     let records: &Vec<NameRecord> = name;
     {
         let mut _name = BuiltValue::new_array(records.len());
@@ -144,10 +132,10 @@ pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue, options:
             _name.push_item(record);
         }
         root.push_field(b"name", _name);
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
 }
-pub fn otfcc_parse_name(root: &ParsedValue, options: &Options) -> Option<NameTable> {
+pub fn otfcc_parse_name(root: &ParsedValue) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
     let Some(items) = root
         .get_typed(b"name", JsonType::Array)
@@ -155,66 +143,22 @@ pub fn otfcc_parse_name(root: &ParsedValue, options: &Options) -> Option<NameTab
     else {
         return Some(name);
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"name"),
-    );
+    let stage = crate::logger::stage("name");
     for (j, _record) in items.iter().enumerate() {
         let j = j as u32;
         if _record.as_object().is_none() {
             continue;
         }
         if _record.get_typed(b"platformID", JsonType::Integer).is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"Missing or invalid platformID for name entry ",
-                    j,
-                    b"\n",
-                ),
-            );
+            tracing::warn!("Missing or invalid platformID for name entry {}\n", j);
         } else if _record.get_typed(b"encodingID", JsonType::Integer).is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"Missing or invalid encodingID for name entry ",
-                    j,
-                    b"\n",
-                ),
-            );
+            tracing::warn!("Missing or invalid encodingID for name entry {}\n", j);
         } else if _record.get_typed(b"languageID", JsonType::Integer).is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"Missing or invalid languageID for name entry ",
-                    j,
-                    b"\n",
-                ),
-            );
+            tracing::warn!("Missing or invalid languageID for name entry {}\n", j);
         } else if _record.get_typed(b"nameID", JsonType::Integer).is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"Missing or invalid nameID for name entry ", j, b"\n",),
-            );
+            tracing::warn!("Missing or invalid nameID for name entry {}\n", j);
         } else if _record.get_typed(b"nameString", JsonType::String).is_none() {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"Missing or invalid name string for name entry ",
-                    j,
-                    b"\n",
-                ),
-            );
+            tracing::warn!("Missing or invalid name string for name entry {}\n", j);
         } else {
             let record: NameRecord = NameRecord {
                 platform_id: _record.get_int(b"platformID") as u16,
@@ -236,7 +180,7 @@ pub fn otfcc_parse_name(root: &ParsedValue, options: &Options) -> Option<NameTab
             .then(a.language_id.cmp(&b.language_id))
             .then(a.name_id.cmp(&b.name_id))
     });
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(name)
 }
 pub fn otfcc_build_name(name: Option<&NameTable>) -> Option<Buffer> {

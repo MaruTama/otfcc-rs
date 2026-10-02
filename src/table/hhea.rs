@@ -1,11 +1,7 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{
-    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
-};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
@@ -53,7 +49,7 @@ fn parse_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
         number_of_metrics: r.u16()?,
     })
 }
-pub fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTable>> {
+pub fn otfcc_read_hhea(packet: &Packet) -> Option<Box<HheaTable>> {
     let table = packet
         .pieces
         .iter()
@@ -61,24 +57,16 @@ pub fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTab
     match parse_hhea(&table.data) {
         Ok(hhea) => Some(Box::new(hhea)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"table 'hhea' corrupted.\n"),
-            );
+            tracing::warn!("table 'hhea' corrupted.\n");
             None
         }
     }
 }
-pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"hhea"),
-    );
+    let stage = crate::logger::stage("hhea");
     let mut hhea = BuiltValue::new_object(13);
     hhea.push_field(
         b"version",
@@ -110,9 +98,9 @@ pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue, options
     );
     hhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
     root.push_field(b"hhea", hhea);
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
-pub fn otfcc_parse_hhea(root: &ParsedValue, options: &Options) -> Option<Box<HheaTable>> {
+pub fn otfcc_parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     let mut hhea = HheaTable {
         version: 0x10000_i32 as F16Dot16,
         ascender: 0,
@@ -130,10 +118,7 @@ pub fn otfcc_parse_hhea(root: &ParsedValue, options: &Options) -> Option<Box<Hhe
         number_of_metrics: 0,
     };
     if let Some(table) = root.get_typed(b"hhea", JsonType::Object) {
-        logger_start_sds(
-            &mut options.logger.borrow_mut(),
-            crate::bytesbuild!(b"hhea"),
-        );
+        let stage = crate::logger::stage("hhea");
         hhea.version = otfcc_to_fixed(table.get_num(b"version"));
         hhea.ascender = table.get_num(b"ascender") as i16;
         hhea.descender = table.get_num(b"descender") as i16;
@@ -145,7 +130,7 @@ pub fn otfcc_parse_hhea(root: &ParsedValue, options: &Options) -> Option<Box<Hhe
         hhea.caret_slope_rise = table.get_num(b"caretSlopeRise") as i16;
         hhea.caret_slope_run = table.get_num(b"caretSlopeRun") as i16;
         hhea.caret_offset = table.get_num(b"caretOffset") as i16;
-        logger_finish(&mut options.logger.borrow_mut());
+        drop(stage);
     }
     Some(Box::new(hhea))
 }

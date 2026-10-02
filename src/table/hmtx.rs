@@ -1,9 +1,7 @@
 use crate::font::caryll_sfnt::Packet;
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::cstd::binio::pos_to_u16;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Length, Pos};
 
 use crate::table::hhea::HheaTable;
@@ -45,7 +43,6 @@ fn parse_hmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<HmtxTable, 
 }
 pub fn otfcc_read_hmtx(
     packet: &Packet,
-    options: &Options,
     hhea: Option<&HheaTable>,
     maxp: Option<&MaxpTable>,
 ) -> Option<Box<HmtxTable>> {
@@ -63,12 +60,7 @@ pub fn otfcc_read_hmtx(
     match parse_hmtx(&table.data, count_a, count_k) {
         Ok(hmtx) => Some(Box::new(hmtx)),
         Err(_) => {
-            logger_log_sds(
-                &mut options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(b"Table 'hmtx' corrupted.\n"),
-            );
+            tracing::warn!("Table 'hmtx' corrupted.\n");
             None
         }
     }

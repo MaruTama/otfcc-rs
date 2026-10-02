@@ -1,7 +1,7 @@
 pub mod build;
 pub mod read;
 
-use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds};
+use crate::logger::ByteStr;
 use crate::support::TRUE_0;
 use crate::support::buffer::Buffer;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
@@ -535,10 +535,7 @@ pub fn otfcc_dump_glyf(
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"glyf"),
-    );
+    let stage = crate::logger::stage("glyf");
     let mut glyf = BuiltValue::new_object(table.len());
     for slot in table {
         let g = slot.as_deref().unwrap();
@@ -548,7 +545,7 @@ pub fn otfcc_dump_glyf(
     if !options.ignore_glyph_order {
         otfcc_dump_glyphorder(table, root);
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
 }
 fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
     let mut point: Point = Point {
@@ -709,20 +706,7 @@ fn otfcc_glyf_parse_glyph(
                 // the `Logger` -- and this message wasn't reaching the
                 // `Logger` at all before, so no golden fixture already
                 // depends on its exact old wording.
-                logger_log_sds(
-                    &mut options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[OTFCC] TrueType instructions parse error : ",
-                        reason,
-                        b", at ",
-                        pos,
-                        b" in /",
-                        &g.name,
-                        b"\n",
-                    ),
-                );
+                tracing::warn!("[OTFCC] TrueType instructions parse error : {}, at {} in /{}\n", ByteStr(reason), pos, ByteStr(&g.name));
             },
         );
         parse_stems(glyphdump.get_typed(b"stemH", JsonType::Array), &mut g.stem_h);
@@ -772,10 +756,7 @@ pub fn otfcc_parse_glyf(
     let glyph_order = glyph_order?;
     root.as_object()?;
     let table = root.get_typed_mut(b"glyf", JsonType::Object)?;
-    logger_start_sds(
-        &mut options.logger.borrow_mut(),
-        crate::bytesbuild!(b"glyf"),
-    );
+    let stage = crate::logger::stage("glyf");
     let n = table.as_object().map_or(0, |f| f.len());
     let mut glyf_val: GlyfTable = Vec::with_capacity(n);
     glyf_val.resize_with(n, || None);
@@ -801,7 +782,7 @@ pub fn otfcc_parse_glyf(
             }
         table.take_field(j);
     }
-    logger_finish(&mut options.logger.borrow_mut());
+    drop(stage);
     Some(glyf_val)
 }
 
