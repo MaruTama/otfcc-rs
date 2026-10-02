@@ -74,6 +74,12 @@ pub fn push_stopwatch(sofar: &mut timespec) -> Vec<u8> {
         .unwrap_or(secs_bytes.len());
     return crate::bytesbuild!(b"Step time = ", &secs_bytes[..nul_pos], b"s.\n",);
 }
+/// Logs the time since `sofar` as a verbose-mode progress line ("Step time
+/// = ...s.") and resets `sofar` to now -- the closing line of every CLI
+/// step.
+pub fn log_step_time(sofar: &mut timespec) {
+    tracing::debug!("{}", crate::logger::ByteStr(&push_stopwatch(sofar)[..]));
+}
 
 #[cfg(test)]
 mod tests {

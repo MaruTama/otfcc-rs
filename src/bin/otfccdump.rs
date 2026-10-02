@@ -1,17 +1,4 @@
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments,
-    unused_mut
-)]
-#[allow(unused_imports)]
 use otfcc_rust::logger::ByteStr;
-use ::otfcc_rust;
-
-
-
 use otfcc_rust::support::options::Options;
 
 use otfcc_rust::font::caryll_font::Font;
@@ -29,9 +16,9 @@ use otfcc_rust::support::built_json::{
     JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts,
 };
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
+use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
 use otfcc_rust::support::cstd::strtol::strtol;
-use otfcc_rust::support::cli::stopwatch::{push_stopwatch, time_now};
-use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use otfcc_rust::support::cli::stopwatch::{log_step_time, time_now};
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
@@ -41,18 +28,12 @@ use std::os::unix::ffi::OsStrExt;
 // unsafe operation here, just the c2rust libc-call idiom. `stdout`
 // itself stays imported -- it's still needed by the `isatty(fileno(
 // stdout))` check elsewhere in this file.
-pub fn printInfo() {
-    println!(
-        "This is Polymorphic otfccdump, version {}.{}.{}.",
-        MAIN_VER, SECONDARY_VER, PATCH_VER,
-    );
-}
-pub fn printHelp() {
+pub fn print_help() {
     print!(
         "\nUsage : otfccdump [OPTIONS] input.[otf|ttf|ttc]\n\n -h, --help              : Display this help message and exit.\n -v, --version           : Display version information and exit.\n -o <file>               : Set output file path to <file>. When absent the dump\n                           will be written to STDOUT.\n -n <n>, --ttc-index <n> : Use the <n>th subfont within the input font.\n --pretty                : Prettify the output JSON.\n --ugly                  : Force uglify the output JSON.\n --verbose               : Show more information when building.\n -q, --quiet             : Be silent when building.\n\n --ignore-glyph-order    : Do not export glyph order information.\n --glyph-name-prefix pfx : Add a prefix to the glyph names.\n --ignore-hints          : Do not export hinting information.\n --decimal-cmap          : Export 'cmap' keys as decimal number.\n --hex-cmap              : Export 'cmap' keys as hex number (U+FFFF).\n --name-by-hash          : Name glyphs using its hash value.\n --name-by-gid           : Name glyphs using its glyph id.\n --add-bom               : Add BOM mark in the output. (It is default on Windows\n                           when redirecting to another program. Use --no-bom to\n                           turn it off.)\n\n"
     );
 }
-fn main_0(args: Vec<String>) -> i32 {
+fn run(args: Vec<String>) -> i32 {
     let mut show_help: bool = false;
     let mut show_version: bool = false;
     let mut show_pretty: bool = false;
@@ -107,10 +88,9 @@ fn main_0(args: Vec<String>) -> i32 {
     ];
     let mut options: Box<Options> = Box::default();
     options.decimal_cmap = true;
-    let mut outputPath: Option<::std::ffi::CString> = None;
-    // Placeholder, unconditionally overwritten below before any real use
-    // (the only path that skips the assignment calls `exit()`).
-    let mut inPath: ::std::ffi::CString = ::std::ffi::CString::default();
+    let mut output_path: Option<::std::ffi::CString> = None;
+    // Assigned once the positional arguments are known, below.
+    let in_path: ::std::ffi::CString;
     let (items, positionals) = getopt_long(&args, "vhqpio:n:", LONGOPTS);
     for item in items {
         match item {
@@ -120,7 +100,7 @@ fn main_0(args: Vec<String>) -> i32 {
                 OPT_PRETTY => show_pretty = true,
                 OPT_IGNORE_GLYPH_ORDER => options.ignore_glyph_order = true,
                 OPT_OUTPUT => {
-                    outputPath = Some(
+                    output_path = Some(
                         ::std::ffi::CString::new(arg.unwrap())
                             .expect("output path must not contain a NUL byte"),
                     );
@@ -146,20 +126,7 @@ fn main_0(args: Vec<String>) -> i32 {
                 OPT_DEBUG_WAIT_ON_START => options.debug_wait_on_start = true,
                 _ => {}
             },
-            GetoptItem::UnknownLong(s) => {
-                eprintln!("otfccdump: unrecognized option '{s}'");
-            }
-            GetoptItem::UnknownShort(ch) => {
-                eprintln!("otfccdump: invalid option -- '{ch}'");
-            }
-            GetoptItem::AmbiguousLong { given, matches } => {
-                let possibilities =
-                    matches.iter().map(|m| format!("'--{m}'")).collect::<Vec<_>>().join(" ");
-                eprintln!("otfccdump: option '{given}' is ambiguous; possibilities: {possibilities}");
-            }
-            GetoptItem::MissingArgument(s) => {
-                eprintln!("otfccdump: option '{s}' requires an argument");
-            }
+            other => report_getopt_error("otfccdump", other),
         }
     }
     if options.debug_wait_on_start {
@@ -169,33 +136,24 @@ fn main_0(args: Vec<String>) -> i32 {
         // error (EOF under a pipe means "do not wait", same as before).
         let _ = std::io::stdin().read(&mut [0u8; 1]);
     }
-    let verbosity: u8 = (if options.quiet as i32 != 0 {
-        0_i32
-    } else if options.verbose as i32 != 0 {
-        0xff_i32
-    } else {
-        1_i32
-    }) as u8;
-    // Installed only now that `--quiet`/`--verbose` are known; nothing is
-    // logged before this point (argument errors go straight to stderr).
-    otfcc_rust::logger::install_stderr(verbosity);
-    // Every line logged from here on is indented under the program name.
-    let _root_scope = otfcc_rust::logger::indent("otfccdump");
+    // Logging starts only now that `--quiet`/`--verbose` are known; nothing
+    // is logged before this point (argument errors go straight to stderr).
+    let _root_scope = start_logging("otfccdump", &options);
     if show_help {
-        printInfo();
-        printHelp();
+        print_version_info("otfccdump");
+        print_help();
         return 0_i32;
     }
     if show_version {
-        printInfo();
+        print_version_info("otfccdump");
         return 0_i32;
     }
     if let Some(p) = positionals.into_iter().next() {
-        inPath =
+        in_path =
             ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte");
     } else {
         tracing::error!("Expected argument for input file name.\n");
-        printHelp();
+        print_help();
         return EXIT_FAILURE;
     }
     let mut begin: timespec = timespec {
@@ -203,45 +161,45 @@ fn main_0(args: Vec<String>) -> i32 {
         tv_nsec: 0,
     };
     time_now(&mut begin);
-    let mut sfnt: Option<SplineFontContainer> = None;
+    let mut sfnt: Option<SplineFontContainer>;
     let stage = otfcc_rust::logger::stage("Read SFNT");
     {
-        tracing::debug!("From file {}", ByteStr(inPath.as_bytes()));
-        sfnt = otfcc_read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(inPath.as_bytes())));
+        tracing::debug!("From file {}", ByteStr(in_path.as_bytes()));
+        sfnt = otfcc_read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(in_path.as_bytes())));
         if sfnt.as_ref().is_none_or(|s| s.count == 0_u32) {
-            tracing::error!("Cannot read SFNT file \"{}\". Exit.\n", ByteStr(inPath.as_bytes()));
+            tracing::error!("Cannot read SFNT file \"{}\". Exit.\n", ByteStr(in_path.as_bytes()));
             return EXIT_FAILURE;
         }
         let subfonts = sfnt.as_ref().unwrap().count;
         if ttcindex >= subfonts {
-            tracing::error!("Subfont index {} out of range for \"{}\" (0 -- {}). Exit.\n", ttcindex, ByteStr(inPath.as_bytes()), ByteStr(subfonts.wrapping_sub(1_u32)));
+            tracing::error!("Subfont index {} out of range for \"{}\" (0 -- {}). Exit.\n", ttcindex, ByteStr(in_path.as_bytes()), ByteStr(subfonts.wrapping_sub(1_u32)));
             return EXIT_FAILURE;
         }
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
-    let mut font: Option<Box<Font>> = None;
+    let mut font: Option<Box<Font>>;
     let stage = otfcc_rust::logger::stage("Read Font");
     {
         font = read_otf(sfnt.as_ref().unwrap(), ttcindex, &options);
         if font.is_none() {
-            tracing::error!("Font structure broken or corrupted \"{}\". Exit.\n", ByteStr(inPath.as_bytes()));
+            tracing::error!("Font structure broken or corrupted \"{}\". Exit.\n", ByteStr(in_path.as_bytes()));
             return EXIT_FAILURE;
         }
         drop(sfnt.take());
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
     let stage = otfcc_rust::logger::stage("Consolidate");
     {
         otfcc_consolidate_font(font.as_mut().unwrap(), &options);
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
     // Owned now that `serialize_to_json` returns the `BuiltValue` itself
     // rather than a `BuiltValue::into_raw` pointer; `Option` only because
     // the plain block below is what assigns it.
-    let mut root: Option<BuiltValue> = None;
+    let mut root: Option<BuiltValue>;
     let stage = otfcc_rust::logger::stage("Dump");
     {
         // The "dump returned null" error path that used to sit here was
@@ -249,38 +207,38 @@ fn main_0(args: Vec<String>) -> i32 {
         // `BuiltValue`, so the pointer it handed back was never null. With
         // an owned return there is no null to test for at all.
         root = Some(serialize_to_json(font.as_mut().unwrap(), &options));
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
-    let mut buf: Vec<u8> = Vec::new();
+    let buf: Vec<u8>;
     let stage = otfcc_rust::logger::stage("Serialize to JSON");
     {
-        let mut jsonOptions: JsonSerializeOpts = JsonSerializeOpts {
+        let mut json_options: JsonSerializeOpts = JsonSerializeOpts {
             mode: 0,
             opts: 0,
             indent_size: 0,
         };
-        jsonOptions.mode = JSON_SERIALIZE_MODE_PACKED;
-        jsonOptions.opts = 0_i32;
-        jsonOptions.indent_size = 4_i32;
+        json_options.mode = JSON_SERIALIZE_MODE_PACKED;
+        json_options.opts = 0_i32;
+        json_options.indent_size = 4_i32;
         if show_pretty as i32 != 0
-            || outputPath.is_none() && std::io::stdout().is_terminal()
+            || output_path.is_none() && std::io::stdout().is_terminal()
         {
-            jsonOptions.mode = JSON_SERIALIZE_MODE_MULTILINE;
+            json_options.mode = JSON_SERIALIZE_MODE_MULTILINE;
         }
         if show_ugly {
-            jsonOptions.mode = JSON_SERIALIZE_MODE_PACKED;
+            json_options.mode = JSON_SERIALIZE_MODE_PACKED;
         }
         buf = json_serialize_ex(
             root.as_ref().expect("the Dump step above always assigns root"),
-            jsonOptions,
+            json_options,
         );
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
     let stage = otfcc_rust::logger::stage("Output");
     {
-        if let Some(ref output_path) = outputPath {
+        if let Some(ref output_path) = output_path {
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
             let write_result = std::fs::File::create(std::path::Path::new(os_path)).and_then(
                 |mut f| {
@@ -301,22 +259,22 @@ fn main_0(args: Vec<String>) -> i32 {
             }
             let _ = stdout_handle.write_all(&buf);
         }
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
     let stage = otfcc_rust::logger::stage("Finalize");
     {
         drop(font.take());
         drop(root.take());
-        // `inPath`/`outputPath` are `CString`/`Option<CString>` now --
+        // `in_path`/`output_path` are `CString`/`Option<CString>` now --
         // both drop on their own at the end of this function's scope, no
         // explicit free needed.
-        tracing::debug!("{}", ByteStr(&push_stopwatch(&mut begin)[..]));
+        log_step_time(&mut begin);
         stage.finish();
     }
     return 0_i32;
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();
-    ::std::process::ExitCode::from(main_0(args) as u8)
+    ::std::process::ExitCode::from(run(args) as u8)
 }
