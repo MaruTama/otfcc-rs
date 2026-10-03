@@ -175,7 +175,6 @@ dependencies = [
  "base64",
  "bitflags",
  "indexmap",
- "libc",
  "sha1",
  "tracing",
  "tracing-subscriber",

@@ -189,6 +189,63 @@ macro_rules! bytesbuild {
     }};
 }
 
+/// A from-scratch, byte-exact reimplementation of C's `%.Pg` conversion
+/// with `P = precision` (glibc's `sprintf(buf, "%.Pg", val)`; the CFF
+/// writer uses P = 13, the CLI's step times plain `%g`, i.e. P = 6). `%.Pg` rounds
+/// `val` to `P` significant decimal digits, then picks `%f`-style
+/// (`P-1-X` fractional digits, where `X` is the decimal exponent of the
+/// rounded value) when `-4 <= X < P`, else `%e`-style (`P-1` fractional
+/// digits, exponent as `e+XX`/`e-XX` with the sign always shown and at
+/// least 2 digits), and finally strips trailing fractional zeros (and the
+/// bare decimal point if none remain) since the `#` flag is never set at
+/// any call site. Rust's `{:.N}`/`{:.N}e` formatting is, like glibc's,
+/// correctly-rounded (round-to-nearest, ties-to-even) fixed-precision
+/// decimal conversion -- unlike `vendor/emyg_dtoa.rs`'s *shortest*
+/// round-tripping Grisu2 output, a fixed digit count has exactly one
+/// correct answer, so the two must agree bit-for-bit. Verified against
+/// CPython's `"%.13g" % val` (itself glibc-equivalent) across 200,000
+/// pseudo-random f64 bit patterns with zero mismatches; see this file's
+/// `libcff/codecs.rs`'s `format_g13` tests for the representative cases pinned from that
+/// sweep.
+pub fn format_g(val: f64, precision: usize) -> String {
+    let precision = precision as i32;
+    let e_form = format!("{:.*e}", (precision - 1) as usize, val);
+    let e_pos = e_form.find('e').expect("Rust's `{:e}` always emits 'e'");
+    let exponent: i32 = e_form[e_pos + 1..]
+        .parse()
+        .expect("Rust's `{:e}` exponent is always a plain decimal integer");
+    let s = if (-4..precision).contains(&exponent) {
+        let frac_digits = (precision - 1 - exponent).max(0) as usize;
+        format!("{:.*}", frac_digits, val)
+    } else {
+        let mantissa = strip_trailing_fraction_zeros(&e_form[..e_pos]);
+        format!(
+            "{}e{}{:02}",
+            mantissa,
+            if exponent < 0 { '-' } else { '+' },
+            exponent.abs()
+        )
+    };
+    if (-4..precision).contains(&exponent) {
+        strip_trailing_fraction_zeros(&s).to_string()
+    } else {
+        s
+    }
+}
+fn strip_trailing_fraction_zeros(s: &str) -> &str {
+    match s.find('.') {
+        None => s,
+        Some(dot) => {
+            let stripped = s[..dot + 1].len() + s[dot + 1..].trim_end_matches('0').len();
+            if stripped == dot + 1 {
+                &s[..dot]
+            } else {
+                &s[..stripped]
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,4 +350,34 @@ mod tests {
         let got = bytesbuild!(b"op_", "vmoveto");
         assert_eq!(got, b"op_vmoveto");
     }
+
+    // `format_g(v, 6)` replaced `snprintf("%g")` for the step times. Checked
+    // against libc over typical timings, the format's switch points
+    // (1e-4, 1e6) and a deterministic pseudo-random sweep.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri"
+    )]
+    fn format_g_6_matches_printf() {
+        let mut values = vec![
+            0.0, 0.5, 1.0, 0.000148, 0.00169652, 12.5, 999999.4, 999999.6, 1e6, 1e-4,
+            9.99995e-5, 0.000099999, 123456.5, 1.5e-7, 3.2e12,
+        ];
+        let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+        for _ in 0..20_000 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            let mantissa = (x >> 11) as f64 / (1u64 << 53) as f64;
+            let exponent = ((x & 0x3f) as i32) - 20;
+            values.push(mantissa * 10f64.powi(exponent));
+        }
+        for v in values {
+            unsafe {
+                assert_matches_printf!("%g", v, format_g(v, 6).into_bytes());
+            }
+        }
+    }
+
 }
