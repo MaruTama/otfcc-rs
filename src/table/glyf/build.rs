@@ -1,4 +1,3 @@
-use crate::support::primitives::pos_to_u16;
 
 use crate::support::buffer::Buffer;
 use crate::support::primitives::ShapeId;
@@ -48,10 +47,10 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
     let mut xs = Buffer::new();
     let mut ys = Buffer::new();
     gbuf.write_u16be(g.contours.len() as u16);
-    gbuf.write_u16be(pos_to_u16(g.stat.x_min));
-    gbuf.write_u16be(pos_to_u16(g.stat.y_min));
-    gbuf.write_u16be(pos_to_u16(g.stat.x_max));
-    gbuf.write_u16be(pos_to_u16(g.stat.y_max));
+    gbuf.write_i16be(g.stat.x_min as i16);
+    gbuf.write_i16be(g.stat.y_min as i16);
+    gbuf.write_i16be(g.stat.x_max as i16);
+    gbuf.write_i16be(g.stat.y_max as i16);
     let mut ptid: ShapeId = 0 as ShapeId;
     for contour in g.contours.iter() {
         ptid = (ptid as usize).wrapping_add(contour.len()) as ShapeId;
@@ -112,10 +111,10 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
 }
 fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
     gbuf.write_u16be(-1_i32 as u16);
-    gbuf.write_u16be(pos_to_u16(g.stat.x_min));
-    gbuf.write_u16be(pos_to_u16(g.stat.y_min));
-    gbuf.write_u16be(pos_to_u16(g.stat.x_max));
-    gbuf.write_u16be(pos_to_u16(g.stat.y_max));
+    gbuf.write_i16be(g.stat.x_min as i16);
+    gbuf.write_i16be(g.stat.y_min as i16);
+    gbuf.write_i16be(g.stat.x_max as i16);
+    gbuf.write_i16be(g.stat.y_max as i16);
     let num_references = g.references.len();
     for (rj, r) in g.references.iter().enumerate() {
         let mut flags: ComponentFlags = if rj < num_references.wrapping_sub(1_usize) {

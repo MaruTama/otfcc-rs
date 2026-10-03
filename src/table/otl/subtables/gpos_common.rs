@@ -4,7 +4,6 @@ use crate::support::handle::{
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
 
-use crate::support::primitives::pos_to_u16;
 use crate::support::font_reader::FontReader;
 
 use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
@@ -344,16 +343,16 @@ pub fn required_position_format(v: PositionValue) -> u8 {
 }
 pub fn write_gpos_value(buf: &mut Buffer, v: PositionValue, format: u16) {
     if format as i32 & FORMAT_DX as i32 != 0 {
-        buf.write_u16be(pos_to_u16(v.dx));
+        buf.write_i16be(v.dx as i16);
     }
     if format as i32 & FORMAT_DY as i32 != 0 {
-        buf.write_u16be(pos_to_u16(v.dy));
+        buf.write_i16be(v.dy as i16);
     }
     if format as i32 & FORMAT_DWIDTH as i32 != 0 {
-        buf.write_u16be(pos_to_u16(v.d_width));
+        buf.write_i16be(v.d_width as i16);
     }
     if format as i32 & FORMAT_DHEIGHT as i32 != 0 {
-        buf.write_u16be(pos_to_u16(v.d_height));
+        buf.write_i16be(v.d_height as i16);
     }
 }
 pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
