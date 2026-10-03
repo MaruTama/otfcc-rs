@@ -17,7 +17,7 @@ use otfcc_rust::support::built_json::{
 };
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
-use otfcc_rust::support::cstd::strtol::strtol;
+use otfcc_rust::support::primitives::parse_int_prefix;
 use otfcc_rust::support::cli::stopwatch::{log_step_time, time_now};
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
@@ -107,7 +107,7 @@ fn run(args: Vec<String>) -> i32 {
                 }
                 OPT_QUIET => options.quiet = true,
                 OPT_TTC_INDEX => {
-                    ttcindex = strtol(arg.unwrap().as_bytes(), 10) as u32;
+                    ttcindex = parse_int_prefix(arg.unwrap().as_bytes(), 10) as u32;
                 }
                 OPT_UGLY => show_ugly = true,
                 OPT_TIME => {}

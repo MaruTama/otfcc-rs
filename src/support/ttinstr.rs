@@ -4,7 +4,6 @@ use crate::support::options::Options;
 
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::built_json::BuiltValue;
-use crate::support::cstd::ctype_compat::{c_isdigit, c_tolower};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
 /// instructions. `u8`, since that is what `InstrData.instrs` holds.
@@ -391,7 +390,7 @@ fn strtol_base2(s: &[u8]) -> (i64, usize) {
 /// that read structurally impossible instead of merely detecting the
 /// mismatch afterward.
 fn instr_name_matches(token: &[u8], name: &[u8]) -> bool {
-    token.len() == name.len() && token.iter().zip(name).all(|(&a, &b)| c_tolower(a as i32) == c_tolower(b as i32))
+    token.eq_ignore_ascii_case(name)
 }
 /// Case-insensitive *prefix* comparison -- `token` may be shorter than
 /// `name`, used only for the bracketed-family fallback scan
@@ -401,7 +400,7 @@ fn instr_name_matches(token: &[u8], name: &[u8]) -> bool {
 /// `token.len() <= name.len()` guard here is the same "never read past
 /// either slice" fix `instr_name_matches` makes above.
 fn instr_name_has_prefix(token: &[u8], name: &[u8]) -> bool {
-    token.len() <= name.len() && token.iter().zip(name).all(|(&a, &b)| c_tolower(a as i32) == c_tolower(b as i32))
+    token.len() <= name.len() && token.eq_ignore_ascii_case(&name[..token.len()])
 }
 // Was a `*mut c_void` context pointer + `Option<unsafe fn(*mut c_void,
 // ...)>` callback, type-erasing this function's two callers' distinct
@@ -435,7 +434,7 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                 pt += 1;
             }
             let c = peek(text, pt);
-            if !(c_isdigit(c as i32) || c == b'-') {
+            if !(c.is_ascii_digit() || c == b'-') {
                 break;
             }
             let (raw_val, consumed) = strtol_base0(&text[pt..]);
