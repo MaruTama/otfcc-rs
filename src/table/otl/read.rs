@@ -108,45 +108,29 @@ pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
 pub(crate) const MAX_TOTAL_FEATURES_PER_TABLE: u16 = 500;
 
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
-use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
+use crate::table::otl::kind::lookup_kind;
+use crate::table::otl::subtables::chaining::read::otl_read_contextual;
 use crate::table::otl::subtables::extend::{
     read_otl_gpos_extend, read_otl_gsub_extend,
 };
 use crate::table::otl::budget::OtlReadBudget;
-use crate::table::otl::subtables::gpos_cursive::otl_read_gpos_cursive;
-use crate::table::otl::subtables::gpos_mark_to_ligature::otl_read_gpos_mark_to_ligature;
-use crate::table::otl::subtables::gpos_mark_to_single::otl_read_gpos_mark_to_single;
-use crate::table::otl::subtables::gpos_pair::otl_read_gpos_pair;
-use crate::table::otl::subtables::gpos_single::otl_read_gpos_single;
-use crate::table::otl::subtables::gsub_ligature::otl_read_gsub_ligature;
-use crate::table::otl::subtables::gsub_multi::otl_read_gsub_multi;
-use crate::table::otl::subtables::gsub_reverse::otl_read_gsub_reverse;
-use crate::table::otl::subtables::gsub_single::otl_read_gsub_single;
 use crate::table::otl::{
     Feature, FeatureIdx, FeatureList, LanguageSystem, Lookup, LookupIdx, LookupType,
-    OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND,
-    OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
-    OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE,
-    OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE,
-    OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN,
+    OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_EXTEND,
+   
+    OTL_TYPE_GPOS_UNKNOWN,
+    OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND,
+    OTL_TYPE_GSUB_UNKNOWN,
     OTL_TYPE_UNKNOWN, OtlTable, Subtable,
 };
 use crate::table::otl::{
     new_feature, new_language, new_lookup, otl_feature_ref_list_dispose,
 };
-// `data` used to be a raw `FontFilePointer`/`table_length` pair,
-// reconstructed into a slice via `from_raw_parts` at the top of every one
-// of the flat readers below -- a pure round trip, since the one production
-// caller (`read_otl_lookup`, below) always held a real `&[u8]` before
-// breaking it apart to call in here. The nine flat subtable readers (Stage
-// L-3) and, since Stage L-5, the chaining/contextual readers as well now
-// take `&[u8]` directly and return `Option<Subtable>`/`Option<Box<Subtable>>`
-// via `.map(Box::new)`; only the still-`*mut Subtable`-returning `extend`
-// arms (unconverted, out of this PR's scope) reconstruct the raw parts
-// locally, right where they're still needed, and adopt their result via
-// `subtable_list_slot` -- the same `Box::from_raw` bridge `otfcc_read_otl_
-// lookup` used to apply to this whole function's own return value, now
-// pushed down to just the arms that still produce a raw pointer.
+/// Reads one subtable of a lookup of type `lookup_type`. Context subtables
+/// are read straight into the chaining representation, and extension
+/// subtables are unwrapped into the subtable they point at, so neither type
+/// is left once reading is done; every other type is read by its
+/// [`LookupKind`](crate::table::otl::kind::LookupKind).
 pub fn read_otl_subtable(
     data: &[u8],
     subtable_offset: u32,
@@ -156,40 +140,8 @@ pub fn read_otl_subtable(
     budget: &mut OtlReadBudget,
 ) -> Option<Box<Subtable>> {
     match lookup_type {
-        OTL_TYPE_GSUB_SINGLE => otl_read_gsub_single(data, subtable_offset, max_glyphs, budget).map(Box::new),
-        OTL_TYPE_GSUB_MULTIPLE => otl_read_gsub_multi(data, subtable_offset, max_glyphs, budget).map(Box::new),
-        OTL_TYPE_GSUB_ALTERNATE => otl_read_gsub_multi(data, subtable_offset, max_glyphs, budget).map(Box::new),
-        OTL_TYPE_GSUB_LIGATURE => {
-            otl_read_gsub_ligature(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GSUB_CHAINING => {
-            otl_read_chaining(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GSUB_REVERSE => {
-            otl_read_gsub_reverse(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GPOS_CHAINING => {
-            otl_read_chaining(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GSUB_CONTEXT => {
+        OTL_TYPE_GSUB_CONTEXT | OTL_TYPE_GPOS_CONTEXT => {
             otl_read_contextual(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GPOS_CONTEXT => {
-            otl_read_contextual(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GPOS_SINGLE => otl_read_gpos_single(data, subtable_offset, max_glyphs, budget).map(Box::new),
-        OTL_TYPE_GPOS_PAIR => otl_read_gpos_pair(data, subtable_offset, max_glyphs, budget).map(Box::new),
-        OTL_TYPE_GPOS_CURSIVE => {
-            otl_read_gpos_cursive(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GPOS_MARK_TO_BASE => {
-            otl_read_gpos_mark_to_single(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GPOS_MARK_TO_MARK => {
-            otl_read_gpos_mark_to_single(data, subtable_offset, max_glyphs, budget).map(Box::new)
-        }
-        OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
-            otl_read_gpos_mark_to_ligature(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_EXTEND => {
             read_otl_gsub_extend(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
@@ -197,7 +149,9 @@ pub fn read_otl_subtable(
         OTL_TYPE_GPOS_EXTEND => {
             read_otl_gpos_extend(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
-        _ => None,
+        _ => lookup_kind(lookup_type)?
+            .read_subtable(data, subtable_offset, max_glyphs, budget)
+            .map(Box::new),
     }
 }
 // The original's own guard covered only the 6-byte header

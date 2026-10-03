@@ -6,23 +6,11 @@ use crate::support::buffer::Buffer;
 use crate::support::primitives::TableId;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::chaining::build::chaining_lookup_is_contextual_lookup;
-use crate::table::otl::subtables::chaining::classifier::classified_build_chaining;
-use crate::table::otl::subtables::gpos_cursive::build_gpos_cursive;
-use crate::table::otl::subtables::gpos_mark_to_ligature::build_gpos_mark_to_ligature;
-use crate::table::otl::subtables::gpos_mark_to_single::build_gpos_mark_to_single;
-use crate::table::otl::subtables::gpos_pair::build_gpos_pair;
-use crate::table::otl::subtables::gpos_single::build_gpos_single;
-use crate::table::otl::subtables::gsub_ligature::build_gsub_ligature_subtable;
-use crate::table::otl::subtables::gsub_multi::build_gsub_multi_subtable_split;
-use crate::table::otl::subtables::gsub_reverse::build_gsub_reverse;
-use crate::table::otl::subtables::gsub_single::build_gsub_single_subtable;
+use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::{
-    FeatureIdx, LanguageSystem, Lookup, LookupIdx, LookupType, OTL_TYPE_GPOS_CHAINING,
-    OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE,
-    OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
-    OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
-    OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE,
-    OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable, Subtable, iter_subtables,
+    FeatureIdx, LanguageSystem, Lookup, LookupIdx, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_UNKNOWN,
+    OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable, Subtable,
+    iter_subtables,
 };
 /// Maps each *storage* index into `OtlTable.lookups`/`.features`
 /// (`LookupIdx.0`/`FeatureIdx.0` as `usize`) to its *dense* position in the
@@ -45,26 +33,6 @@ fn storage_to_dense<T>(list: &[Option<T>]) -> Vec<Option<u16>> {
         })
         .collect()
 }
-// No longer `extern "C"`: each of the 9 concrete builders passed into
-// `_declare_lookup_writer`/`_declare_lookup_writer_split` below is used in
-// exactly one fixed association with its own `LookupType` -- the
-// `_build_lookup` sequence is a `match` in disguise (first-match-wins via
-// `written == 0`), not real runtime dispatch through a varying value
-// (confirmed by grep: none of the 9 builder functions are referenced
-// anywhere outside this file).
-//
-// `*const Subtable` -> `&Subtable`, Stage D (2026-09): all 9 concrete
-// builders had no unsafe operation left besides this cast and the now-safe
-// `bk_*` calls Stage D Phase 1 already safened, once the pointless
-// "recast the already-safe `&X` pattern-match binding back to `*const X`"
-// residue each one carried was removed too. `build_gsub_reverse`
-// and `build_gpos_pair`'s `_individual`/`_classes` helpers needed a
-// further pass each (in-place backtrack sorting rewritten to clone-then-
-// reverse a local instead of mutating through a cast-away-const pointer;
-// `*const ClassDef` chains that were themselves the same self-inflicted
-// recast pattern) but land on the same safe signature in the end.
-pub type OtlBuilder = Option<fn(&Subtable, BuildHeuristics) -> Buffer>;
-pub type OtlSplitBuilder = Option<fn(&Subtable, BuildHeuristics) -> Vec<Buffer>>;
 pub const LARGE_SUBTABLE_LIMIT: i32 = 4096_i32;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0_u32;
@@ -90,205 +58,67 @@ fn feature_name_to_tag(name: &[u8]) -> u32 {
     }
     return tag;
 }
-/// `_declare_lookup_writer`/`_declare_lookup_writer_split`/`_build_lookup`
-/// all thread the same 4 values (the output buffer list, the running
-/// offset, the per-lookup extension-format preference flag, and the
-/// build heuristics) unchanged through every one of `_build_lookup`'s own
-/// 10 candidate-writer calls -- bundled here instead of repeating the same
-/// 4-argument tail at each call site.
-struct LookupWriteCtx<'a> {
-    subtables: &'a mut Vec<Buffer>,
-    last_offset: &'a mut usize,
-    prefer_extension_for_this_lut: &'a mut bool,
-    heuristics: BuildHeuristics,
+/// What building one lookup's subtables updates besides producing them: the
+/// output buffer list, the running offset all lookups' subtables together
+/// have reached so far, whether this lookup is large enough to want the
+/// extension format by itself, and the build heuristics. Handed to each
+/// kind's [`LookupKind::build_lookup`](crate::table::otl::kind::LookupKind::build_lookup).
+pub struct LookupWriteCtx<'a> {
+    pub subtables: &'a mut Vec<Buffer>,
+    pub last_offset: &'a mut usize,
+    pub prefer_extension_for_this_lut: &'a mut bool,
+    pub heuristics: BuildHeuristics,
 }
-fn _declare_lookup_writer(
-    type_0: LookupType,
-    fn_0: OtlBuilder,
+/// Builds each subtable of `lookup` into one buffer with `build`.
+pub fn write_each_subtable(
     lookup: &Lookup,
     ctx: &mut LookupWriteCtx,
+    build: fn(&Subtable, BuildHeuristics) -> Buffer,
 ) -> TableId {
-    if lookup.type_0 == type_0 {
-        ctx.subtables.clear();
-        ctx.subtables.reserve(lookup.subtables.len());
-        let mut total_buf_size_short: usize = 0_usize;
-        let mut total_buf_size_ext: usize = 0_usize;
-        for subtable in iter_subtables(&lookup.subtables) {
-            // `iter_subtables` yields plain `&Subtable`s (Stage M-24) -- no
-            // raw-pointer bridge left to reborrow here. `fn_0` itself is a
-            // safe fn as of Stage D.
-            let buf: Buffer =
-                fn_0.expect("non-null function pointer")(subtable, ctx.heuristics);
+    ctx.subtables.clear();
+    ctx.subtables.reserve(lookup.subtables.len());
+    let mut total_buf_size_short: usize = 0_usize;
+    let mut total_buf_size_ext: usize = 0_usize;
+    for subtable in iter_subtables(&lookup.subtables) {
+        let buf: Buffer = build(subtable, ctx.heuristics);
+        total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
+        ctx.subtables.push(buf);
+        total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
+    }
+    if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
+        *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_ext);
+        *ctx.prefer_extension_for_this_lut = true;
+    } else {
+        *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_short);
+        *ctx.prefer_extension_for_this_lut = false;
+    }
+    return lookup.subtables.len() as TableId;
+}
+/// Builds each subtable of `lookup` with `build`, which may split one
+/// subtable into several buffers.
+pub fn write_each_subtable_split(
+    lookup: &Lookup,
+    ctx: &mut LookupWriteCtx,
+    build: fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
+) -> TableId {
+    ctx.subtables.clear();
+    let mut total_buf_size_short: usize = 0_usize;
+    for subtable in iter_subtables(&lookup.subtables) {
+        for buf in build(subtable, ctx.heuristics) {
             total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
             ctx.subtables.push(buf);
-            total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
         }
-        if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
-            *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_ext);
-            *ctx.prefer_extension_for_this_lut = true;
-        } else {
-            *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_short);
-            *ctx.prefer_extension_for_this_lut = false;
-        }
-        return lookup.subtables.len() as TableId;
     }
-    return 0 as TableId;
-}
-fn _declare_lookup_writer_split(
-    type_0: LookupType,
-    fn_0: OtlSplitBuilder,
-    lookup: &Lookup,
-    ctx: &mut LookupWriteCtx,
-) -> TableId {
-    if lookup.type_0 == type_0 {
-        ctx.subtables.clear();
-        let mut total_buf_size_short: usize = 0_usize;
-        for subtable in iter_subtables(&lookup.subtables) {
-            // Same as `_declare_lookup_writer` above.
-            let part: Vec<Buffer> =
-                fn_0.expect("non-null function pointer")(subtable, ctx.heuristics);
-            for buf in part {
-                total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
-                ctx.subtables.push(buf);
-            }
-        }
-        let total = ctx.subtables.len() as TableId;
-        if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
-            *ctx.last_offset = (*ctx.last_offset)
-                .wrapping_add((8_i32 * total as i32) as usize);
-            *ctx.prefer_extension_for_this_lut = true;
-        } else {
-            *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_short);
-            *ctx.prefer_extension_for_this_lut = false;
-        }
-        return total;
+    let total = ctx.subtables.len() as TableId;
+    if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
+        *ctx.last_offset = (*ctx.last_offset)
+            .wrapping_add((8_i32 * total as i32) as usize);
+        *ctx.prefer_extension_for_this_lut = true;
+    } else {
+        *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_short);
+        *ctx.prefer_extension_for_this_lut = false;
     }
-    return 0 as TableId;
-}
-fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
-    if lookup.type_0 == OTL_TYPE_GPOS_CHAINING || lookup.type_0 == OTL_TYPE_GSUB_CHAINING {
-        return classified_build_chaining(lookup, ctx.subtables, ctx.last_offset);
-    }
-    let mut written: TableId = 0 as TableId;
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GSUB_SINGLE,
-            Some(
-                build_gsub_single_subtable
-                    as fn(&Subtable, BuildHeuristics) -> Buffer,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer_split(
-            OTL_TYPE_GSUB_MULTIPLE,
-            Some(
-                build_gsub_multi_subtable_split
-                    as fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer_split(
-            OTL_TYPE_GSUB_ALTERNATE,
-            Some(
-                build_gsub_multi_subtable_split
-                    as fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GSUB_LIGATURE,
-            Some(
-                build_gsub_ligature_subtable
-                    as fn(&Subtable, BuildHeuristics) -> Buffer,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GSUB_REVERSE,
-            Some(build_gsub_reverse as fn(&Subtable, BuildHeuristics) -> Buffer),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GPOS_SINGLE,
-            Some(
-                build_gpos_single
-                    as fn(&Subtable, BuildHeuristics) -> Buffer,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GPOS_PAIR,
-            Some(
-                build_gpos_pair
-                    as fn(&Subtable, BuildHeuristics) -> Buffer,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GPOS_CURSIVE,
-            Some(
-                build_gpos_cursive
-                    as fn(&Subtable, BuildHeuristics) -> Buffer,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GPOS_MARK_TO_BASE,
-            Some(
-                build_gpos_mark_to_single
-                    as fn(&Subtable, BuildHeuristics) -> Buffer,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GPOS_MARK_TO_MARK,
-            Some(
-                build_gpos_mark_to_single
-                    as fn(&Subtable, BuildHeuristics) -> Buffer,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    if written == 0 {
-        written = _declare_lookup_writer(
-            OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-            Some(
-                build_gpos_mark_to_ligature
-                    as fn(&Subtable, BuildHeuristics) -> Buffer,
-            ),
-            lookup,
-            ctx,
-        );
-    }
-    return written;
+    return total;
 }
 fn get_lookup_heuristics(table: &OtlTable, lut_idx: LookupIdx, lut: &Lookup) -> BuildHeuristics {
     let mut heu: BuildHeuristics = BuildHeuristics::empty();
@@ -337,7 +167,10 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         let (lookup_idx, lookup) = live[j];
         let heu: BuildHeuristics = get_lookup_heuristics(table, lookup_idx, lookup);
         tracing::debug!("Building lookup {} ({}/{})\n", ByteStr(&lookup.name), j as i32, live.len() as u32);
-        subtable_quantity[j] = _build_lookup(
+        let Some(kind) = lookup_kind(lookup.type_0) else {
+            continue;
+        };
+        subtable_quantity[j] = kind.build_lookup(
             lookup,
             &mut LookupWriteCtx {
                 subtables: &mut subtables[j],
@@ -395,7 +228,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         // Bounded by `subtable_quantity[j_1]`, not assumed equal to
         // `subtables[j_1].len()` (same count-vs-length caution
         // established in PR #422/#423/#426-428, even though the two are
-        // always equal by construction here -- `_build_lookup` returns
+        // always equal by construction here -- `build_lookup` returns
         // exactly the count it pushed).
         let quantity = subtable_quantity[j_1] as usize;
         for buf in subtables[j_1].iter_mut().take(quantity) {

@@ -21,25 +21,11 @@ use crate::table::glyf::{
     RefAnchorStatus,
 };
 
-use crate::table::otl::{
-    Lookup, LookupList, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
-    OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
-    OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
-    OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
-    OtlTable, Subtable,
-};
+use crate::table::otl::kind::{LookupConsolidateCtx, lookup_kind};
+use crate::table::otl::{Lookup, LookupList, OtlTable};
 
-use crate::consolidate::otl::chaining::consolidate_chaining;
 use crate::consolidate::otl::common::fontop_consolidate_class_def;
 use crate::consolidate::otl::gdef::consolidate_gdef;
-use crate::consolidate::otl::gpos_cursive::consolidate_gpos_cursive;
-use crate::consolidate::otl::gpos_pair::consolidate_gpos_pair;
-use crate::consolidate::otl::gpos_single::consolidate_gpos_single;
-use crate::consolidate::otl::gsub_ligature::consolidate_gsub_ligature;
-use crate::consolidate::otl::gsub_multi::{consolidate_gsub_alternative, consolidate_gsub_multi};
-use crate::consolidate::otl::gsub_reverse::consolidate_gsub_reverse;
-use crate::consolidate::otl::gsub_single::consolidate_gsub_single;
-use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
 use crate::support::glyph_order::{gord_consolidate_handle, set_glyph_order_by_name};
 use crate::table::_tsi::tsi_entry_dup;
 use crate::table::glyf::{glyf_component_reference_empty, new_glyf_glyph};
@@ -50,17 +36,6 @@ use crate::table::otl::{
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm};
 
-// Stage L-7: of the 13 dispatch call sites in `consolidate_lookup`
-// below, only `consolidate_chaining` (2 of the 13) ever reads anything
-// about the table beyond the one `&mut Subtable` it's handed -- the other
-// 11 calls (10 distinct functions) never touched `table` at all, so it is
-// gone from their signatures entirely. `__declare_otl_consolidation` takes
-// `fn_0` as `impl Fn(&Font, &mut Subtable, &Options) -> bool` (not a bare
-// `fn` pointer) precisely so `consolidate_lookup` can pass a
-// capturing closure for the two chaining calls (closing over the
-// `lookups`/`self_index`/`self_name` it now receives) while every other
-// call site just passes the plain function -- no shared function-pointer
-// type needs to carry context none of the other 11 ever used.
 fn by_stem_pos(a: &PostscriptStemDef, b: &PostscriptStemDef) -> i32 {
     if a.position == b.position {
         a.map as i32 - b.map as i32
@@ -473,15 +448,21 @@ pub fn consolidate_cmap(font: &mut Font) {
         }
     }
 }
-fn __declare_otl_consolidation(
-    type_0: LookupType,
-    fn_0: impl Fn(&GlyphOrder, &mut Subtable) -> bool,
+pub fn consolidate_lookup(
     glyph_order: &GlyphOrder,
+    lookups: &LookupList,
+    self_index: TableId,
+    self_name: &[u8],
     lookup: &mut Lookup,
+    options: &Options,
 ) {
-    if lookup.subtables.is_empty() || lookup.type_0 != type_0 {
+    if lookup.subtables.is_empty() {
         return;
     }
+    let Some(kind) = lookup_kind(lookup.type_0) else {
+        return;
+    };
+    let ctx = LookupConsolidateCtx { glyph_order, lookups, self_index, self_name, options };
     let stage = crate::logger::stage(ByteStr(&lookup.name));
     // The "Ignored empty subtable" warning below can fire up to 300,000
     // times for a font whose subtables mostly fail to parse (a lookup can
@@ -494,7 +475,7 @@ fn __declare_otl_consolidation(
             tracing::warn!("[Consolidate] Ignored empty subtable {} of lookup {}.\n", j as i32, ByteStr(&lookup.name));
         } else {
             let sub = slot.as_deref_mut().unwrap();
-            let subtable_removed = fn_0(glyph_order, sub);
+            let subtable_removed = kind.consolidate_subtable(sub, &ctx);
             if subtable_removed {
                 // Was a `fndel: SubtableRemover` parameter, one
                 // `LookupType`-keyed function pointer per call site
@@ -522,58 +503,6 @@ fn __declare_otl_consolidation(
         tracing::warn!("[Consolidate] Lookup {} is empty and will be removed.\n", ByteStr(&lookup.name));
     }
     stage.finish();
-}
-pub fn consolidate_lookup(
-    glyph_order: &GlyphOrder,
-    lookups: &LookupList,
-    self_index: TableId,
-    self_name: &[u8],
-    lookup: &mut Lookup,
-    options: &Options,
-) {
-    __declare_otl_consolidation(OTL_TYPE_GSUB_SINGLE, consolidate_gsub_single, glyph_order, lookup);
-    __declare_otl_consolidation(OTL_TYPE_GSUB_MULTIPLE, consolidate_gsub_multi, glyph_order, lookup);
-    __declare_otl_consolidation(
-        OTL_TYPE_GSUB_ALTERNATE,
-        consolidate_gsub_alternative,
-        glyph_order,
-        lookup,
-    );
-    __declare_otl_consolidation(OTL_TYPE_GSUB_LIGATURE, consolidate_gsub_ligature, glyph_order, lookup);
-    __declare_otl_consolidation(
-        OTL_TYPE_GSUB_CHAINING,
-        |f, sub| consolidate_chaining(f, lookups, self_index, self_name, sub, options),
-        glyph_order,
-        lookup,
-    );
-    __declare_otl_consolidation(OTL_TYPE_GSUB_REVERSE, consolidate_gsub_reverse, glyph_order, lookup);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_SINGLE, consolidate_gpos_single, glyph_order, lookup);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_PAIR, consolidate_gpos_pair, glyph_order, lookup);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_CURSIVE, consolidate_gpos_cursive, glyph_order, lookup);
-    __declare_otl_consolidation(
-        OTL_TYPE_GPOS_CHAINING,
-        |f, sub| consolidate_chaining(f, lookups, self_index, self_name, sub, options),
-        glyph_order,
-        lookup,
-    );
-    __declare_otl_consolidation(
-        OTL_TYPE_GPOS_MARK_TO_BASE,
-        consolidate_mark_to_single,
-        glyph_order,
-        lookup,
-    );
-    __declare_otl_consolidation(
-        OTL_TYPE_GPOS_MARK_TO_MARK,
-        consolidate_mark_to_single,
-        glyph_order,
-        lookup,
-    );
-    __declare_otl_consolidation(
-        OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-        consolidate_mark_to_ligature,
-        glyph_order,
-        lookup,
-    );
 }
 // Stage L-7: `table` is a real `&mut OtlTable` now, not a raw pointer --
 // closing the aliasing hazard the plan doc flagged this stage for. The one
@@ -889,8 +818,9 @@ mod consolidate_otl_table_tests {
     use super::*;
     use crate::support::handle::{Handle, HandleState, LookupHandle};
     use crate::table::otl::{
-        ChainLookupApplication, ChainingRule, ChainingSubtable, FeatureIdx, LookupIdx, new_feature,
-        new_language, new_lookup,
+        ChainLookupApplication, ChainingRule, ChainingSubtable, FeatureIdx, LookupIdx, LookupType,
+        OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, Subtable, new_feature, new_language,
+        new_lookup,
     };
 
     fn empty_font_with_glyph_order() -> Box<Font> {

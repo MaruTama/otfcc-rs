@@ -78,7 +78,7 @@ pub(crate) fn consolidate_chaining(
                 // see this function's own doc comment) -- see also why
                 // "exists" doesn't need checking for that case: reaching
                 // this call at all means `self_index`'s own subtable list
-                // still has at least one slot (`__declare_otl_consolidation`
+                // still has at least one slot (`consolidate_lookup`
                 // bails out before ever calling in here otherwise, and the
                 // `Vec`'s length -- as opposed to its slots' contents --
                 // never shrinks mid-pass, only at that function's trailing

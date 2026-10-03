@@ -4,30 +4,13 @@ use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
-use crate::table::otl::subtables::chaining::parse::otl_parse_chaining;
-use crate::table::otl::subtables::gpos_cursive::otl_gpos_parse_cursive;
-use crate::table::otl::subtables::gpos_mark_to_ligature::otl_gpos_parse_mark_to_ligature;
-use crate::table::otl::subtables::gpos_mark_to_single::otl_gpos_parse_mark_to_single;
-use crate::table::otl::subtables::gpos_pair::otl_gpos_parse_pair;
-use crate::table::otl::subtables::gpos_single::otl_gpos_parse_single;
-use crate::table::otl::subtables::gsub_ligature::otl_gsub_parse_ligature;
-use crate::table::otl::subtables::gsub_multi::otl_gsub_parse_multi;
-use crate::table::otl::subtables::gsub_reverse::otl_gsub_parse_reverse;
-use crate::table::otl::subtables::gsub_single::otl_gsub_parse_single;
+use crate::table::otl::kind::{LOOKUP_KINDS, LookupKind};
 use crate::table::otl::{
     Feature, FeatureIdx, FeatureRefList, LanguageSystem, Lookup, LookupIdx, LookupRefList,
-    LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE,
-    OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
-    OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE,
-    OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable, Subtable,
+    OtlTable,
 };
 use crate::table::otl::{new_language, new_lookup};
 use crate::vendor::json::JsonType;
-/// One subtable-parsing function's signature, shared by every lookup
-/// type's own parse function and by `_declare_lookup_parser`'s own
-/// `parser` parameter -- named once here instead of spelled out at each
-/// of the 14 call/declaration sites below.
-type SubtableParser = fn(Option<&ParsedValue>) -> Option<Subtable>;
 /// A transient identity minted for a not-yet-collected `Lookup`, indexing
 /// `PendingLookups.lookups` (position within `LookupEntry.lookup_id`'s own
 /// backing store, *not* the final `OtlTable.lookups` position -- `lh` gets
@@ -137,134 +120,20 @@ fn _parse_lookup(
     lookup_name: &[u8],
     lh: &mut PendingLookups,
 ) -> bool {
-    let mut parsed: bool = false;
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GSUB_SINGLE,
-            Some(otl_gsub_parse_single as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GSUB_MULTIPLE,
-            Some(otl_gsub_parse_multi as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GSUB_ALTERNATE,
-            Some(otl_gsub_parse_multi as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GSUB_LIGATURE,
-            Some(otl_gsub_parse_ligature as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GSUB_CHAINING,
-            Some(otl_parse_chaining as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GSUB_REVERSE,
-            Some(otl_gsub_parse_reverse as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GPOS_SINGLE,
-            Some(otl_gpos_parse_single as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GPOS_PAIR,
-            Some(otl_gpos_parse_pair as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GPOS_CURSIVE,
-            Some(otl_gpos_parse_cursive as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GPOS_CHAINING,
-            Some(otl_parse_chaining as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GPOS_MARK_TO_BASE,
-            Some(otl_gpos_parse_mark_to_single as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GPOS_MARK_TO_MARK,
-            Some(otl_gpos_parse_mark_to_single as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    if !parsed {
-        parsed = _declare_lookup_parser(
-            OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-            Some(otl_gpos_parse_mark_to_ligature as SubtableParser),
-            lookup,
-            lookup_name,
-            lh,
-        );
-    }
-    return parsed;
+    // Tries every kind in turn, even after the first one has warned about a
+    // missing type: the warning is repeated once per kind, as it always was.
+    LOOKUP_KINDS
+        .iter()
+        .any(|&kind| _declare_lookup_parser(kind, lookup, lookup_name, lh))
 }
 fn _declare_lookup_parser(
-    llt: LookupType,
-    parser: Option<SubtableParser>,
+    kind: &dyn LookupKind,
     _lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     lh: &mut PendingLookups,
 ) -> bool {
     let lv = _lookup;
+    let llt = kind.lookup_type();
     let type_0 = lv.and_then(|v| v.get_typed(b"type", JsonType::String));
     let matches_type = type_0
         .and_then(ParsedValue::as_str_bytes)
@@ -305,7 +174,7 @@ fn _declare_lookup_parser(
     {
         for _subtable in subtable_items {
             if _subtable.as_object().is_some() {
-                let st = parser.expect("non-null function pointer")(Some(_subtable));
+                let st = kind.parse_subtable(Some(_subtable));
                 lookup.subtables.push(st.map(Box::new));
             }
         }
