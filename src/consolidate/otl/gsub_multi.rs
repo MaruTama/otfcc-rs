@@ -58,6 +58,3 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
     }
     subtable.is_empty()
 }
-pub fn consolidate_gsub_alternative(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
-    consolidate_gsub_multi(glyph_order, _subtable)
-}

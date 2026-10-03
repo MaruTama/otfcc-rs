@@ -7,10 +7,8 @@ use crate::support::fmt::{Hex2Upper, Hex4Upper, SdsPart};
 
 use crate::table::glyf::{GlyfTable, Glyph, PostscriptHintMask};
 
-use crate::table::otl::{
-    ChainingRule, ChainingSubtable, Lookup, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING,
-    Subtable, SubtableList,
-};
+use crate::table::otl::kind::lookup_kind;
+use crate::table::otl::{ChainingRule, ChainingSubtable, Lookup, Subtable, SubtableList};
 
 use crate::support::unicode::aglfn::aglfn_name;
 use crate::support::glyph_order::{
@@ -279,7 +277,7 @@ fn name_glyphs(font: &mut Font, gord: &GlyphOrder) {
 // of work from what was a ~500KB file. This is the backstop that bounds
 // the product, not just each factor.
 const MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP: usize = 20_000;
-fn unconsolidate_chaining(lookup: &mut Lookup) {
+pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
     // The original C (c/lib/otf-reader/unconsolidate.c) computes a
     // `total_rules` count in a first pass over the subtables and never uses
     // it afterward (no capacity-reservation call, no other reference) --
@@ -361,12 +359,9 @@ fn unconsolidate_chaining(lookup: &mut Lookup) {
     lookup.subtables = newsts;
 }
 fn expand_chain(lookup: &mut Lookup) {
-    match lookup.type_0 {
-        OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
-            unconsolidate_chaining(lookup);
-        }
-        _ => {}
-    };
+    if let Some(kind) = lookup_kind(lookup.type_0) {
+        kind.unconsolidate(lookup);
+    }
 }
 fn expand_chaining_lookups(font: &mut Font) {
     // Every slot is still `Some` here -- `unconsolidate_*` only ever runs

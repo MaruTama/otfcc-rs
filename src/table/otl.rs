@@ -5,6 +5,7 @@ pub mod classdef;
 pub mod constants;
 pub mod coverage;
 pub mod dump;
+pub mod kind;
 pub mod parse;
 pub mod read;
 pub mod subtables;

@@ -524,7 +524,7 @@ mod regression_tests {
     ///    this font's coverage table expanded into billions of
     ///    `IndexMap::entry` calls. Fixed by
     ///    a table-wide budget, now `OtlReadBudget::coverage_entries`.
-    /// 2. `consolidate.rs::__declare_otl_consolidation`: once (1)'s fix
+    /// 2. `consolidate.rs::consolidate_lookup`: once (1)'s fix
     ///    made most of this font's ~300,000 possible subtable slots
     ///    (`MAX_TOTAL_LOOKUPS_PER_TABLE` * `MAX_TOTAL_SUBTABLES_PER_
     ///    LOOKUP`) fail to parse, this loop's "Ignored empty subtable"

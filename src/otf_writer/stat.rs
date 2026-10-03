@@ -17,13 +17,8 @@ use crate::table::glyf::{
 
 use crate::table::hmtx::{HmtxTable, HorizontalMetric};
 
-use crate::table::otl::subtables::chaining::common::chaining_rule_const;
-use crate::table::otl::{
-    GsubLigatureSubtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_MARK_TO_BASE,
-    OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
-    OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_REVERSE, OtlTable, Subtable,
-    iter_subtables,
-};
+use crate::table::otl::OtlTable;
+use crate::table::otl::kind::lookup_kind;
 
 use crate::table::vmtx::{VerticalMetric, VmtxTable};
 
@@ -676,61 +671,8 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
     // consolidation punched, not a bug -- skip it, same as everywhere else
     // that reads `OtlTable.lookups` post-consolidation.
     for lookup in table.lookups.iter().flatten() {
-        match lookup.type_0 {
-            OTL_TYPE_GPOS_PAIR
-            | OTL_TYPE_GPOS_MARK_TO_BASE
-            | OTL_TYPE_GPOS_MARK_TO_LIGATURE
-            | OTL_TYPE_GPOS_MARK_TO_MARK => {
-                if (maxc as i32) < 2_i32 {
-                    maxc = 2_u16;
-                }
-            }
-            OTL_TYPE_GSUB_LIGATURE => {
-                for subtable in iter_subtables(&lookup.subtables) {
-                    // `iter_subtables` yields plain `&Subtable`s (Stage M-24) --
-                    // every arm here only ever reads, so no `unsafe` is
-                    // needed to get at the payload any more.
-                    let Subtable::GsubLigature(entries) = subtable else {
-                        unreachable!()
-                    };
-                    let entries: &GsubLigatureSubtable = entries;
-                    for entry in entries {
-                        if (maxc as usize) < entry.from.len() {
-                            maxc = entry.from.len() as u16;
-                        }
-                    }
-                }
-            }
-            OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
-                for subtable in iter_subtables(&lookup.subtables) {
-                    // See the comment on the GSUB_LIGATURE arm above. Only
-                    // `.match_count` is read here, so `chaining_rule_const`
-                    // (a safe `&ChainingRule`) is all this needs -- the old
-                    // code reached for `chaining_rule_mut` only because
-                    // the accessor it used handed back a raw pointer it had
-                    // to reborrow as `&mut` to call anything on it at all.
-                    let Subtable::Chaining(subtable) = subtable else {
-                        unreachable!()
-                    };
-                    let match_count = chaining_rule_const(subtable).match_count;
-                    if maxc < match_count {
-                        maxc = match_count;
-                    }
-                }
-            }
-            OTL_TYPE_GSUB_REVERSE => {
-                for subtable in iter_subtables(&lookup.subtables) {
-                    // See the comment on the GSUB_LIGATURE arm above.
-                    let Subtable::GsubReverse(subtable) = subtable else {
-                        unreachable!()
-                    };
-                    let match_count = subtable.match_count;
-                    if maxc < match_count {
-                        maxc = match_count;
-                    }
-                }
-            }
-            _ => {}
+        if let Some(kind) = lookup_kind(lookup.type_0) {
+            kind.raise_max_context(lookup, &mut maxc);
         }
     }
     maxc

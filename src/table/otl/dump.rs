@@ -1,133 +1,30 @@
 use crate::logger::ByteStr;
 use crate::support::built_json::BuiltValue;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
-use crate::table::otl::subtables::chaining::dump::otl_dump_chaining;
-use crate::table::otl::subtables::gpos_cursive::otl_gpos_dump_cursive;
-use crate::table::otl::subtables::gpos_mark_to_ligature::otl_gpos_dump_mark_to_ligature;
-use crate::table::otl::subtables::gpos_mark_to_single::otl_gpos_dump_mark_to_single;
-use crate::table::otl::subtables::gpos_pair::otl_gpos_dump_pair;
-use crate::table::otl::subtables::gpos_single::otl_gpos_dump_single;
-use crate::table::otl::subtables::gsub_ligature::otl_gsub_dump_ligature;
-use crate::table::otl::subtables::gsub_multi::otl_gsub_dump_multi;
-use crate::table::otl::subtables::gsub_reverse::otl_gsub_dump_reverse;
-use crate::table::otl::subtables::gsub_single::otl_gsub_dump_single;
-use crate::table::otl::{
-    Feature, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
-    OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
-    OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
-    OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
-    OtlTable, Subtable,
-};
-// No longer `extern "C"`: each of the 10 concrete dumpers passed in below
-// is used in exactly one fixed association with its own `LookupType` --
-// this whole sequence of calls is a `match` in disguise, not real runtime
-// dispatch through a varying value (confirmed by grep: none of the 10
-// dumper functions are referenced anywhere outside this file).
-fn _declare_lookup_dumper(
-    llt: LookupType,
-    dumper: Option<fn(&Subtable) -> BuiltValue>,
-    lookup: &Lookup,
-    dump: &mut BuiltValue,
-) {
-    if lookup.type_0 == llt {
-        dump.push_field(b"type", BuiltValue::str_truncated_at_nul(llt.name().as_bytes()));
-        dump.push_field(
-            b"flags",
-            BuiltValue::dump_flags(lookup.flags as i32, &LOOKUP_FLAGS_LABELS),
-        );
-        if lookup.flags as i32 >> 8_i32 != 0 {
-            dump.push_field(
-                b"markAttachmentType",
-                BuiltValue::Int((lookup.flags as i32 >> 8_i32) as i64),
-            );
-        }
-        let mut subtables = BuiltValue::new_array(lookup.subtables.len());
-        for sub in lookup.subtables.iter().flatten() {
-            subtables.push_item(dumper.expect("non-null function pointer")(sub.as_ref()));
-        }
-        dump.push_field(b"subtables", subtables);
-    }
-}
+use crate::table::otl::kind::lookup_kind;
+use crate::table::otl::{Feature, Lookup, OtlTable};
 fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
     let mut dump = BuiltValue::new_object(5);
-    _declare_lookup_dumper(
-        OTL_TYPE_GSUB_SINGLE,
-        Some(otl_gsub_dump_single as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
+    // A lookup of no known kind dumps as an empty object.
+    let Some(kind) = lookup_kind(lookup.type_0) else {
+        return dump;
+    };
+    dump.push_field(b"type", BuiltValue::str_truncated_at_nul(lookup.type_0.name().as_bytes()));
+    dump.push_field(
+        b"flags",
+        BuiltValue::dump_flags(lookup.flags as i32, &LOOKUP_FLAGS_LABELS),
     );
-    _declare_lookup_dumper(
-        OTL_TYPE_GSUB_MULTIPLE,
-        Some(otl_gsub_dump_multi as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GSUB_ALTERNATE,
-        Some(otl_gsub_dump_multi as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GSUB_LIGATURE,
-        Some(otl_gsub_dump_ligature as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GSUB_CHAINING,
-        Some(otl_dump_chaining as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GSUB_REVERSE,
-        Some(otl_gsub_dump_reverse as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GPOS_CHAINING,
-        Some(otl_dump_chaining as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GPOS_SINGLE,
-        Some(otl_gpos_dump_single as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GPOS_PAIR,
-        Some(otl_gpos_dump_pair as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GPOS_CURSIVE,
-        Some(otl_gpos_dump_cursive as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GPOS_MARK_TO_BASE,
-        Some(otl_gpos_dump_mark_to_single as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GPOS_MARK_TO_MARK,
-        Some(otl_gpos_dump_mark_to_single as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
-    _declare_lookup_dumper(
-        OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-        Some(otl_gpos_dump_mark_to_ligature as fn(&Subtable) -> BuiltValue),
-        lookup,
-        &mut dump,
-    );
+    if lookup.flags as i32 >> 8_i32 != 0 {
+        dump.push_field(
+            b"markAttachmentType",
+            BuiltValue::Int((lookup.flags as i32 >> 8_i32) as i64),
+        );
+    }
+    let mut subtables = BuiltValue::new_array(lookup.subtables.len());
+    for sub in lookup.subtables.iter().flatten() {
+        subtables.push_item(kind.dump_subtable(sub.as_ref()));
+    }
+    dump.push_field(b"subtables", subtables);
     dump
 }
 pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
