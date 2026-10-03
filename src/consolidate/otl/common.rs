@@ -5,7 +5,7 @@ use crate::table::otl::coverage::Coverage;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::primitives::GlyphClass;
 
-use crate::support::glyph_order::otfcc_gord_consolidate_handle;
+use crate::support::glyph_order::gord_consolidate_handle;
 use crate::table::otl::classdef::ClassDef;
 
 // Takes `glyph_order: &GlyphOrder` directly rather than `glyph_order: &GlyphOrder`
@@ -19,7 +19,7 @@ pub fn fontop_consolidate_coverage(
     coverage: &mut Coverage,
 ) {
     for glyph in coverage.iter_mut() {
-        if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
+        if !gord_consolidate_handle(glyph_order, glyph) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&glyph.name));
             *glyph = Handle::default();
         }
@@ -47,7 +47,7 @@ pub fn fontop_consolidate_class_def(
         return;
     };
     for (glyph, class) in cd.glyphs.iter_mut().zip(cd.classes.iter_mut()) {
-        if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
+        if !gord_consolidate_handle(glyph_order, glyph) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&glyph.name));
             *glyph = Handle::default();
             *class = 0 as GlyphClass;

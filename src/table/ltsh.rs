@@ -23,7 +23,7 @@ pub struct LtshTable {
 }
 // Parses into owned values only -- no allocation happens until every read
 // has already succeeded, so an `Err` here never leaves a partial `y_pels`
-// buffer to free. Same shape as `table/post.rs::parse_post`.
+// buffer to free. Same shape as `table/post.rs::decode_post`.
 fn parse_ltsh(data: &[u8]) -> Result<(u16, GlyphId, &[u8]), ReadError> {
     let mut r = FontReader::new(data);
     let version = r.u16()?;
@@ -32,7 +32,7 @@ fn parse_ltsh(data: &[u8]) -> Result<(u16, GlyphId, &[u8]), ReadError> {
     Ok((version, num_glyphs, pels))
 }
 
-pub fn otfcc_read_ltsh(packet: &Packet) -> Option<Box<LtshTable>> {
+pub fn read_ltsh(packet: &Packet) -> Option<Box<LtshTable>> {
     let table = packet
         .pieces
         .iter()
@@ -55,7 +55,7 @@ pub fn otfcc_read_ltsh(packet: &Packet) -> Option<Box<LtshTable>> {
 // crosses the real FFI boundary, see `RUST_MIGRATION.md`), and the crate's
 // only caller now hands `(*font).ltsh.as_deref()` from `Font.ltsh:
 // Option<Box<LtshTable>>`.
-pub fn otfcc_build_ltsh(ltsh: Option<&LtshTable>) -> Option<Buffer> {
+pub fn build_ltsh(ltsh: Option<&LtshTable>) -> Option<Buffer> {
     let ltsh = ltsh?;
     let mut buf = Buffer::new();
     buf.write_u16be(0_u16);
@@ -83,7 +83,7 @@ mod parse_ltsh_tests {
     fn truncated_header_errs() {
         // No committed payload has an LTSH table (checked by hand via
         // otfccdump on every tests/payload/*.ttf), so this direct test is
-        // this table's only coverage. otfcc_read_ltsh used to read this
+        // this table's only coverage. read_ltsh used to read this
         // unconditionally regardless of the table's real length.
         assert!(parse_ltsh(&[0x00, 0x01]).is_err());
     }

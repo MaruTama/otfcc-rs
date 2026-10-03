@@ -772,7 +772,7 @@ pub fn dump_ttinstr(instructions: &[u8], options: &Options) -> BuiltValue {
 // Same closure-based de-type-erasure as `parse_instrs` above: `context`
 // is never dereferenced here either, only threaded through to `make`/
 // `wrong` (this function's own two callers, `table/fpgm_prep.rs`'s
-// `otfcc_parse_fpgm_prep` and `table/glyf.rs`'s `otfcc_glyf_parse_glyph`,
+// `parse_fpgm_prep` and `table/glyf.rs`'s `glyf_parse_glyph`,
 // each with a different concrete target for `make` to write into).
 pub fn parse_ttinstr(col: Option<&ParsedValue>, mut make: impl FnMut(Vec<u8>), mut wrong: impl FnMut(&[u8], i32)) {
     let Some(col_ref) = col else {

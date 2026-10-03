@@ -4,7 +4,7 @@ use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
-use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::support::primitives::{from_fixed, to_fixed};
 use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone, Debug)]
@@ -38,7 +38,7 @@ pub struct MaxpTable {
 // the whole table) instead of reading the 26 version-1.0-only fields past
 // the buffer's actual end, which the original pointer-arithmetic version
 // would have done unconditionally once past the length check.
-fn parse_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
+fn decode_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
     if data.len() != 32 && data.len() != 6 {
         return Err(ReadError {
             needed: 32,
@@ -82,12 +82,12 @@ fn parse_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
     }
     Ok(maxp)
 }
-pub fn otfcc_read_maxp(packet: &Packet) -> Option<Box<MaxpTable>> {
+pub fn read_maxp(packet: &Packet) -> Option<Box<MaxpTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_MAXP)?;
-    match parse_maxp(&table.data) {
+    match decode_maxp(&table.data) {
         Ok(maxp) => Some(Box::new(maxp)),
         Err(_) => {
             tracing::warn!("table 'maxp' corrupted.\n");
@@ -95,7 +95,7 @@ pub fn otfcc_read_maxp(packet: &Packet) -> Option<Box<MaxpTable>> {
         }
     }
 }
-pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
+pub fn dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
@@ -103,7 +103,7 @@ pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
     let mut maxp = BuiltValue::new_object(15);
     maxp.push_field(
         b"version",
-        BuiltValue::Double(otfcc_from_fixed(table.version)),
+        BuiltValue::Double(from_fixed(table.version)),
     );
     maxp.push_field(b"numGlyphs", BuiltValue::Int(table.num_glyphs as i64));
     maxp.push_field(b"maxPoints", BuiltValue::Int(table.max_points as i64));
@@ -149,7 +149,7 @@ pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
     root.push_field(b"maxp", maxp);
     stage.finish();
 }
-pub fn otfcc_parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
+pub fn parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
     // "maxp" JSON key is absent (never overwritten below in that case);
     // `.max_size_of_instructions`/`.max_component_elements`/
@@ -175,7 +175,7 @@ pub fn otfcc_parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     };
     if let Some(table) = root.get_typed(b"maxp", JsonType::Object) {
         let stage = crate::logger::stage("maxp");
-        maxp.version = otfcc_to_fixed(table.get_num(b"version"));
+        maxp.version = to_fixed(table.get_num(b"version"));
         maxp.num_glyphs = table.get_num(b"numGlyphs") as u16;
         maxp.max_zones = table.get_num(b"maxZones") as u16;
         maxp.max_twilight_points = table.get_num(b"maxTwilightPoints") as u16;
@@ -188,7 +188,7 @@ pub fn otfcc_parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     Some(Box::new(maxp))
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_maxp(maxp: Option<&MaxpTable>) -> Option<Buffer> {
+pub fn build_maxp(maxp: Option<&MaxpTable>) -> Option<Buffer> {
     let maxp = maxp?;
     let mut buf = Buffer::new();
     buf.write_u32be(maxp.version as u32);
@@ -220,7 +220,7 @@ mod parse_maxp_tests {
         let mut data = vec![0u8; 6];
         data[0..4].copy_from_slice(&0x0000_5000u32.to_be_bytes());
         data[4..6].copy_from_slice(&42u16.to_be_bytes());
-        let maxp = parse_maxp(&data).unwrap();
+        let maxp = decode_maxp(&data).unwrap();
         assert_eq!(maxp.num_glyphs, 42);
         assert_eq!(maxp.max_points, 0);
     }
@@ -231,7 +231,7 @@ mod parse_maxp_tests {
         data[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes());
         data[4..6].copy_from_slice(&42u16.to_be_bytes());
         data[6..8].copy_from_slice(&99u16.to_be_bytes()); // maxPoints
-        let maxp = parse_maxp(&data).unwrap();
+        let maxp = decode_maxp(&data).unwrap();
         assert_eq!(maxp.num_glyphs, 42);
         assert_eq!(maxp.max_points, 99);
     }
@@ -239,7 +239,7 @@ mod parse_maxp_tests {
     #[test]
     fn length_between_6_and_32_is_rejected() {
         let data = vec![0u8; 20];
-        assert!(parse_maxp(&data).is_err());
+        assert!(decode_maxp(&data).is_err());
     }
 
     #[test]
@@ -251,6 +251,6 @@ mod parse_maxp_tests {
         // branch.
         let mut data = vec![0u8; 6];
         data[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes());
-        assert!(parse_maxp(&data).is_err());
+        assert!(decode_maxp(&data).is_err());
     }
 }

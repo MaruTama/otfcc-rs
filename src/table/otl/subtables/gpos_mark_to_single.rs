@@ -238,7 +238,7 @@ pub fn otl_gpos_parse_mark_to_single(
         base_array,
     }))
 }
-pub fn otfcc_build_gpos_mark_to_single(
+pub fn build_gpos_mark_to_single(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {

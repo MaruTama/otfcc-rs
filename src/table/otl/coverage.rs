@@ -47,7 +47,7 @@ pub(crate) fn push_to_coverage(coverage: &mut Coverage, h: GlyphHandle) {
 }
 // `data`/`table_length` are always the untouched pointer/length of the
 // whole owning GSUB/GPOS/GDEF table (confirmed by tracing every call site
-// up to `otfcc_read_otl`/`otfcc_read_gdef`, which read `table.length` once
+// up to `read_otl`/`read_gdef`, which read `table.length` once
 // from the `PacketPiece` and thread it unchanged through every layer down
 // to here -- only `offset` grows as recursion descends into subtables).
 // That means `slice::from_raw_parts(data, table_length as usize)` below

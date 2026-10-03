@@ -5,7 +5,7 @@ use crate::table::otl::coverage::shrink_coverage;
 use crate::support::glyph_order::GlyphOrder;
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
-use crate::support::glyph_order::otfcc_gord_consolidate_handle;
+use crate::support::glyph_order::gord_consolidate_handle;
 use crate::table::otl::subtables::gsub_ligature::subtable_gsub_ligature_replace;
 use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable};
 
@@ -19,10 +19,10 @@ pub fn consolidate_gsub_ligature(
     let mut nt: GsubLigatureSubtable = Vec::new();
     for entry in subtable.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
-        // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
+        // only ever runs when `glyf` is present, and `consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.to) {
+        if !gord_consolidate_handle(glyph_order, &mut entry.to) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.to.name));
         } else {
             fontop_consolidate_coverage(glyph_order, &mut entry.from);

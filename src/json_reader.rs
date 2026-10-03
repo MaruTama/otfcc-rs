@@ -10,31 +10,31 @@ use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
 
-use crate::table::_tsi::otfcc_parse_tsi;
-use crate::table::base::otfcc_parse_base;
-use crate::table::cff::otfcc_parse_cff;
-use crate::table::cmap::otfcc_parse_cmap;
-use crate::table::colr::otfcc_parse_colr;
-use crate::table::cpal::otfcc_parse_cpal;
-use crate::table::cvt::otfcc_parse_cvt;
-use crate::table::fpgm_prep::otfcc_parse_fpgm_prep;
-use crate::table::gasp::otfcc_parse_gasp;
-use crate::table::gdef::otfcc_parse_gdef;
-use crate::table::glyf::otfcc_parse_glyf;
-use crate::table::head::otfcc_parse_head;
-use crate::table::hhea::otfcc_parse_hhea;
-use crate::table::maxp::otfcc_parse_maxp;
-use crate::table::meta::parse::otfcc_parse_meta;
-use crate::table::name::otfcc_parse_name;
-use crate::table::os_2::otfcc_parse_os_2;
-use crate::table::otl::parse::otfcc_parse_otl;
-use crate::table::post::otfcc_parse_post;
-use crate::table::svg::otfcc_parse_svg;
-use crate::table::tsi5::otfcc_parse_tsi5;
-use crate::table::vdmx::funcs::otfcc_parse_vdmx;
-use crate::table::vhea::otfcc_parse_vhea;
+use crate::table::_tsi::parse_tsi;
+use crate::table::base::parse_base;
+use crate::table::cff::parse_cff;
+use crate::table::cmap::parse_cmap;
+use crate::table::colr::parse_colr;
+use crate::table::cpal::parse_cpal;
+use crate::table::cvt::parse_cvt;
+use crate::table::fpgm_prep::parse_fpgm_prep;
+use crate::table::gasp::parse_gasp;
+use crate::table::gdef::parse_gdef;
+use crate::table::glyf::parse_glyf;
+use crate::table::head::parse_head;
+use crate::table::hhea::parse_hhea;
+use crate::table::maxp::parse_maxp;
+use crate::table::meta::parse::parse_meta;
+use crate::table::name::parse_name;
+use crate::table::os_2::parse_os_2;
+use crate::table::otl::parse::parse_otl;
+use crate::table::post::parse_post;
+use crate::table::svg::parse_svg;
+use crate::table::tsi5::parse_tsi5;
+use crate::table::vdmx::funcs::parse_vdmx;
+use crate::table::vhea::parse_vhea;
 
-fn otfcc_decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
+fn decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
     if root.get_typed(b"CFF_", JsonType::Object).is_some() {
         FontSubtype::Cff
     } else {
@@ -157,7 +157,7 @@ fn place_order_entries_from_subtable(table: &ParsedValue, go: &mut GlyphOrder, z
 fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphOrder>> {
     // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
     // (`malloc`) + `Box::from_raw` -- see the matching note in
-    // `consolidate.rs`'s `otfcc_consolidate_font`. `go` borrows `go_box` for
+    // `consolidate.rs`'s `consolidate_font`. `go` borrows `go_box` for
     // the rest of this function (unchanged from here down).
     let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
         entries: Vec::new(),
@@ -200,7 +200,7 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
 /// `root` is `&mut ParsedValue`, not `&ParsedValue`. An earlier revision of
 /// this function kept `root: &ParsedValue` (`read_json` was `unsafe fn`)
 /// and reborrowed it into a `&mut ParsedValue` at each of the three call
-/// sites that needed one (`otfcc_parse_glyf`, then `otfcc_parse_otl` twice
+/// sites that needed one (`parse_glyf`, then `parse_otl` twice
 /// for GSUB/GPOS) via an explicit `as *mut` cast, on the reasoning that
 /// "nothing else reads `root` during this call" was enough to make it
 /// sound. **That reasoning is wrong, and Miri caught it on the very next
@@ -213,7 +213,7 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
 /// owns its `ParsedValue` as a mutable local that is never read again
 /// afterward (`ffi/dll.rs`, `bin/otfccbuild.rs`, `benches/support/mod.rs`),
 /// so taking `&mut ParsedValue` here costs nothing at any of them, and
-/// every call this function makes to `otfcc_parse_glyf`/`otfcc_parse_otl`
+/// every call this function makes to `parse_glyf`/`parse_otl`
 /// (both `&mut ParsedValue` themselves, Stage M-32/M-33) is now a plain,
 /// ordinary, sound reborrow -- no raw pointer and no `unsafe` anywhere in
 /// this function, closing the JSON-parse `unsafe fn` trio this migration's
@@ -234,58 +234,58 @@ pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>>
         return None;
     }
     let mut font: Box<Font> = Box::default();
-    font.subtype = otfcc_decide_font_subtype_from_json(root);
+    font.subtype = decide_font_subtype_from_json(root);
     font.glyph_order = parse_glyph_order(root, options);
-    font.glyf = otfcc_parse_glyf(root, font.glyph_order.as_deref(), options);
-    font.cff = otfcc_parse_cff(root, options);
-    font.head = otfcc_parse_head(root);
-    font.hhea = otfcc_parse_hhea(root);
-    font.os_2 = otfcc_parse_os_2(root);
-    font.maxp = otfcc_parse_maxp(root);
-    font.post = otfcc_parse_post(root, options);
-    font.name = otfcc_parse_name(root);
-    font.meta = otfcc_parse_meta(root);
-    font.cmap = otfcc_parse_cmap(root);
+    font.glyf = parse_glyf(root, font.glyph_order.as_deref(), options);
+    font.cff = parse_cff(root, options);
+    font.head = parse_head(root);
+    font.hhea = parse_hhea(root);
+    font.os_2 = parse_os_2(root);
+    font.maxp = parse_maxp(root);
+    font.post = parse_post(root, options);
+    font.name = parse_name(root);
+    font.meta = parse_meta(root);
+    font.cmap = parse_cmap(root);
     if !options.ignore_hints {
-        font.fpgm = otfcc_parse_fpgm_prep(
+        font.fpgm = parse_fpgm_prep(
             root,
             b"fpgm",
         );
-        font.prep = otfcc_parse_fpgm_prep(
+        font.prep = parse_fpgm_prep(
             root,
             b"prep",
         );
-        font.cvt_ = otfcc_parse_cvt(
+        font.cvt_ = parse_cvt(
             root,
             b"cvt_",
         );
-        font.gasp = otfcc_parse_gasp(root);
+        font.gasp = parse_gasp(root);
     }
-    font.vdmx = otfcc_parse_vdmx(root);
-    font.vhea = otfcc_parse_vhea(root);
+    font.vdmx = parse_vdmx(root);
+    font.vhea = parse_vhea(root);
     if font.glyf.is_some() {
-        // `otfcc_parse_otl` (Stage M-33) takes `&mut ParsedValue` now too,
-        // for the same reason `otfcc_parse_glyf` above does. `root` is
+        // `parse_otl` (Stage M-33) takes `&mut ParsedValue` now too,
+        // for the same reason `parse_glyf` above does. `root` is
         // already `&mut ParsedValue` here (this function's own signature,
         // above), so each call is a plain, ordinary, compiler-inserted
         // reborrow of `root` -- no cast, no raw pointer, nothing to justify.
-        font.gsub = otfcc_parse_otl(root, options, b"GSUB");
-        font.gpos = otfcc_parse_otl(root, options, b"GPOS");
-        font.gdef = otfcc_parse_gdef(root);
+        font.gsub = parse_otl(root, options, b"GSUB");
+        font.gpos = parse_otl(root, options, b"GPOS");
+        font.gdef = parse_gdef(root);
     }
-    font.base = otfcc_parse_base(root);
-    font.cpal = otfcc_parse_cpal(root);
-    font.colr = otfcc_parse_colr(root);
-    font.svg = otfcc_parse_svg(root);
-    font.tsi_01 = otfcc_parse_tsi(
+    font.base = parse_base(root);
+    font.cpal = parse_cpal(root);
+    font.colr = parse_colr(root);
+    font.svg = parse_svg(root);
+    font.tsi_01 = parse_tsi(
         root,
         b"TSI_01",
     );
-    font.tsi_23 = otfcc_parse_tsi(
+    font.tsi_23 = parse_tsi(
         root,
         b"TSI_23",
     );
-    font.tsi5 = otfcc_parse_tsi5(root);
+    font.tsi5 = parse_tsi5(root);
     Some(font)
 }
 

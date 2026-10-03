@@ -40,7 +40,7 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
         top_side_bearing,
     })
 }
-pub fn otfcc_read_vmtx(
+pub fn read_vmtx(
     packet: &Packet,
     vhea: Option<&VheaTable>,
     maxp: Option<&MaxpTable>,
@@ -65,7 +65,7 @@ pub fn otfcc_read_vmtx(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_vmtx(vmtx: Option<&VmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
+pub fn build_vmtx(vmtx: Option<&VmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
     let mut buf = Buffer::new();
     let vmtx = match vmtx {
         Some(v) => v,

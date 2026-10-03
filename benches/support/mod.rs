@@ -17,14 +17,14 @@
 //! raw-pointer noise.
 #![allow(dead_code)]
 
-use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
+use otfcc_rust::consolidate::consolidate_font;
+use otfcc_rust::font::caryll_sfnt::read_sfnt_from_reader;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::built_json::{JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_serialize_ex};
-use otfcc_rust::support::options::{Options, otfcc_options_optimize_to};
+use otfcc_rust::support::options::{Options, options_optimize_to};
 use otfcc_rust::support::parsed_json::parse_json;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -55,19 +55,19 @@ pub fn quiet_options() -> Box<Options> {
 /// `otfccbuild -O2` itself sets, not a hand-picked subset of it.
 pub fn quiet_options_o2() -> Box<Options> {
     let mut options = quiet_options();
-    otfcc_options_optimize_to(&mut options, 2);
+    options_optimize_to(&mut options, 2);
     options
 }
 
 /// The dump pipeline (`otfccdump.rs`'s own steps, in-process): SFNT bytes
 /// in, pretty-printed JSON bytes out.
 pub fn dump_to_json(sfnt_bytes: &[u8], options: &Options) -> Vec<u8> {
-    let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes))
-        .expect("otfcc_read_sfnt_from_reader returned None");
+    let sfnt = read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes))
+        .expect("read_sfnt_from_reader returned None");
 
     let mut font = read_otf(&sfnt, 0, options).expect("read_otf returned None");
 
-    otfcc_consolidate_font(&mut font, options);
+    consolidate_font(&mut font, options);
 
     let root = serialize_to_json(&mut font, options);
     drop(font);
@@ -83,7 +83,7 @@ pub fn build_to_otf(json_bytes: &[u8], options: &Options) -> Vec<u8> {
 
     let mut font = read_json(&mut json_root, options).expect("read_json returned None");
 
-    otfcc_consolidate_font(&mut font, options);
+    consolidate_font(&mut font, options);
 
     let otf = serialize_to_otf(&mut font, options);
     drop(font);

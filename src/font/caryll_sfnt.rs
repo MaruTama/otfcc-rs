@@ -3,7 +3,7 @@ use std::io::{Read, Seek, SeekFrom};
 // `data` was `__caryll_allocate_clean`'d/`free`'d, sized from `length` --
 // read straight out of the SFNT table directory, i.e. untrusted font bytes.
 // The same risk class `CffIndex`/`CffDict` closed: a counting mistake in
-// `otfcc_read_packets` below would have been an immediate OOB write: `Vec`
+// `read_packets` below would have been an immediate OOB write: `Vec`
 // removes that structurally.
 #[derive(Debug)]
 pub struct PacketPiece {
@@ -15,7 +15,7 @@ pub struct PacketPiece {
 }
 // `pieces` was similarly `__caryll_allocate_clean`'d/`free`'d, sized from
 // `num_tables` (also untrusted). `Packet` used to derive `Copy` purely so
-// every `table/*.rs` parser (~30 files) and `otf_reader.rs`'s `otfcc_read_sfnt`
+// every `table/*.rs` parser (~30 files) and `otf_reader.rs`'s `read_sfnt`
 // (which reuses one `packet` across ~20 sequential calls) could pass it by
 // value without borrow-checker friction -- none of those sites ever needed
 // ownership, only read access, so every one of them now takes `&Packet`
@@ -40,18 +40,18 @@ pub struct SplineFontContainer {
 }
 // `false` on any I/O failure -- EOF partway through a read, or a seek past
 // the end of file, either one meaning a truncated or otherwise malformed
-// file, not an in-memory bug -- and the caller (`otfcc_read_sfnt`) tears
+// file, not an in-memory bug -- and the caller (`read_sfnt`) tears
 // down the partially-built `font` and returns null instead. `otfccdump.rs`'s
-// caller already null-checks `otfcc_read_sfnt`'s return and logs a clean
+// caller already null-checks `read_sfnt`'s return and logs a clean
 // "Cannot read SFNT file ...". Exit." through the normal `Logger` channel,
 // so routing failure there reuses an error path that already existed.
 //
 // This used to read each table's actual bytes with `fread`, discarding the
 // return value -- so a table whose declared `length` ran past the actual
 // end of a truncated file was silently zero-padded instead of failing the
-// read. `Read::read_exact` (below, and in `otfcc_get16u`/`32`) fails
+// read. `Read::read_exact` (below, and in `get16u`/`32`) fails
 // instead, the same way the header/directory fields already did.
-fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) -> bool {
+fn read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) -> bool {
     // `offset`/`length` below are attacker-controlled (raw fields straight
     // out of the table directory), so a table declaring a length up to
     // u32::MAX used to reach `vec![0u8; length as usize]` unconditionally
@@ -71,19 +71,19 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
         if file.seek(SeekFrom::Start(offset as u64)).is_err() {
             return false;
         }
-        let Some(sfnt_version) = otfcc_get32u(file) else {
+        let Some(sfnt_version) = get32u(file) else {
             return false;
         };
-        let Some(num_tables) = otfcc_get16u(file) else {
+        let Some(num_tables) = get16u(file) else {
             return false;
         };
-        let Some(search_range) = otfcc_get16u(file) else {
+        let Some(search_range) = get16u(file) else {
             return false;
         };
-        let Some(entry_selector) = otfcc_get16u(file) else {
+        let Some(entry_selector) = get16u(file) else {
             return false;
         };
-        let Some(range_shift) = otfcc_get16u(file) else {
+        let Some(range_shift) = get16u(file) else {
             return false;
         };
         {
@@ -94,16 +94,16 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
             packet.entry_selector = entry_selector;
             packet.range_shift = range_shift;
             for _ in 0..packet.num_tables as u32 {
-                let Some(tag) = otfcc_get32u(file) else {
+                let Some(tag) = get32u(file) else {
                     return false;
                 };
-                let Some(check_sum) = otfcc_get32u(file) else {
+                let Some(check_sum) = get32u(file) else {
                     return false;
                 };
-                let Some(offset) = otfcc_get32u(file) else {
+                let Some(offset) = get32u(file) else {
                     return false;
                 };
-                let Some(length) = otfcc_get32u(file) else {
+                let Some(length) = get32u(file) else {
                     return false;
                 };
                 if offset as u64 + length as u64 > total_len {
@@ -151,14 +151,14 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
     }
     true
 }
-// Reads the header/directory fields; `otfcc_read_sfnt` (below) owns
+// Reads the header/directory fields; `read_sfnt` (below) owns
 // allocating and tearing down `font` around this call. Split out so a
 // truncated-file failure partway through -- signalled the same way
-// `otfcc_read_packets` does, by returning `false` -- can be handled once,
+// `read_packets` does, by returning `false` -- can be handled once,
 // in one place, instead of duplicating the "free `font`, return null"
 // cleanup at every read site.
-fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) -> bool {
-    let Some(type_0) = otfcc_get32u(file) else {
+fn read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) -> bool {
+    let Some(type_0) = get32u(file) else {
         return false;
     };
     font.type_0 = type_0;
@@ -179,13 +179,13 @@ fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &m
                     pieces: Vec::new(),
                 })
                 .collect();
-            otfcc_read_packets(font, file)
+            read_packets(font, file)
         }
         crate::tag::SFNT_TTC_TAG => {
-            let Some(_ttc_version) = otfcc_get32u(file) else {
+            let Some(_ttc_version) = get32u(file) else {
                 return false;
             };
-            let Some(count) = otfcc_get32u(file) else {
+            let Some(count) = get32u(file) else {
                 return false;
             };
             // `count` is the TTC header's own `numFonts` field, read
@@ -200,7 +200,7 @@ fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &m
             // header that follows, so `count` can't legitimately exceed
             // however many 4-byte words remain in the file at this point
             // -- the same "check against the real file length before
-            // allocating" shape `otfcc_read_packets` already uses for
+            // allocating" shape `read_packets` already uses for
             // each table's `length`.
             let Ok(current_pos) = file.stream_position() else {
                 return false;
@@ -228,12 +228,12 @@ fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &m
                 .collect();
             let offsets: &mut Vec<u32> = &mut font.offsets;
             for i in 0..offsets.len() as u32 {
-                let Some(v) = otfcc_get32u(file) else {
+                let Some(v) = get32u(file) else {
                     return false;
                 };
                 offsets[i as usize] = v;
             }
-            otfcc_read_packets(font, file)
+            read_packets(font, file)
         }
         _ => {
             font.count = 0;
@@ -254,35 +254,35 @@ fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &m
 /// `&Path` now -- which also retires the "null path" case, since a
 /// reference cannot be null -- and the result is the owned value, so the
 /// caller's scope frees it and there is no delete function to forget.
-pub fn otfcc_read_sfnt(path: &std::path::Path) -> Option<SplineFontContainer> {
+pub fn read_sfnt(path: &std::path::Path) -> Option<SplineFontContainer> {
     let mut file = std::fs::File::open(path).ok()?;
-    otfcc_read_sfnt_from_reader(&mut file)
+    read_sfnt_from_reader(&mut file)
 }
-/// [`otfcc_read_sfnt`]'s file-opening split from its actual reading, for
+/// [`read_sfnt`]'s file-opening split from its actual reading, for
 /// callers that already have bytes in memory rather than a path -- the
 /// `otf_parse` fuzz target uses this with a `std::io::Cursor<&[u8]>` over
 /// the fuzzer-provided input instead of writing it to a real temp file on
 /// every one of its thousands-per-process iterations (this used to be
 /// `fmemopen` wrapping a byte buffer as a `FILE*`, back when
-/// `otfcc_read_sfnt` itself was `FILE*`-shaped).
-pub fn otfcc_read_sfnt_from_reader<R: Read + Seek>(file: &mut R) -> Option<SplineFontContainer> {
+/// `read_sfnt` itself was `FILE*`-shaped).
+pub fn read_sfnt_from_reader<R: Read + Seek>(file: &mut R) -> Option<SplineFontContainer> {
     let mut font = SplineFontContainer {
         type_0: 0,
         count: 0,
         offsets: Vec::new(),
         packets: Vec::new(),
     };
-    otfcc_read_sfnt_body(&mut font, file).then_some(font)
+    read_sfnt_body(&mut font, file).then_some(font)
 }
 // `None` on a short read (EOF partway through, i.e. a truncated file).
 // `read_exact` reports that as an `Err` on its own -- no separate
 // byte-count check needed the way `fread`'s return value did.
-fn otfcc_get16u<R: Read>(file: &mut R) -> Option<u16> {
+fn get16u<R: Read>(file: &mut R) -> Option<u16> {
     let mut buf = [0u8; 2];
     file.read_exact(&mut buf).ok()?;
     Some(u16::from_be_bytes(buf))
 }
-fn otfcc_get32u<R: Read>(file: &mut R) -> Option<u32> {
+fn get32u<R: Read>(file: &mut R) -> Option<u32> {
     let mut buf = [0u8; 4];
     file.read_exact(&mut buf).ok()?;
     Some(u32::from_be_bytes(buf))
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls std::fs::File::open on a real path, unsupported under Miri's default isolation")]
     fn nonexistent_path_returns_none() {
-        assert!(otfcc_read_sfnt(std::path::Path::new("/nonexistent/otfcc-test-path")).is_none());
+        assert!(read_sfnt(std::path::Path::new("/nonexistent/otfcc-test-path")).is_none());
     }
 
     // The bug this file's rewrite fixes: a table whose declared length runs
@@ -333,7 +333,7 @@ mod tests {
         bytes.extend_from_slice(&8u32.to_be_bytes()); // length (8, but...)
         bytes.extend_from_slice(&[0xAA; 4]); // ...only 4 bytes follow
         let path = write_temp_file(&bytes);
-        assert!(otfcc_read_sfnt(&path).is_none());
+        assert!(read_sfnt(&path).is_none());
         let _ = std::fs::remove_file(&path);
     }
 
@@ -359,7 +359,7 @@ mod tests {
         bytes.extend_from_slice(&table_offset.to_be_bytes()); // offset
         bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // length: ~4GB
         let path = write_temp_file(&bytes);
-        assert!(otfcc_read_sfnt(&path).is_none());
+        assert!(read_sfnt(&path).is_none());
         let _ = std::fs::remove_file(&path);
     }
 
@@ -407,7 +407,7 @@ mod tests {
         bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
         assert_eq!(bytes.len(), 60);
         let path = write_temp_file(&bytes);
-        let font = otfcc_read_sfnt(&path).expect("font must parse");
+        let font = read_sfnt(&path).expect("font must parse");
         assert_eq!(font.count, 2);
         assert_eq!(font.packets[0].pieces.len(), 1);
         assert_eq!(font.packets[1].pieces.len(), 0);
@@ -422,7 +422,7 @@ mod tests {
         bytes.extend_from_slice(&0x00010000u32.to_be_bytes()); // ttc version 1.0
         bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // numFonts: ~4 billion
         let path = write_temp_file(&bytes);
-        assert!(otfcc_read_sfnt(&path).is_none());
+        assert!(read_sfnt(&path).is_none());
         let _ = std::fs::remove_file(&path);
     }
 
@@ -442,7 +442,7 @@ mod tests {
         bytes.extend_from_slice(&4u32.to_be_bytes());
         bytes.extend_from_slice(b"DATA");
         let path = write_temp_file(&bytes);
-        let font = otfcc_read_sfnt(&path).expect("font must parse");
+        let font = read_sfnt(&path).expect("font must parse");
         assert_eq!(font.count, 1);
         assert_eq!(font.packets[0].pieces.len(), 1);
         assert_eq!(font.packets[0].pieces[0].data, b"DATA");

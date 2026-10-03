@@ -3,10 +3,10 @@
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 
-use crate::consolidate::otfcc_consolidate_font;
+use crate::consolidate::consolidate_font;
 use crate::json_reader::read_json;
 use crate::otf_writer::serialize_to_otf;
-use crate::support::options::otfcc_options_optimize_to;
+use crate::support::options::options_optimize_to;
 use crate::support::parsed_json::parse_json;
 
 /// # Safety
@@ -25,7 +25,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
 ) -> *mut Buffer {
     let mut options: Box<Options> = Box::default();
     let _root_scope = crate::logger::indent("otfccbuild");
-    otfcc_options_optimize_to(&mut options, olevel);
+    options_optimize_to(&mut options, olevel);
     if for_webfont {
         options.ignore_glyph_order = true;
         options.force_cid = true;
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         return ::core::ptr::null_mut::<Buffer>();
     };
     drop(json_root);
-    otfcc_consolidate_font(&mut font, &options);
+    consolidate_font(&mut font, &options);
     // This is the one genuine `extern "C"` boundary in the crate, so it is
     // also the one place that still needs to hand a `Buffer` back as a raw
     // pointer -- `serialize_to_otf` returns the `Buffer` itself now.
@@ -130,7 +130,7 @@ mod tests {
         unsafe {
             // Exercises the success path -- `read_json` on `{}` yields a fully-defaulted,
             // zero-glyph font (see the module doc comment above), which
-            // otfcc_consolidate_font/serialize_to_otf still happily turn
+            // consolidate_font/serialize_to_otf still happily turn
             // into a (tiny but valid) OTF Buffer.
             let buf = build(b"{}");
             assert!(!buf.is_null());

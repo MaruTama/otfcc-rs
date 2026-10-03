@@ -6,7 +6,7 @@ use crate::support::TRUE_0;
 use crate::support::buffer::Buffer;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
 use crate::support::handle::{
-    FdHandle, GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_empty,
+    FdHandle, GlyphHandle, Handle, HandleState, handle_from_name, handle_empty,
 };
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
@@ -204,7 +204,7 @@ pub(crate) fn iter_glyphs(glyf: &GlyfTable) -> impl Iterator<Item = &Glyph> {
 // below), and `&mut` is neither. Every construction site builds exactly one
 // `GlyfIOContext` and either shares it by `&` (the whole dump side, which
 // never mutates `fvar`) or threads it by `&mut` through the one read-side
-// call chain that does (`otfcc_read_glyf` -> `polymorphize` ->
+// call chain that does (`read_glyf` -> `polymorphize` ->
 // `TuplePolymorphizerCtx`, in `glyf/read.rs`) -- nothing ever needed a
 // second, aliasing copy of the struct itself.
 #[derive(Debug)]
@@ -292,7 +292,7 @@ fn glyf_contour_fill(arr: &mut Contour, n: usize) {
 }
 #[inline]
 fn init_glyf_reference(ref_0: &mut ComponentReference) {
-    ref_0.glyph = otfcc_handle_empty() as GlyphHandle;
+    ref_0.glyph = handle_empty() as GlyphHandle;
     ref_0.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
     ref_0.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
     ref_0.a = 1_i32 as Scale;
@@ -339,7 +339,7 @@ pub fn glyf_component_reference_init(x: &mut ComponentReference) {
 /// `new_lookup`/`new_feature`/`new_language`. Kept the `otfcc_`-prefixed C
 /// name (unlike those three) since this one is still called from outside
 /// this file (`consolidate.rs`, `table/cff.rs`, `table/glyf/read.rs`).
-pub fn otfcc_new_glyf_glyph() -> Box<Glyph> {
+pub fn new_glyf_glyph() -> Box<Glyph> {
     Box::new(Glyph {
         name: Vec::new(),
         horizontal_origin: VQ {
@@ -366,7 +366,7 @@ pub fn otfcc_new_glyf_glyph() -> Box<Glyph> {
         contour_masks: Vec::new(),
         instructions: Vec::new(),
         y_pel: 0_u8,
-        fd_select: otfcc_handle_empty() as FdHandle,
+        fd_select: handle_empty() as FdHandle,
         cid: 0 as GlyphId,
         stat: GlyphStat {
             x_min: 0_i32 as Pos,
@@ -548,7 +548,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
     }
     glyph
 }
-pub fn otfcc_dump_glyphorder(table: &GlyfTable, root: &mut BuiltValue) {
+pub fn dump_glyphorder(table: &GlyfTable, root: &mut BuiltValue) {
     let mut order = BuiltValue::new_array(table.len());
     for slot in table {
         let g = slot.as_deref().unwrap();
@@ -556,7 +556,7 @@ pub fn otfcc_dump_glyphorder(table: &GlyfTable, root: &mut BuiltValue) {
     }
     root.push_field(b"glyph_order", order.preserialize());
 }
-pub fn otfcc_dump_glyf(
+pub fn dump_glyf(
     table: Option<&GlyfTable>,
     root: &mut BuiltValue,
     options: &Options,
@@ -573,7 +573,7 @@ pub fn otfcc_dump_glyf(
     }
     root.push_field(b"glyf", glyf);
     if !options.ignore_glyph_order {
-        otfcc_dump_glyphorder(table, root);
+        dump_glyphorder(table, root);
     }
     stage.finish();
 }
@@ -706,12 +706,12 @@ fn parse_masks(md: Option<&ParsedValue>, masks: &mut MaskList) {
         masks.push(mask);
     }
 }
-fn otfcc_glyf_parse_glyph(
+fn glyf_parse_glyph(
     glyphdump: &ParsedValue,
     order_entry: &GlyphOrderEntry,
     options: &Options,
 ) -> Box<Glyph> {
-    let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
+    let mut g: Box<Glyph> = new_glyf_glyph();
     g.name = order_entry.name.clone();
     g.advance_width = json_vq_of(glyphdump.get(b"advanceWidth"));
     g.horizontal_origin = json_vq_of(glyphdump.get(b"horizontalOrigin"));
@@ -777,7 +777,7 @@ fn otfcc_glyf_parse_glyph(
 // sequential reborrow instead of a pointer standing in for it. No raw
 // pointer or `unsafe` remains in this function.
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_parse_glyf(
+pub fn parse_glyf(
     root: &mut ParsedValue,
     glyph_order: Option<&GlyphOrder>,
     options: &Options,
@@ -790,7 +790,7 @@ pub fn otfcc_parse_glyf(
     let mut glyf_val: GlyfTable = Vec::with_capacity(n);
     glyf_val.resize_with(n, || None);
     // Each iteration reads glyph `j` fully (into an owned `Box<Glyph>`,
-    // via `otfcc_glyf_parse_glyph`) before nulling that same slot out --
+    // via `glyf_parse_glyph`) before nulling that same slot out --
     // never both at once -- so the immutable reborrow below (`fields`,
     // scoped to this iteration) is always finished before the mutable
     // `take_field` call that follows it.
@@ -806,7 +806,7 @@ pub fn otfcc_parse_glyf(
                 let order_entry = &glyph_order.entries[idx];
                 if glyf_val[order_entry.gid as usize].is_none() {
                     glyf_val[order_entry.gid as usize] =
-                        Some(otfcc_glyf_parse_glyph(glyphdump, order_entry, options));
+                        Some(glyf_parse_glyph(glyphdump, order_entry, options));
                 }
             }
         table.take_field(j);

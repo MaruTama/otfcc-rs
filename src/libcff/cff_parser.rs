@@ -325,7 +325,7 @@ pub fn cff_open_stream(data: &[u8]) -> Box<CffFile> {
     // a `u32` length, requiring an unsafe call to `core::slice::from_raw_parts(data,
     // len as usize)` here and an `unsafe fn` signature purely to carry
     // that contract -- but this function's one production caller
-    // (`table/cff.rs`'s `otfcc_read_cff_and_glyf_tables`) already had a
+    // (`table/cff.rs`'s `read_cff_and_glyf_tables`) already had a
     // real `&[u8]` in hand (`PacketPiece.data`) and was only decomposing
     // it into a pointer+length to satisfy this signature, the same
     // "raw pointer purely dodging the borrow checker" shape M-3/M-9/

@@ -45,7 +45,7 @@ static LAYER_REC_LENGTH: usize = 4_usize;
 /// `checked_mul` still replace them, for the same "true on every pointer
 /// width, not just the ones this crate happens to test on" reason
 /// `require_room` exists at all.
-fn parse_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
+fn decode_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     if data.len() < 14 {
         return Err(ReadError { needed: 14, available: data.len() });
     }
@@ -90,9 +90,9 @@ fn parse_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     Ok(colr)
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_read_colr(packet: &Packet) -> Option<ColrTable> {
+pub fn read_colr(packet: &Packet) -> Option<ColrTable> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_COLR)?;
-    match parse_colr(&table.data) {
+    match decode_colr(&table.data) {
         Ok(colr) => Some(colr),
         Err(_) => {
             tracing::warn!("Table 'COLR' corrupted.\n");
@@ -100,7 +100,7 @@ pub fn otfcc_read_colr(packet: &Packet) -> Option<ColrTable> {
         }
     }
 }
-pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
+pub fn dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
     let Some(mappings) = colr else {
         return;
     };
@@ -122,7 +122,7 @@ pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
     root.push_field(b"COLR", _colr);
     stage.finish();
 }
-pub fn otfcc_parse_colr(root: &ParsedValue) -> Option<ColrTable> {
+pub fn parse_colr(root: &ParsedValue) -> Option<ColrTable> {
     let colr_val = root.get_typed(b"COLR", JsonType::Array)?;
     let mut colr: ColrTable = Vec::new();
     let stage = crate::logger::stage("COLR");
@@ -163,7 +163,7 @@ pub fn otfcc_parse_colr(root: &ParsedValue) -> Option<ColrTable> {
     Some(colr)
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
+pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
     let src = match _colr {
         Some(c) if !c.is_empty() => c,
         _ => return None,
@@ -248,7 +248,7 @@ mod parse_colr_tests {
     #[test]
     fn well_formed_table_reads_one_base_glyph_and_its_layer() {
         let data = well_formed_colr_table();
-        let colr = parse_colr(&data).unwrap();
+        let colr = decode_colr(&data).unwrap();
         assert_eq!(colr.len(), 1);
         assert_eq!(colr[0].glyph.index, 5);
         assert_eq!(colr[0].layers.len(), 1);
@@ -259,14 +259,14 @@ mod parse_colr_tests {
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
         let data = well_formed_colr_table();
-        assert!(parse_colr(&data[..10]).is_err());
+        assert!(decode_colr(&data[..10]).is_err());
     }
 
     #[test]
     fn base_glyph_record_offset_past_the_table_end_errs_instead_of_reading_oob() {
         let mut data = well_formed_colr_table();
         data[4..8].copy_from_slice(&1000u32.to_be_bytes());
-        assert!(parse_colr(&data).is_err());
+        assert!(decode_colr(&data).is_err());
     }
 
     #[test]
@@ -278,7 +278,7 @@ mod parse_colr_tests {
         // layers), rather than reading past `gids`/`colors`.
         let mut data = well_formed_colr_table();
         data[16..18].copy_from_slice(&5u16.to_be_bytes()); // firstLayerIndex = 5
-        let colr = parse_colr(&data).unwrap();
+        let colr = decode_colr(&data).unwrap();
         assert_eq!(colr[0].layers.len(), 0);
     }
 }

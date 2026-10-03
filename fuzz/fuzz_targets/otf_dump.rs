@@ -1,7 +1,7 @@
 #![no_main]
 
-// Fuzzes the full otfccdump pipeline: otfcc_read_sfnt -> read_otf ->
-// otfcc_consolidate_font -> serialize_to_json, in that order -- exactly
+// Fuzzes the full otfccdump pipeline: read_sfnt -> read_otf ->
+// consolidate_font -> serialize_to_json, in that order -- exactly
 // otfccdump.rs's own Read Font / Consolidate / Dump sequence (src/bin/
 // otfccdump.rs).
 //
@@ -9,7 +9,7 @@
 // never exercises consolidation or JSON serialization at all. That gap is
 // not hypothetical: a manual (non-fuzz-harness) investigation found a real
 // heap-use-after-free that `otf_parse` could never have found, because the
-// dangling read only happens during `otfcc_dump_otl` (called from
+// dangling read only happens during `dump_otl` (called from
 // `serialize_to_json`), well past where `otf_parse` already returned. The
 // bug -- `LanguageSystem.required_feature`, a lone borrowed `*const
 // Feature`, was never revisited when `consolidate_otl_table` dropped the
@@ -25,12 +25,11 @@
 // shortcut.
 
 use libfuzzer_sys::fuzz_target;
-use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
+use otfcc_rust::consolidate::consolidate_font;
+use otfcc_rust::font::caryll_sfnt::read_sfnt_from_reader;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::options::Options;
-use std::cell::RefCell;
 use std::io::Cursor;
 
 fuzz_target!(|data: &[u8]| {
@@ -38,21 +37,21 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-    let Some(sfnt) = otfcc_read_sfnt_from_reader(&mut Cursor::new(data)) else {
+    let Some(sfnt) = read_sfnt_from_reader(&mut Cursor::new(data)) else {
         return;
     };
     if sfnt.count == 0 {
         return;
     }
 
-    let mut options: Box<Options> = Box::default();
+    let options: Box<Options> = Box::default();
 
     // Subfont index 0 always exists once `count > 0` -- see otf_parse's
     // own comment on why this target does not also fuzz the TTC index.
     let font = read_otf(&sfnt, 0, &options);
 
     if let Some(mut font) = font {
-        otfcc_consolidate_font(&mut font, &options);
+        consolidate_font(&mut font, &options);
         // `serialize_to_json` used to return `*mut c_void` (the
         // type-erased `FontSerializer` trait boundary). Reclaiming that
         // untyped pointer with `Box::from_raw` built a `Box<c_void>`,

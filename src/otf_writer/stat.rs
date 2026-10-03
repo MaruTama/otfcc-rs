@@ -199,7 +199,7 @@ pub fn stat_single_glyph(
     return stat;
 }
 pub fn stat_glyf(font: &mut Font) {
-    // Only ever called (from `otfcc_stat_font`) under a `.head.is_some()`/
+    // Only ever called (from `stat_font`) under a `.head.is_some()`/
     // `.glyf.is_some()` guard, so `.unwrap()` here just turns "this
     // invariant broke" from a null-pointer dereference into a panic.
     let head = font.head.as_deref_mut().unwrap();
@@ -258,7 +258,7 @@ pub fn stat_glyf(font: &mut Font) {
     head.y_max = ymax as i16;
 }
 pub fn stat_maxp(font: &mut Font) {
-    // Only ever called (from `otfcc_stat_font`) under a `.maxp.is_some()`/
+    // Only ever called (from `stat_font`) under a `.maxp.is_some()`/
     // `.glyf.is_some()` guard.
     let maxp = font.maxp.as_deref_mut().unwrap();
     let mut nest_depth: u16 = 0_u16;
@@ -309,7 +309,7 @@ fn stat_hmtx(font: &mut Font) {
         return;
     }
     let glyf = font.glyf.as_mut().unwrap();
-    // Only ever called (from `otfcc_stat_font`) under a `.hhea.is_some()`
+    // Only ever called (from `stat_font`) under a `.hhea.is_some()`
     // guard; `.head` is set unconditionally by the pipeline before this
     // point (used below to update `.flags`).
     let mut count_a: GlyphId = count_u16(glyf.len());
@@ -457,7 +457,7 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
             max_extent = vori - g.stat.y_min;
         }
     }
-    // Only ever called (from `otfcc_stat_font`) under a `.vhea.is_some()`
+    // Only ever called (from `stat_font`) under a `.vhea.is_some()`
     // guard.
     let vhea = font.vhea.as_deref_mut().unwrap();
     vhea.num_of_long_ver_metrics = count_a as u16;
@@ -644,7 +644,7 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     if options.keep_average_char_width {
         return;
     }
-    // Only ever called (from `otfcc_stat_font`, via `stat_os_2`) under a
+    // Only ever called (from `stat_font`, via `stat_os_2`) under a
     // `.glyf.is_some()` guard.
     let glyf = font.glyf.as_ref().unwrap();
     let mut total_width: u32 = 0_u32;
@@ -884,7 +884,7 @@ fn stat_ltsh(font: &mut Font) {
 // holding a `&HeadTable` alongside the `&mut CffTable`/`&mut MaxpTable`
 // borrow -- the same technique this migration used for `charstring_il.rs`'s
 // `*_roll` functions.
-pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
+pub fn stat_font(font: &mut Font, options: &Options) {
     if font.glyf.is_some() && font.head.is_some() {
         stat_glyf(font);
         if !options.keep_modified_time {
@@ -1006,7 +1006,7 @@ pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
     }
     stat_ltsh(font);
 }
-pub fn otfcc_unstat_font(font: &mut Font) {
+pub fn unstat_font(font: &mut Font) {
     delete_font_table(font, crate::tag::TAG_HDMX);
     delete_font_table(font, crate::tag::TAG_HMTX);
     delete_font_table(font, crate::tag::TAG_VORG);

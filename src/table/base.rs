@@ -199,12 +199,12 @@ fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
     }
     Some(Box::new(BaseAxis { entries }))
 }
-/// `parse_base`'s own (horizontal, vertical) axis pair -- named once so the
+/// `decode_base`'s own (horizontal, vertical) axis pair -- named once so the
 /// return type isn't spelled out twice (its own signature and every match
 /// arm's destructuring stay tuple-shaped either way, so no call site needs
 /// updating).
 type BaseAxisPair = (Option<Box<BaseAxis>>, Option<Box<BaseAxis>>);
-fn parse_base(data: &[u8]) -> Result<BaseAxisPair, ReadError> {
+fn decode_base(data: &[u8]) -> Result<BaseAxisPair, ReadError> {
     let mut r = FontReader::new(data);
     r.skip(4)?; // majorVersion(2) + minorVersion(2), unused
     let offset_h = r.u16()?;
@@ -217,9 +217,9 @@ fn parse_base(data: &[u8]) -> Result<BaseAxisPair, ReadError> {
         .flatten();
     Ok((horizontal, vertical))
 }
-pub fn otfcc_read_base(packet: &Packet) -> Option<Box<BaseTable>> {
+pub fn read_base(packet: &Packet) -> Option<Box<BaseTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_BASE)?;
-    let (horizontal, vertical) = match parse_base(&table.data) {
+    let (horizontal, vertical) = match decode_base(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
             tracing::warn!("Table 'BASE' Corrupted");
@@ -257,7 +257,7 @@ fn axis_to_json(axis: &BaseAxis) -> BuiltValue {
     }
     _axis
 }
-pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue) {
+pub fn dump_base(base: Option<&BaseTable>, root: &mut BuiltValue) {
     let Some(base) = base else { return };
     let stage = crate::logger::stage("BASE");
     {
@@ -314,7 +314,7 @@ fn axis_from_json(axis: Option<&ParsedValue>) -> Option<Box<BaseAxis>> {
     entries.sort_by_key(|e| e.tag);
     Some(Box::new(BaseAxis { entries }))
 }
-pub fn otfcc_parse_base(root: &ParsedValue) -> Option<Box<BaseTable>> {
+pub fn parse_base(root: &ParsedValue) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
     let table = root.get_typed(b"BASE", JsonType::Object);
     if let Some(table) = table {
@@ -428,7 +428,7 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
         bk_ptr(BkCellType::P16, Some(base_script_list)),
     ]);
 }
-pub fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
+pub fn build_base(base: Option<&BaseTable>) -> Option<Buffer> {
     let base = base?;
     let horizontal_bk = base.horizontal.as_deref().map(axis_to_bk);
     let vertical_bk = base.vertical.as_deref().map(axis_to_bk);
@@ -495,7 +495,7 @@ mod parse_base_tests {
     #[test]
     fn well_formed_table_reads_the_horizontal_axis() {
         let data = well_formed_base_table();
-        let (horizontal, vertical) = parse_base(&data).unwrap();
+        let (horizontal, vertical) = decode_base(&data).unwrap();
         assert!(vertical.is_none());
         let axis = horizontal.unwrap();
         assert_eq!(axis.entries.len(), 1);
@@ -508,14 +508,14 @@ mod parse_base_tests {
 
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
-        assert!(parse_base(&well_formed_base_table()[..6]).is_err());
+        assert!(decode_base(&well_formed_base_table()[..6]).is_err());
     }
 
     #[test]
     fn zero_axis_offset_is_absent_not_an_error() {
         let mut data = well_formed_base_table();
         data[4..6].copy_from_slice(&0u16.to_be_bytes()); // HorizAxisOffset = 0
-        let (horizontal, vertical) = parse_base(&data).unwrap();
+        let (horizontal, vertical) = decode_base(&data).unwrap();
         assert!(horizontal.is_none());
         assert!(vertical.is_none());
     }
@@ -524,7 +524,7 @@ mod parse_base_tests {
     fn zero_base_tag_count_makes_the_axis_absent() {
         let mut data = well_formed_base_table();
         data[12..14].copy_from_slice(&0u16.to_be_bytes()); // BaseTagCount = 0
-        let (horizontal, _) = parse_base(&data).unwrap();
+        let (horizontal, _) = decode_base(&data).unwrap();
         assert!(horizontal.is_none());
     }
 

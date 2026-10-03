@@ -130,7 +130,7 @@ fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
     );
     dump
 }
-pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
+pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
     let Some(table) = table else { return };
     // `table.lookups`/`.features` are hole-preserving now -- a `None`-only
     // `Vec` (every lookup/feature punched by consolidation) is the "empty"

@@ -63,7 +63,7 @@ pub struct Os2Table {
 // corresponding threshold has already passed, reading sequentially through
 // one `FontReader` lands on the same fixed byte offsets the original's
 // `data.offset(N)` calls used explicitly -- confirmed field-by-field below.
-fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
+fn decode_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     if data.len() < 2 {
         return Err(ReadError {
             needed: 2,
@@ -193,12 +193,12 @@ fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     }
     Ok(os2)
 }
-pub fn otfcc_read_os_2(packet: &Packet) -> Option<Box<Os2Table>> {
+pub fn read_os_2(packet: &Packet) -> Option<Box<Os2Table>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_OS_2)?;
-    match parse_os_2(&table.data) {
+    match decode_os_2(&table.data) {
         Ok(os2) => Some(Box::new(os2)),
         Err(_) => {
             tracing::warn!("table 'OS/2' corrupted.\n");
@@ -402,7 +402,7 @@ pub static UNICODE_RANGE_LABELS4: [&str; 27] = [
     "Domino_and_Mahjong_Tiles",
 ];
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
+pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
@@ -553,7 +553,7 @@ pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
     root.push_field(b"OS_2", os_2);
     stage.finish();
 }
-pub fn otfcc_parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
+pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     let mut os_2 = Os2Table {
         version: 4,
         x_avg_char_width: 0,
@@ -675,7 +675,7 @@ pub fn otfcc_parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     Some(Box::new(os_2))
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
+pub fn build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
     let os_2 = os_2?;
     let mut buf = Buffer::new();
     buf.write_u16be(os_2.version);
@@ -739,7 +739,7 @@ mod parse_os_2_tests {
 
     #[test]
     fn version_0_table_needs_only_68_bytes() {
-        let os2 = parse_os_2(&version_0_base(700)).unwrap();
+        let os2 = decode_os_2(&version_0_base(700)).unwrap();
         assert_eq!(os2.version, 0);
         assert_eq!(os2.us_weight_class, 700);
     }
@@ -748,7 +748,7 @@ mod parse_os_2_tests {
     fn table_one_byte_short_of_68_is_rejected() {
         let mut data = version_0_base(700);
         data.truncate(67);
-        assert!(parse_os_2(&data).is_err());
+        assert!(decode_os_2(&data).is_err());
     }
 
     #[test]
@@ -760,7 +760,7 @@ mod parse_os_2_tests {
         let mut data = version_0_base(0);
         data[0..2].copy_from_slice(&1u16.to_be_bytes()); // version 1
         data.resize(85, 0);
-        assert!(parse_os_2(&data).is_err());
+        assert!(decode_os_2(&data).is_err());
     }
 
     #[test]
@@ -769,7 +769,7 @@ mod parse_os_2_tests {
         data[0..2].copy_from_slice(&1u16.to_be_bytes());
         data.resize(86, 0);
         data[78..82].copy_from_slice(&0x0000_0001u32.to_be_bytes());
-        let os2 = parse_os_2(&data).unwrap();
+        let os2 = decode_os_2(&data).unwrap();
         assert_eq!(os2.ul_code_page_range1, 1);
     }
 
@@ -783,13 +783,13 @@ mod parse_os_2_tests {
         data.resize(100, 0);
         data[96..98].copy_from_slice(&12u16.to_be_bytes());
         data[98..100].copy_from_slice(&34u16.to_be_bytes());
-        let os2 = parse_os_2(&data).unwrap();
+        let os2 = decode_os_2(&data).unwrap();
         assert_eq!(os2.us_lower_optical_point_size, 34);
         assert_eq!(os2.us_upper_optical_point_size, 0);
     }
 
     #[test]
     fn one_byte_table_is_rejected_before_reading_the_version_field() {
-        assert!(parse_os_2(&[0x00]).is_err());
+        assert!(decode_os_2(&[0x00]).is_err());
     }
 }

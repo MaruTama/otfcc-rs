@@ -115,7 +115,7 @@ pub fn otl_gpos_parse_cursive(
     }
     Some(Subtable::GposCursive(subtable))
 }
-pub fn otfcc_build_gpos_cursive(
+pub fn build_gpos_cursive(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {

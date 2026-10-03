@@ -86,7 +86,7 @@ impl<K> Default for Handle<K> {
     }
 }
 #[inline]
-pub(crate) fn otfcc_handle_empty<K>() -> Handle<K> {
+pub(crate) fn handle_empty<K>() -> Handle<K> {
     Handle::default()
 }
 pub(crate) fn handle_from_index<K>(id: GlyphId) -> Handle<K> {
@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn a_fresh_handle_is_empty() {
-        let h: GlyphHandle = otfcc_handle_empty();
+        let h: GlyphHandle = handle_empty();
         assert_eq!(h.state, HandleState::Empty);
         assert_eq!(h.index, 0);
         assert!(h.name.is_empty());

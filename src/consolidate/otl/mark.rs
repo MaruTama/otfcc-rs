@@ -13,7 +13,7 @@ use crate::table::otl::{
     Subtable,
 };
 
-use crate::support::glyph_order::otfcc_gord_consolidate_handle;
+use crate::support::glyph_order::gord_consolidate_handle;
 use crate::table::otl::subtables::gpos_common::dispose_mark_array;
 use crate::table::otl::subtables::gpos_mark_to_ligature::dispose_lig_array;
 use crate::table::otl::subtables::gpos_mark_to_single::dispose_base_array;
@@ -43,10 +43,10 @@ fn consolidate_mark_array(
     let mut h: BTreeMap<GlyphId, MarkHashValue> = BTreeMap::new();
     for rec in mark_array.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
-        // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
+        // only ever runs when `glyf` is present, and `consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
+        if !gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
         } else {
             let gid: GlyphId = rec.glyph.index;
@@ -88,10 +88,10 @@ fn consolidate_base_array(
     let mut h: BTreeMap<GlyphId, BaseHashValue> = BTreeMap::new();
     for rec in base_array.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
-        // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
+        // only ever runs when `glyf` is present, and `consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
+        if !gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
         } else {
             let gid: GlyphId = rec.glyph.index;
@@ -122,10 +122,10 @@ fn consolidate_lig_array(
     let mut h: BTreeMap<GlyphId, LigHashValue> = BTreeMap::new();
     for rec in lig_array.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
-        // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
+        // only ever runs when `glyf` is present, and `consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
+        if !gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
         } else {
             let gid: GlyphId = rec.glyph.index;

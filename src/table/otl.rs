@@ -28,7 +28,7 @@ use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 /// **Deliberately not an `enum`.** The value is read from the font:
 /// `otfcc_read_otl_common` does `lookup->type = read_16u(data) + base`, so
 /// anything in `16..=65551` can turn up, and C does not clamp it. An
-/// unrecognised type is carried through as-is — `otfcc_read_otl_subtable`
+/// unrecognised type is carried through as-is — `read_otl_subtable`
 /// returns NULL for it, and the lookup's generated name puts the *raw number*
 /// in the output as hex (`lookup_0019_3`, from
 /// `sdsbuild!(… Hex2(lookup->type) …)` in `read.rs`). A `#[repr(u32)]` enum

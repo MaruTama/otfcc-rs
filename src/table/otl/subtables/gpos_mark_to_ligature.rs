@@ -282,7 +282,7 @@ pub fn otl_gpos_parse_mark_to_ligature(
         lig_array,
     }))
 }
-pub fn otfcc_build_gpos_mark_to_ligature(
+pub fn build_gpos_mark_to_ligature(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {

@@ -1,4 +1,4 @@
-use crate::support::handle::{LookupHandle, handle_from_name, otfcc_handle_empty};
+use crate::support::handle::{LookupHandle, handle_from_name, handle_empty};
 use crate::support::parsed_json::ParsedValue;
 
 use crate::support::primitives::TableId;
@@ -29,7 +29,7 @@ pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     rule.apply = Vec::with_capacity(apply_items.len());
     for application in apply_items {
         let mut index: TableId = 0 as TableId;
-        let mut lookup: LookupHandle = otfcc_handle_empty() as LookupHandle;
+        let mut lookup: LookupHandle = handle_empty() as LookupHandle;
         if application.as_object().is_some()
             && let Some(ln) = application.get_typed(b"lookup", JsonType::String) {
                 lookup = handle_from_name(ln.as_str_bytes().map(|b| b.to_vec())) as LookupHandle;

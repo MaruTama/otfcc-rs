@@ -7,8 +7,8 @@ use otfcc_rust::support::built_json::BuiltValue;
 use otfcc_rust::support::EXIT_FAILURE;
 
 use libc::timespec;
-use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt;
+use otfcc_rust::consolidate::consolidate_font;
+use otfcc_rust::font::caryll_sfnt::read_sfnt;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::built_json::json_serialize_ex;
@@ -165,7 +165,7 @@ fn run(args: Vec<String>) -> i32 {
     let stage = otfcc_rust::logger::stage("Read SFNT");
     {
         tracing::debug!("From file {}", ByteStr(in_path.as_bytes()));
-        sfnt = otfcc_read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(in_path.as_bytes())));
+        sfnt = read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(in_path.as_bytes())));
         if sfnt.as_ref().is_none_or(|s| s.count == 0_u32) {
             tracing::error!("Cannot read SFNT file \"{}\". Exit.\n", ByteStr(in_path.as_bytes()));
             return EXIT_FAILURE;
@@ -192,7 +192,7 @@ fn run(args: Vec<String>) -> i32 {
     }
     let stage = otfcc_rust::logger::stage("Consolidate");
     {
-        otfcc_consolidate_font(font.as_mut().unwrap(), &options);
+        consolidate_font(font.as_mut().unwrap(), &options);
         log_step_time(&mut begin);
         stage.finish();
     }

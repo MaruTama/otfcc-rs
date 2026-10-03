@@ -54,9 +54,9 @@ fn should_decode_as_bytes(record: &NameRecord) -> bool {
 // string span doesn't fit keeps its `platform_id`/`encoding_id`/
 // `language_id`/`name_id` (still meaningful metadata) but gets an empty
 // `name_string` instead of the out-of-bounds read -- the same "keep the
-// record, drop only what doesn't fit" choice `table/post.rs::parse_post`
+// record, drop only what doesn't fit" choice `table/post.rs::decode_post`
 // made for an out-of-range `glyphNameIndex`.
-fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
+fn decode_name(data: &[u8]) -> Result<NameTable, ReadError> {
     let mut header = FontReader::new(data);
     header.skip(2)?; // format, unused
     let count = header.u16()? as u32;
@@ -100,12 +100,12 @@ fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
     Ok(name)
 }
 
-pub fn otfcc_read_name(packet: &Packet) -> Option<NameTable> {
+pub fn read_name(packet: &Packet) -> Option<NameTable> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_NAME)?;
-    match parse_name(&table.data) {
+    match decode_name(&table.data) {
         Ok(name) => Some(name),
         Err(_) => {
             tracing::warn!("table 'name' corrupted.\n");
@@ -113,7 +113,7 @@ pub fn otfcc_read_name(packet: &Packet) -> Option<NameTable> {
         }
     }
 }
-pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue) {
+pub fn dump_name(name: Option<&NameTable>, root: &mut BuiltValue) {
     let name = match name {
         Some(n) => n,
         None => return,
@@ -135,7 +135,7 @@ pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue) {
         stage.finish();
     }
 }
-pub fn otfcc_parse_name(root: &ParsedValue) -> Option<NameTable> {
+pub fn parse_name(root: &ParsedValue) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
     let Some(items) = root
         .get_typed(b"name", JsonType::Array)
@@ -183,7 +183,7 @@ pub fn otfcc_parse_name(root: &ParsedValue) -> Option<NameTable> {
     stage.finish();
     Some(name)
 }
-pub fn otfcc_build_name(name: Option<&NameTable>) -> Option<Buffer> {
+pub fn build_name(name: Option<&NameTable>) -> Option<Buffer> {
     let records: &Vec<NameRecord> = name?;
     let mut buf = Buffer::new();
     buf.write_u16be(0_u16);
@@ -271,7 +271,7 @@ mod parse_name_tests {
         let mut data = header(1, 6 + 12);
         data.extend(record(1, 0, 0, 0, 5, 0));
         data.extend_from_slice(b"Hello");
-        let name = parse_name(&data).unwrap();
+        let name = decode_name(&data).unwrap();
         assert_eq!(name.len(), 1);
         assert_eq!(name[0].name_string, b"Hello");
     }
@@ -282,13 +282,13 @@ mod parse_name_tests {
         let mut data = header(1, 6 + 12);
         data.extend(record(3, 1, 0x0409, 0, 4, 0));
         data.extend_from_slice(&[0x00, b'H', 0x00, b'i']);
-        let name = parse_name(&data).unwrap();
+        let name = decode_name(&data).unwrap();
         assert_eq!(name[0].name_string, b"Hi");
     }
 
     #[test]
     fn truncated_header_errs() {
-        assert!(parse_name(&[0, 0, 0, 1]).is_err());
+        assert!(decode_name(&[0, 0, 0, 1]).is_err());
     }
 
     #[test]
@@ -296,25 +296,25 @@ mod parse_name_tests {
         // count says 2 records (24 bytes) but only one (12 bytes) is present.
         let mut data = header(2, 6 + 24);
         data.extend(record(1, 0, 0, 0, 0, 0));
-        assert!(parse_name(&data).is_err());
+        assert!(decode_name(&data).is_err());
     }
 
     #[test]
     fn count_large_enough_to_overflow_the_multiplication_errs() {
         let data = header(0xFFFF, 0);
-        assert!(parse_name(&data).is_err());
+        assert!(decode_name(&data).is_err());
     }
 
     #[test]
     fn string_span_past_the_table_end_keeps_the_record_with_an_empty_name() {
-        // This is the actual overread otfcc_read_name used to have: the
+        // This is the actual overread read_name used to have: the
         // record array bound was checked, but a record's *string* span
         // (string_offset + offset, for `length` bytes) never was. Declares
         // a 100-byte Mac-Roman string where only 5 bytes of table remain.
         let mut data = header(1, 6 + 12);
         data.extend(record(1, 0, 0, 7, 100, 0));
         data.extend_from_slice(b"Hello"); // only 5 bytes actually present
-        let name = parse_name(&data).unwrap();
+        let name = decode_name(&data).unwrap();
         assert_eq!(name.len(), 1); // record kept
         assert_eq!(name[0].name_id, 7); // metadata preserved
         assert!(name[0].name_string.is_empty()); // string dropped, not read OOB
@@ -324,7 +324,7 @@ mod parse_name_tests {
     fn string_offset_itself_past_the_table_end_keeps_the_record_with_an_empty_name() {
         let mut data = header(1, 0xFFFF); // string_offset far past the table
         data.extend(record(1, 0, 0, 0, 1, 0));
-        let name = parse_name(&data).unwrap();
+        let name = decode_name(&data).unwrap();
         assert_eq!(name.len(), 1);
         assert!(name[0].name_string.is_empty());
     }
@@ -333,7 +333,7 @@ mod parse_name_tests {
     fn zero_length_string_is_empty_not_an_error() {
         let mut data = header(1, 6 + 12);
         data.extend(record(1, 0, 0, 0, 0, 0));
-        let name = parse_name(&data).unwrap();
+        let name = decode_name(&data).unwrap();
         assert_eq!(name[0].name_string, Vec::<u8>::new());
     }
 }

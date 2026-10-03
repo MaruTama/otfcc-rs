@@ -111,7 +111,7 @@ pub fn otl_gsub_parse_single(
     }
     Some(Subtable::GsubSingle(subtable))
 }
-pub fn otfcc_build_gsub_single_subtable(
+pub fn build_gsub_single_subtable(
     _subtable: &Subtable,
     heuristics: BuildHeuristics,
 ) -> Buffer {

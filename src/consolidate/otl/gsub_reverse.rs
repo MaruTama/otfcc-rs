@@ -18,7 +18,7 @@ pub fn consolidate_gsub_reverse(
     };
     // Guaranteed `Some`: `consolidate_otl` (and hence every caller that
     // reaches here) only ever runs when `glyf` is present, and
-    // `otfcc_consolidate_font` always populates `glyph_order` before
+    // `consolidate_font` always populates `glyph_order` before
     // that, whenever `glyf` is present.
     let match_count = subtable.match_count as usize;
     for cov in subtable.match_0.iter_mut().take(match_count) {

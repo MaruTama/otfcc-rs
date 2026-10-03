@@ -24,7 +24,7 @@ use crate::support::fmt::{Byte, Dec5, Hex2};
 // already unusual) while stopping the aliasing amplification at a small
 // fraction of the CI timeout.
 const MAX_TOTAL_LANGUAGES: u32 = 10_000;
-// Same amplification shape one level down: `otfcc_read_otl_lookup` reads a
+// Same amplification shape one level down: `read_otl_lookup` reads a
 // `subtable_count` (raw `u16`) whose only guard is that its own
 // offset array fits in the table -- true for any large enough table
 // regardless of how many subtable offsets it declares, and nothing stops
@@ -110,7 +110,7 @@ pub(crate) const MAX_TOTAL_FEATURES_PER_TABLE: u16 = 500;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
 use crate::table::otl::subtables::extend::{
-    otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend,
+    read_otl_gpos_extend, read_otl_gsub_extend,
 };
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::subtables::gpos_cursive::otl_read_gpos_cursive;
@@ -137,7 +137,7 @@ use crate::table::otl::{
 // `data` used to be a raw `FontFilePointer`/`table_length` pair,
 // reconstructed into a slice via `from_raw_parts` at the top of every one
 // of the flat readers below -- a pure round trip, since the one production
-// caller (`otfcc_read_otl_lookup`, below) always held a real `&[u8]` before
+// caller (`read_otl_lookup`, below) always held a real `&[u8]` before
 // breaking it apart to call in here. The nine flat subtable readers (Stage
 // L-3) and, since Stage L-5, the chaining/contextual readers as well now
 // take `&[u8]` directly and return `Option<Subtable>`/`Option<Box<Subtable>>`
@@ -147,7 +147,7 @@ use crate::table::otl::{
 // `subtable_list_slot` -- the same `Box::from_raw` bridge `otfcc_read_otl_
 // lookup` used to apply to this whole function's own return value, now
 // pushed down to just the arms that still produce a raw pointer.
-pub fn otfcc_read_otl_subtable(
+pub fn read_otl_subtable(
     data: &[u8],
     subtable_offset: u32,
     lookup_type: LookupType,
@@ -192,10 +192,10 @@ pub fn otfcc_read_otl_subtable(
             otl_read_gpos_mark_to_ligature(data, subtable_offset, max_glyphs, budget).map(Box::new)
         }
         OTL_TYPE_GSUB_EXTEND => {
-            otfcc_read_otl_gsub_extend(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
+            read_otl_gsub_extend(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
         OTL_TYPE_GPOS_EXTEND => {
-            otfcc_read_otl_gpos_extend(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
+            read_otl_gpos_extend(data, subtable_offset, max_glyphs, options, budget).map(Box::new)
         }
         _ => None,
     }
@@ -487,7 +487,7 @@ fn parse_otl_common(
     }
     Ok(table_box)
 }
-fn otfcc_read_otl_lookup(
+fn read_otl_lookup(
     data: &[u8],
     lookup: &mut Lookup,
     max_glyphs: GlyphId,
@@ -524,7 +524,7 @@ fn otfcc_read_otl_lookup(
     lookup.flags = flags;
     for subtable_offset in subtable_offsets {
         let subtable =
-            otfcc_read_otl_subtable(data, subtable_offset, lookup.type_0, max_glyphs, options, budget);
+            read_otl_subtable(data, subtable_offset, lookup.type_0, max_glyphs, options, budget);
         lookup.subtables.push(subtable);
     }
     if lookup.type_0 == OTL_TYPE_GSUB_EXTEND || lookup.type_0 == OTL_TYPE_GPOS_EXTEND {
@@ -604,7 +604,7 @@ fn otfcc_read_otl_lookup(
         lookup.type_0 = OTL_TYPE_GPOS_CHAINING;
     }
 }
-pub fn otfcc_read_otl(
+pub fn read_otl(
     packet: &Packet,
     options: &Options,
     tag: u32,
@@ -628,7 +628,7 @@ pub fn otfcc_read_otl(
     // Every slot is still `Some` here -- this is the same freshly-built
     // table `parse_otl_common` just returned, before any consolidation.
     for lookup in otl_box.lookups.iter_mut().flatten() {
-        otfcc_read_otl_lookup(&table.data, lookup, max_glyphs, options, &mut budget);
+        read_otl_lookup(&table.data, lookup, max_glyphs, options, &mut budget);
     }
     Some(otl_box)
 }
@@ -642,7 +642,7 @@ mod parse_otl_common_tests {
     }
 
     // A minimal but complete GSUB-shaped table: one lookup (0 subtables,
-    // so `otfcc_read_otl_subtable` -- unconverted, out of this PR's scope
+    // so `read_otl_subtable` -- unconverted, out of this PR's scope
     // -- is never reached), one feature referencing it, one script whose
     // single langSysRecord (not the default) references the feature.
     //
@@ -784,9 +784,9 @@ mod parse_otl_common_tests {
     }
 
     #[test]
-    fn otfcc_read_otl_lookup_reads_subtable_offsets() {
+    fn read_otl_lookup_reads_subtable_offsets() {
         // A standalone lookup table, independent of `well_formed_gsub`'s
-        // layout: lookupType(2)@0 (unused by `otfcc_read_otl_lookup`
+        // layout: lookupType(2)@0 (unused by `read_otl_lookup`
         // itself -- already resolved by `parse_otl_common`),
         // lookupFlag(2)@2, subtableCount(2)@4=1, subtableOffsets[0](2)@6
         // (relative to the lookup's own offset, 0 here).
@@ -798,11 +798,11 @@ mod parse_otl_common_tests {
         lookup._offset = 0;
         // Not GSUB_EXTEND/GPOS_EXTEND, so the extend-unwrap branch below is
         // skipped; not a real per-format type either, so
-        // `otfcc_read_otl_subtable` (unconverted, out of scope) falls
+        // `read_otl_subtable` (unconverted, out of scope) falls
         // through to its null-return arm -- this test only checks that one
         // subtable slot was appended, not what's in it.
         lookup.type_0 = OTL_TYPE_GSUB_UNKNOWN;
-        otfcc_read_otl_lookup(&data, &mut lookup, 0, &options, &mut OtlReadBudget::new());
+        read_otl_lookup(&data, &mut lookup, 0, &options, &mut OtlReadBudget::new());
         assert_eq!(lookup.subtables.len(), 1);
     }
 
@@ -811,7 +811,7 @@ mod parse_otl_common_tests {
         let data = well_formed_gsub(); // subtableCount is already 0
         let options = zeroed_options();
         let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
-        otfcc_read_otl_lookup(&data, otl.lookups[0].as_mut().unwrap(), 0, &options, &mut OtlReadBudget::new());
+        read_otl_lookup(&data, otl.lookups[0].as_mut().unwrap(), 0, &options, &mut OtlReadBudget::new());
         assert_eq!(otl.lookups[0].as_ref().unwrap().type_0, OTL_TYPE_UNKNOWN);
     }
 }

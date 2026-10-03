@@ -11,10 +11,10 @@ use crate::table::glyf::{
 };
 
 use crate::support::primitives::{
-    otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed,
+    f1616_muldiv, from_f2dot14, from_fixed, to_fixed,
 };
 use crate::table::fvar::fvar_register_region;
-use crate::table::glyf::{glyf_component_reference_empty, glyf_contour_fill, otfcc_new_glyf_glyph};
+use crate::table::glyf::{glyf_component_reference_empty, glyf_contour_fill, new_glyf_glyph};
 use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
 use crate::vf::vq::{
@@ -78,7 +78,7 @@ pub struct PackedPointRun {
 // function-pointer type immediately before calling it inline, a c2rust
 // artifact with no actual indirection behind it, simplified below.
 fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut ShapeId) -> &'a mut Point {
-    // A contour can be zero-length: `otfcc_read_simple_glyph`'s endpoint
+    // A contour can be zero-length: `read_simple_glyph`'s endpoint
     // arithmetic allows `n == 0` (a contour whose endpoint equals the
     // running total minus one), and the wire format has no rule against
     // it. A single `if` here only advances past *one* exhausted contour
@@ -95,7 +95,7 @@ fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut Shap
     *cp = (*cp).wrapping_add(1);
     point
 }
-// `otfcc_read_simple_glyph`/`otfcc_read_composite_glyph`/`otfcc_read_glyph`
+// `read_simple_glyph`/`read_composite_glyph`/`read_glyph`
 // used to take no length at all -- just a raw `start: FontFilePointer` --
 // and walk forward on nothing but the shapes the wire format implies
 // (`endPtsOfContours[numberOfContours-1]+1` points, a run-length-coded flag
@@ -105,13 +105,13 @@ fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut Shap
 // declared point count, or a composite glyph that never clears
 // `MORE_COMPONENTS`, read straight past this glyph's own bytes with no
 // guard at all (the plan's own writeup flags this file by name for exactly
-// this). `otfcc_read_glyf` below now derives this glyph's exact byte range
+// this). `read_glyf` below now derives this glyph's exact byte range
 // from its own (already-validated, monotonic) `loca` entries and passes it
 // down as a `&[u8]`; every read here goes through `FontReader`, so running
 // past that range now fails cleanly (`None`, the glyph becomes empty)
 // instead of reading adjacent memory.
-fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Glyph>> {
-    let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
+fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Glyph>> {
+    let mut g: Box<Glyph> = new_glyf_glyph();
     let mut r = FontReader::new(body);
     r.require_room(number_of_contours as usize, 2).ok()?;
     // `u32`, not `ShapeId` (`u16`): the running total is `lastPoint + 1`,
@@ -226,8 +226,8 @@ fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<B
     // when this function returns -- no explicit dispose call is needed.
     Some(g)
 }
-fn otfcc_read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
-    let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
+fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
+    let mut g: Box<Glyph> = new_glyf_glyph();
     let mut r = FontReader::new(body);
     let mut glyph_has_instruction: bool = false;
     // The original's only loop terminator was the `MORE_COMPONENTS` bit --
@@ -261,16 +261,16 @@ fn otfcc_read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
             }
         }
         if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
-            ref_0.d = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
             ref_0.a = ref_0.d;
         } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
-            ref_0.a = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.d = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.a = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
         } else if flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
-            ref_0.a = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.b = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.c = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.d = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.a = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.b = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.c = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
         }
         ref_0.round_to_grid = flags.contains(ComponentFlags::ROUND_XY_TO_GRID);
         ref_0.use_my_metrics = flags.contains(ComponentFlags::USE_MY_METRICS);
@@ -297,7 +297,7 @@ fn otfcc_read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
     }
     Some(g)
 }
-fn otfcc_read_glyph(body: &[u8], offset: usize, length: usize) -> Option<Box<Glyph>> {
+fn read_glyph(body: &[u8], offset: usize, length: usize) -> Option<Box<Glyph>> {
     let glyph_bytes = body.get(offset..)?.get(..length)?;
     let mut r = FontReader::new(glyph_bytes);
     let number_of_contours: i16 = r.i16().ok()?;
@@ -309,9 +309,9 @@ fn otfcc_read_glyph(body: &[u8], offset: usize, length: usize) -> Option<Box<Gly
     // bytes exist -- slicing the body here can't panic.
     let body = &glyph_bytes[10..];
     let mut g = if number_of_contours > 0 {
-        otfcc_read_simple_glyph(body, number_of_contours as ShapeId)?
+        read_simple_glyph(body, number_of_contours as ShapeId)?
     } else {
-        otfcc_read_composite_glyph(body)?
+        read_composite_glyph(body)?
     };
     g.stat.x_min = x_min;
     g.stat.y_min = y_min;
@@ -482,15 +482,15 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
             }
             if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
                 let untouch_j: F16Dot16 =
-                    otfcc_to_fixed(kernel[j as usize]);
+                    to_fixed(kernel[j as usize]);
                 let untouch_prev: F16Dot16 =
-                    otfcc_to_fixed(kernel[j_prev as usize] as f64);
+                    to_fixed(kernel[j_prev as usize] as f64);
                 let untouch_next: F16Dot16 =
-                    otfcc_to_fixed(kernel[j_next as usize] as f64);
-                let delta_prev: F16Dot16 = otfcc_to_fixed(
+                    to_fixed(kernel[j_next as usize] as f64);
+                let delta_prev: F16Dot16 = to_fixed(
                     nudges[j_prev as usize].unwrap_delta().quantity as f64,
                 );
-                let delta_next: F16Dot16 = otfcc_to_fixed(
+                let delta_next: F16Dot16 = to_fixed(
                     nudges[j_next as usize].unwrap_delta().quantity as f64,
                 );
                 let mut u_min: F16Dot16 = untouch_prev;
@@ -504,11 +504,11 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
                     d_max = delta_prev;
                 }
                 if untouch_j <= u_min {
-                    nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(d_min) as Pos;
+                    nudges[j as usize].delta_mut().quantity = from_fixed(d_min) as Pos;
                 } else if untouch_j >= u_max {
-                    nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(d_max) as Pos;
+                    nudges[j as usize].delta_mut().quantity = from_fixed(d_max) as Pos;
                 } else {
-                    nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(otfcc_f1616_muldiv(
+                    nudges[j as usize].delta_mut().quantity = from_fixed(f1616_muldiv(
                         d_max - d_min,
                         untouch_j - u_min,
                         u_max - u_min,
@@ -709,7 +709,7 @@ fn create_region_from_tuples(
         else {
             return None;
         };
-        let peak_val: Pos = otfcc_from_f2dot14(peak_raw as F2Dot14) as Pos;
+        let peak_val: Pos = from_f2dot14(peak_raw as F2Dot14) as Pos;
         let mut span: VqAxisSpan = VqAxisSpan {
             start: (if peak_val <= 0_i32 as Pos {
                 -1_i32
@@ -733,8 +733,8 @@ fn create_region_from_tuples(
                 .and_then(|mut x| x.i16());
             match (start_read, end_read) {
                 (Ok(sv), Ok(ev)) => {
-                    span.start = otfcc_from_f2dot14(sv as F2Dot14) as Pos;
-                    span.end = otfcc_from_f2dot14(ev as F2Dot14) as Pos;
+                    span.start = from_f2dot14(sv as F2Dot14) as Pos;
+                    span.end = from_f2dot14(ev as F2Dot14) as Pos;
                 }
                 _ => {
                     return None;
@@ -963,7 +963,7 @@ fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'
         polymorphize_glyph(glyph_slot.as_deref_mut().unwrap(), &mut tpctx, gvar, gvd_offset);
     }
 }
-pub fn otfcc_read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTable> {
+pub fn read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTable> {
     let num_glyphs = ctx.num_glyphs;
     // A local `Vec<u32>` now, not a `__caryll_allocate_clean`'d/`free`'d
     // buffer -- `Vec`'s own allocator aborts rather than returning null on
@@ -1036,19 +1036,19 @@ pub fn otfcc_read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<G
             // A malformed individual glyph (an unbounded component chain,
             // a flag/coordinate stream that runs past its own declared
             // byte range, ...) now fails cleanly inside
-            // `otfcc_read_glyph` instead of reading adjacent bytes --
+            // `read_glyph` instead of reading adjacent bytes --
             // fall back to an empty glyph for this one GID rather than
             // failing the whole table, the same degradation the
             // zero-length-range case below already used.
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &glyf_piece.data,
                 offsets[j0 as usize] as usize,
                 glyph_length as usize,
             )
-            .unwrap_or_else(otfcc_new_glyf_glyph);
+            .unwrap_or_else(new_glyf_glyph);
             glyf_val.push(Some(g));
         } else {
-            glyf_val.push(Some(otfcc_new_glyf_glyph()));
+            glyf_val.push(Some(new_glyf_glyph()));
         }
     }
     let mut glyf = Some(glyf_val);
@@ -1083,7 +1083,7 @@ mod glyf_read_tests {
         data[20..22].copy_from_slice(&3i16.to_be_bytes()); // y0
         data[22..24].copy_from_slice(&9i16.to_be_bytes()); // y1
         {
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &data,
                 0,
                 data.len(),
@@ -1113,7 +1113,7 @@ mod glyf_read_tests {
         data[14..16].copy_from_slice(&10i16.to_be_bytes());
         data[16..18].copy_from_slice(&20i16.to_be_bytes());
         {
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &data,
                 0,
                 data.len(),
@@ -1138,7 +1138,7 @@ mod glyf_read_tests {
         data[12..14].copy_from_slice(&0u16.to_be_bytes());
         data[14] = 0x01;
         {
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &data,
                 0,
                 data.len(),
@@ -1177,7 +1177,7 @@ mod glyf_read_tests {
         data[24..26].copy_from_slice(&3i16.to_be_bytes()); // y0
         data[26..28].copy_from_slice(&9i16.to_be_bytes()); // y1
         {
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &data,
                 0,
                 data.len(),
@@ -1207,7 +1207,7 @@ mod glyf_read_tests {
         data[14..16].copy_from_slice(&10i16.to_be_bytes());
         data[16..18].copy_from_slice(&20i16.to_be_bytes());
         {
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &data,
                 0,
                 data.len(),
@@ -1229,7 +1229,7 @@ mod glyf_read_tests {
         data[10..12].copy_from_slice(&5u16.to_be_bytes());
         data[12..14].copy_from_slice(&2u16.to_be_bytes());
         {
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &data,
                 0,
                 data.len(),
@@ -1254,7 +1254,7 @@ mod glyf_read_tests {
         data[14] = 0x09; // REPEAT | ON_CURVE
         data[15] = 5; // repeat count
         {
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &data,
                 0,
                 data.len(),
@@ -1267,7 +1267,7 @@ mod glyf_read_tests {
     fn header_shorter_than_ten_bytes_is_rejected_instead_of_reading_oob() {
         let data = [0u8; 5];
         {
-            let g = otfcc_read_glyph(
+            let g = read_glyph(
                 &data,
                 0,
                 data.len(),
@@ -1368,7 +1368,7 @@ mod gvar_polymorphize_tests {
     }
 
     #[test]
-    // No longer `#[cfg_attr(miri, ignore)]`d: `otfcc_to_fixed` used to reach
+    // No longer `#[cfg_attr(miri, ignore)]`d: `to_fixed` used to reach
     // libm's `round` through an `extern "C"` block, which Miri cannot execute
     // on macOS. It uses `f64::round` now (bit-identical, see
     // `support/primitives.rs`), so this test -- the regression guard for the
@@ -1390,7 +1390,7 @@ mod gvar_polymorphize_tests {
         // positions between P0 and P2 (25% along X, 75% along Y) so the
         // correct interpolated Y-delta (using Y's own 75% ratio) differs
         // sharply from what reusing X's 25% ratio would produce.
-        let mut glyph = otfcc_new_glyf_glyph();
+        let mut glyph = new_glyf_glyph();
         let mut contour: Contour = Vec::new();
         for (x, y) in [(0.0, 0.0), (5.0, 150.0), (20.0, 200.0)] {
             contour.push(Point {
@@ -1433,7 +1433,7 @@ mod gvar_polymorphize_tests {
     // write-back pass visiting references before contours, or skipping a
     // point) would have gone undetected.
     fn apply_polymorphism_writes_nudges_back_to_the_matching_point_or_reference() {
-        let mut glyph = otfcc_new_glyf_glyph();
+        let mut glyph = new_glyf_glyph();
         // One contour with one touched point (flattened index 0) ...
         let contour: Contour = vec![Point {
             x: vq_create_still(0.0),

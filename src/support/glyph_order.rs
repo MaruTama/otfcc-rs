@@ -21,7 +21,7 @@ use crate::support::primitives::GlyphId;
 /// `GlyphOrderPass::Unset` is a name this port adds; C had none. Its `enum` lives inside
 /// `json-reader.c` while this struct's field is a plain `uint8_t` in the shared
 /// header, so the OTF path could leave the field at whatever `calloc` gave it --
-/// and it does: `otfcc_set_glyph_order_by_gid` and `otfcc_set_glyph_order_by_name`
+/// and it does: `set_glyph_order_by_gid` and `set_glyph_order_by_name`
 /// allocate an entry and set only `gid` and `name`. An enum without a zero
 /// variant would make both of them UB. The state is meaningful, not padding:
 /// zero outranks every named pass, so an entry placed by GID can never be
@@ -66,7 +66,7 @@ pub struct GlyphOrderEntry {
 /// `by_gid: BTreeMap`, not `HashMap`: no `HASH_SORT` ever existed on it,
 /// but `order_glyphs` (json_reader.rs) rebuilds it from scratch by
 /// inserting gids 0, 1, 2, ... in ascending order after sorting `by_name`,
-/// and the OTF-read path (`otfcc_set_glyph_order_by_gid`) inserts in the
+/// and the OTF-read path (`set_glyph_order_by_gid`) inserts in the
 /// gid order its callers already iterate in -- so a `BTreeMap` reproduces
 /// the original's effective iteration order exactly, without leaning on
 /// incidental insertion order the way the uthash version implicitly did.
@@ -105,7 +105,7 @@ pub struct GlyphOrder {
 // no code change needed there. `name` is `Vec<u8>` now instead of `SdsRaw`,
 // so it drops on its own wherever this returns -- no explicit free needed
 // in any branch.
-pub(crate) fn otfcc_set_glyph_order_by_gid(
+pub(crate) fn set_glyph_order_by_gid(
     go: &mut GlyphOrder,
     gid: GlyphId,
     mut name: Vec<u8>,
@@ -134,7 +134,7 @@ pub(crate) fn otfcc_set_glyph_order_by_gid(
 // matching the original's "deliberately left un-freed" contract without
 // needing a comment to explain why -- the caller's own copy was never
 // touched, so there is nothing for it to double-free or leak.
-pub(crate) fn otfcc_set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, gid: GlyphId) -> bool {
+pub(crate) fn set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, gid: GlyphId) -> bool {
     if go.by_name.contains_key(&name) {
         return false;
     }
@@ -149,7 +149,7 @@ pub(crate) fn otfcc_set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, 
     go.by_name.insert(name, idx);
     return true;
 }
-pub(crate) fn otfcc_gord_name_a_field_shared(
+pub(crate) fn gord_name_a_field_shared(
     go: &GlyphOrder,
     gid: GlyphId,
     field: &mut Vec<u8>,
@@ -170,7 +170,7 @@ pub(crate) fn otfcc_gord_name_a_field_shared(
 // the `sds` sweep reached it) -- same simplification already used
 // throughout the `consolidate/otl/*.rs` sweep, since the name is already
 // the exact `Vec<u8>` a `Handle` wants.
-pub(crate) fn otfcc_gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle) -> bool {
+pub(crate) fn gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle) -> bool {
     if h.state == HandleState::Consolidated {
         let name_bytes = h.name.clone();
         if let Some(&entry_idx) = go.by_name.get(&name_bytes) {
@@ -185,7 +185,7 @@ pub(crate) fn otfcc_gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle
         // exactly sizeof(glyphid_t) bytes, and even then the compared
         // bytes are unrelated). The mirrored HANDLE_STATE_INDEX branch
         // below shows what this was clearly meant to do: fall back to a
-        // by_gid lookup, exactly like otfcc_gord_name_a_field_shared's
+        // by_gid lookup, exactly like gord_name_a_field_shared's
         // already-correct search. Fixed here.
         if let Some(&entry_idx) = go.by_gid.get(&h.index) {
             let entry = &go.entries[entry_idx];
@@ -201,7 +201,7 @@ pub(crate) fn otfcc_gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle
         }
     } else if h.state == HandleState::Index {
         let mut name: Vec<u8> = Vec::new();
-        otfcc_gord_name_a_field_shared(go, h.index, &mut name);
+        gord_name_a_field_shared(go, h.index, &mut name);
         if !name.is_empty() {
             let idx = h.index;
             *h = Handle::new(HandleState::Consolidated, idx, name) as GlyphHandle;
@@ -220,7 +220,7 @@ mod tests {
     // The passes are a priority, so `Ord` is the whole point of the type -- but
     // derived `Ord` compares by declaration order, which is only the encoding
     // because the declarations happen to be in ascending order. Pin that, and
-    // pin the zero: `otfcc_set_glyph_order_by_gid` calloc's an entry and never
+    // pin the zero: `set_glyph_order_by_gid` calloc's an entry and never
     // assigns this field, so `GlyphOrderPass::Unset` has to be the all-zero value for the
     // field to be a valid `GlyphOrderPass` at all.
     #[test]

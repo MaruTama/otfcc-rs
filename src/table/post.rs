@@ -3,11 +3,11 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::glyph_order::GlyphOrder;
-use crate::support::glyph_order::otfcc_set_glyph_order_by_gid;
+use crate::support::glyph_order::set_glyph_order_by_gid;
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::{F16Dot16, GlyphId};
-use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::support::primitives::{from_fixed, to_fixed};
 use crate::vendor::json::JsonType;
 
 #[derive(Debug)]
@@ -321,7 +321,7 @@ struct PostFixedHeader {
     max_mem_type1: u32,
 }
 
-fn parse_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
+fn decode_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
     let mut r = FontReader::new(data);
     let fixed = PostFixedHeader {
         version: r.i32()?,
@@ -388,12 +388,12 @@ fn parse_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
     })
 }
 
-pub fn otfcc_read_post(packet: &Packet) -> Option<Box<PostTable>> {
+pub fn read_post(packet: &Packet) -> Option<Box<PostTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_POST)?;
-    let parsed = match parse_post(&table.data) {
+    let parsed = match decode_post(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
             tracing::warn!("table 'post' corrupted.\n");
@@ -420,13 +420,13 @@ pub fn otfcc_read_post(packet: &Packet) -> Option<Box<PostTable>> {
         });
         let go: &mut GlyphOrder = go_box.as_mut();
         for (gid, name) in names {
-            otfcc_set_glyph_order_by_gid(go, gid, name);
+            set_glyph_order_by_gid(go, gid, name);
         }
         post_val.post_name_map = Some(go_box);
     }
     Some(Box::new(post_val))
 }
-pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
+pub fn dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
@@ -434,11 +434,11 @@ pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     let mut post = BuiltValue::new_object(10);
     post.push_field(
         b"version",
-        BuiltValue::Double(otfcc_from_fixed(table.version)),
+        BuiltValue::Double(from_fixed(table.version)),
     );
     post.push_field(
         b"italicAngle",
-        BuiltValue::Int(otfcc_from_fixed(table.italic_angle) as i64),
+        BuiltValue::Int(from_fixed(table.italic_angle) as i64),
     );
     post.push_field(
         b"underlinePosition",
@@ -468,7 +468,7 @@ pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     root.push_field(b"post", post);
     stage.finish();
 }
-pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable>> {
+pub fn parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
     // is absent (never overwritten below in that case, unlike every other
     // field); `post_name_map` is never touched here regardless, so it stays
@@ -490,9 +490,9 @@ pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<Pos
         if options.short_post {
             post.version = 0x30000_i32 as F16Dot16;
         } else {
-            post.version = otfcc_to_fixed(table.get_num(b"version"));
+            post.version = to_fixed(table.get_num(b"version"));
         }
-        post.italic_angle = otfcc_to_fixed(table.get_num(b"italicAngle"));
+        post.italic_angle = to_fixed(table.get_num(b"italicAngle"));
         post.underline_position = table.get_num(b"underlinePosition") as i16;
         post.underline_thickness = table.get_num(b"underlineThickness") as i16;
         post.is_fixed_pitch = table.get_bool(b"isFixedPitch") as u32;
@@ -504,7 +504,7 @@ pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<Pos
     }
     Some(Box::new(post))
 }
-pub fn otfcc_build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> Option<Buffer> {
+pub fn build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> Option<Buffer> {
     let post = post?;
     let mut buf = Buffer::new();
     buf.write_u32be(post.version as u32);
@@ -569,7 +569,7 @@ mod parse_post_tests {
     #[test]
     fn version_1_header_has_no_name_map() {
         let data = header(0x00010000, -100, 50);
-        let parsed = parse_post(&data).unwrap();
+        let parsed = decode_post(&data).unwrap();
         assert_eq!(parsed.fixed.version, 0x00010000);
         assert_eq!(parsed.fixed.underline_position, -100);
         assert_eq!(parsed.fixed.underline_thickness, 50);
@@ -579,10 +579,10 @@ mod parse_post_tests {
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
         // Only 10 of the required 32 header bytes -- this table used to be
-        // read unconditionally (otfcc_read_post had no length check at
+        // read unconditionally (read_post had no length check at
         // all), overreading up to 22 bytes past a table this short.
         let data = header(0x00010000, 0, 0);
-        assert!(parse_post(&data[..10]).is_err());
+        assert!(decode_post(&data[..10]).is_err());
     }
 
     #[test]
@@ -592,7 +592,7 @@ mod parse_post_tests {
         data.extend_from_slice(&258u16.to_be_bytes()); // glyphNameIndex[0] -> pending_names[0]
         data.push(1); // pascal string length
         data.push(b'A'); // pascal string bytes
-        let parsed = parse_post(&data).unwrap();
+        let parsed = decode_post(&data).unwrap();
         let names = parsed.names.unwrap();
         assert_eq!(names, vec![(0u16, b"A".to_vec())]);
     }
@@ -604,7 +604,7 @@ mod parse_post_tests {
         data.extend_from_slice(&0u16.to_be_bytes()); // glyphNameIndex[0] -> ".notdef"
         // No name heap bytes at all -- a standard-Mac-name entry must not
         // need one.
-        let parsed = parse_post(&data).unwrap();
+        let parsed = decode_post(&data).unwrap();
         assert_eq!(parsed.names.unwrap(), vec![(0u16, b".notdef".to_vec())]);
     }
 
@@ -620,7 +620,7 @@ mod parse_post_tests {
         data.extend_from_slice(&258u16.to_be_bytes());
         data.push(10); // claims 10 bytes follow
         data.push(b'A'); // only 1 actually does
-        assert!(parse_post(&data).is_err());
+        assert!(decode_post(&data).is_err());
     }
 
     #[test]
@@ -634,7 +634,7 @@ mod parse_post_tests {
         let mut data = header(0x00020000, 0, 0);
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&258u16.to_be_bytes());
-        let parsed = parse_post(&data).unwrap();
+        let parsed = decode_post(&data).unwrap();
         assert_eq!(parsed.names.unwrap(), vec![(0u16, Vec::new())]);
     }
 
@@ -646,21 +646,21 @@ mod parse_post_tests {
         let mut data = header(0x00020000, 0, 0);
         data.extend_from_slice(&5u16.to_be_bytes());
         data.extend_from_slice(&0u16.to_be_bytes()); // only one entry present
-        assert!(parse_post(&data).is_err());
+        assert!(decode_post(&data).is_err());
     }
 
     #[test]
     fn number_glyphs_large_enough_to_overflow_the_multiplication_errs() {
         let mut data = header(0x00020000, 0, 0);
         data.extend_from_slice(&0xFFFFu16.to_be_bytes());
-        assert!(parse_post(&data).is_err());
+        assert!(decode_post(&data).is_err());
     }
 }
 
 #[cfg(test)]
 mod build_post_tests {
     use super::*;
-    use crate::support::glyph_order::otfcc_set_glyph_order_by_gid;
+    use crate::support::glyph_order::set_glyph_order_by_gid;
 
     fn post_v2() -> PostTable {
         PostTable {
@@ -684,7 +684,7 @@ mod build_post_tests {
             by_name: std::collections::HashMap::new(),
         };
         for (gid, name) in names.iter().enumerate() {
-            otfcc_set_glyph_order_by_gid(&mut go, gid as u16, name.clone());
+            set_glyph_order_by_gid(&mut go, gid as u16, name.clone());
         }
         go
     }
@@ -696,7 +696,7 @@ mod build_post_tests {
     fn a_glyph_name_longer_than_255_bytes_does_not_misalign_the_names_after_it() {
         let long = vec![b'a'; 300];
         let go = glyph_order(&[long, b"b".to_vec()]);
-        let buf = otfcc_build_post(Some(&post_v2()), Some(&go)).unwrap();
+        let buf = build_post(Some(&post_v2()), Some(&go)).unwrap();
         let data = &buf.data;
         // 32-byte header, u16 count, two u16 name indices, then the names.
         let names = &data[32 + 2 + 2 * 2..];

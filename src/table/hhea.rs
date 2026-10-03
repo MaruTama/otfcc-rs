@@ -4,7 +4,7 @@ use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
-use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::support::primitives::{from_fixed, to_fixed};
 use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone, Debug)]
@@ -30,7 +30,7 @@ pub struct HheaTable {
 // entire vtable is deleted: grepping the bare `TABLE_I_HHEA` identifier
 // confirmed only `.create`/`.free` were ever called, both internal to
 // this crate.
-fn parse_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
+fn decode_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
     let mut r = FontReader::new(data);
     Ok(HheaTable {
         version: r.i32()? as F16Dot16,
@@ -49,12 +49,12 @@ fn parse_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
         number_of_metrics: r.u16()?,
     })
 }
-pub fn otfcc_read_hhea(packet: &Packet) -> Option<Box<HheaTable>> {
+pub fn read_hhea(packet: &Packet) -> Option<Box<HheaTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_HHEA)?;
-    match parse_hhea(&table.data) {
+    match decode_hhea(&table.data) {
         Ok(hhea) => Some(Box::new(hhea)),
         Err(_) => {
             tracing::warn!("table 'hhea' corrupted.\n");
@@ -62,7 +62,7 @@ pub fn otfcc_read_hhea(packet: &Packet) -> Option<Box<HheaTable>> {
         }
     }
 }
-pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
+pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
@@ -70,7 +70,7 @@ pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     let mut hhea = BuiltValue::new_object(13);
     hhea.push_field(
         b"version",
-        BuiltValue::Double(otfcc_from_fixed(table.version)),
+        BuiltValue::Double(from_fixed(table.version)),
     );
     hhea.push_field(b"ascender", BuiltValue::Int(table.ascender as i64));
     hhea.push_field(b"descender", BuiltValue::Int(table.descender as i64));
@@ -100,7 +100,7 @@ pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     root.push_field(b"hhea", hhea);
     stage.finish();
 }
-pub fn otfcc_parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
+pub fn parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     let mut hhea = HheaTable {
         version: 0x10000_i32 as F16Dot16,
         ascender: 0,
@@ -119,7 +119,7 @@ pub fn otfcc_parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     };
     if let Some(table) = root.get_typed(b"hhea", JsonType::Object) {
         let stage = crate::logger::stage("hhea");
-        hhea.version = otfcc_to_fixed(table.get_num(b"version"));
+        hhea.version = to_fixed(table.get_num(b"version"));
         hhea.ascender = table.get_num(b"ascender") as i16;
         hhea.descender = table.get_num(b"descender") as i16;
         hhea.line_gap = table.get_num(b"lineGap") as i16;
@@ -135,7 +135,7 @@ pub fn otfcc_parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     Some(Box::new(hhea))
 }
 #[allow(improper_ctypes_definitions)]
-pub fn otfcc_build_hhea(hhea: Option<&HheaTable>) -> Option<Buffer> {
+pub fn build_hhea(hhea: Option<&HheaTable>) -> Option<Buffer> {
     let hhea = hhea?;
     let mut buf = Buffer::new();
     buf.write_u32be(hhea.version as u32);
@@ -172,7 +172,7 @@ mod parse_hhea_tests {
 
     #[test]
     fn well_formed_36_byte_table_parses_every_field() {
-        let hhea = parse_hhea(&well_formed_hhea()).unwrap();
+        let hhea = decode_hhea(&well_formed_hhea()).unwrap();
         assert_eq!(hhea.version, 0x0001_0000);
         assert_eq!(hhea.ascender, 900);
         assert_eq!(hhea.number_of_metrics, 5);
@@ -182,6 +182,6 @@ mod parse_hhea_tests {
     fn table_one_byte_short_of_36_is_rejected_instead_of_reading_oob() {
         let mut data = well_formed_hhea();
         data.truncate(35);
-        assert!(parse_hhea(&data).is_err());
+        assert!(decode_hhea(&data).is_err());
     }
 }

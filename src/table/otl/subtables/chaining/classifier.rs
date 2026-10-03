@@ -6,7 +6,7 @@ use crate::support::buffer::Buffer;
 use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 
 use crate::table::otl::subtables::chaining::build::{
-    otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup,
+    build_chaining, build_contextual, chaining_lookup_is_contextual_lookup,
 };
 use crate::table::otl::subtables::chaining::common::{
     chaining_is_canonical, chaining_rule_const, chaining_subtable_ref,
@@ -285,12 +285,12 @@ pub fn try_classify_around(
     };
     Some((compatible_count, ChainingSubtable::Classified(ruleset)))
 }
-pub fn otfcc_classified_build_chaining(
+pub fn classified_build_chaining(
     lookup: &Lookup,
     subtable_buffers: &mut Vec<Buffer>,
     last_offset: &mut usize,
 ) -> TableId {
-    let is_contextual = otfcc_chaining_lookup_is_contextual_lookup(lookup);
+    let is_contextual = chaining_lookup_is_contextual_lookup(lookup);
     let mut subtables_written: TableId = 0;
     subtable_buffers.clear();
     subtable_buffers.reserve(lookup.subtables.len());
@@ -306,16 +306,16 @@ pub fn otfcc_classified_build_chaining(
             let buf: Buffer = match &classified {
                 Some((_, owned)) => {
                     if is_contextual {
-                        otfcc_build_contextual(owned)
+                        build_contextual(owned)
                     } else {
-                        otfcc_build_chaining(owned)
+                        build_chaining(owned)
                     }
                 }
                 None => {
                     if is_contextual {
-                        otfcc_build_contextual(st0)
+                        build_contextual(st0)
                     } else {
-                        otfcc_build_chaining(st0)
+                        build_chaining(st0)
                     }
                 }
             };

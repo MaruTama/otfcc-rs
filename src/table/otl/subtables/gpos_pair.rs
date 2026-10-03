@@ -461,7 +461,7 @@ fn cov_from_cd(cd: &ClassDef) -> Coverage {
     }
     return cov;
 }
-pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
+pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
     };
@@ -568,7 +568,7 @@ pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     }
     return root;
 }
-pub fn otfcc_build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
+pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
     };
@@ -635,9 +635,9 @@ pub fn otfcc_build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     }
     return root;
 }
-pub fn otfcc_build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
-    let format1: BkBlock = otfcc_build_gpos_pair_individual(_subtable);
-    let format2: BkBlock = otfcc_build_gpos_pair_classes(_subtable);
+pub fn build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
+    let format1: BkBlock = build_gpos_pair_individual(_subtable);
+    let format2: BkBlock = build_gpos_pair_classes(_subtable);
     let mut g1: BkGraph = bk_new_graph_from_root_block(format1);
     let mut g2: BkGraph = bk_new_graph_from_root_block(format2);
     bk_minimize_graph(&mut g1);

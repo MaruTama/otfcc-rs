@@ -4,7 +4,7 @@ use crate::vendor::json::JsonType;
 use crate::support::base64::base64_decode;
 use crate::table::meta::types::{MetaEntry, MetaTable};
 // `extern "C"` is a c2rust artifact -- this is only ever called from
-// `otfcc_parse_meta` in this same file, never across a real FFI boundary,
+// `parse_meta` in this same file, never across a real FFI boundary,
 // same reasoning as every other `#[allow(improper_ctypes_definitions)]`
 // in this migration.
 #[allow(improper_ctypes_definitions)]
@@ -28,7 +28,7 @@ pub fn parse_meta_data(v: Option<&ParsedValue>) -> Option<Vec<u8>> {
     }
     None
 }
-pub fn otfcc_parse_meta(root: &ParsedValue) -> Option<Box<MetaTable>> {
+pub fn parse_meta(root: &ParsedValue) -> Option<Box<MetaTable>> {
     let _meta = root.get_typed(b"meta", JsonType::Object)?;
     let entries = _meta
         .get_typed(b"entries", JsonType::Array)

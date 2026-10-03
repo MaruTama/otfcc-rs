@@ -9,7 +9,7 @@ use crate::support::glyph_order::GlyphOrder;
 use crate::table::gdef::{CaretValueList, CaretValueRecord, GdefTable, clear_lig_carets};
 
 use crate::consolidate::otl::common::fontop_consolidate_class_def;
-use crate::support::glyph_order::otfcc_gord_consolidate_handle;
+use crate::support::glyph_order::gord_consolidate_handle;
 use crate::table::otl::classdef::shrink_class_def;
 
 pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut GdefTable>) {
@@ -63,7 +63,7 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
         let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, CaretValueList)> =
             std::collections::BTreeMap::new();
         for rec in lig_carets.iter_mut() {
-            if otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
+            if gord_consolidate_handle(glyph_order, &mut rec.glyph) {
                 let gid: i32 = rec.glyph.index as i32;
                 if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(gid) {
                     let gname: Vec<u8> = rec.glyph.name.clone();

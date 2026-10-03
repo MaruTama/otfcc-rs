@@ -3,7 +3,7 @@ use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
 use crate::table::otl::budget::OtlReadBudget;
-use crate::table::otl::read::otfcc_read_otl_subtable;
+use crate::table::otl::read::read_otl_subtable;
 use crate::table::otl::{
     ExtendSubtable, LookupType, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_UNKNOWN, Subtable,
 };
@@ -30,7 +30,7 @@ use crate::table::otl::{
 /// the two with `subtable_offset.wrapping_add(extensionOffset)`, which for
 /// an `extensionOffset` near `u32::MAX` wraps the sum back down to a small,
 /// wrong-but-in-bounds value instead of the real (out-of-range) one, so a
-/// downstream `otfcc_read_otl_subtable` call would silently read whatever
+/// downstream `read_otl_subtable` call would silently read whatever
 /// happens to live at that wrong small offset. `checked_add` rejects it
 /// outright instead.
 fn read_otl_extend(
@@ -47,15 +47,15 @@ fn read_otl_extend(
     let extension_offset = u32::from_be_bytes([header[4], header[5], header[6], header[7]]);
     let real_subtable_offset = subtable_offset.checked_add(extension_offset)?;
     let type_0 = LookupType::from_file(basis, extension_lookup_type);
-    // `otfcc_read_otl_subtable` returns `Option<Box<Subtable>>`, the same
+    // `read_otl_subtable` returns `Option<Box<Subtable>>`, the same
     // type `ExtendSubtable.subtable` holds -- no conversion at this
     // boundary. A nested read that fails still yields an `Extend` with an
     // empty `subtable` (only a bad *header* above rejects the whole thing),
     // exactly as before.
-    let subtable = otfcc_read_otl_subtable(data, real_subtable_offset, type_0, max_glyphs, options, budget);
+    let subtable = read_otl_subtable(data, real_subtable_offset, type_0, max_glyphs, options, budget);
     Some(Subtable::Extend(ExtendSubtable { type_0, subtable }))
 }
-pub fn otfcc_read_otl_gsub_extend(
+pub fn read_otl_gsub_extend(
     data: &[u8],
     subtable_offset: u32,
     max_glyphs: GlyphId,
@@ -64,7 +64,7 @@ pub fn otfcc_read_otl_gsub_extend(
 ) -> Option<Subtable> {
     read_otl_extend(data, subtable_offset, OTL_TYPE_GSUB_UNKNOWN, max_glyphs, options, budget)
 }
-pub fn otfcc_read_otl_gpos_extend(
+pub fn read_otl_gpos_extend(
     data: &[u8],
     subtable_offset: u32,
     max_glyphs: GlyphId,
@@ -86,7 +86,7 @@ mod caryll_read_otl_extend_tests {
         // not be combined with `wrapping_add`: an extensionOffset this
         // close to u32::MAX makes the true sum overflow u32 entirely, and
         // the original's wraparound would silently hand a small,
-        // wrong-but-in-bounds offset to `otfcc_read_otl_subtable` instead
+        // wrong-but-in-bounds offset to `read_otl_subtable` instead
         // of rejecting the request.
         let mut data = [0u8; 24];
         data[16..18].copy_from_slice(&1u16.to_be_bytes()); // substFormat

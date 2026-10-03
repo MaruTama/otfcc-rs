@@ -10,35 +10,35 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 use crate::table::cff::CffAndGlyfOwned;
 use crate::table::glyf::GlyfIOContext;
 
-use crate::otf_reader::unconsolidate::otfcc_unconsolidate_font;
-use crate::table::_tsi::otfcc_read_tsi;
-use crate::table::base::otfcc_read_base;
-use crate::table::cff::otfcc_read_cff_and_glyf_tables;
-use crate::table::cmap::otfcc_read_cmap;
-use crate::table::colr::otfcc_read_colr;
-use crate::table::cpal::otfcc_read_cpal;
-use crate::table::cvt::otfcc_read_cvt;
-use crate::table::fpgm_prep::otfcc_read_fpgm_prep;
-use crate::table::fvar::otfcc_read_fvar;
-use crate::table::gasp::otfcc_read_gasp;
-use crate::table::gdef::otfcc_read_gdef;
-use crate::table::glyf::read::otfcc_read_glyf;
-use crate::table::head::otfcc_read_head;
-use crate::table::hhea::otfcc_read_hhea;
-use crate::table::hmtx::otfcc_read_hmtx;
-use crate::table::ltsh::otfcc_read_ltsh;
-use crate::table::maxp::otfcc_read_maxp;
-use crate::table::meta::read::otfcc_read_meta;
-use crate::table::name::otfcc_read_name;
-use crate::table::os_2::otfcc_read_os_2;
-use crate::table::otl::read::otfcc_read_otl;
-use crate::table::post::otfcc_read_post;
-use crate::table::svg::otfcc_read_svg;
-use crate::table::tsi5::otfcc_read_tsi5;
-use crate::table::vdmx::funcs::otfcc_read_vdmx;
-use crate::table::vhea::otfcc_read_vhea;
-use crate::table::vmtx::otfcc_read_vmtx;
-use crate::table::vorg::otfcc_read_vorg;
+use crate::otf_reader::unconsolidate::unconsolidate_font;
+use crate::table::_tsi::read_tsi;
+use crate::table::base::read_base;
+use crate::table::cff::read_cff_and_glyf_tables;
+use crate::table::cmap::read_cmap;
+use crate::table::colr::read_colr;
+use crate::table::cpal::read_cpal;
+use crate::table::cvt::read_cvt;
+use crate::table::fpgm_prep::read_fpgm_prep;
+use crate::table::fvar::read_fvar;
+use crate::table::gasp::read_gasp;
+use crate::table::gdef::read_gdef;
+use crate::table::glyf::read::read_glyf;
+use crate::table::head::read_head;
+use crate::table::hhea::read_hhea;
+use crate::table::hmtx::read_hmtx;
+use crate::table::ltsh::read_ltsh;
+use crate::table::maxp::read_maxp;
+use crate::table::meta::read::read_meta;
+use crate::table::name::read_name;
+use crate::table::os_2::read_os_2;
+use crate::table::otl::read::read_otl;
+use crate::table::post::read_post;
+use crate::table::svg::read_svg;
+use crate::table::tsi5::read_tsi5;
+use crate::table::vdmx::funcs::read_vdmx;
+use crate::table::vhea::read_vhea;
+use crate::table::vmtx::read_vmtx;
+use crate::table::vorg::read_vorg;
 
 fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtype {
     // c2rust's translation of a FOREACH_TABLE-style macro: the
@@ -87,35 +87,35 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
         let sfnt_packets = &sfnt.packets;
         let packet: &Packet = &sfnt_packets[index as usize];
         font.subtype = decide_font_subtype_otf(sfnt, index);
-        font.fvar = otfcc_read_fvar(packet);
-        font.head = otfcc_read_head(packet);
-        font.maxp = otfcc_read_maxp(packet);
-        font.name = otfcc_read_name(packet);
-        font.meta = otfcc_read_meta(packet);
-        font.os_2 = otfcc_read_os_2(packet);
-        font.post = otfcc_read_post(packet);
-        font.hhea = otfcc_read_hhea(packet);
-        font.cmap = otfcc_read_cmap(packet);
+        font.fvar = read_fvar(packet);
+        font.head = read_head(packet);
+        font.maxp = read_maxp(packet);
+        font.name = read_name(packet);
+        font.meta = read_meta(packet);
+        font.os_2 = read_os_2(packet);
+        font.post = read_post(packet);
+        font.hhea = read_hhea(packet);
+        font.cmap = read_cmap(packet);
         if font.subtype == FontSubtype::Ttf {
-            font.hmtx = otfcc_read_hmtx(
+            font.hmtx = read_hmtx(
                 packet,
                 font.hhea.as_deref(),
                 font.maxp.as_deref(),
             );
-            font.vhea = otfcc_read_vhea(packet);
+            font.vhea = read_vhea(packet);
             if font.vhea.is_some() {
-                font.vmtx = otfcc_read_vmtx(
+                font.vmtx = read_vmtx(
                     packet,
                     font.vhea.as_deref(),
                     font.maxp.as_deref(),
                 );
             }
-            font.fpgm = otfcc_read_fpgm_prep(packet, crate::tag::TAG_FPGM);
-            font.prep = otfcc_read_fpgm_prep(packet, crate::tag::TAG_PREP);
-            font.cvt_ = otfcc_read_cvt(packet, crate::tag::TAG_CVT);
-            font.gasp = otfcc_read_gasp(packet);
-            font.vdmx = otfcc_read_vdmx(packet);
-            font.ltsh = otfcc_read_ltsh(packet);
+            font.fpgm = read_fpgm_prep(packet, crate::tag::TAG_FPGM);
+            font.prep = read_fpgm_prep(packet, crate::tag::TAG_PREP);
+            font.cvt_ = read_cvt(packet, crate::tag::TAG_CVT);
+            font.gasp = read_gasp(packet);
+            font.vdmx = read_vdmx(packet);
+            font.ltsh = read_ltsh(packet);
             // `loca_is_long`/`num_glyphs` come from `head`/`maxp`, which
             // -- unlike the CFF branch below, which already tolerates a
             // missing `head` via `.map_or(null(), ...)` -- this branch
@@ -136,45 +136,45 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
                     has_vertical_metrics: false,
                     export_fd_select: false,
                 };
-                font.glyf = otfcc_read_glyf(packet, &mut ctx);
+                font.glyf = read_glyf(packet, &mut ctx);
             }
         } else {
             let cffpr: CffAndGlyfOwned =
-                otfcc_read_cff_and_glyf_tables(packet, font.head.as_deref());
+                read_cff_and_glyf_tables(packet, font.head.as_deref());
             font.cff = cffpr.meta;
             font.glyf = cffpr.glyphs;
-            font.vhea = otfcc_read_vhea(packet);
+            font.vhea = read_vhea(packet);
             if font.vhea.is_some() {
-                font.vmtx = otfcc_read_vmtx(
+                font.vmtx = read_vmtx(
                     packet,
                     font.vhea.as_deref(),
                     font.maxp.as_deref(),
                 );
-                font.vorg = otfcc_read_vorg(packet);
+                font.vorg = read_vorg(packet);
             }
         }
         if let Some(glyf) = font.glyf.as_ref() {
             let num_glyphs = count_u16(glyf.len());
-            font.gsub = otfcc_read_otl(packet, options, crate::tag::TAG_GSUB, num_glyphs);
-            font.gpos = otfcc_read_otl(packet, options, crate::tag::TAG_GPOS, num_glyphs);
-            font.gdef = otfcc_read_gdef(packet);
+            font.gsub = read_otl(packet, options, crate::tag::TAG_GSUB, num_glyphs);
+            font.gpos = read_otl(packet, options, crate::tag::TAG_GPOS, num_glyphs);
+            font.gdef = read_gdef(packet);
         }
-        font.base = otfcc_read_base(packet);
-        font.cpal = otfcc_read_cpal(packet);
-        font.colr = otfcc_read_colr(packet);
-        font.svg = otfcc_read_svg(packet);
-        font.tsi_01 = otfcc_read_tsi(packet, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1);
-        font.tsi_23 = otfcc_read_tsi(packet, crate::tag::TAG_TSI2, crate::tag::TAG_TSI3);
-        font.tsi5 = otfcc_read_tsi5(packet);
-        otfcc_unconsolidate_font(&mut font, options);
+        font.base = read_base(packet);
+        font.cpal = read_cpal(packet);
+        font.colr = read_colr(packet);
+        font.svg = read_svg(packet);
+        font.tsi_01 = read_tsi(packet, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1);
+        font.tsi_23 = read_tsi(packet, crate::tag::TAG_TSI2, crate::tag::TAG_TSI3);
+        font.tsi5 = read_tsi5(packet);
+        unconsolidate_font(&mut font, options);
         return Some(font);
     };
 }
 
 #[cfg(test)]
 mod regression_tests {
-    use crate::consolidate::otfcc_consolidate_font;
-    use crate::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
+    use crate::consolidate::consolidate_font;
+    use crate::font::caryll_sfnt::read_sfnt_from_reader;
     use crate::support::options::Options;
     
     use std::io::Cursor;
@@ -205,7 +205,7 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-cff-per-glyph-stack-realloc-hang.bin",
         )
         .unwrap();
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -237,7 +237,7 @@ mod regression_tests {
     /// it immediately discards). Fixed with a chain of budgets: `otl/
     /// read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP` caps subtables per
     /// lookup; `chaining/read.rs`'s `MAX_TOTAL_RULES_PER_TABLE` (a global,
-    /// per-`otfcc_read_otl`-call budget, not per-subtable -- an earlier,
+    /// per-`read_otl`-call budget, not per-subtable -- an earlier,
     /// per-subtable-only version of this cap still let many subtables
     /// each spend their own full allowance) caps rules built across the
     /// whole table; `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` cap one
@@ -266,7 +266,7 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-contextual-amplification-hang.bin",
         )
         .unwrap();
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -314,7 +314,7 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-amplification-oom.bin",
         )
         .unwrap();
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -382,7 +382,7 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-feature-list-amplification-hang.bin",
         )
         .unwrap();
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -453,7 +453,7 @@ mod regression_tests {
         data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
         assert_eq!(data.len(), 28 + 54);
 
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
+        let sfnt = read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -475,9 +475,9 @@ mod regression_tests {
     /// `head`/`maxp` are missing -- it does nothing to stop `font.head`/
     /// `font.maxp` themselves from legitimately being `None`, which is
     /// exactly what `json_writer.rs`'s own unwraps still choked on.
-    /// `otfcc_dump_glyf` itself already no-ops on a `None` table, so the
+    /// `dump_glyf` itself already no-ops on a `None` table, so the
     /// fix is the same shape as the read-side one: skip building `ctx`
-    /// (and calling `otfcc_dump_glyf`) unless both `head` and `maxp` are
+    /// (and calling `dump_glyf`) unless both `head` and `maxp` are
     /// present.
     #[test]
     fn dump_of_ttf_font_missing_maxp_does_not_panic() {
@@ -494,7 +494,7 @@ mod regression_tests {
         data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
         assert_eq!(data.len(), 28 + 54);
 
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
+        let sfnt = read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -512,7 +512,7 @@ mod regression_tests {
 
     /// `tests/fuzz-corpus/known-issues/otf-dump-otl-coverage-consolidate-
     /// amplification-hang.bin`: a `cargo fuzz run otf_dump` CI job found
-    /// this (`otf_dump` runs `read_otf` *and* `otfcc_consolidate_font`,
+    /// this (`otf_dump` runs `read_otf` *and* `consolidate_font`,
     /// unlike `otf_parse` above -- see `otf_dump.rs`'s own doc comment for
     /// why that gap matters). Chased through two distinct amplifications
     /// stacked on the same font, each independently bounded but not
@@ -553,21 +553,21 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-dump-otl-coverage-consolidate-amplification-hang.bin",
         )
         .unwrap();
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
         let start = Instant::now();
         let mut font = super::read_otf(&sfnt, 0, &options);
         if let Some(font) = font.as_mut() {
-            otfcc_consolidate_font(font, &options);
+            consolidate_font(font, &options);
         }
         let elapsed = start.elapsed();
         drop(font);
 
         assert!(
             elapsed < Duration::from_secs(15),
-            "read_otf + otfcc_consolidate_font took {elapsed:?}, expected well under 15s"
+            "read_otf + consolidate_font took {elapsed:?}, expected well under 15s"
         );
     }
 
@@ -586,7 +586,7 @@ mod regression_tests {
     /// `selector`), unbounded by anything. A ~70KB crafted file rode this
     /// to a 2.1GB-vs-2048MB OOM under `cargo fuzz`'s ASan-instrumented
     /// build (94% of live allocations in one call stack, all through
-    /// `otfcc_encode_cmap_uvs_by_index`); CI's own finding was a ~18.6KB
+    /// `encode_cmap_uvs_by_index`); CI's own finding was a ~18.6KB
     /// mutation of `KRName-Regular.otf`; that exact input wasn't saved
     /// (no artifact upload configured), so this reproducer was
     /// reconstructed directly from the root cause instead. Fixed by
@@ -607,7 +607,7 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-dump-cmap-uvs-non-default-aliasing-oom.bin",
         )
         .unwrap();
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 

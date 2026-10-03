@@ -10,7 +10,7 @@ use crate::support::glyph_order::GlyphOrder;
 use crate::table::otl::{GsubMultiEntry, Subtable};
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
-use crate::support::glyph_order::otfcc_gord_consolidate_handle;
+use crate::support::glyph_order::gord_consolidate_handle;
 use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
 pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
@@ -29,10 +29,10 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
         std::collections::BTreeMap::new();
     for entry in subtable.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
-        // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
+        // only ever runs when `glyf` is present, and `consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.from) {
+        if !gord_consolidate_handle(glyph_order, &mut entry.from) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.from.name));
         } else {
             fontop_consolidate_coverage(glyph_order, &mut entry.to);

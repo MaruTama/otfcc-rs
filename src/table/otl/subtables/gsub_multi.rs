@@ -181,7 +181,7 @@ fn build_gsub_multi_subtable_range(
     return bk_build_block(root);
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: i32 = 0xff00_i32;
-pub fn otfcc_build_gsub_multi_subtable_split(
+pub fn build_gsub_multi_subtable_split(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Vec<Buffer> {

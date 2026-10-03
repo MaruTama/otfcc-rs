@@ -64,7 +64,7 @@ pub static WHITE: CpalColor = CpalColor {
 /// `u32`, so this one is really reachable. `FontReader::at`/`require_room`
 /// use `checked_add`/`checked_mul` throughout, closing all four instances
 /// of it in this table at once.
-fn parse_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
+fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
     if data.len() < 2 {
         return Err(ReadError { needed: 2, available: data.len() });
     }
@@ -173,9 +173,9 @@ fn parse_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
 
     Ok((version, palettes))
 }
-pub fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
+pub fn read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CPAL)?;
-    let (version, palettes) = parse_cpal(&table.data).ok()?;
+    let (version, palettes) = decode_cpal(&table.data).ok()?;
     Some(Box::new(CpalTable { version, palettes }))
 }
 #[inline]
@@ -209,7 +209,7 @@ fn dump_palette(palette: &CpalPalette) -> BuiltValue {
     _palette.push_field(b"colors", a);
     _palette
 }
-pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue) {
+pub fn dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue) {
     let table = match table {
         Some(t) => t,
         None => return,
@@ -241,7 +241,7 @@ fn parse_color(color: Option<&ParsedValue>) -> CpalColor {
     c.label = color.get_int_or(b"label", 0xffff) as u16;
     c
 }
-pub fn otfcc_parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
+pub fn parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
     let table = root.get_typed(b"CPAL", JsonType::Object)?;
     let stage = crate::logger::stage("CPAL");
     // An empty/missing `palettes` array returns `None`, closing the stage
@@ -315,7 +315,7 @@ fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     }
     return Some(block);
 }
-pub fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
+pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     let cpal = cpal?;
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
     if palettes.is_empty() {
@@ -409,7 +409,7 @@ mod parse_cpal_tests {
     #[test]
     fn well_formed_v0_table_reads_one_palette_one_color() {
         let data = well_formed_v0_table();
-        let (version, palettes) = parse_cpal(&data).unwrap();
+        let (version, palettes) = decode_cpal(&data).unwrap();
         assert_eq!(version, 0);
         assert_eq!(palettes.len(), 1);
         let color = palettes[0].colorset[0];
@@ -419,7 +419,7 @@ mod parse_cpal_tests {
 
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
-        assert!(parse_cpal(&well_formed_v0_table()[..10]).is_err());
+        assert!(decode_cpal(&well_formed_v0_table()[..10]).is_err());
     }
 
     #[test]
@@ -429,7 +429,7 @@ mod parse_cpal_tests {
         // into color_list.
         let mut data = well_formed_v0_table();
         data[12..14].copy_from_slice(&5u16.to_be_bytes());
-        let (_, palettes) = parse_cpal(&data).unwrap();
+        let (_, palettes) = decode_cpal(&data).unwrap();
         let color = palettes[0].colorset[0];
         assert_eq!((color.red, color.green, color.blue, color.alpha), (255, 255, 255, 255));
     }
@@ -444,7 +444,7 @@ mod parse_cpal_tests {
         // though the real offset points nowhere near this small table.
         let mut data = well_formed_v0_table();
         data[8..12].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes());
-        assert!(parse_cpal(&data).is_err());
+        assert!(decode_cpal(&data).is_err());
     }
 
     // version=1, one palette/entry/color record, plus a palette-type array
@@ -466,7 +466,7 @@ mod parse_cpal_tests {
         b.extend_from_slice(&[10, 20, 30, 255]); // color record, @14
         // offsetPaletteTypeArray lives at absolute offset 16 + 2*numPalettes
         // = 18 (this crate's CPAL reads it 4 bytes later than the spec
-        // position -- see parse_cpal's doc comment).
+        // position -- see decode_cpal's doc comment).
         b.extend_from_slice(&28u32.to_be_bytes()); // @18: offsetPaletteTypeArray = 28
         b.resize(28, 0); // padding up to the guard2-mandated 28-byte minimum
         b.extend_from_slice(&0xCAFEBABEu32.to_be_bytes()); // @28: palette 0's type
@@ -476,7 +476,7 @@ mod parse_cpal_tests {
     #[test]
     fn v1_palette_type_array_is_read_at_its_shifted_offset() {
         let data = well_formed_v1_table_with_palette_type();
-        let (version, palettes) = parse_cpal(&data).unwrap();
+        let (version, palettes) = decode_cpal(&data).unwrap();
         assert_eq!(version, 1);
         assert_eq!(palettes[0].type_0, 0xCAFEBABE);
     }
@@ -485,7 +485,7 @@ mod parse_cpal_tests {
     fn palette_type_array_offset_near_u32_max_is_rejected_not_wrapped() {
         let mut data = well_formed_v1_table_with_palette_type();
         data[18..22].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes());
-        let (_, palettes) = parse_cpal(&data).unwrap();
+        let (_, palettes) = decode_cpal(&data).unwrap();
         // The optional array is simply left unpopulated on rejection --
         // the whole table isn't corrupted by one bad optional offset.
         assert_eq!(palettes[0].type_0, 0);

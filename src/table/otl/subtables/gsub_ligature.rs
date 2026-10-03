@@ -179,7 +179,7 @@ pub fn otl_gsub_parse_ligature(
 // deduplicated set directly -- there is no value to carry, so this isn't
 // even a map the way every other uthash instance in this migration has
 // been.
-pub fn otfcc_build_gsub_ligature_subtable(
+pub fn build_gsub_ligature_subtable(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {

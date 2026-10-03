@@ -32,7 +32,7 @@ type SubtableParser = fn(Option<&ParsedValue>) -> Option<Subtable>;
 /// `PendingLookups.lookups` (position within `LookupEntry.lookup_id`'s own
 /// backing store, *not* the final `OtlTable.lookups` position -- `lh` gets
 /// sorted and partially drained (aliases are skipped) before that final
-/// position exists, see `otfcc_parse_otl`'s remap). Replaces the old
+/// position exists, see `parse_otl`'s remap). Replaces the old
 /// `LookupEntry.lookup: *mut Lookup`: a `Box`'s heap address survives being
 /// moved into a `Vec` later with no extra work, which is what let the
 /// pointer-based design get away with no remap step; an index does not
@@ -290,7 +290,7 @@ fn _declare_lookup_parser(
     // drop naturally instead of an explicit `otfcc_delete_lookup` call
     // (that function's own body is exactly `drop(Box::from_raw(...))`).
     // `LookupEntry.lookup` itself stays `*mut Lookup`: a transient owner
-    // handed off at the one non-alias push site in `otfcc_parse_otl`.
+    // handed off at the one non-alias push site in `parse_otl`.
     let mut lookup: Box<Lookup> = new_lookup();
     lookup.type_0 = llt;
     lookup.flags = lv
@@ -481,7 +481,7 @@ fn figure_out_features_from_json(
                 if !fh.entries.iter().any(|e| e.name == feature_name_bytes) {
                     // Built as a local owned value, only actually
                     // allocated into `OtlTable.features` at the very end
-                    // (`otfcc_parse_otl`'s remap, once `fh` has been
+                    // (`parse_otl`'s remap, once `fh` has been
                     // sorted and this pending feature's `PendingLookupId`s
                     // can be rewritten into final `LookupIdx`es); an alias
                     // entry's copy of the same `feature_id` is never
@@ -568,7 +568,7 @@ fn figure_out_languages_from_json(
                 if !sh.contains_key(&language_name_bytes) {
                     // Built as a local owned value, only actually
                     // allocated into `OtlTable.languages` at the very end
-                    // (`otfcc_parse_otl`'s remap) -- unlike
+                    // (`parse_otl`'s remap) -- unlike
                     // `LookupEntry`/`FeatureEntry`, `LanguageHash` has no
                     // alias mechanism at all (no JSON string-value case is
                     // handled for `"languages"`, confirmed by grep before
@@ -606,7 +606,7 @@ fn figure_out_languages_from_json(
 /// `get_typed`/`get_typed_mut` call below is its own single-expression
 /// reborrow of `table` that retires at the end of its own statement, long
 /// before the next one begins -- the same discipline Stage M-32 used for
-/// `otfcc_parse_glyf`'s single `"glyf"` child, sequenced here across four
+/// `parse_glyf`'s single `"glyf"` child, sequenced here across four
 /// sibling children of one `table` instead of one child alone. The
 /// presence check just below (`lookups_present`/`features_present`/
 /// `languages_present`) is a separate, side-effect-free set of `get_typed`
@@ -617,7 +617,7 @@ fn figure_out_languages_from_json(
 /// !(languages.is_null() || features.is_null() || lookups.is_null())`
 /// checked before doing any work -- even though the "real" pass below
 /// re-resolves each of the three again from scratch.
-pub fn otfcc_parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
+pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
     let table = root.get_typed_mut(tag, JsonType::Object)?;
     // `table` existing (the `?` above already returned `None` otherwise) is
     // the same "this font has a `tag` table at all" gate the raw-pointer

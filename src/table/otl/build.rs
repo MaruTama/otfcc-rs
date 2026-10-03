@@ -5,17 +5,17 @@ use crate::bk::bkgraph::bk_build_block;
 use crate::support::buffer::Buffer;
 use crate::support::primitives::TableId;
 use crate::table::otl::subtables::BuildHeuristics;
-use crate::table::otl::subtables::chaining::build::otfcc_chaining_lookup_is_contextual_lookup;
-use crate::table::otl::subtables::chaining::classifier::otfcc_classified_build_chaining;
-use crate::table::otl::subtables::gpos_cursive::otfcc_build_gpos_cursive;
-use crate::table::otl::subtables::gpos_mark_to_ligature::otfcc_build_gpos_mark_to_ligature;
-use crate::table::otl::subtables::gpos_mark_to_single::otfcc_build_gpos_mark_to_single;
-use crate::table::otl::subtables::gpos_pair::otfcc_build_gpos_pair;
-use crate::table::otl::subtables::gpos_single::otfcc_build_gpos_single;
-use crate::table::otl::subtables::gsub_ligature::otfcc_build_gsub_ligature_subtable;
-use crate::table::otl::subtables::gsub_multi::otfcc_build_gsub_multi_subtable_split;
-use crate::table::otl::subtables::gsub_reverse::otfcc_build_gsub_reverse;
-use crate::table::otl::subtables::gsub_single::otfcc_build_gsub_single_subtable;
+use crate::table::otl::subtables::chaining::build::chaining_lookup_is_contextual_lookup;
+use crate::table::otl::subtables::chaining::classifier::classified_build_chaining;
+use crate::table::otl::subtables::gpos_cursive::build_gpos_cursive;
+use crate::table::otl::subtables::gpos_mark_to_ligature::build_gpos_mark_to_ligature;
+use crate::table::otl::subtables::gpos_mark_to_single::build_gpos_mark_to_single;
+use crate::table::otl::subtables::gpos_pair::build_gpos_pair;
+use crate::table::otl::subtables::gpos_single::build_gpos_single;
+use crate::table::otl::subtables::gsub_ligature::build_gsub_ligature_subtable;
+use crate::table::otl::subtables::gsub_multi::build_gsub_multi_subtable_split;
+use crate::table::otl::subtables::gsub_reverse::build_gsub_reverse;
+use crate::table::otl::subtables::gsub_single::build_gsub_single_subtable;
 use crate::table::otl::{
     FeatureIdx, LanguageSystem, Lookup, LookupIdx, LookupType, OTL_TYPE_GPOS_CHAINING,
     OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE,
@@ -57,8 +57,8 @@ fn storage_to_dense<T>(list: &[Option<T>]) -> Vec<Option<u16>> {
 // builders had no unsafe operation left besides this cast and the now-safe
 // `bk_*` calls Stage D Phase 1 already safened, once the pointless
 // "recast the already-safe `&X` pattern-match binding back to `*const X`"
-// residue each one carried was removed too. `otfcc_build_gsub_reverse`
-// and `otfcc_build_gpos_pair`'s `_individual`/`_classes` helpers needed a
+// residue each one carried was removed too. `build_gsub_reverse`
+// and `build_gpos_pair`'s `_individual`/`_classes` helpers needed a
 // further pass each (in-place backtrack sorting rewritten to clone-then-
 // reverse a local instead of mutating through a cast-away-const pointer;
 // `*const ClassDef` chains that were themselves the same self-inflicted
@@ -167,14 +167,14 @@ fn _declare_lookup_writer_split(
 }
 fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
     if lookup.type_0 == OTL_TYPE_GPOS_CHAINING || lookup.type_0 == OTL_TYPE_GSUB_CHAINING {
-        return otfcc_classified_build_chaining(lookup, ctx.subtables, ctx.last_offset);
+        return classified_build_chaining(lookup, ctx.subtables, ctx.last_offset);
     }
     let mut written: TableId = 0 as TableId;
     if written == 0 {
         written = _declare_lookup_writer(
             OTL_TYPE_GSUB_SINGLE,
             Some(
-                otfcc_build_gsub_single_subtable
+                build_gsub_single_subtable
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
@@ -185,7 +185,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer_split(
             OTL_TYPE_GSUB_MULTIPLE,
             Some(
-                otfcc_build_gsub_multi_subtable_split
+                build_gsub_multi_subtable_split
                     as fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
             ),
             lookup,
@@ -196,7 +196,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer_split(
             OTL_TYPE_GSUB_ALTERNATE,
             Some(
-                otfcc_build_gsub_multi_subtable_split
+                build_gsub_multi_subtable_split
                     as fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
             ),
             lookup,
@@ -207,7 +207,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer(
             OTL_TYPE_GSUB_LIGATURE,
             Some(
-                otfcc_build_gsub_ligature_subtable
+                build_gsub_ligature_subtable
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
@@ -217,7 +217,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
     if written == 0 {
         written = _declare_lookup_writer(
             OTL_TYPE_GSUB_REVERSE,
-            Some(otfcc_build_gsub_reverse as fn(&Subtable, BuildHeuristics) -> Buffer),
+            Some(build_gsub_reverse as fn(&Subtable, BuildHeuristics) -> Buffer),
             lookup,
             ctx,
         );
@@ -226,7 +226,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_SINGLE,
             Some(
-                otfcc_build_gpos_single
+                build_gpos_single
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
@@ -237,7 +237,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_PAIR,
             Some(
-                otfcc_build_gpos_pair
+                build_gpos_pair
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
@@ -248,7 +248,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_CURSIVE,
             Some(
-                otfcc_build_gpos_cursive
+                build_gpos_cursive
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
@@ -259,7 +259,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
-                otfcc_build_gpos_mark_to_single
+                build_gpos_mark_to_single
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
@@ -270,7 +270,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
-                otfcc_build_gpos_mark_to_single
+                build_gpos_mark_to_single
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
@@ -281,7 +281,7 @@ fn _build_lookup(lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
-                otfcc_build_gpos_mark_to_ligature
+                build_gpos_mark_to_ligature
                     as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
@@ -361,7 +361,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         if subtable_quantity[j_1] == 0 {
             tracing::info!("Lookup {} is empty.\n", ByteStr(&lookup_0.name));
         }
-        let can_be_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup_0);
+        let can_be_contextual: bool = chaining_lookup_is_contextual_lookup(lookup_0);
         let use_extended_for_it: bool =
             use_extended as i32 != 0 || prefer_ext_for_this_lut[j_1] as i32 != 0;
         if use_extended_for_it {
@@ -600,7 +600,7 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
     }
     return root;
 }
-pub fn otfcc_build_otl(table: Option<&OtlTable>, tag: &[u8]) -> Option<Buffer> {
+pub fn build_otl(table: Option<&OtlTable>, tag: &[u8]) -> Option<Buffer> {
     let table: &OtlTable = table?;
     let buf: Option<Buffer>;
     let stage = crate::logger::stage(ByteStr(tag));
