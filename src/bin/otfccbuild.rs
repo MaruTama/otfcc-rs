@@ -12,7 +12,7 @@ use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_lo
 use otfcc_rust::support::options::options_optimize_to;
 use otfcc_rust::support::parsed_json::ParsedValue;
 use otfcc_rust::support::parsed_json::parse_json;
-use otfcc_rust::support::cstd::strtol::strtol;
+use otfcc_rust::support::primitives::parse_int_prefix;
 use otfcc_rust::support::cli::stopwatch::{log_step_time, time_now};
 use otfcc_rust::support::EXIT_FAILURE;
 use std::io::Read;
@@ -168,7 +168,7 @@ fn run(args: Vec<String>) -> i32 {
                 OPT_DUMMY_DSIG => options.dummy_dsig = true,
                 OPT_QUIET => options.quiet = true,
                 OPT_OPTIMIZE => {
-                    options_optimize_to(&mut options, strtol(arg.unwrap().as_bytes(), 10) as u8);
+                    options_optimize_to(&mut options, parse_int_prefix(arg.unwrap().as_bytes(), 10) as u8);
                 }
                 OPT_TIME => {}
                 OPT_IGNORE_HINTS => options.ignore_hints = true,
