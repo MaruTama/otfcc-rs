@@ -3,9 +3,9 @@ pub mod stat;
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 
-use crate::font::caryll_font::{Font, FontSubtype};
+use crate::font::model::{Font, FontSubtype};
 use crate::font::table_registry::BUILD_ORDER;
-use crate::font::caryll_sfnt_builder::{
+use crate::font::sfnt_builder::{
     SfntBuilder, sfnt_builder_push_table, sfnt_builder_serialize,
 };
 use crate::otf_writer::stat::{stat_font, unstat_font};

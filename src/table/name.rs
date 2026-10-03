@@ -1,4 +1,4 @@
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;

@@ -1,5 +1,5 @@
 use crate::logger::ByteStr;
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
@@ -318,7 +318,7 @@ pub fn build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
 #[cfg(test)]
 mod otfcc_read_tsi_tests {
     use super::*;
-    use crate::font::caryll_sfnt::PacketPiece;
+    use crate::font::sfnt::PacketPiece;
 
     // No committed payload has a TSI0/TSI1 (or TSI2/TSI3) pair (checked by
     // hand against every tests/payload/*.ttf), so this whole module is the

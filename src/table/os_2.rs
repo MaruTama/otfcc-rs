@@ -1,4 +1,4 @@
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
@@ -52,7 +52,7 @@ pub struct Os2Table {
 // identifier, not an anchored `\.` pattern -- see the `CmapTable` PR's
 // note on why that matters) confirmed only `.create`/`.free` were ever
 // called, both from within this crate (this file's own read/parse entry
-// points, and `caryll_font.rs`'s table disposal).
+// points, and `model.rs`'s table disposal).
 // `length` here means "the whole declared version tier's fields must fit,
 // or the whole table is rejected" -- not merely "read as much as fits".
 // The three `version >= N && length < M` gates are the original's, kept

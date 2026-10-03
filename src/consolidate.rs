@@ -6,7 +6,7 @@ use crate::support::handle::{
 };
 
 
-use crate::font::caryll_font::Font;
+use crate::font::model::Font;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
@@ -772,7 +772,7 @@ mod consolidate_otl_table_tests {
 
     fn empty_font_with_glyph_order() -> Box<Font> {
         Box::new(Font {
-            subtype: crate::font::caryll_font::FontSubtype::Ttf,
+            subtype: crate::font::model::FontSubtype::Ttf,
             fvar: None,
             head: None,
             hhea: None,

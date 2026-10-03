@@ -1,5 +1,5 @@
 use crate::logger::ByteStr;
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
@@ -15,7 +15,7 @@ use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 // `Copy` off this struct. `.copy` (`table_fpgm_prep_copy`, a raw memcpy)
 // was already dead -- confirmed via the same "grep the call sites,
 // walk up if the caller itself is unreached" check used throughout this
-// migration (only `font/caryll_font.rs` uses this table's vtable, and
+// migration (only `font/model.rs` uses this table's vtable, and
 // only through `.free`) -- so it's deleted rather than made unsound.
 //
 // Stage 7-2-c: `bytes` is now a `Vec<u8>` -- `length` (redundant with
@@ -29,7 +29,7 @@ pub struct FpgmPrepTable {
 // Unlike most of this batch, this was already memory-safe without a
 // separate length guard: it copies the table's own `PacketPiece.data`
 // verbatim (`length` bytes from a buffer that is always exactly `length`
-// bytes long, per `font/caryll_sfnt.rs`'s invariant), so there is no
+// bytes long, per `font/sfnt.rs`'s invariant), so there is no
 // declared-length-vs-actual-data mismatch to exploit -- and no field
 // structure to parse, so there is nothing here for `FontReader` itself to
 // add. `table.data` is already an owned `Vec<u8>` (`PacketPiece::data`),

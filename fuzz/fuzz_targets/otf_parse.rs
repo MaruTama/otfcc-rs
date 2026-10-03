@@ -27,7 +27,7 @@
 // thousands-per-process iterations.
 
 use libfuzzer_sys::fuzz_target;
-use otfcc_rust::font::caryll_sfnt::read_sfnt_from_reader;
+use otfcc_rust::font::sfnt::read_sfnt_from_reader;
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::options::Options;
 use std::io::Cursor;
