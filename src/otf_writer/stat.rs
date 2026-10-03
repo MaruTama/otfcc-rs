@@ -22,7 +22,6 @@ use crate::table::otl::kind::lookup_kind;
 
 use crate::table::vmtx::{VerticalMetric, VmtxTable};
 
-use crate::font::caryll_font::delete_font_table;
 use crate::table::glyf::glyf_component_reference_init;
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_zero, vq_neutral};
@@ -948,12 +947,13 @@ pub fn stat_font(font: &mut Font, options: &Options) {
     }
     stat_ltsh(font);
 }
+/// Drops the tables `stat_font` computed from the glyphs, so the font is
+/// back to its consolidated form once it has been written.
 pub fn unstat_font(font: &mut Font) {
-    delete_font_table(font, crate::tag::TAG_HDMX);
-    delete_font_table(font, crate::tag::TAG_HMTX);
-    delete_font_table(font, crate::tag::TAG_VORG);
-    delete_font_table(font, crate::tag::TAG_VMTX);
-    delete_font_table(font, crate::tag::TAG_LTSH);
+    font.hmtx = None;
+    font.vorg = None;
+    font.vmtx = None;
+    font.ltsh = None;
 }
 pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
 pub const __FLT_MAX__: ::core::ffi::c_float = 3.402_823_5e38_f32;
