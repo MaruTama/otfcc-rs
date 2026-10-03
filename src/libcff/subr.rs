@@ -1,9 +1,9 @@
 use crate::support::buffer::Buffer;
 
 use crate::libcff::CffCharstringOperator;
-use crate::libcff::cff_index::CffIndex;
-use crate::libcff::cff_index::{build_index, new_index_by_callback};
-use crate::libcff::cff_writer::{
+use crate::libcff::index::CffIndex;
+use crate::libcff::index::{build_index, new_index_by_callback};
+use crate::libcff::writer::{
     cff_merge_cs2_int, cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special,
 };
 use crate::libcff::charstring_il::CffCharstringIl;
@@ -950,7 +950,7 @@ pub fn cff_il_graph_to_buffers(
 #[cfg(test)]
 mod subr_graph_tests {
     use super::*;
-    use crate::libcff::cff_index::{extract_index, new_empty_cff_index};
+    use crate::libcff::index::{extract_index, new_empty_cff_index};
     use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
     use crate::libcff::{OP_HLINETO, OP_RMOVETO};
 

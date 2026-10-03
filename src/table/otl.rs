@@ -586,8 +586,8 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
 // type-erasing the two callers' concrete predicates behind a shared shape
 // purely so one function pointer type could stand in for both -- the same
 // "type erasure that was never actually needed" pattern Stage 9 Phase 9
-// found in `libcff/cff_index.rs`'s `new_index_by_callback` (resolved there
-// via `impl Iterator`) and `libcff/cff_dict.rs`'s `parse_to_callback`
+// found in `libcff/index.rs`'s `new_index_by_callback` (resolved there
+// via `impl Iterator`) and `libcff/dict.rs`'s `parse_to_callback`
 // (resolved via `impl FnMut`). The sole caller already knows its predicate
 // at compile time, so a generic `impl FnMut(&Lookup) -> bool` carries the
 // same information with no unsafe function-pointer cast and no env

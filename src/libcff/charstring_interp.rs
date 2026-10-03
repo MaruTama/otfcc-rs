@@ -9,15 +9,15 @@
 //! ignored (operand stack overflow, malformed hint mask data).
 
 use crate::logger::ByteStr;
-use crate::libcff::cff_codecs::cff_decode_cs2_token;
-use crate::libcff::cff_index::CffIndex;
-use crate::libcff::cff_value::{CffValue, cffnum};
+use crate::libcff::codecs::cff_decode_cs2_token;
+use crate::libcff::index::CffIndex;
+use crate::libcff::value::{CffValue, cffnum};
 use crate::support::primitives::Arity;
 use crate::table::cff::{
     OutlineBuilderContext, callback_draw_curveto, callback_draw_getrand, callback_draw_lineto,
     callback_draw_next_contour, callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
 };
-use crate::libcff::cff_parser::{
+use crate::libcff::parser::{
     MAX_SUBR_CALL_DEPTH, MAX_TOTAL_SUBR_CALLS, compute_subr_bias, locate_subr,
 };
 use crate::libcff::{CffCharstringOperator, CffStack, TYPE2_TRANSIENT_ARRAY, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR, OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_ENDCHAR, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET, OP_HFLEX, OP_HFLEX1, OP_HHCURVETO, OP_HINTMASK, OP_HLINETO, OP_HMOVETO, OP_HSTEM, OP_HSTEMHM, OP_HVCURVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RANDOM, OP_RCURVELINE, OP_RETURN, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_ROLL, OP_RRCURVETO, OP_SQRT, OP_SUB, OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, OP_VVCURVETO};
@@ -803,7 +803,7 @@ fn op_callgsubr(stack: &mut CffStack, outline: &mut OutlineBuilderContext, subrs
 #[cfg(test)]
 mod cff_parse_outline_total_calls_tests {
     use super::*;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::index::CffIndexCountType;
 
     use crate::table::glyf::{Glyph, new_glyf_glyph};
 
@@ -986,7 +986,7 @@ mod cff_parse_outline_total_calls_tests {
 #[cfg(test)]
 mod cff_parse_outline_hintmask_tests {
     use super::*;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::index::CffIndexCountType;
 
     use crate::table::cff::OutlineBuilderContext;
     use crate::table::glyf::new_glyf_glyph;
@@ -1117,7 +1117,7 @@ mod cff_parse_outline_hintmask_tests {
 #[cfg(test)]
 mod cff_parse_outline_stack_operator_tests {
     use super::*;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::index::CffIndexCountType;
 
     use crate::table::glyf::new_glyf_glyph;
 
@@ -1127,7 +1127,7 @@ mod cff_parse_outline_stack_operator_tests {
     // small fixed-size structure (`transient[32]`, or the operand stack
     // itself), with no range check. Found by reading the interpreter
     // directly (not fuzzing) while investigating this file as the
-    // successor to `cff_dict.rs`'s Private-DICT-offset fix (PR #262):
+    // successor to `dict.rs`'s Private-DICT-offset fix (PR #262):
     // that fix closed an out-of-bounds *read*, these are guaranteed
     // Rust *panics* (array-index or divide-by-zero) reachable with a
     // handful of ordinary charstring bytes -- a different bug class
@@ -1307,7 +1307,7 @@ mod cff_parse_outline_stack_operator_tests {
 #[cfg(test)]
 mod cff_parse_outline_subr_number_tests {
     use super::*;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::index::CffIndexCountType;
 
     use crate::table::glyf::new_glyf_glyph;
 
@@ -1392,7 +1392,7 @@ mod cff_parse_outline_subr_number_tests {
 #[cfg(test)]
 mod cff_parse_outline_operand_group_tests {
     use super::*;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::index::CffIndexCountType;
 
     use crate::table::glyf::new_glyf_glyph;
 

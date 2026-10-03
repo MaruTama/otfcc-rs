@@ -4,11 +4,11 @@ use crate::support::handle::{FdHandle, handle_from_index};
 
 use crate::font::sfnt::Packet;
 use crate::libcff::CffDictOperator;
-use crate::libcff::cff_charset::{CffCharset, CffCharsetRangeFormat2};
-use crate::libcff::cff_dict::{CffDict, CffDictEntry};
-use crate::libcff::cff_fdselect::{CffFdSelect, CffFdSelectRangeFormat3};
-use crate::libcff::cff_index::{CffIndex, CffIndexCountType};
-use crate::libcff::cff_value::CffValue;
+use crate::libcff::charset::{CffCharset, CffCharsetRangeFormat2};
+use crate::libcff::dict::{CffDict, CffDictEntry};
+use crate::libcff::fdselect::{CffFdSelect, CffFdSelectRangeFormat3};
+use crate::libcff::index::{CffIndex, CffIndexCountType};
+use crate::libcff::value::CffValue;
 use crate::libcff::charstring_il::CffCharstringIl;
 use crate::libcff::subr::CffSubrGraph;
 use crate::libcff::{
@@ -35,15 +35,15 @@ use crate::vendor::json::JsonType;
 use crate::support::parsed_json::ParsedValue;
 use crate::vf::vq::VQ;
 
-use crate::libcff::cff_charset::cff_build_charset;
-use crate::libcff::cff_codecs::cff_encode_cff_operator;
-use crate::libcff::cff_dict::{build_dict, parse_to_callback};
-use crate::libcff::cff_fdselect::cff_build_fd_select;
-use crate::libcff::cff_index::{build_index, new_empty_cff_index, new_index_by_callback};
-use crate::libcff::cff_parser::{cff_open_stream, cff_parse_outline, cff_parse_subr};
-use crate::libcff::cff_string::get_cff_sid;
-use crate::libcff::cff_value::cffnum;
-use crate::libcff::cff_writer::{cff_build_header, cff_build_offset};
+use crate::libcff::charset::cff_build_charset;
+use crate::libcff::codecs::cff_encode_cff_operator;
+use crate::libcff::dict::{build_dict, parse_to_callback};
+use crate::libcff::fdselect::cff_build_fd_select;
+use crate::libcff::index::{build_index, new_empty_cff_index, new_index_by_callback};
+use crate::libcff::parser::{cff_open_stream, cff_parse_outline, cff_parse_subr};
+use crate::libcff::string::get_cff_sid;
+use crate::libcff::value::cffnum;
+use crate::libcff::writer::{cff_build_header, cff_build_offset};
 use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
 use crate::libcff::subr::{
     cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
@@ -611,7 +611,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
                 // Top/Font DICT, not yet checked against the real buffer.
                 // The original built `raw_data.offset(private_offset)`
                 // unconditionally; a value past `raw_length` read straight
-                // out of bounds. Same fix as `cff_parser.rs`'s two other
+                // out of bounds. Same fix as `parser.rs`'s two other
                 // Private-DICT-offset call sites: build one bounds-checked
                 // slice and simply skip the callback (leaving the just-
                 // created, all-default `private_dict` in place) when it
@@ -1176,7 +1176,7 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Option<&HeadTabl
 }
 // Stage M-14: no longer `unsafe fn`. `cff_file` (formerly `*mut CffFile`,
 // paired with a manual `Box::from_raw` at the bottom of this function --
-// see `cff_parser.rs`'s `cff_open_stream`) is a plain `Box<CffFile>` now:
+// see `parser.rs`'s `cff_open_stream`) is a plain `Box<CffFile>` now:
 // `cff_open_stream` already built it as an owned local internally and only
 // `Box::into_raw`-ed it to hand back a pointer, which this function's one
 // call site immediately `Box::from_raw`-ed back at the end of its own

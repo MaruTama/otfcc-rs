@@ -409,7 +409,7 @@ fn instr_name_has_prefix(token: &[u8], name: &[u8]) -> bool {
 // `table/glyf.rs`'s `wrong_instrs_for_glyph`) behind a shared shape purely
 // so one function pointer type could stand in for both -- the same "type
 // erasure that was never actually needed" pattern already resolved for
-// `libcff/cff_index.rs`'s `new_index_by_callback`, `libcff/cff_dict.rs`'s
+// `libcff/index.rs`'s `new_index_by_callback`, `libcff/dict.rs`'s
 // `parse_to_callback`, and `table/otl.rs`'s `otl_*_filter_env` family.
 // `context` is never dereferenced here, only threaded through to
 // `iv_error` -- a generic `impl FnMut` closure carries the same

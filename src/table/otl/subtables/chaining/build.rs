@@ -3,10 +3,10 @@ use crate::table::otl::coverage::Coverage;
 use crate::support::buffer::Buffer;
 use crate::support::primitives::{GlyphClass, TableId};
 
-use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::bk::bkblock::bk_new_block_from_buffer;
-use crate::bk::bkgraph::bk_build_block;
+use crate::bk::block::bk_new_block_from_buffer;
+use crate::bk::graph::bk_build_block;
 use crate::table::otl::classdef::{ClassDef, build_class_def};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::chaining::common::{

@@ -6,7 +6,7 @@
 // sites (never a real FFI boundary) -- goes away with the vtable/
 // extern "C" cleanup, same as every other instance of this allow.
 #![allow(improper_ctypes_definitions)]
-use crate::libcff::cff_index::CffIndex;
+use crate::libcff::index::CffIndex;
 use crate::support::primitives::Arity;
 
 static STRING_STANDARD: [&str; 391] = [
@@ -439,7 +439,7 @@ pub fn get_cff_sid(idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod get_cff_sid_tests {
     use super::*;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::index::CffIndexCountType;
 
     fn string_index(offset: Vec<u32>, data: Vec<u8>) -> CffIndex {
         CffIndex {

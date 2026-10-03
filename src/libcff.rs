@@ -1,18 +1,18 @@
-use crate::libcff::cff_charset::CffCharset;
-use crate::libcff::cff_fdselect::CffFdSelect;
-use crate::libcff::cff_index::CffIndex;
-use crate::libcff::cff_value::CffValue;
+use crate::libcff::charset::CffCharset;
+use crate::libcff::fdselect::CffFdSelect;
+use crate::libcff::index::CffIndex;
+use crate::libcff::value::CffValue;
 use crate::support::primitives::Arity;
-pub mod cff_charset;
-pub mod cff_codecs;
-pub mod cff_dict;
-pub mod cff_fdselect;
-pub mod cff_index;
-pub mod cff_opmean;
-pub mod cff_parser;
-pub mod cff_string;
-pub mod cff_value;
-pub mod cff_writer;
+pub mod charset;
+pub mod codecs;
+pub mod dict;
+pub mod fdselect;
+pub mod index;
+pub mod opmean;
+pub mod parser;
+pub mod string;
+pub mod value;
+pub mod writer;
 pub mod charstring_il;
 pub mod charstring_interp;
 pub mod subr;
@@ -333,7 +333,7 @@ pub struct CffStack {
     pub stack: Vec<CffValue>,
     pub transient: [CffValue; TYPE2_TRANSIENT_ARRAY],
     pub index: Arity,
-    // Widened from `u8` (fuzz-found bug, see `cff_parser.rs`'s hstem/vstem
+    // Widened from `u8` (fuzz-found bug, see `parser.rs`'s hstem/vstem
     // arm): a charstring chaining enough hstem/vstem operators pushed the
     // real cumulative count past 255, wrapping this counter back down while
     // `context.g.stem_h`/`stem_v` (real, unbounded `Vec`s) kept growing --
@@ -352,7 +352,7 @@ pub struct CffStack {
 // the pointer after `cff_open_stream` built it, so the two fields were
 // exactly a `Vec`'s own `(ptr, len)` pulled apart into a raw pointer and a
 // manually-tracked count. `cff_close`'s matching `free(raw_data)` is gone
-// too -- see `cff_parser.rs`.
+// too -- see `parser.rs`.
 #[derive(Debug)]
 pub struct CffFile {
     pub raw_data: Vec<u8>,

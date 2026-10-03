@@ -1,9 +1,9 @@
-use crate::bk::bkblock::{BkBlock, BkCellType, BkCellValue};
+use crate::bk::block::{BkBlock, BkCellType, BkCellValue};
 use crate::support::buffer::Buffer;
 
 // `BkGraph`/`BkGraphNode` used to hold `block: *mut BkBlock` -- a raw
-// pointer into `bkblock.rs`'s construction API, alongside the
-// (defensible-sounding, but ultimately wrong -- see `bkblock.rs`'s own
+// pointer into `block.rs`'s construction API, alongside the
+// (defensible-sounding, but ultimately wrong -- see `block.rs`'s own
 // comment) claim that every `BkBlock` has exactly one owner. The truth,
 // once `bk_minimize_graph`/`replaceptr` are read closely: after
 // minimization, many `Ptr` cells across the structure deliberately alias
@@ -14,7 +14,7 @@ use crate::support::buffer::Buffer;
 //
 // This file makes that arena explicit. `BlockId` is a stable identity
 // assigned once, in post-order, by `dfs_convert` -- as of Stage D
-// (2026-09), `bkblock.rs`'s construction API is *itself* an owned `Box`
+// (2026-09), `block.rs`'s construction API is *itself* an owned `Box`
 // tree now (see that file's module comment for why that's sound), so
 // `dfs_convert` receives and consumes an owned `BkBlock` by value rather
 // than an unsafely-walked raw pointer, and needs no `unsafe` at all: a
@@ -102,7 +102,7 @@ pub struct BkGraph {
 
 /// Consumes `b`, converting it (and everything it owns) into `blocks`/
 /// `entries`, post-order. Fully safe: `b` is an owned `Box` tree (see
-/// `bkblock.rs`'s module comment), so it cannot alias or cycle, and this
+/// `block.rs`'s module comment), so it cannot alias or cycle, and this
 /// function simply recurses and lets each drained `BkBlock` shell drop
 /// normally once its cells have been moved into a fresh `ArenaBlock`.
 fn dfs_convert(
@@ -441,7 +441,7 @@ fn try_untabgle_block(
                         // general construction API and letting
                         // `bkpushitems` splice `p`'s cells in; expressed
                         // directly here instead, since a `Copy` cell's
-                        // only remaining job (per `bkblock.rs`'s own
+                        // only remaining job (per `block.rs`'s own
                         // comment on it) is this exact arena-internal
                         // splice.
                         let twin_cells = blocks[p.0 as usize].cells.clone();
