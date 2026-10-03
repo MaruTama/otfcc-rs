@@ -1,6 +1,6 @@
 
 use crate::support::glyph_order::GlyphOrder;
-use crate::table::_tsi::TsiTable;
+use crate::table::tsi::TsiTable;
 use crate::table::base::BaseTable;
 use crate::table::cff::CffTable;
 use crate::table::cmap::CmapTable;
@@ -17,14 +17,14 @@ use crate::table::hhea::HheaTable;
 use crate::table::hmtx::HmtxTable;
 use crate::table::ltsh::LtshTable;
 use crate::table::maxp::MaxpTable;
-use crate::table::meta::types::MetaTable;
+use crate::table::meta::MetaTable;
 use crate::table::name::NameTable;
 use crate::table::os_2::Os2Table;
 use crate::table::otl::OtlTable;
 use crate::table::post::PostTable;
 use crate::table::svg::SvgTable;
 use crate::table::tsi5::Tsi5Table;
-use crate::table::vdmx::types::VdmxTable;
+use crate::table::vdmx::VdmxTable;
 use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
 use crate::table::vorg::VorgTable;
