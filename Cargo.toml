@@ -1,10 +1,12 @@
+# An empty workspace of its own, so cargo never looks for one in a directory
+# above this checkout. `fuzz/` declares its own workspace too.
 [workspace]
-members = [
-]
+
 [package]
 name = "otfcc_rust"
-authors = ["C2Rust"]
-version = "0.0.0"
+# Kept equal to src/version.rs, which is what the binaries and the `name`
+# table print.
+version = "0.10.4"
 publish = false
 edition = "2024"
 

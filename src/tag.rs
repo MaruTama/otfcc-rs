@@ -40,7 +40,6 @@ pub const TAG_FVAR: u32 = u32::from_be_bytes(*b"fvar");
 pub const TAG_GASP: u32 = u32::from_be_bytes(*b"gasp");
 pub const TAG_GLYF: u32 = u32::from_be_bytes(*b"glyf");
 pub const TAG_GVAR: u32 = u32::from_be_bytes(*b"gvar");
-pub const TAG_HDMX: u32 = u32::from_be_bytes(*b"hdmx");
 pub const TAG_HEAD: u32 = u32::from_be_bytes(*b"head");
 pub const TAG_HHEA: u32 = u32::from_be_bytes(*b"hhea");
 pub const TAG_HMTX: u32 = u32::from_be_bytes(*b"hmtx");
