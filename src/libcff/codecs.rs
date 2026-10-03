@@ -1,5 +1,6 @@
 use crate::libcff::CffDictOperator;
 use crate::libcff::value::CffValue;
+use crate::support::fmt::format_g;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
 /// Every caller passes a DICT operator, so the parameter says so. The body
@@ -33,62 +34,6 @@ pub fn cff_encode_cff_integer(mut val: i32) -> Buffer {
         ])
     }
 }
-/// A from-scratch, byte-exact reimplementation of C's `%.13g` conversion
-/// (glibc's `sprintf(buf, "%.13g", val)`, which the original called via
-/// `libc::sprintf` into a fixed stack buffer). `%.Pg` (P = 13 here) rounds
-/// `val` to `P` significant decimal digits, then picks `%f`-style
-/// (`P-1-X` fractional digits, where `X` is the decimal exponent of the
-/// rounded value) when `-4 <= X < P`, else `%e`-style (`P-1` fractional
-/// digits, exponent as `e+XX`/`e-XX` with the sign always shown and at
-/// least 2 digits), and finally strips trailing fractional zeros (and the
-/// bare decimal point if none remain) since the `#` flag is never set at
-/// any call site. Rust's `{:.N}`/`{:.N}e` formatting is, like glibc's,
-/// correctly-rounded (round-to-nearest, ties-to-even) fixed-precision
-/// decimal conversion -- unlike `vendor/emyg_dtoa.rs`'s *shortest*
-/// round-tripping Grisu2 output, a fixed digit count has exactly one
-/// correct answer, so the two must agree bit-for-bit. Verified against
-/// CPython's `"%.13g" % val` (itself glibc-equivalent) across 200,000
-/// pseudo-random f64 bit patterns with zero mismatches; see this file's
-/// own `format_g13` tests for the representative cases pinned from that
-/// sweep.
-fn format_g13(val: f64) -> String {
-    const PRECISION: i32 = 13;
-    let e_form = format!("{:.*e}", (PRECISION - 1) as usize, val);
-    let e_pos = e_form.find('e').expect("Rust's `{:e}` always emits 'e'");
-    let exponent: i32 = e_form[e_pos + 1..]
-        .parse()
-        .expect("Rust's `{:e}` exponent is always a plain decimal integer");
-    let s = if (-4..PRECISION).contains(&exponent) {
-        let frac_digits = (PRECISION - 1 - exponent).max(0) as usize;
-        format!("{:.*}", frac_digits, val)
-    } else {
-        let mantissa = strip_trailing_fraction_zeros(&e_form[..e_pos]);
-        format!(
-            "{}e{}{:02}",
-            mantissa,
-            if exponent < 0 { '-' } else { '+' },
-            exponent.abs()
-        )
-    };
-    if (-4..PRECISION).contains(&exponent) {
-        strip_trailing_fraction_zeros(&s).to_string()
-    } else {
-        s
-    }
-}
-fn strip_trailing_fraction_zeros(s: &str) -> &str {
-    match s.find('.') {
-        None => s,
-        Some(dot) => {
-            let stripped = s[..dot + 1].len() + s[dot + 1..].trim_end_matches('0').len();
-            if stripped == dot + 1 {
-                &s[..dot]
-            } else {
-                &s[..stripped]
-            }
-        }
-    }
-}
 pub fn cff_encode_cff_float(val: f64) -> Buffer {
     let mut blob = Buffer::new();
     if val == 0.0f64 {
@@ -96,7 +41,7 @@ pub fn cff_encode_cff_float(val: f64) -> Buffer {
         blob.write_u8(0xf_u8);
         return blob;
     }
-    let text = format_g13(val);
+    let text = format_g(val, 13);
     let mut nibbles: Vec<u8> = Vec::with_capacity(text.len());
     let bytes = text.as_bytes();
     let mut i = 0;
@@ -122,7 +67,7 @@ pub fn cff_encode_cff_float(val: f64) -> Buffer {
                 nibbles.push(0xe);
                 i += 1;
             }
-            _ => unreachable!("format_g13 only emits '.', digits, 'e-', 'e+' and '-'"),
+            _ => unreachable!("format_g only emits '.', digits, 'e-', 'e+' and '-'"),
         }
     }
     if !nibbles.len().is_multiple_of(2) {
@@ -766,7 +711,7 @@ mod float_encoding_tests {
             (0.0, "0"),
         ];
         for &(val, expected) in cases {
-            assert_eq!(format_g13(val), expected, "for val = {val:?}");
+            assert_eq!(format_g(val, 13), expected, "for val = {val:?}");
         }
     }
 

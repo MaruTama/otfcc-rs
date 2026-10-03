@@ -2,7 +2,6 @@ use otfcc_rust::logger::ByteStr;
 use otfcc_rust::support::buffer::Buffer;
 use otfcc_rust::support::options::Options;
 
-use libc::timespec;
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::model::Font;
 use otfcc_rust::json_reader::read_json;
@@ -12,7 +11,7 @@ use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_lo
 use otfcc_rust::support::options::options_optimize_to;
 use otfcc_rust::support::parsed_json::ParsedValue;
 use otfcc_rust::support::parsed_json::parse_json;
-use otfcc_rust::support::cli::stopwatch::{log_step_time, time_now};
+use otfcc_rust::support::cli::stopwatch::log_step_time;
 use otfcc_rust::support::EXIT_FAILURE;
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
@@ -78,11 +77,7 @@ pub fn read_entire_stdin() -> Vec<u8> {
     bytes
 }
 fn run(args: Vec<String>) -> i32 {
-    let mut begin: timespec = timespec {
-        tv_sec: 0,
-        tv_nsec: 0,
-    };
-    time_now(&mut begin);
+    let mut begin = std::time::Instant::now();
     let mut show_help: bool = false;
     let mut show_version: bool = false;
     let mut invalid_argument = false;

@@ -6,7 +6,6 @@ use otfcc_rust::font::sfnt::SplineFontContainer;
 use otfcc_rust::support::built_json::BuiltValue;
 use otfcc_rust::support::EXIT_FAILURE;
 
-use libc::timespec;
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::sfnt::read_sfnt;
 use otfcc_rust::json_writer::serialize_to_json;
@@ -17,7 +16,7 @@ use otfcc_rust::support::built_json::{
 };
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
-use otfcc_rust::support::cli::stopwatch::{log_step_time, time_now};
+use otfcc_rust::support::cli::stopwatch::log_step_time;
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
@@ -166,11 +165,7 @@ fn run(args: Vec<String>) -> i32 {
         print_help();
         return EXIT_FAILURE;
     }
-    let mut begin: timespec = timespec {
-        tv_sec: 0,
-        tv_nsec: 0,
-    };
-    time_now(&mut begin);
+    let mut begin = std::time::Instant::now();
     let mut sfnt: Option<SplineFontContainer>;
     let stage = otfcc_rust::logger::stage("Read SFNT");
     {
