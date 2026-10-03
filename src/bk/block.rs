@@ -1,12 +1,12 @@
 // Stage D (2026-09): `BkBlock`/`BkCellValue::Ptr` become an owned, `Box`-based
 // recursive tree. The previous version of this comment (added 2026-09-07,
 // correcting an even earlier "single-parent forest" claim) argued this was
-// *impossible*: `bk_minimize_graph`/`replaceptr` (in `bkgraph.rs`) make
+// *impossible*: `bk_minimize_graph`/`replaceptr` (in `graph.rs`) make
 // multiple cells alias the same block after minimization, so -- the argument
 // went -- two `Box`es would have to alias one allocation.
 //
 // That argument conflated two different types. `bk_minimize_graph` operates
-// entirely inside `bkgraph.rs`'s `BkGraph` arena, on `ArenaCellValue::
+// entirely inside `graph.rs`'s `BkGraph` arena, on `ArenaCellValue::
 // Ptr(Option<BlockId>)` -- a `Copy` index, not a pointer, and a completely
 // separate type from this file's `BkCellValue::Ptr`. By the time any
 // aliasing happens, `bk_new_graph_from_root_block`'s `dfs_convert` has
@@ -25,7 +25,7 @@
 //
 // So the ownership model this file actually needs is a plain tree, not an
 // arena: `Ptr(*mut BkBlock)` -> `Ptr(Option<Box<BkBlock>>)`. Post-minimize
-// sharing is real, but it happens one level up, entirely inside `bkgraph.rs`'s
+// sharing is real, but it happens one level up, entirely inside `graph.rs`'s
 // already-arena-based `BkGraph` -- this file's raw tree is consumed, not
 // retained, by the time that sharing occurs.
 #[derive(Debug)]
@@ -188,7 +188,7 @@ mod tests {
     // `BkCellType`'s numbers are load-bearing twice over. `bkpushitems` sends
     // `t < BkCellType::P16` down the integer path and everything else down the pointer path
     // -- reading the wrong arm of a union if that split moved -- and
-    // `escalate_sppointers` in bkgraph.rs picks the shared pointers with
+    // `escalate_sppointers` in graph.rs picks the shared pointers with
     // `t >= BkCellType::Sp16`, which decides layout order and therefore the offsets written
     // into the font. Both are `Ord` on the enum now, and `Ord` follows
     // declaration order rather than the discriminants, so this pins that the two

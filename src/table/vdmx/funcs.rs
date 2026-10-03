@@ -1,11 +1,11 @@
-use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::parsed_json::ParsedValue;
 use crate::vendor::json::JsonType;
 
-use crate::bk::bkgraph::bk_build_block_no_minimize;
+use crate::bk::graph::bk_build_block_no_minimize;
 use crate::support::built_json::BuiltValue;
 use crate::table::vdmx::types::{VdmxRatioRange, VdmxRecord, VdmxTable};
 // `group_offset` (read from the per-ratio offset table) used to be handed

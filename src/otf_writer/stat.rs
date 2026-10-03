@@ -1029,7 +1029,7 @@ mod stat_os_2_average_width_tests {
 // +/-0.0" -- `f64::round`'s own documented contract is the identical
 // "round half away from zero", pinned here against that documented
 // contract rather than a live libc comparison, the same choice
-// `libcff/cff_writer.rs`'s own `modf_tests` module already made.
+// `libcff/writer.rs`'s own `modf_tests` module already made.
 #[cfg(test)]
 mod round_tests {
     #[test]

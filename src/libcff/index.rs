@@ -30,7 +30,7 @@ pub struct CffIndex {
 // `gu1`/`gu2`/`gu3`/`gu4` (1/2/3/4-byte big-endian unsigned reads, no
 // bounds checking, no length parameter at all) are gone from this file --
 // one of ten near-identical copies across `libcff/` the plan calls out by
-// name (`cff_charset.rs`/`cff_fdselect.rs`/`cff_parser.rs` each still have
+// name (`charset.rs`/`fdselect.rs`/`parser.rs` each still have
 // their own; converting those is separately scoped follow-up work).
 // `FontReader::u8()`/`u16()`/`u24()`/`u32()` are exactly these four reads,
 // checked against the buffer's real length.
@@ -49,7 +49,7 @@ pub(crate) fn cff_index_dispose(x: &mut CffIndex) {
 // `&mut CffIndex`, no pointer to adopt either way.
 // A real, valid, empty `CffIndex` value -- as opposed to the all-zero bit
 // pattern `__caryll_allocate_clean` (calloc) would produce, which is NOT a
-// valid `CffIndex` since it owns two `Vec`s. Also used by `cff_parser.rs`'s
+// valid `CffIndex` since it owns two `Vec`s. Also used by `parser.rs`'s
 // `cff_open_stream` to build a whole `CffFile` (which embeds 7 of these) as
 // one real value up front, instead of calloc'ing `CffFile` and letting each
 // field's first write be a plain `=` onto still-invalid zeroed memory (see

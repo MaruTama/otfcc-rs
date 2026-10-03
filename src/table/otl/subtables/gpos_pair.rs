@@ -8,10 +8,10 @@ use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage, shr
 
 use crate::support::font_reader::FontReader;
 
-use crate::bk::bkblock::bk_new_block_from_buffer;
-use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::bk::bkgraph::BkGraph;
-use crate::bk::bkgraph::{
+use crate::bk::block::bk_new_block_from_buffer;
+use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::graph::BkGraph;
+use crate::bk::graph::{
     bk_build_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block,
     bk_untangle_graph,
 };

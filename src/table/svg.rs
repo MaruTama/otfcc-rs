@@ -1,6 +1,6 @@
-use crate::bk::bkblock::bk_new_block_from_buffer_copy;
-use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::bk::bkgraph::bk_build_block;
+use crate::bk::block::bk_new_block_from_buffer_copy;
+use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::graph::bk_build_block;
 use crate::font::sfnt::Packet;
 use crate::support::base64::base64_encode;
 use crate::support::buffer::Buffer;

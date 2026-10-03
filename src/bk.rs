@@ -1,2 +1,2 @@
-pub mod bkblock;
-pub mod bkgraph;
+pub mod block;
+pub mod graph;

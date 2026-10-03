@@ -7,7 +7,7 @@ use crate::table::otl::coverage::Coverage;
 use crate::support::cstd::binio::pos_to_u16;
 use crate::support::font_reader::FontReader;
 
-use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
+use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, Pos, count_u16};
