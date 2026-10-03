@@ -5,34 +5,11 @@ use crate::support::json_limits::{MAX_ENTRIES, find_oversized_collection};
 use crate::support::parsed_json::ParsedValue;
 
 use crate::font::caryll_font::{Font, FontSubtype};
+use crate::font::table_registry::PARSE_ORDER;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry, GlyphOrderPass};
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
-
-use crate::table::_tsi::parse_tsi;
-use crate::table::base::parse_base;
-use crate::table::cff::parse_cff;
-use crate::table::cmap::parse_cmap;
-use crate::table::colr::parse_colr;
-use crate::table::cpal::parse_cpal;
-use crate::table::cvt::parse_cvt;
-use crate::table::fpgm_prep::parse_fpgm_prep;
-use crate::table::gasp::parse_gasp;
-use crate::table::gdef::parse_gdef;
-use crate::table::glyf::parse_glyf;
-use crate::table::head::parse_head;
-use crate::table::hhea::parse_hhea;
-use crate::table::maxp::parse_maxp;
-use crate::table::meta::parse::parse_meta;
-use crate::table::name::parse_name;
-use crate::table::os_2::parse_os_2;
-use crate::table::otl::parse::parse_otl;
-use crate::table::post::parse_post;
-use crate::table::svg::parse_svg;
-use crate::table::tsi5::parse_tsi5;
-use crate::table::vdmx::funcs::parse_vdmx;
-use crate::table::vhea::parse_vhea;
 
 fn decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
     if root.get_typed(b"CFF_", JsonType::Object).is_some() {
@@ -236,56 +213,9 @@ pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>>
     let mut font: Box<Font> = Box::default();
     font.subtype = decide_font_subtype_from_json(root);
     font.glyph_order = parse_glyph_order(root, options);
-    font.glyf = parse_glyf(root, font.glyph_order.as_deref(), options);
-    font.cff = parse_cff(root, options);
-    font.head = parse_head(root);
-    font.hhea = parse_hhea(root);
-    font.os_2 = parse_os_2(root);
-    font.maxp = parse_maxp(root);
-    font.post = parse_post(root, options);
-    font.name = parse_name(root);
-    font.meta = parse_meta(root);
-    font.cmap = parse_cmap(root);
-    if !options.ignore_hints {
-        font.fpgm = parse_fpgm_prep(
-            root,
-            b"fpgm",
-        );
-        font.prep = parse_fpgm_prep(
-            root,
-            b"prep",
-        );
-        font.cvt_ = parse_cvt(
-            root,
-            b"cvt_",
-        );
-        font.gasp = parse_gasp(root);
+    for table in PARSE_ORDER {
+        table.parse(&mut font, root, options);
     }
-    font.vdmx = parse_vdmx(root);
-    font.vhea = parse_vhea(root);
-    if font.glyf.is_some() {
-        // `parse_otl` (Stage M-33) takes `&mut ParsedValue` now too,
-        // for the same reason `parse_glyf` above does. `root` is
-        // already `&mut ParsedValue` here (this function's own signature,
-        // above), so each call is a plain, ordinary, compiler-inserted
-        // reborrow of `root` -- no cast, no raw pointer, nothing to justify.
-        font.gsub = parse_otl(root, options, b"GSUB");
-        font.gpos = parse_otl(root, options, b"GPOS");
-        font.gdef = parse_gdef(root);
-    }
-    font.base = parse_base(root);
-    font.cpal = parse_cpal(root);
-    font.colr = parse_colr(root);
-    font.svg = parse_svg(root);
-    font.tsi_01 = parse_tsi(
-        root,
-        b"TSI_01",
-    );
-    font.tsi_23 = parse_tsi(
-        root,
-        b"TSI_23",
-    );
-    font.tsi5 = parse_tsi5(root);
     Some(font)
 }
 
