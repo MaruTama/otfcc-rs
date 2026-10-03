@@ -4,7 +4,7 @@ use otfcc_rust::support::options::Options;
 
 use libc::timespec;
 use otfcc_rust::consolidate::consolidate_font;
-use otfcc_rust::font::caryll_font::Font;
+use otfcc_rust::font::model::Font;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
@@ -32,7 +32,7 @@ pub fn print_help() {
 // (`run`) returns `EXIT_FAILURE` itself instead of this function
 // calling `exit()` deep inside a helper, the same "propagate a failure
 // signal up to the one place that already owns process-exit semantics"
-// shape `font/caryll_sfnt.rs`'s `get16u`/`get32u` -> `Option`
+// shape `font/sfnt.rs`'s `get16u`/`get32u` -> `Option`
 // conversion used.
 //
 // The bug this fixes: the old `fseek`/`ftell`/`fread` version discarded

@@ -122,7 +122,7 @@ mod tests {
     // Constructs a real `Font` via `otfcc_font_create`, then `read_json`
     // populates it field-by-field, then serializes to OTF -- which used to
     // hit two separate, now-fixed UBs under miri: `Font`-construction
-    // (Stage 7-2-d's `Font` Box化) and `font/caryll_sfnt_builder.rs`'s
+    // (Stage 7-2-d's `Font` Box化) and `font/sfnt_builder.rs`'s
     // checksum computation reading a `Vec<u8>` through a misaligned `*mut
     // u32` (fixed by reading big-endian bytes via `chunks_exact`/
     // `from_be_bytes` instead of a pointer cast). No longer miri-ignored.

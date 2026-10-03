@@ -3,9 +3,9 @@ pub mod unconsolidate;
 
 use crate::support::options::Options;
 
-use crate::font::caryll_font::{Font, FontSubtype};
+use crate::font::model::{Font, FontSubtype};
 use crate::font::table_registry::READ_ORDER;
-use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
+use crate::font::sfnt::{Packet, PacketPiece, SplineFontContainer};
 
 use crate::otf_reader::unconsolidate::unconsolidate_font;
 
@@ -67,7 +67,7 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
 #[cfg(test)]
 mod regression_tests {
     use crate::consolidate::consolidate_font;
-    use crate::font::caryll_sfnt::read_sfnt_from_reader;
+    use crate::font::sfnt::read_sfnt_from_reader;
     use crate::support::options::Options;
     
     use std::io::Cursor;

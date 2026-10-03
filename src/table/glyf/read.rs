@@ -1,6 +1,6 @@
 use crate::support::handle::{GlyphHandle, handle_from_index};
 
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::{F2Dot14, F16Dot16, GlyphId, Pos, Scale, ShapeId};
 

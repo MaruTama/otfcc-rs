@@ -1,14 +1,14 @@
 use otfcc_rust::logger::ByteStr;
 use otfcc_rust::support::options::Options;
 
-use otfcc_rust::font::caryll_font::Font;
-use otfcc_rust::font::caryll_sfnt::SplineFontContainer;
+use otfcc_rust::font::model::Font;
+use otfcc_rust::font::sfnt::SplineFontContainer;
 use otfcc_rust::support::built_json::BuiltValue;
 use otfcc_rust::support::EXIT_FAILURE;
 
 use libc::timespec;
 use otfcc_rust::consolidate::consolidate_font;
-use otfcc_rust::font::caryll_sfnt::read_sfnt;
+use otfcc_rust::font::sfnt::read_sfnt;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::built_json::json_serialize_ex;

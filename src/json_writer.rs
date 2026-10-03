@@ -1,6 +1,6 @@
 use crate::support::options::Options;
 
-use crate::font::caryll_font::Font;
+use crate::font::model::Font;
 use crate::font::table_registry::DUMP_ORDER;
 use crate::support::built_json::BuiltValue;
 

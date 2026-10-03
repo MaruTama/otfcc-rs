@@ -2,7 +2,7 @@
 
 use crate::support::handle::{FdHandle, handle_from_index};
 
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::libcff::CffDictOperator;
 use crate::libcff::cff_charset::{CffCharset, CffCharsetRangeFormat2};
 use crate::libcff::cff_dict::{CffDict, CffDictEntry};
@@ -2168,7 +2168,7 @@ fn json_from_sds(str: &[u8]) -> BuiltValue {
 #[cfg(test)]
 mod cff_matrix_no_head_regression_tests {
     use super::*;
-    use crate::font::caryll_sfnt::{Packet, PacketPiece};
+    use crate::font::sfnt::{Packet, PacketPiece};
     use crate::support::options::Options;
 
     // `otfccdump` SIGSEGV'd (exit code 139) on any CFF font with a Top

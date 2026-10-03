@@ -1,7 +1,7 @@
 use crate::support::handle::{Handle, HandleState, handle_from_index};
 
 
-use crate::font::caryll_font::{Font, FontSubtype};
+use crate::font::model::{Font, FontSubtype};
 use crate::support::options::Options;
 use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, count_u16};
 
@@ -961,7 +961,7 @@ pub const __FLT_MAX__: ::core::ffi::c_float = 3.402_823_5e38_f32;
 #[cfg(test)]
 mod stat_os_2_average_width_tests {
     use super::*;
-    use crate::font::caryll_font::Font;
+    use crate::font::model::Font;
     use crate::table::os_2::Os2Table;
 
     // A `glyf` table can legitimately be present-but-empty (a JSON font

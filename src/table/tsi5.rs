@@ -5,7 +5,7 @@ use crate::support::handle::handle_from_index;
 
 use crate::support::font_reader::FontReader;
 
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, GlyphId};
@@ -78,7 +78,7 @@ pub fn build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffe
 #[cfg(test)]
 mod otfcc_read_tsi5_tests {
     use super::*;
-    use crate::font::caryll_sfnt::PacketPiece;
+    use crate::font::sfnt::PacketPiece;
 
     fn packet_with_tsi5(data: Vec<u8>) -> Packet {
         Packet {

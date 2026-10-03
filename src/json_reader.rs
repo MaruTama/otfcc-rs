@@ -4,7 +4,7 @@ use crate::logger::ByteStr;
 use crate::support::json_limits::{MAX_ENTRIES, find_oversized_collection};
 use crate::support::parsed_json::ParsedValue;
 
-use crate::font::caryll_font::{Font, FontSubtype};
+use crate::font::model::{Font, FontSubtype};
 use crate::font::table_registry::PARSE_ORDER;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry, GlyphOrderPass};
 use crate::support::options::Options;
