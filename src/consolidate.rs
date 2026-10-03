@@ -136,10 +136,10 @@ fn consolidate_glyph_hints(g: &mut Glyph) {
         for mask in hint_masks.iter_mut() {
             let oldmask: PostscriptHintMask = *mask;
             for (k, &hm) in hmap.iter().enumerate() {
-                mask.mask_h[k] = oldmask.mask_h[hm as usize];
+                mask.mask_h.set(k, oldmask.mask_h.get(hm as usize));
             }
             for (k, &vm) in vmap.iter().enumerate() {
-                mask.mask_v[k] = oldmask.mask_v[vm as usize];
+                mask.mask_v.set(k, oldmask.mask_v.get(vm as usize));
             }
         }
     }
@@ -149,10 +149,10 @@ fn consolidate_glyph_hints(g: &mut Glyph) {
         for mask in contour_masks.iter_mut() {
             let oldmask: PostscriptHintMask = *mask;
             for (k, &hm) in hmap.iter().enumerate() {
-                mask.mask_h[k] = oldmask.mask_h[hm as usize];
+                mask.mask_h.set(k, oldmask.mask_h.get(hm as usize));
             }
             for (k, &vm) in vmap.iter().enumerate() {
-                mask.mask_v[k] = oldmask.mask_v[vm as usize];
+                mask.mask_v.set(k, oldmask.mask_v.get(vm as usize));
             }
         }
     }
