@@ -14,7 +14,7 @@ use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
 use crate::table::cff::CffTable;
 use crate::table::colr::{ColrMapping, ColrTable};
 
-use crate::table::_tsi::{TsiEntry, TsiEntryType, TsiTable};
+use crate::table::tsi::{TsiEntry, TsiEntryType, TsiTable};
 
 use crate::table::glyf::{
     ComponentReference, GlyfTable, Glyph, PostscriptHintMask, PostscriptStemDef,
@@ -26,7 +26,7 @@ use crate::table::otl::kind::{LookupConsolidateCtx, lookup_kind};
 use crate::table::otl::{Lookup, LookupList, OtlTable};
 
 use crate::support::glyph_order::{gord_consolidate_handle, set_glyph_order_by_name};
-use crate::table::_tsi::tsi_entry_dup;
+use crate::table::tsi::tsi_entry_dup;
 use crate::table::glyf::{glyf_component_reference_empty, new_glyf_glyph};
 use crate::table::otl::{
     otl_feature_list_punch_holes, otl_feature_ref_list_filter_env, otl_lookup_list_punch_holes,
@@ -671,7 +671,7 @@ pub(crate) fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &
             }
         } else {
             // `tsi_entry_dup` is a safe fn now that this stack includes
-            // #364's `_tsi.rs` conversion.
+            // #364's `tsi.rs` conversion.
             consolidated.push(tsi_entry_dup(entry));
         }
     }
