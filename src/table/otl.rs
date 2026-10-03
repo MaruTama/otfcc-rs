@@ -600,7 +600,7 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
 /// hole in place instead, so every index that was valid before a call
 /// (other than one pointing at a just-rejected slot) is still valid after
 /// it. Returns whether anything was actually punched, for the fixed-point
-/// loop in `consolidate.rs` that used to watch `.len()` shrink -- a
+/// loop in `consolidate/otl.rs` that used to watch `.len()` shrink -- a
 /// hole-preserving `Vec` never shrinks, so "did this pass change anything"
 /// has to be signalled explicitly instead.
 pub(crate) fn otl_lookup_list_punch_holes(arr: &mut LookupList, mut pred: impl FnMut(&Lookup) -> bool) -> bool {
