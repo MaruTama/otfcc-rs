@@ -21,11 +21,10 @@ use crate::table::glyf::{
     RefAnchorStatus,
 };
 
+use crate::font::table_registry::CONSOLIDATE_ORDER;
 use crate::table::otl::kind::{LookupConsolidateCtx, lookup_kind};
 use crate::table::otl::{Lookup, LookupList, OtlTable};
 
-use crate::consolidate::otl::common::fontop_consolidate_class_def;
-use crate::consolidate::otl::gdef::consolidate_gdef;
 use crate::support::glyph_order::{gord_consolidate_handle, set_glyph_order_by_name};
 use crate::table::_tsi::tsi_entry_dup;
 use crate::table::glyf::{glyf_component_reference_empty, new_glyf_glyph};
@@ -525,7 +524,7 @@ pub fn consolidate_lookup(
 // from the very value about to be reborrowed mutably) are threaded down
 // so `consolidate_chaining` can special-case exactly that slot instead of
 // reading it (as `None`) from `lookups`.
-fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut OtlTable>, options: &Options) {
+pub(crate) fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut OtlTable>, options: &Options) {
     // Every lookup consolidator below reads exactly one thing from the font:
     // its glyph order (checked across `consolidate/otl/` -- nothing else).
     // So this takes `glyph_order`, not the `Font`, which is what lets the
@@ -605,25 +604,7 @@ fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut Ot
         }
     }
 }
-fn consolidate_otl(font: &mut Font, options: &Options) {
-    let glyph_order = font.glyph_order.as_deref();
-    let stage = crate::logger::stage("GSUB");
-    {
-        consolidate_otl_table(glyph_order, font.gsub.as_deref_mut(), options);
-        stage.finish();
-    }
-    let stage = crate::logger::stage("GPOS");
-    {
-        consolidate_otl_table(glyph_order, font.gpos.as_deref_mut(), options);
-        stage.finish();
-    }
-    let stage = crate::logger::stage("GDEF");
-    {
-        consolidate_gdef(glyph_order, font.gdef.as_deref_mut());
-        stage.finish();
-    }
-}
-fn consolidate_colr(font: &mut Font) {
+pub(crate) fn consolidate_colr(font: &mut Font) {
     if font.colr.is_none() || font.glyph_order.is_none() {
         return;
     }
@@ -667,7 +648,7 @@ fn consolidate_colr(font: &mut Font) {
 // disjoint fields directly off `font`, which Rust allows even though a
 // single `&Font`/`&mut Font` funneled through this function's own
 // parameter list would not.
-fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<TsiTable>) {
+pub(crate) fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<TsiTable>) {
     if tsi.is_none() {
         return;
     }
@@ -722,13 +703,9 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
     options
         .consolidate_warning_budget
         .set(crate::consolidate::otl::chaining::CONSOLIDATE_WARNING_BUDGET);
-    // `font.glyf` itself is never reassigned anywhere below (individual
-    // glyph slots inside it may be, but the `Option` wrapping the whole
-    // table is not), so capturing "is a glyf table present at all" once,
-    // up front, is equivalent to re-checking `font.glyf.is_some()` at
-    // each point the original raw-pointer version did.
-    let has_glyf = font.glyf.is_some();
-    if has_glyf && font.glyph_order.is_none() {
+    if font.glyph_order.is_none()
+        && let Some(glyf) = font.glyf.as_mut()
+    {
         // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
         // (`malloc`) + `Box::from_raw` -- `Box::from_raw` requires the
         // pointer to have come from Rust's global allocator, which a bare
@@ -742,7 +719,6 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
             by_name: ::std::collections::HashMap::new(),
         });
         let go: &mut GlyphOrder = go_box.as_mut();
-        let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
         for (gid, slot) in glyf.iter_mut().enumerate() {
             let g = slot.as_mut().unwrap();
             let gid = gid as GlyphId;
@@ -779,38 +755,9 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
         }
         font.glyph_order = Some(go_box);
     }
-    let stage = crate::logger::stage("glyf");
-    consolidate_glyf(font, options);
-    stage.finish();
-    let stage = crate::logger::stage("cmap");
-    consolidate_cmap(font);
-    stage.finish();
-    if has_glyf {
-        // The lookup consolidators read exactly one thing from the font --
-        // its glyph order -- so `consolidate_otl` splits `font.glyph_order`
-        // off from `font.gsub`/`.gpos`/`.gdef` (disjoint fields) and hands
-        // each piece to the safe dispatch. Was `unsafe fn` over a
-        // `font: *mut Font`, on the belief (Stage L-7's note) that this
-        // needed the `Font` borrows split apart in a way that was out of
-        // scope; it turned out to need only that one field.
-        consolidate_otl(font, options);
+    for table in CONSOLIDATE_ORDER {
+        table.consolidate(font, options);
     }
-    let stage = crate::logger::stage("COLR");
-    consolidate_colr(font);
-    stage.finish();
-    let stage = crate::logger::stage("TSI_01");
-    if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
-        consolidate_tsi(glyf, glyph_order, &mut font.tsi_01);
-    }
-    stage.finish();
-    let stage = crate::logger::stage("TSI_23");
-    if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
-        consolidate_tsi(glyf, glyph_order, &mut font.tsi_23);
-    }
-    stage.finish();
-    let stage = crate::logger::stage("TSI5");
-    fontop_consolidate_class_def(font.glyph_order.as_deref(), font.tsi5.as_deref_mut());
-    stage.finish();
 }
 
 #[cfg(test)]

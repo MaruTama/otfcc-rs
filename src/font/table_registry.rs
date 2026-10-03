@@ -13,9 +13,15 @@
 //! needs `hhea` and `maxp`, `glyf` needs `head` and `maxp`), and a method
 //! that has nothing to do for a font -- a TrueType-only table in a CFF font,
 //! say -- simply returns.
+use crate::consolidate::otl::common::fontop_consolidate_class_def;
+use crate::consolidate::otl::gdef::consolidate_gdef;
+use crate::consolidate::{
+    consolidate_cmap, consolidate_colr, consolidate_glyf, consolidate_otl_table, consolidate_tsi,
+};
 use crate::font::caryll_font::{Font, FontSubtype};
 use crate::font::caryll_sfnt::Packet;
 use crate::font::caryll_sfnt_builder::{SfntBuilder, sfnt_builder_push_table};
+use crate::logger::ByteStr;
 use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
@@ -81,6 +87,9 @@ pub trait FontTable: Sync {
     fn dump(&self, _font: &mut Font, _root: &mut BuiltValue, _options: &Options) {}
     /// Writes this table into a binary font.
     fn build(&self, _font: &mut Font, _builder: &mut SfntBuilder, _options: &Options) {}
+    /// Resolves the glyph references in this table against the font's glyph
+    /// order, and drops what does not resolve, before the font is written.
+    fn consolidate(&self, _font: &mut Font, _options: &Options) {}
 }
 
 fn is_ttf(font: &Font) -> bool {
@@ -366,6 +375,11 @@ impl FontTable for Glyf {
         sfnt_builder_push_table(builder, TAG_GLYF, Some(pair.glyf));
         sfnt_builder_push_table(builder, TAG_LOCA, Some(pair.loca));
     }
+    fn consolidate(&self, font: &mut Font, options: &Options) {
+        let stage = crate::logger::stage("glyf");
+        consolidate_glyf(font, options);
+        stage.finish();
+    }
 }
 
 struct Cmap;
@@ -381,6 +395,11 @@ impl FontTable for Cmap {
     }
     fn build(&self, font: &mut Font, builder: &mut SfntBuilder, options: &Options) {
         sfnt_builder_push_table(builder, TAG_CMAP, build_cmap(font.cmap.as_deref(), options));
+    }
+    fn consolidate(&self, font: &mut Font, _options: &Options) {
+        let stage = crate::logger::stage("cmap");
+        consolidate_cmap(font);
+        stage.finish();
     }
 }
 
@@ -603,6 +622,19 @@ impl FontTable for Layout {
             build_otl(self.slot(font).as_deref(), self.key()),
         );
     }
+    fn consolidate(&self, font: &mut Font, options: &Options) {
+        if font.glyf.is_none() {
+            return;
+        }
+        let glyph_order = font.glyph_order.as_deref();
+        let table = match self {
+            Layout::Gsub => font.gsub.as_deref_mut(),
+            Layout::Gpos => font.gpos.as_deref_mut(),
+        };
+        let stage = crate::logger::stage(ByteStr(self.key()));
+        consolidate_otl_table(glyph_order, table, options);
+        stage.finish();
+    }
 }
 
 struct Gdef;
@@ -622,6 +654,14 @@ impl FontTable for Gdef {
     }
     fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
         sfnt_builder_push_table(builder, TAG_GDEF, build_gdef(font.gdef.as_deref()));
+    }
+    fn consolidate(&self, font: &mut Font, _options: &Options) {
+        if font.glyf.is_none() {
+            return;
+        }
+        let stage = crate::logger::stage("GDEF");
+        consolidate_gdef(font.glyph_order.as_deref(), font.gdef.as_deref_mut());
+        stage.finish();
     }
 }
 
@@ -670,6 +710,11 @@ impl FontTable for Colr {
     }
     fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
         sfnt_builder_push_table(builder, TAG_COLR, build_colr(font.colr.as_ref()));
+    }
+    fn consolidate(&self, font: &mut Font, _options: &Options) {
+        let stage = crate::logger::stage("COLR");
+        consolidate_colr(font);
+        stage.finish();
     }
 }
 
@@ -732,6 +777,17 @@ impl FontTable for VttSource {
         sfnt_builder_push_table(builder, index, target.index_part);
         sfnt_builder_push_table(builder, text, target.text_part);
     }
+    fn consolidate(&self, font: &mut Font, _options: &Options) {
+        let stage = crate::logger::stage(ByteStr(self.key()));
+        let tsi = match self {
+            VttSource::Tsi01 => &mut font.tsi_01,
+            VttSource::Tsi23 => &mut font.tsi_23,
+        };
+        if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
+            consolidate_tsi(glyf, glyph_order, tsi);
+        }
+        stage.finish();
+    }
 }
 
 struct Tsi5;
@@ -753,6 +809,11 @@ impl FontTable for Tsi5 {
                 build_tsi5(font.tsi5.as_deref(), count_u16(glyf.len())),
             );
         }
+    }
+    fn consolidate(&self, font: &mut Font, _options: &Options) {
+        let stage = crate::logger::stage("TSI5");
+        fontop_consolidate_class_def(font.glyph_order.as_deref(), font.tsi5.as_deref_mut());
+        stage.finish();
     }
 }
 
@@ -889,6 +950,20 @@ pub static BUILD_ORDER: [&dyn FontTable; 30] = [
     &Cpal,
     &Colr,
     &Svg,
+    &VttSource::Tsi01,
+    &VttSource::Tsi23,
+    &Tsi5,
+];
+
+/// The order a font's tables are consolidated in, once it has a glyph
+/// order.
+pub static CONSOLIDATE_ORDER: [&dyn FontTable; 9] = [
+    &Glyf,
+    &Cmap,
+    &Layout::Gsub,
+    &Layout::Gpos,
+    &Gdef,
+    &Colr,
     &VttSource::Tsi01,
     &VttSource::Tsi23,
     &Tsi5,
