@@ -2,43 +2,12 @@
 pub mod unconsolidate;
 
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, ShapeId, count_u16};
 
 use crate::font::caryll_font::{Font, FontSubtype};
+use crate::font::table_registry::READ_ORDER;
 use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 
-use crate::table::cff::CffAndGlyfOwned;
-use crate::table::glyf::GlyfIOContext;
-
 use crate::otf_reader::unconsolidate::unconsolidate_font;
-use crate::table::_tsi::read_tsi;
-use crate::table::base::read_base;
-use crate::table::cff::read_cff_and_glyf_tables;
-use crate::table::cmap::read_cmap;
-use crate::table::colr::read_colr;
-use crate::table::cpal::read_cpal;
-use crate::table::cvt::read_cvt;
-use crate::table::fpgm_prep::read_fpgm_prep;
-use crate::table::fvar::read_fvar;
-use crate::table::gasp::read_gasp;
-use crate::table::gdef::read_gdef;
-use crate::table::glyf::read::read_glyf;
-use crate::table::head::read_head;
-use crate::table::hhea::read_hhea;
-use crate::table::hmtx::read_hmtx;
-use crate::table::ltsh::read_ltsh;
-use crate::table::maxp::read_maxp;
-use crate::table::meta::read::read_meta;
-use crate::table::name::read_name;
-use crate::table::os_2::read_os_2;
-use crate::table::otl::read::read_otl;
-use crate::table::post::read_post;
-use crate::table::svg::read_svg;
-use crate::table::tsi5::read_tsi5;
-use crate::table::vdmx::funcs::read_vdmx;
-use crate::table::vhea::read_vhea;
-use crate::table::vmtx::read_vmtx;
-use crate::table::vorg::read_vorg;
 
 fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtype {
     // c2rust's translation of a FOREACH_TABLE-style macro: the
@@ -87,85 +56,9 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
         let sfnt_packets = &sfnt.packets;
         let packet: &Packet = &sfnt_packets[index as usize];
         font.subtype = decide_font_subtype_otf(sfnt, index);
-        font.fvar = read_fvar(packet);
-        font.head = read_head(packet);
-        font.maxp = read_maxp(packet);
-        font.name = read_name(packet);
-        font.meta = read_meta(packet);
-        font.os_2 = read_os_2(packet);
-        font.post = read_post(packet);
-        font.hhea = read_hhea(packet);
-        font.cmap = read_cmap(packet);
-        if font.subtype == FontSubtype::Ttf {
-            font.hmtx = read_hmtx(
-                packet,
-                font.hhea.as_deref(),
-                font.maxp.as_deref(),
-            );
-            font.vhea = read_vhea(packet);
-            if font.vhea.is_some() {
-                font.vmtx = read_vmtx(
-                    packet,
-                    font.vhea.as_deref(),
-                    font.maxp.as_deref(),
-                );
-            }
-            font.fpgm = read_fpgm_prep(packet, crate::tag::TAG_FPGM);
-            font.prep = read_fpgm_prep(packet, crate::tag::TAG_PREP);
-            font.cvt_ = read_cvt(packet, crate::tag::TAG_CVT);
-            font.gasp = read_gasp(packet);
-            font.vdmx = read_vdmx(packet);
-            font.ltsh = read_ltsh(packet);
-            // `loca_is_long`/`num_glyphs` come from `head`/`maxp`, which
-            // -- unlike the CFF branch below, which already tolerates a
-            // missing `head` via `.map_or(null(), ...)` -- this branch
-            // used to `.unwrap()` unconditionally. A malformed font
-            // missing (or failing to parse) either table turned into a
-            // panic here instead of the "skip this table, keep going"
-            // every other reader in this function already does; a
-            // fuzz-found input with a `glyf`/`loca` pair but no `maxp`
-            // hit exactly this. `glyf` genuinely cannot be read without
-            // both, so it is left `None` (its default) rather than
-            // guessing at either value.
-            if font.head.is_some() && font.maxp.is_some() {
-                let mut ctx: GlyfIOContext = GlyfIOContext {
-                    loca_is_long: font.head.as_deref().unwrap().index_to_loc_format != 0,
-                    num_glyphs: font.maxp.as_deref().unwrap().num_glyphs as GlyphId,
-                    n_phantom_points: 4 as ShapeId,
-                    fvar: font.fvar.as_deref_mut(),
-                    has_vertical_metrics: false,
-                    export_fd_select: false,
-                };
-                font.glyf = read_glyf(packet, &mut ctx);
-            }
-        } else {
-            let cffpr: CffAndGlyfOwned =
-                read_cff_and_glyf_tables(packet, font.head.as_deref());
-            font.cff = cffpr.meta;
-            font.glyf = cffpr.glyphs;
-            font.vhea = read_vhea(packet);
-            if font.vhea.is_some() {
-                font.vmtx = read_vmtx(
-                    packet,
-                    font.vhea.as_deref(),
-                    font.maxp.as_deref(),
-                );
-                font.vorg = read_vorg(packet);
-            }
+        for table in READ_ORDER {
+            table.read(&mut font, packet, options);
         }
-        if let Some(glyf) = font.glyf.as_ref() {
-            let num_glyphs = count_u16(glyf.len());
-            font.gsub = read_otl(packet, options, crate::tag::TAG_GSUB, num_glyphs);
-            font.gpos = read_otl(packet, options, crate::tag::TAG_GPOS, num_glyphs);
-            font.gdef = read_gdef(packet);
-        }
-        font.base = read_base(packet);
-        font.cpal = read_cpal(packet);
-        font.colr = read_colr(packet);
-        font.svg = read_svg(packet);
-        font.tsi_01 = read_tsi(packet, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1);
-        font.tsi_23 = read_tsi(packet, crate::tag::TAG_TSI2, crate::tag::TAG_TSI3);
-        font.tsi5 = read_tsi5(packet);
         unconsolidate_font(&mut font, options);
         return Some(font);
     };
