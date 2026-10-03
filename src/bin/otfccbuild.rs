@@ -12,7 +12,6 @@ use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_lo
 use otfcc_rust::support::options::options_optimize_to;
 use otfcc_rust::support::parsed_json::ParsedValue;
 use otfcc_rust::support::parsed_json::parse_json;
-use otfcc_rust::support::primitives::parse_int_prefix;
 use otfcc_rust::support::cli::stopwatch::{log_step_time, time_now};
 use otfcc_rust::support::EXIT_FAILURE;
 use std::io::Read;
@@ -86,6 +85,7 @@ fn run(args: Vec<String>) -> i32 {
     time_now(&mut begin);
     let mut show_help: bool = false;
     let mut show_version: bool = false;
+    let mut invalid_argument = false;
     let mut output_path: Option<::std::ffi::CString> = None;
     let mut options: Box<Options> = Box::default();
     options_optimize_to(&mut options, 1_u8);
@@ -168,7 +168,14 @@ fn run(args: Vec<String>) -> i32 {
                 OPT_DUMMY_DSIG => options.dummy_dsig = true,
                 OPT_QUIET => options.quiet = true,
                 OPT_OPTIMIZE => {
-                    options_optimize_to(&mut options, parse_int_prefix(arg.unwrap().as_bytes(), 10) as u8);
+                    let arg = arg.unwrap();
+                    match arg.parse::<u8>() {
+                        Ok(level) => options_optimize_to(&mut options, level),
+                        Err(_) => {
+                            eprintln!("otfccbuild: invalid optimization level '{arg}'");
+                            invalid_argument = true;
+                        }
+                    }
                 }
                 OPT_TIME => {}
                 OPT_IGNORE_HINTS => options.ignore_hints = true,
@@ -205,6 +212,9 @@ fn run(args: Vec<String>) -> i32 {
     if show_version {
         print_version_info("otfccbuild");
         return 0_i32;
+    }
+    if invalid_argument {
+        return EXIT_FAILURE;
     }
     let in_path: Option<::std::ffi::CString> = positionals.into_iter().next().map(|p| {
         ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte")
