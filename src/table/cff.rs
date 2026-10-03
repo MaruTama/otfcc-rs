@@ -51,7 +51,7 @@ use crate::libcff::subr::{
 use crate::support::built_json::BuiltValue;
 use crate::support::primitives::{from_fixed, to_fixed};
 use crate::table::fvar::json_new_vq;
-use crate::table::glyf::{glyf_point_init, new_glyf_glyph, table_glyf_create_n};
+use crate::table::glyf::{StemMask, glyf_point_init, new_glyf_glyph, table_glyf_create_n};
 use crate::vf::vq::{
     vq_compare, vq_create_still, vq_get_still, vq_inplace_plus, vq_neutral, vq_point_linear_tfm,
     vq_scale,
@@ -781,8 +781,8 @@ pub(crate) fn callback_draw_setmask(
     let mut mask: PostscriptHintMask = PostscriptHintMask {
         points_before: 0,
         contours_before: 0,
-        mask_h: [false; 256],
-        mask_v: [false; 256],
+        mask_h: StemMask::default(),
+        mask_v: StemMask::default(),
     };
     if context.j_contour != 0 {
         mask.contours_before = (context.j_contour as i32 - 1_i32) as u16;
@@ -792,13 +792,11 @@ pub(crate) fn callback_draw_setmask(
     mask.points_before = context.j_point;
     let stem_h_len = context.g.stem_h.len();
     let stem_v_len = context.g.stem_v.len();
-    // Fills both fixed-size 256-entry arrays in lockstep, each entry's
-    // own index feeding both the write target and (conditionally, via
-    // `&&`'s short-circuit -- same as the original's separate `if`
-    // guards) the `mask_array` read.
-    for (j, (h, v)) in mask.mask_h.iter_mut().zip(mask.mask_v.iter_mut()).enumerate() {
-        *h = j < stem_h_len && mask_array[j];
-        *v = j < stem_v_len && mask_array[j + stem_h_len];
+    // The first `stem_h_len` flags of `mask_array` are the horizontal
+    // stems', the next `stem_v_len` the vertical stems'.
+    for j in 0..StemMask::LEN {
+        mask.mask_h.set(j, j < stem_h_len && mask_array[j]);
+        mask.mask_v.set(j, j < stem_v_len && mask_array[j + stem_h_len]);
     }
     if !mask_list.is_empty()
         && mask_list[mask_list.len() - 1].contours_before as i32
@@ -807,8 +805,6 @@ pub(crate) fn callback_draw_setmask(
             == mask.points_before as i32
     {
         let last = mask_list.len() - 1;
-        // `[bool; 256]` is `Copy` -- a whole-array assignment replaces
-        // the old element-by-element copy loop exactly.
         mask_list[last].mask_h = mask.mask_h;
         mask_list[last].mask_v = mask.mask_v;
     } else {
