@@ -89,7 +89,7 @@ fn strip_trailing_fraction_zeros(s: &str) -> &str {
         }
     }
 }
-pub fn cff_encode_cff_float(val: ::core::ffi::c_double) -> Buffer {
+pub fn cff_encode_cff_float(val: f64) -> Buffer {
     let mut blob = Buffer::new();
     if val == 0.0f64 {
         blob.write_u8(30_u8);

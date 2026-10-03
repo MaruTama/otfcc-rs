@@ -84,13 +84,13 @@ pub fn stat_single_glyph(
             // +/-infinity/+/-0.0 identically) -- a direct replacement for
             // this file's `unsafe extern "C" { fn round(...) }` import
             // (removed in Stage M-45; see RUST_MIGRATION.md).
-            let x: Pos = (vq_get_still(gr.x.borrow().clone()) as ::core::ffi::c_double
-                + gr.a as ::core::ffi::c_double * vq_get_still(p.x.clone()) as ::core::ffi::c_double
-                + gr.b as ::core::ffi::c_double * vq_get_still(p.y.clone()) as ::core::ffi::c_double)
+            let x: Pos = (vq_get_still(gr.x.borrow().clone()) as f64
+                + gr.a * vq_get_still(p.x.clone()) as f64
+                + gr.b * vq_get_still(p.y.clone()) as f64)
                 .round() as Pos;
-            let y: Pos = (vq_get_still(gr.y.borrow().clone()) as ::core::ffi::c_double
-                + gr.c as ::core::ffi::c_double * vq_get_still(p.x.clone()) as ::core::ffi::c_double
-                + gr.d as ::core::ffi::c_double * vq_get_still(p.y.clone()) as ::core::ffi::c_double)
+            let y: Pos = (vq_get_still(gr.y.borrow().clone()) as f64
+                + gr.c * vq_get_still(p.x.clone()) as f64
+                + gr.d * vq_get_still(p.y.clone()) as f64)
                 .round() as Pos;
             if x < xmin {
                 xmin = x;
@@ -794,15 +794,15 @@ fn stat_cff_widths(font: &mut Font) {
     }
     let cff = font.cff.as_deref_mut().unwrap();
     if let Some(pd) = cff.private_dict.as_deref_mut() {
-        pd.default_width_x = maxj as ::core::ffi::c_double;
+        pd.default_width_x = maxj as f64;
         if nn as i32 != 0_i32 {
-            pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
+            pd.nominal_width_x = nominal_width_x as f64;
         }
     }
     for fd in cff.fd_array.iter_mut() {
         let pd = fd.private_dict.as_deref_mut().unwrap();
-        pd.default_width_x = maxj as ::core::ffi::c_double;
-        pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
+        pd.default_width_x = maxj as f64;
+        pd.nominal_width_x = nominal_width_x as f64;
     }
 }
 fn stat_vorg(font: &mut Font) {
@@ -910,17 +910,17 @@ pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
         let units_per_em = font.head.as_deref().unwrap().units_per_em;
         let glyf_len = font.glyf.as_ref().map(|g| g.len() as u32);
         let cff = font.cff.as_deref_mut().unwrap();
-        if cff.font_b_box_bottom > head_y_min as i32 as ::core::ffi::c_double {
-            cff.font_b_box_bottom = head_y_min as i32 as ::core::ffi::c_double;
+        if cff.font_b_box_bottom > head_y_min as i32 as f64 {
+            cff.font_b_box_bottom = head_y_min as i32 as f64;
         }
-        if cff.font_b_box_top < head_y_max as i32 as ::core::ffi::c_double {
-            cff.font_b_box_top = head_y_max as i32 as ::core::ffi::c_double;
+        if cff.font_b_box_top < head_y_max as i32 as f64 {
+            cff.font_b_box_top = head_y_max as i32 as f64;
         }
-        if cff.font_b_box_left < head_x_min as i32 as ::core::ffi::c_double {
-            cff.font_b_box_left = head_x_min as i32 as ::core::ffi::c_double;
+        if cff.font_b_box_left < head_x_min as i32 as f64 {
+            cff.font_b_box_left = head_x_min as i32 as f64;
         }
-        if cff.font_b_box_right < head_x_max as i32 as ::core::ffi::c_double {
-            cff.font_b_box_right = head_x_max as i32 as ::core::ffi::c_double;
+        if cff.font_b_box_right < head_x_max as i32 as f64 {
+            cff.font_b_box_right = head_x_max as i32 as f64;
         }
         if let Some(len) = glyf_len
             && cff.is_cid {
@@ -939,10 +939,10 @@ pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
                     fd.font_matrix = None;
                 } else {
                     fd.font_matrix = Some(Box::new(CffFontMatrix {
-                        a: (1.0f64 / units_per_em as i32 as ::core::ffi::c_double) as Scale,
+                        a: (1.0f64 / units_per_em as i32 as f64) as Scale,
                         b: 0.0f64 as Scale,
                         c: 0.0f64 as Scale,
-                        d: (1.0f64 / units_per_em as i32 as ::core::ffi::c_double) as Scale,
+                        d: (1.0f64 / units_per_em as i32 as f64) as Scale,
                         x: vq_neutral(),
                         y: vq_neutral(),
                     }));
@@ -952,10 +952,10 @@ pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
             cff.font_matrix = None;
         } else {
             cff.font_matrix = Some(Box::new(CffFontMatrix {
-                a: (1.0f64 / units_per_em as i32 as ::core::ffi::c_double) as Scale,
+                a: (1.0f64 / units_per_em as i32 as f64) as Scale,
                 b: 0.0f64 as Scale,
                 c: 0.0f64 as Scale,
-                d: (1.0f64 / units_per_em as i32 as ::core::ffi::c_double) as Scale,
+                d: (1.0f64 / units_per_em as i32 as f64) as Scale,
                 x: vq_neutral(),
                 y: vq_neutral(),
             }));

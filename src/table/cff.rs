@@ -68,23 +68,23 @@ pub struct CffFontMatrix {
 }
 #[derive(Debug)]
 pub struct CffPrivateDict {
-    pub blue_values: Vec<::core::ffi::c_double>,
-    pub other_blues: Vec<::core::ffi::c_double>,
-    pub family_blues: Vec<::core::ffi::c_double>,
-    pub family_other_blues: Vec<::core::ffi::c_double>,
-    pub blue_scale: ::core::ffi::c_double,
-    pub blue_shift: ::core::ffi::c_double,
-    pub blue_fuzz: ::core::ffi::c_double,
-    pub std_hw: ::core::ffi::c_double,
-    pub std_vw: ::core::ffi::c_double,
-    pub stem_snap_h: Vec<::core::ffi::c_double>,
-    pub stem_snap_v: Vec<::core::ffi::c_double>,
+    pub blue_values: Vec<f64>,
+    pub other_blues: Vec<f64>,
+    pub family_blues: Vec<f64>,
+    pub family_other_blues: Vec<f64>,
+    pub blue_scale: f64,
+    pub blue_shift: f64,
+    pub blue_fuzz: f64,
+    pub std_hw: f64,
+    pub std_vw: f64,
+    pub stem_snap_h: Vec<f64>,
+    pub stem_snap_v: Vec<f64>,
     pub force_bold: bool,
     pub language_group: u32,
-    pub expansion_factor: ::core::ffi::c_double,
-    pub initial_random_seed: ::core::ffi::c_double,
-    pub default_width_x: ::core::ffi::c_double,
-    pub nominal_width_x: ::core::ffi::c_double,
+    pub expansion_factor: f64,
+    pub initial_random_seed: f64,
+    pub default_width_x: f64,
+    pub nominal_width_x: f64,
 }
 // Stage 6-4 "Box化": `CffTable.private_dict` becomes
 // `Option<Box<CffPrivateDict>>`. `Copy`/`Clone` dropped (nothing cloned
@@ -116,21 +116,21 @@ pub struct CffTable {
     pub family_name: Vec<u8>,
     pub weight: Vec<u8>,
     pub is_fixed_pitch: bool,
-    pub italic_angle: ::core::ffi::c_double,
-    pub underline_position: ::core::ffi::c_double,
-    pub underline_thickness: ::core::ffi::c_double,
-    pub font_b_box_top: ::core::ffi::c_double,
-    pub font_b_box_bottom: ::core::ffi::c_double,
-    pub font_b_box_left: ::core::ffi::c_double,
-    pub font_b_box_right: ::core::ffi::c_double,
-    pub stroke_width: ::core::ffi::c_double,
+    pub italic_angle: f64,
+    pub underline_position: f64,
+    pub underline_thickness: f64,
+    pub font_b_box_top: f64,
+    pub font_b_box_bottom: f64,
+    pub font_b_box_left: f64,
+    pub font_b_box_right: f64,
+    pub stroke_width: f64,
     pub private_dict: Option<Box<CffPrivateDict>>,
     pub font_matrix: Option<Box<CffFontMatrix>>,
     pub cid_registry: Vec<u8>,
     pub cid_ordering: Vec<u8>,
     pub cid_supplement: u32,
-    pub cid_font_version: ::core::ffi::c_double,
-    pub cid_font_revision: ::core::ffi::c_double,
+    pub cid_font_version: f64,
+    pub cid_font_revision: f64,
     pub cid_count: u32,
     pub uid_base: u32,
     pub fd_array: Vec<Box<CffTable>>,
@@ -217,8 +217,8 @@ pub struct OutlineBuilderContext<'a> {
     pub g: &'a mut Glyph,
     pub j_contour: ShapeId,
     pub j_point: ShapeId,
-    pub default_width_x: ::core::ffi::c_double,
-    pub nominal_width_x: ::core::ffi::c_double,
+    pub default_width_x: f64,
+    pub nominal_width_x: f64,
     pub defined_h_stems: u8,
     pub defined_v_stems: u8,
     pub defined_hint_masks: u8,
@@ -239,12 +239,12 @@ pub struct CffCharstringBuilderContext<'a> {
     pub options: &'a Options,
     pub graph: CffSubrGraph,
 }
-pub static DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
-pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
-    7_i32 as ::core::ffi::c_double;
-pub static DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
-    1_i32 as ::core::ffi::c_double;
-pub static DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
+pub static DEFAULT_BLUE_SCALE: f64 = 0.039625f64;
+pub static DEFAULT_BLUE_SHIFT: f64 =
+    7_f64;
+pub static DEFAULT_BLUE_FUZZ: f64 =
+    1_f64;
+pub static DEFAULT_EXPANSION_FACTOR: f64 = 0.06f64;
 fn otfcc_new_cff_private() -> Box<CffPrivateDict> {
     Box::new(CffPrivateDict {
         blue_values: Vec::new(),
@@ -277,21 +277,21 @@ fn table_cff_new() -> Box<CffTable> {
         family_name: Vec::new(),
         weight: Vec::new(),
         is_fixed_pitch: false,
-        italic_angle: 0 as ::core::ffi::c_double,
-        underline_position: -100_i32 as ::core::ffi::c_double,
-        underline_thickness: 50_i32 as ::core::ffi::c_double,
-        font_b_box_top: 0 as ::core::ffi::c_double,
-        font_b_box_bottom: 0 as ::core::ffi::c_double,
-        font_b_box_left: 0 as ::core::ffi::c_double,
-        font_b_box_right: 0 as ::core::ffi::c_double,
-        stroke_width: 0 as ::core::ffi::c_double,
+        italic_angle: 0 as f64,
+        underline_position: -100_f64,
+        underline_thickness: 50_f64,
+        font_b_box_top: 0 as f64,
+        font_b_box_bottom: 0 as f64,
+        font_b_box_left: 0 as f64,
+        font_b_box_right: 0 as f64,
+        stroke_width: 0 as f64,
         private_dict: None,
         font_matrix: None,
         cid_registry: Vec::new(),
         cid_ordering: Vec::new(),
         cid_supplement: 0,
-        cid_font_version: 0 as ::core::ffi::c_double,
-        cid_font_revision: 0 as ::core::ffi::c_double,
+        cid_font_version: 0 as f64,
+        cid_font_revision: 0 as f64,
         cid_count: 0,
         uid_base: 0,
         fd_array: Vec::new(),
@@ -655,7 +655,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
         _ => {}
     };
 }
-pub(crate) fn callback_draw_setwidth(context: &mut OutlineBuilderContext, width: ::core::ffi::c_double) {
+pub(crate) fn callback_draw_setwidth(context: &mut OutlineBuilderContext, width: f64) {
     context.g.advance_width = vq_create_still(width as Pos + context.nominal_width_x as Pos);
 }
 pub(crate) fn callback_draw_next_contour(context: &mut OutlineBuilderContext) {
@@ -665,8 +665,8 @@ pub(crate) fn callback_draw_next_contour(context: &mut OutlineBuilderContext) {
 }
 pub(crate) fn callback_draw_lineto(
     context: &mut OutlineBuilderContext,
-    x1: ::core::ffi::c_double,
-    y1: ::core::ffi::c_double,
+    x1: f64,
+    y1: f64,
 ) {
     if context.j_contour != 0 {
         let contour: &mut Contour = &mut context.g.contours[(context.j_contour as i32 - 1_i32) as usize];
@@ -691,12 +691,12 @@ pub(crate) fn callback_draw_lineto(
 }
 pub(crate) fn callback_draw_curveto(
     context: &mut OutlineBuilderContext,
-    x1: ::core::ffi::c_double,
-    y1: ::core::ffi::c_double,
-    x2: ::core::ffi::c_double,
-    y2: ::core::ffi::c_double,
-    x3: ::core::ffi::c_double,
-    y3: ::core::ffi::c_double,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+    x3: f64,
+    y3: f64,
 ) {
     if context.j_contour != 0 {
         let contour: &mut Contour = &mut context.g.contours[(context.j_contour as i32 - 1_i32) as usize];
@@ -754,8 +754,8 @@ pub(crate) fn callback_draw_curveto(
 pub(crate) fn callback_draw_sethint(
     context: &mut OutlineBuilderContext,
     is_vertical: bool,
-    position: ::core::ffi::c_double,
-    width: ::core::ffi::c_double,
+    position: f64,
+    width: f64,
 ) {
     let stems: &mut StemDefList = if is_vertical as i32 != 0 {
         &mut context.g.stem_v
@@ -816,7 +816,7 @@ pub(crate) fn callback_draw_setmask(
         }
     };
 }
-pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> ::core::ffi::c_double {
+pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> f64 {
     let mut x: u64 = context.randx;
     x ^= x >> 12_i32;
     x ^= x << 25_i32;
@@ -829,7 +829,7 @@ pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> ::co
     // the same bit-for-bit reinterpretation without a union.
     let mut bits: u64 = x.wrapping_mul(2685821657736338717_u64);
     bits = bits >> 12_i32 | 0x3ff0000000000000_u64;
-    let q: ::core::ffi::c_double = if bits & 2048_u64 != 0 {
+    let q: f64 = if bits & 2048_u64 != 0 {
         1.0f64 - 2.220_446_049_250_313E-16_f64 / 2.0f64
     } else {
         1.0f64
@@ -1111,7 +1111,7 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
         }
     };
 }
-fn qround(x: ::core::ffi::c_double) -> ::core::ffi::c_double {
+fn qround(x: f64) -> f64 {
     return otfcc_from_fixed(otfcc_to_fixed(x));
 }
 // `head: Option<&HeadTable>`, not a nullable `*const HeadTable` -- the
@@ -1138,25 +1138,25 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Option<&HeadTabl
         }
         if let Some(fm) = fd.font_matrix.as_deref() {
             let a: Scale = qround(
-                head.units_per_em as i32 as ::core::ffi::c_double
-                    * fm.a as ::core::ffi::c_double,
+                head.units_per_em as i32 as f64
+                    * fm.a,
             ) as Scale;
             let b: Scale = qround(
-                head.units_per_em as i32 as ::core::ffi::c_double
-                    * fm.b as ::core::ffi::c_double,
+                head.units_per_em as i32 as f64
+                    * fm.b,
             ) as Scale;
             let c: Scale = qround(
-                head.units_per_em as i32 as ::core::ffi::c_double
-                    * fm.c as ::core::ffi::c_double,
+                head.units_per_em as i32 as f64
+                    * fm.c,
             ) as Scale;
             let d: Scale = qround(
-                head.units_per_em as i32 as ::core::ffi::c_double
-                    * fm.d as ::core::ffi::c_double,
+                head.units_per_em as i32 as f64
+                    * fm.d,
             ) as Scale;
             let mut x: VQ = vq_scale(fm.x.clone(), head.units_per_em as Scale);
-            x.kernel = qround(x.kernel as ::core::ffi::c_double) as Pos;
+            x.kernel = qround(x.kernel) as Pos;
             let mut y: VQ = vq_scale(fm.y.clone(), head.units_per_em as Scale);
-            y.kernel = qround(y.kernel as ::core::ffi::c_double) as Pos;
+            y.kernel = qround(y.kernel) as Pos;
             for contour in g.contours.iter_mut() {
                 for point in contour.iter_mut() {
                     let zx: VQ = point.x.clone();
@@ -1341,7 +1341,7 @@ pub fn otfcc_read_cff_and_glyf_tables(
     }
     return ret;
 }
-fn pd_delta_to_json(target: &mut BuiltValue, field: &[u8], values: &[::core::ffi::c_double]) {
+fn pd_delta_to_json(target: &mut BuiltValue, field: &[u8], values: &[f64]) {
     if values.is_empty() {
         return;
     }
@@ -1380,7 +1380,7 @@ fn pd_to_json(pd: &CffPrivateDict) -> BuiltValue {
     if pd.language_group != 0 {
         _pd.push_field(
             b"languageGroup",
-            BuiltValue::Double(pd.language_group as ::core::ffi::c_double),
+            BuiltValue::Double(pd.language_group as f64),
         );
     }
     if pd.expansion_factor != DEFAULT_EXPANSION_FACTOR {
@@ -1432,13 +1432,13 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
     if table.italic_angle != 0. {
         _cff.push_field(b"italicAngle", BuiltValue::Double(table.italic_angle));
     }
-    if table.underline_position != -100_i32 as ::core::ffi::c_double {
+    if table.underline_position != -100_f64 {
         _cff.push_field(
             b"underlinePosition",
             BuiltValue::Double(table.underline_position),
         );
     }
-    if table.underline_thickness != 50_i32 as ::core::ffi::c_double {
+    if table.underline_thickness != 50_f64 {
         _cff.push_field(
             b"underlineThickness",
             BuiltValue::Double(table.underline_thickness),
@@ -1464,10 +1464,10 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
     }
     if let Some(fm) = table.font_matrix.as_deref() {
         let mut _font_matrix = BuiltValue::new_object(6);
-        _font_matrix.push_field(b"a", BuiltValue::Double(fm.a as ::core::ffi::c_double));
-        _font_matrix.push_field(b"b", BuiltValue::Double(fm.b as ::core::ffi::c_double));
-        _font_matrix.push_field(b"c", BuiltValue::Double(fm.c as ::core::ffi::c_double));
-        _font_matrix.push_field(b"d", BuiltValue::Double(fm.d as ::core::ffi::c_double));
+        _font_matrix.push_field(b"a", BuiltValue::Double(fm.a));
+        _font_matrix.push_field(b"b", BuiltValue::Double(fm.b));
+        _font_matrix.push_field(b"c", BuiltValue::Double(fm.c));
+        _font_matrix.push_field(b"d", BuiltValue::Double(fm.d));
         // CFF fonts have no `fvar` table (no `Delta` segments can occur
         // here -- `json_new_vq` panics if that invariant is ever wrong).
         _font_matrix.push_field(b"x", json_new_vq(fm.x.clone(), None));
@@ -1514,7 +1514,7 @@ pub fn otfcc_dump_cff(table: Option<&CffTable>, root: &mut BuiltValue) {
     root.push_field(b"CFF_", fd_to_json(table));
     stage.finish();
 }
-fn pd_delta_from_json(dump: Option<&ParsedValue>) -> Vec<::core::ffi::c_double> {
+fn pd_delta_from_json(dump: Option<&ParsedValue>) -> Vec<f64> {
     let Some(items) = dump.and_then(ParsedValue::as_array) else {
         return Vec::new();
     };
@@ -1734,7 +1734,7 @@ fn cffdict_input_ints(dict: &mut CffDict, op: CffDictOperator, values: &[i32]) {
 /// at each site because of the one behavior it has that
 /// `cffdict_input_doubles` doesn't: skip emitting the DICT entry entirely
 /// when `arr` is empty, instead of adding one with zero operands.
-fn cffdict_input_array(dict: &mut CffDict, op: CffDictOperator, arr: &[::core::ffi::c_double]) {
+fn cffdict_input_array(dict: &mut CffDict, op: CffDictOperator, arr: &[f64]) {
     if arr.is_empty() {
         return;
     }

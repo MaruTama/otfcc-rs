@@ -41,14 +41,14 @@ pub struct CffCharstringInstruction {
 }
 #[derive(Copy, Clone, Debug)]
 pub enum CffCharstringArgument {
-    D(::core::ffi::c_double),
+    D(f64),
     I(i32),
 }
 impl CffCharstringInstruction {
     /// Panics instead of reading union garbage if this instruction's
     /// `type_0` didn't actually imply the `D` arm -- every call site
     /// already established that via `type_0` before reaching here.
-    pub fn d(&self) -> ::core::ffi::c_double {
+    pub fn d(&self) -> f64 {
         match self.arg {
             CffCharstringArgument::D(d) => d,
             CffCharstringArgument::I(_) => {
@@ -64,7 +64,7 @@ impl CffCharstringInstruction {
             }
         }
     }
-    pub fn set_d(&mut self, v: ::core::ffi::c_double) {
+    pub fn set_d(&mut self, v: f64) {
         self.arg = CffCharstringArgument::D(v);
     }
     pub fn set_i(&mut self, v: i32) {
@@ -80,7 +80,7 @@ impl CffCharstringInstruction {
 pub struct CffCharstringIl {
     pub instr: Vec<CffCharstringInstruction>,
 }
-pub fn il_push_operand(il: &mut CffCharstringIl, x: ::core::ffi::c_double) {
+pub fn il_push_operand(il: &mut CffCharstringIl, x: f64) {
     il.instr.push(CffCharstringInstruction {
         type_0: CffInstructionType::Operand,
         arity: 0 as Arity,
@@ -88,7 +88,7 @@ pub fn il_push_operand(il: &mut CffCharstringIl, x: ::core::ffi::c_double) {
     });
 }
 pub fn il_push_vq(il: &mut CffCharstringIl, x: VQ) {
-    il_push_operand(il, vq_get_still(x) as ::core::ffi::c_double);
+    il_push_operand(il, vq_get_still(x) as f64);
 }
 pub fn il_push_special(il: &mut CffCharstringIl, s: i32) {
     il.instr.push(CffCharstringInstruction {
@@ -229,9 +229,9 @@ fn _il_push_stemgroup(
     for j in 0..stems.len() as u16 {
         il_push_operand(
             il,
-            stems[j as usize].position as ::core::ffi::c_double - ref_0 as ::core::ffi::c_double,
+            stems[j as usize].position - ref_0 as f64,
         );
-        il_push_operand(il, stems[j as usize].width as ::core::ffi::c_double);
+        il_push_operand(il, stems[j as usize].width);
         ref_0 = stems[j as usize].position + stems[j as usize].width;
         nn = nn.wrapping_add(1);
         if nn as u32 >= TYPE2_ARGUMENT_STACK {
@@ -312,7 +312,7 @@ pub fn cff_compile_glyph_to_il(
             &mut il,
             (glyph_adw_const as i32)
                 .saturating_sub(nominal_width as i32)
-                as ::core::ffi::c_double,
+                as f64,
         );
     }
     il_push_stems(&mut il, g, hasmask, haswidth);
@@ -470,7 +470,7 @@ fn zroll(
             if checkzero {
                 result_arity = (result_arity as i32 - 1_i32) as u8;
                 check = (check as i32 != 0
-                    && il.instr[j.wrapping_add(m) as usize].d() == 0_i32 as ::core::ffi::c_double)
+                    && il.instr[j.wrapping_add(m) as usize].d() == 0_i32 as f64)
                     as i32 as u8;
             }
         }
@@ -555,7 +555,7 @@ fn hvlineto_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
             j.wrapping_add(3_u32),
             CffInstructionType::Operand,
         )
-        && il.instr[j.wrapping_add(checkdelta) as usize].d() == 0_i32 as ::core::ffi::c_double
+        && il.instr[j.wrapping_add(checkdelta) as usize].d() == 0_i32 as f64
         && current.arity.wrapping_add(1 as Arity) <= TYPE2_ARGUMENT_STACK
     {
         il.instr[j.wrapping_add(checkdelta) as usize].type_0 = CffInstructionType::PhantomOperand;
@@ -590,9 +590,9 @@ fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
             j.wrapping_add(7_u32),
             CffInstructionType::Operand,
         )
-        && il.instr[j.wrapping_add(checkdelta1) as usize].d() == 0_i32 as ::core::ffi::c_double
+        && il.instr[j.wrapping_add(checkdelta1) as usize].d() == 0_i32 as f64
     {
-        if il.instr[j.wrapping_add(checkdelta2) as usize].d() == 0_i32 as ::core::ffi::c_double
+        if il.instr[j.wrapping_add(checkdelta2) as usize].d() == 0_i32 as f64
             && current.arity.wrapping_add(4 as Arity) <= TYPE2_ARGUMENT_STACK
         {
             il.instr[j.wrapping_add(checkdelta1) as usize].type_0 =
@@ -616,7 +616,7 @@ fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
             if hvcase {
                 let idx5 = j.wrapping_add(5_u32) as usize;
                 let idx6 = j.wrapping_add(6_u32) as usize;
-                let t: ::core::ffi::c_double = il.instr[idx5].d();
+                let t: f64 = il.instr[idx5].d();
                 let swap_val = il.instr[idx6].d();
                 il.instr[idx5].set_d(swap_val);
                 il.instr[idx6].set_d(t);
@@ -648,8 +648,8 @@ fn hhvvcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
             j.wrapping_add(7_u32),
             CffInstructionType::Operand,
         )
-        && il.instr[j.wrapping_add(checkdelta1) as usize].d() == 0_i32 as ::core::ffi::c_double
-        && il.instr[j.wrapping_add(checkdelta2) as usize].d() == 0_i32 as ::core::ffi::c_double
+        && il.instr[j.wrapping_add(checkdelta1) as usize].d() == 0_i32 as f64
+        && il.instr[j.wrapping_add(checkdelta2) as usize].d() == 0_i32 as f64
         && current.arity.wrapping_add(4 as Arity) <= TYPE2_ARGUMENT_STACK
     {
         il.instr[j.wrapping_add(checkdelta1) as usize].type_0 = CffInstructionType::PhantomOperand;

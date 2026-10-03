@@ -29,7 +29,7 @@ fn hash_vqs(buf: &mut Buffer, s: &VqSegment) {
     buf.write_u8(s.discriminant_byte());
     match s {
         VqSegment::Still(still) => {
-            buf.write_u32be(otfcc_to_fixed(*still as ::core::ffi::c_double) as u32);
+            buf.write_u32be(otfcc_to_fixed(*still) as u32);
         }
         VqSegment::Delta(delta) => {
             // `delta.region: Rc<VqRegion>` is shared ownership of the same
@@ -37,18 +37,18 @@ fn hash_vqs(buf: &mut Buffer, s: &VqSegment) {
             // field/method access through `Rc`'s `Deref`, no `unsafe {}`
             // needed (unlike the raw-pointer form this replaces).
             let region = &delta.region;
-            buf.write_u32be(otfcc_to_fixed(delta.quantity as ::core::ffi::c_double) as u32);
+            buf.write_u32be(otfcc_to_fixed(delta.quantity) as u32);
             buf.write_u32be(region.dimensions as u32);
             for span in &region.spans {
-                buf.write_u32be(otfcc_to_f2dot14(span.start as ::core::ffi::c_double) as u32);
-                buf.write_u32be(otfcc_to_f2dot14(span.peak as ::core::ffi::c_double) as u32);
-                buf.write_u32be(otfcc_to_f2dot14(span.end as ::core::ffi::c_double) as u32);
+                buf.write_u32be(otfcc_to_f2dot14(span.start) as u32);
+                buf.write_u32be(otfcc_to_f2dot14(span.peak) as u32);
+                buf.write_u32be(otfcc_to_f2dot14(span.end) as u32);
             }
         }
     }
 }
 fn hash_vq(buf: &mut Buffer, x: VQ) {
-    buf.write_u32be(otfcc_to_fixed(x.kernel as ::core::ffi::c_double) as u32);
+    buf.write_u32be(otfcc_to_fixed(x.kernel) as u32);
     buf.write_u32be(x.shift.len() as u32);
     for s in &x.shift {
         hash_vqs(buf, s);
@@ -97,26 +97,26 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
         buf.write_bytes(&h.hash);
         hash_vq(buf, r.x.borrow().clone());
         hash_vq(buf, r.y.borrow().clone());
-        buf.write_u32be(otfcc_to_f2dot14(r.a as ::core::ffi::c_double) as u32);
-        buf.write_u32be(otfcc_to_f2dot14(r.b as ::core::ffi::c_double) as u32);
-        buf.write_u32be(otfcc_to_f2dot14(r.c as ::core::ffi::c_double) as u32);
-        buf.write_u32be(otfcc_to_f2dot14(r.d as ::core::ffi::c_double) as u32);
+        buf.write_u32be(otfcc_to_f2dot14(r.a) as u32);
+        buf.write_u32be(otfcc_to_f2dot14(r.b) as u32);
+        buf.write_u32be(otfcc_to_f2dot14(r.c) as u32);
+        buf.write_u32be(otfcc_to_f2dot14(r.d) as u32);
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('s' as i32 as u8);
     buf.write_u8('H' as i32 as u8);
     buf.write_u8('(' as i32 as u8);
     for stem in g.stem_h.iter() {
-        buf.write_u32be(otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32);
-        buf.write_u32be(otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32);
+        buf.write_u32be(otfcc_to_fixed(stem.position) as u32);
+        buf.write_u32be(otfcc_to_fixed(stem.width) as u32);
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('s' as i32 as u8);
     buf.write_u8('V' as i32 as u8);
     buf.write_u8('(' as i32 as u8);
     for stem in g.stem_v.iter() {
-        buf.write_u32be(otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32);
-        buf.write_u32be(otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32);
+        buf.write_u32be(otfcc_to_fixed(stem.position) as u32);
+        buf.write_u32be(otfcc_to_fixed(stem.width) as u32);
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('m' as i32 as u8);

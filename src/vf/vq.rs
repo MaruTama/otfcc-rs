@@ -315,7 +315,7 @@ pub(crate) fn vq_is_zero(v: VQ, err: Pos) -> bool {
     // `unsafe extern "C" { fn fabs(...) }` import this file used to carry
     // (removed in Stage M-45; see RUST_MIGRATION.md).
     return vq_is_still(v.clone()) as i32 != 0
-        && (vq_get_still(v) as ::core::ffi::c_double).abs() < err;
+        && (vq_get_still(v) as f64).abs() < err;
 }
 // Takes `&Rc<VqRegion>`, not `Rc<VqRegion>`: `table/glyf/read.rs`'s four
 // call sites in `apply_polymorphism` all share one region across several

@@ -493,7 +493,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
     // Stage M-45; see RUST_MIGRATION.md) is gone along with the last
     // `unsafe` in this file.
     if vq_is_still(g.horizontal_origin.clone())
-        && (vq_get_still(g.horizontal_origin.clone()) as ::core::ffi::c_double).abs()
+        && (vq_get_still(g.horizontal_origin.clone()) as f64).abs()
             > 1.0f64 / 1000.0f64
     {
         glyph.push_field(

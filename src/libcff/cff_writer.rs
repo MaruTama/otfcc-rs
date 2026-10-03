@@ -58,10 +58,10 @@ pub fn cff_merge_cs2_int(blob: &mut Buffer, val: i32) {
         cff_merge_cs2_int(blob, 0_i32);
     };
 }
-fn merge_cs2_real(blob: &mut Buffer, val: ::core::ffi::c_double) {
+fn merge_cs2_real(blob: &mut Buffer, val: f64) {
     let integer_part: i16 = val.floor() as i16;
     let fraction_part: u16 =
-        ((val - integer_part as i32 as ::core::ffi::c_double) * 65536.0f64) as u16;
+        ((val - integer_part as i32 as f64) * 65536.0f64) as u16;
     blob.write_bytes(&[
         0xff_u8,
         (integer_part as i32 >> 8_i32) as u8,
@@ -70,7 +70,7 @@ fn merge_cs2_real(blob: &mut Buffer, val: ::core::ffi::c_double) {
         (fraction_part as i32 & 0xff_i32) as u8,
     ]);
 }
-pub fn cff_merge_cs2_operand(blob: &mut Buffer, val: ::core::ffi::c_double) {
+pub fn cff_merge_cs2_operand(blob: &mut Buffer, val: f64) {
     let (intpart, fract) = modf(val);
     if fract == 0.0f64 {
         cff_merge_cs2_int(blob, intpart as i32);
