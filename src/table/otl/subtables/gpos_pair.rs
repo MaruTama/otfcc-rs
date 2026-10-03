@@ -394,6 +394,13 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     st.push_field(b"matrix", mat);
     st
 }
+/// The largest class matrix a JSON pair positioning subtable may describe.
+/// A binary PairPos format 2 subtable reaches its class definitions through
+/// 16-bit offsets placed after the matrix, so with any non-zero value it
+/// holds at most 32,767 entries; this limit is 32 times that, far above any
+/// buildable subtable, and keeps the two matrices under 70 MB.
+const MAX_CLASS_MATRIX_ENTRIES: usize = 1 << 20;
+
 pub fn otl_gpos_parse_pair(
     _subtable: Option<&ParsedValue>,
 ) -> Option<Subtable> {
@@ -405,16 +412,29 @@ pub fn otl_gpos_parse_pair(
         parse_class_def(sv.and_then(|v| v.get_typed(b"second", JsonType::Object)));
     let first_cd = first.as_ref()?;
     let second_cd = second.as_ref()?;
-    let class1_count: GlyphClass = (first_cd.maxclass as i32 + 1_i32) as GlyphClass;
-    let class2_count: GlyphClass = (second_cd.maxclass as i32 + 1_i32) as GlyphClass;
+    // The value matrix has one row per first class and one column per
+    // second class, numbered from 0 to the largest class used. Both counts
+    // are written as 16-bit fields, so the largest class must be below
+    // 65,535. And since a class number costs nothing to write in JSON, the
+    // matrix size is capped too: past `MAX_CLASS_MATRIX_ENTRIES` a few
+    // bytes of input would allocate gigabytes.
+    let class1_count = first_cd.maxclass as usize + 1;
+    let class2_count = second_cd.maxclass as usize + 1;
+    if class1_count > u16::MAX as usize
+        || class2_count > u16::MAX as usize
+        || class1_count * class2_count > MAX_CLASS_MATRIX_ENTRIES
+    {
+        tracing::warn!("[OTFCC-fea] Pair positioning subtable with {} x {} classes is too large. This subtable is ignored.\n", class1_count, class2_count);
+        return None;
+    }
     let mut first_values: Vec<Vec<PositionValue>> =
-        vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
+        vec![vec![position_zero(); class2_count]; class1_count];
     let mut second_values: Vec<Vec<PositionValue>> =
-        vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
+        vec![vec![position_zero(); class2_count]; class1_count];
     if let Some(rows) = mat.as_array() {
-        for (j_0, row) in rows.iter().enumerate().take(class1_count as usize) {
+        for (j_0, row) in rows.iter().enumerate().take(class1_count) {
             if let Some(items) = row.as_array() {
-                for (k_0, item) in items.iter().enumerate().take(class2_count as usize) {
+                for (k_0, item) in items.iter().enumerate().take(class2_count) {
                     if let Some(i) = item.as_int() {
                         first_values[j_0][k_0].d_width = i as Pos;
                     } else if let Some(d) = item.as_double() {
@@ -793,5 +813,48 @@ mod otl_read_gpos_pair_tests {
         data[40..42].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
         let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
+    }
+}
+
+#[cfg(test)]
+mod otl_gpos_parse_pair_class_limit_tests {
+    use super::*;
+    use crate::support::parsed_json::parse_json;
+
+    fn parse(json: &str) -> Option<Subtable> {
+        otl_gpos_parse_pair(Some(&parse_json(json.as_bytes()).unwrap()))
+    }
+
+    #[test]
+    fn a_small_class_matrix_is_parsed() {
+        let st = parse(r#"{"first": {"a": 1}, "second": {"b": 2}, "matrix": [[0, 0, 0], [0, 0, 5]]}"#);
+        let Some(Subtable::GposPair(st)) = &st else { panic!("not parsed") };
+        assert_eq!(st.first_values.len(), 2);
+        assert_eq!(st.first_values[1].len(), 3);
+        assert_eq!(st.first_values[1][2].d_width, 5.0);
+    }
+
+    #[test]
+    fn a_negative_class_is_ignored_instead_of_wrapping_to_65535() {
+        // -1 used to become class 65535, wrap the class count to 0 and
+        // panic when the subtable was built.
+        let st = parse(r#"{"first": {"a": -1, "c": 1}, "second": {"b": 1}, "matrix": [[0, 0], [0, 7]]}"#);
+        let Some(Subtable::GposPair(st)) = &st else { panic!("not parsed") };
+        assert_eq!(st.first.as_ref().unwrap().glyphs.len(), 1);
+        assert_eq!(st.first_values.len(), 2);
+    }
+
+    #[test]
+    fn class_65535_is_rejected() {
+        assert!(parse(r#"{"first": {"a": 65535}, "second": {"b": 1}, "matrix": []}"#).is_none());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "allocates a million-entry matrix")]
+    fn an_oversized_class_matrix_is_rejected_instead_of_allocated() {
+        // 65,534 x 65,534 classes would be over four billion matrix entries.
+        assert!(parse(r#"{"first": {"a": 65534}, "second": {"b": 65534}, "matrix": []}"#).is_none());
+        // Just under the limit is fine.
+        assert!(parse(r#"{"first": {"a": 1023}, "second": {"b": 1023}, "matrix": []}"#).is_some());
     }
 }

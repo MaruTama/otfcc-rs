@@ -53,18 +53,16 @@ fn hash_vq(buf: &mut Buffer, x: VQ) {
     }
 }
 /// Hash one hint/contour mask: its position, then the first `n_stem_h`/
-/// `n_stem_v` bits of each axis (the glyph's own stem counts, not the fixed
-/// 256-slot arrays' full length). Slicing rather than iterating the whole
-/// array keeps the old indexed loops' behavior: a stem count past the array
-/// still panics, and any bits beyond the count are ignored.
+/// `n_stem_v` bits of each axis (the glyph's own stem counts, not the
+/// mask's full 256). A stem count past 256 panics, as it always has.
 fn hash_mask(buf: &mut Buffer, mask: &PostscriptHintMask, n_stem_h: usize, n_stem_v: usize) {
     buf.write_u16be(mask.contours_before);
     buf.write_u16be(mask.points_before);
-    for &bit in &mask.mask_h[..n_stem_h] {
-        buf.write_u8(bit as u8);
+    for i in 0..n_stem_h {
+        buf.write_u8(mask.mask_h.get(i) as u8);
     }
-    for &bit in &mask.mask_v[..n_stem_v] {
-        buf.write_u8(bit as u8);
+    for i in 0..n_stem_v {
+        buf.write_u8(mask.mask_v.get(i) as u8);
     }
 }
 pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
