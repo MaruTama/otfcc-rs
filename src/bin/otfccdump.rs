@@ -17,7 +17,6 @@ use otfcc_rust::support::built_json::{
 };
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
-use otfcc_rust::support::primitives::parse_int_prefix;
 use otfcc_rust::support::cli::stopwatch::{log_step_time, time_now};
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
@@ -41,6 +40,7 @@ fn run(args: Vec<String>) -> i32 {
     let mut add_bom: bool = false;
     let mut _no_bom: bool = false;
     let mut ttcindex: u32 = 0_u32;
+    let mut invalid_argument = false;
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     const OPT_PRETTY: i32 = 'p' as i32;
@@ -107,7 +107,14 @@ fn run(args: Vec<String>) -> i32 {
                 }
                 OPT_QUIET => options.quiet = true,
                 OPT_TTC_INDEX => {
-                    ttcindex = parse_int_prefix(arg.unwrap().as_bytes(), 10) as u32;
+                    let arg = arg.unwrap();
+                    match arg.parse::<u32>() {
+                        Ok(index) => ttcindex = index,
+                        Err(_) => {
+                            eprintln!("otfccdump: invalid subfont index '{arg}'");
+                            invalid_argument = true;
+                        }
+                    }
                 }
                 OPT_UGLY => show_ugly = true,
                 OPT_TIME => {}
@@ -147,6 +154,9 @@ fn run(args: Vec<String>) -> i32 {
     if show_version {
         print_version_info("otfccdump");
         return 0_i32;
+    }
+    if invalid_argument {
+        return EXIT_FAILURE;
     }
     if let Some(p) = positionals.into_iter().next() {
         in_path =
