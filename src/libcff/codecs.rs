@@ -1,8 +1,8 @@
 use crate::libcff::CffDictOperator;
 use crate::libcff::value::CffValue;
 use crate::support::fmt::format_g;
-use crate::support::buffer::Buffer;
-use crate::support::font_reader::FontReader;
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
 /// Every caller passes a DICT operator, so the parameter says so. The body
 /// still works in `i32` -- unchanged arithmetic, unchanged bytes.
 pub fn cff_encode_cff_operator(val: CffDictOperator) -> Buffer {

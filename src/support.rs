@@ -1,8 +1,6 @@
 pub mod base64;
-pub mod buffer;
 pub mod cli;
 pub mod fmt;
-pub mod font_reader;
 pub mod glyph_order;
 pub mod handle;
 pub mod json_limits;

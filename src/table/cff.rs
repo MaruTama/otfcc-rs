@@ -22,7 +22,7 @@ use crate::libcff::{
     OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE,
     OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_VERSION, OP_WEIGHT,
 };
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use crate::support::options::Options;
 use crate::support::primitives::{Arity, CffSid, GlyphId, Pos, Scale, ShapeId, TableId};
 use crate::support::{FALSE_0, TRUE_0};

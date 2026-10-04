@@ -1,12 +1,12 @@
 use crate::table::otl::coverage::Coverage;
 
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use crate::support::primitives::{GlyphClass, TableId};
 
-use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::bk::block::bk_new_block_from_buffer;
-use crate::bk::graph::bk_build_block;
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::graph::bk_build_block;
 use crate::table::otl::classdef::{ClassDef, build_class_def};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::chaining::common::{

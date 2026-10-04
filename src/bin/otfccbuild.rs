@@ -1,5 +1,5 @@
 use otfcc_rust::logger::ByteStr;
-use otfcc_rust::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_rust::support::options::Options;
 
 use otfcc_rust::consolidate::consolidate_font;

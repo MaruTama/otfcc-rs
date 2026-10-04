@@ -2,7 +2,7 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_index
 use crate::table::otl::classdef::{ClassDef, push_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage};
 
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 
 use crate::table::otl::subtables::chaining::build::{

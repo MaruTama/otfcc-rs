@@ -169,24 +169,6 @@ impl Buffer {
         self.seek(cp);
     }
 
-    // The pair below is the only place a `Buffer` still crosses a raw
-    // pointer: the real ABI boundary in `ffi/dll.rs` (`otfccbuild_json_otf`
-    // returns `*mut Buffer`) and, during Stage 9's migration, the bridge
-    // back into not-yet-converted call sites still using the free-function
-    // API below. Not for use anywhere else.
-    pub fn into_raw(self) -> *mut Buffer {
-        Box::into_raw(Box::new(self))
-    }
-    /// # Safety
-    /// `ptr` must either be null or have come from [`Buffer::into_raw`]
-    /// and not have been freed already.
-    pub unsafe fn from_raw(ptr: *mut Buffer) -> Option<Buffer> {
-        if ptr.is_null() {
-            None
-        } else {
-            Some(*unsafe { Box::from_raw(ptr) })
-        }
-    }
 }
 
 // Every byte of an OpenType file leaves the program through these methods,

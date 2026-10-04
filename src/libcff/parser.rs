@@ -1,4 +1,4 @@
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 
 use crate::libcff::charset::CffCharset;
 use crate::libcff::charset::cff_extract_charset;

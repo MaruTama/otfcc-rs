@@ -3,10 +3,10 @@ use crate::table::otl::classdef::{ClassDef, push_class_def};
 
 use crate::support::handle::handle_from_index;
 
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 
 use crate::font::sfnt::Packet;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::table::otl::classdef::{dump_class_def, parse_class_def};

@@ -169,6 +169,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "otfcc-binary"
+version = "0.10.4"
+
+[[package]]
 name = "otfcc-json"
 version = "0.10.4"
 
@@ -179,6 +183,7 @@ dependencies = [
  "base64",
  "bitflags",
  "indexmap",
+ "otfcc-binary",
  "otfcc-json",
  "sha1",
  "tracing",

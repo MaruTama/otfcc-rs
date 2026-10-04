@@ -1,0 +1,9 @@
+[package]
+name = "otfcc-binary"
+version = "0.10.4"
+publish = false
+edition = "2024"
+description = "otfcc's binary I/O: bounds-checked reading, a byte buffer, and the offset-graph packer"
+
+[lints]
+workspace = true

@@ -1,8 +1,8 @@
 use crate::logger::ByteStr;
-use crate::bk::block::bk_new_block_from_buffer;
-use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::bk::graph::bk_build_block;
-use crate::support::buffer::Buffer;
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_binary::Buffer;
 use crate::support::primitives::TableId;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::chaining::build::chaining_lookup_is_contextual_lookup;

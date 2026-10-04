@@ -6,7 +6,7 @@ use crate::libcff::codecs::{
     cff_decode_cff_token, cff_encode_cff_float, cff_encode_cff_integer, cff_encode_cff_operator,
 };
 use crate::libcff::value::CffValue;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 
 // `vals` was `__caryll_allocate_clean`'d/`free`'d, sized from `cnt` -- an
 // operand count read out of untrusted CFF DICT bytes in `parse_dict`, the

@@ -1,5 +1,5 @@
 use crate::bk::block::{BkBlock, BkCellType, BkCellValue};
-use crate::support::buffer::Buffer;
+use crate::Buffer;
 
 // `BkGraph`/`BkGraphNode` used to hold `block: *mut BkBlock` -- a raw
 // pointer into `block.rs`'s construction API, alongside the

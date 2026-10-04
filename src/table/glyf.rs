@@ -4,7 +4,7 @@ pub mod read;
 use crate::json_writer::DumpSink;
 use crate::logger::ByteStr;
 use crate::support::TRUE_0;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
 use crate::support::handle::{
     FdHandle, GlyphHandle, Handle, HandleState, handle_from_name, handle_empty,

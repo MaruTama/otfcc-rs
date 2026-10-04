@@ -1,4 +1,4 @@
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 
 use crate::libcff::CffCharstringOperator;
 use crate::libcff::index::CffIndex;

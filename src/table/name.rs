@@ -1,8 +1,8 @@
 use crate::font::sfnt::Packet;
 use crate::support::base64::{base64_decode, base64_encode};
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::font_reader::{FontReader, ReadError};
+use otfcc_binary::{FontReader, ReadError};
 use otfcc_json::ParsedValue;
 use crate::support::unicode::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
 use otfcc_json::JsonType;

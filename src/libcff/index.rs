@@ -1,8 +1,8 @@
 // Stage M-10 removed this file's last `unsafe` (the `cff_index_free`/
 // `cff_index_create` shell around `CffIndex`), so the file-level allow
 // for implicit-unsafe-in-unsafe-fn is gone too.
-use crate::support::buffer::Buffer;
-use crate::support::font_reader::FontReader;
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
 use crate::support::primitives::Arity;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

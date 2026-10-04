@@ -1,8 +1,8 @@
 use crate::logger::ByteStr;
 use crate::font::sfnt::Packet;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::font_reader::{FontReader, ReadError};
+use otfcc_binary::{FontReader, ReadError};
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, handle_empty,
 };

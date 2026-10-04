@@ -56,11 +56,16 @@ src/lib.rs                  crate root: a flat list of `pub mod`
 src/bin/{otfccdump,otfccbuild}.rs
 src/ffi/dll.rs              the four public extern "C" functions
 src/version.rs              MAIN_VER / SECONDARY_VER / PATCH_VER
-src/{bk,consolidate,font,json_reader,json_writer,libcff,logger,
+src/{consolidate,font,json_reader,json_writer,libcff,logger,
           otf_reader,otf_writer,support,table,tag,vf}[.rs|/]
 crates/otfcc-json/          `otfcc_json`: JSON parser (`ParsedValue`),
-                            value tree and serializer (`BuiltValue`), and
-                            the vendored Grisu2 dtoa; no otfcc dependency
+                            value tree and serializer (`BuiltValue`,
+                            `JsonStreamWriter`), and the vendored Grisu2
+                            dtoa; no otfcc dependency
+crates/otfcc-binary/        `otfcc_binary`: bounds-checked reading
+                            (`FontReader`), the write buffer (`Buffer`) and
+                            the offset-graph packer (`bk`); no otfcc
+                            dependency and no unsafe code
 ```
 
 Every directory has a sibling module file (`src/support.rs` for

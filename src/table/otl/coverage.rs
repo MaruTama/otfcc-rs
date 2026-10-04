@@ -1,9 +1,9 @@
 use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
 use otfcc_json::ParsedValue;
 
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphId, count_u16};
 use crate::table::otl::budget::OtlReadBudget;
 /// A glyph coverage set: C by way of c2rust had this as a hand-rolled

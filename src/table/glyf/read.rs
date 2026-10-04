@@ -1,7 +1,7 @@
 use crate::support::handle::{GlyphHandle, handle_from_index};
 
 use crate::font::sfnt::Packet;
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 use crate::support::primitives::{F2Dot14, F16Dot16, GlyphId, Pos, Scale, ShapeId};
 
 use crate::table::fvar::FvarTable;
