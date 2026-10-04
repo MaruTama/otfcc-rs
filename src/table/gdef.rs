@@ -1,4 +1,4 @@
-use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
@@ -10,8 +10,8 @@ use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 use crate::vendor::json::JsonType;
 
-use crate::bk::bkblock::bk_new_block_from_buffer;
-use crate::bk::bkgraph::bk_build_block;
+use crate::bk::block::bk_new_block_from_buffer;
+use crate::bk::graph::bk_build_block;
 use crate::support::built_json::BuiltValue;
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;

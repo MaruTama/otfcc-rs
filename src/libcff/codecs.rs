@@ -1,5 +1,5 @@
 use crate::libcff::CffDictOperator;
-use crate::libcff::cff_value::CffValue;
+use crate::libcff::value::CffValue;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
 /// Every caller passes a DICT operator, so the parameter says so. The body
@@ -142,7 +142,7 @@ pub fn cff_encode_cff_float(val: f64) -> Buffer {
 // bytes from `start` unconditionally, based only on the *first* byte's
 // value, with no idea how many bytes actually remained. Both this file's
 // callers already bound their own top-level walk against a real length
-// (`cff_parse_outline`'s `while start < data.offset(len)`, `cff_dict.rs`'s
+// (`cff_parse_outline`'s `while start < data.offset(len)`, `dict.rs`'s
 // `parse_to_callback`'s equivalent) -- but that only checks *before*
 // decoding a token, not that the token *itself* stays within bounds, so a
 // token starting near the end of a truncated CharString or DICT could

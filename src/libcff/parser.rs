@@ -1,12 +1,12 @@
 use crate::support::font_reader::FontReader;
 
-use crate::libcff::cff_charset::CffCharset;
-use crate::libcff::cff_charset::cff_extract_charset;
-use crate::libcff::cff_dict::parse_dict_key_int;
-use crate::libcff::cff_fdselect::CffFdSelect;
-use crate::libcff::cff_fdselect::cff_extract_fd_select;
-use crate::libcff::cff_index::CffIndex;
-use crate::libcff::cff_index::{empty_index, extract_index, get_index_length, new_empty_cff_index};
+use crate::libcff::charset::CffCharset;
+use crate::libcff::charset::cff_extract_charset;
+use crate::libcff::dict::parse_dict_key_int;
+use crate::libcff::fdselect::CffFdSelect;
+use crate::libcff::fdselect::cff_extract_fd_select;
+use crate::libcff::index::CffIndex;
+use crate::libcff::index::{empty_index, extract_index, get_index_length, new_empty_cff_index};
 use crate::libcff::{
     CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, OP_CHAR_STRINGS, OP_CHARSET, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT,
     OP_PRIVATE, OP_SUBRS,
@@ -54,7 +54,7 @@ pub(crate) const MAX_SUBR_CALL_DEPTH: u32 = 10;
 // fraction of a second.
 pub(crate) const MAX_TOTAL_SUBR_CALLS: u32 = 10_000;
 // `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
-// see `libcff/cff_index.rs`'s own conversion for the same move.
+// see `libcff/index.rs`'s own conversion for the same move.
 //
 // Returns `CffEncoding` by value instead of writing through a `*mut
 // CffEncoding` out-param -- the same "unwrap_X_table"-adjacent shape as
@@ -437,7 +437,7 @@ pub fn cff_parse_subr(
 // check at all, then used the (possibly garbage) result to derive a
 // *pointer and length* for a *recursive* `cff_parse_outline` call -- a
 // malformed subroutine index could recurse into arbitrary memory.
-// `extract_index` (`libcff/cff_index.rs`) only validates an INDEX's
+// `extract_index` (`libcff/index.rs`) only validates an INDEX's
 // *last* offset entry against the wraparound-to-4GB bug; intermediate
 // entries can still be zero or non-monotonic, so this also re-validates
 // the specific pair this call needs (both in bounds, and consistent with
@@ -478,7 +478,7 @@ pub use crate::libcff::charstring_interp::cff_parse_outline;
 #[cfg(test)]
 mod cff_header_and_encoding_tests {
     use super::*;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::index::CffIndexCountType;
 
     fn empty_cff_index() -> CffIndex {
         CffIndex {
@@ -652,7 +652,7 @@ mod cff_open_stream_tests {
 mod locate_subr_tests {
     use super::*;
     use crate::support::primitives::Arity;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::index::CffIndexCountType;
 
     fn subr_index(offset: Vec<u32>, data: Vec<u8>) -> CffIndex {
         CffIndex {
@@ -722,8 +722,8 @@ mod locate_subr_tests {
 #[cfg(test)]
 mod cff_parse_subr_tests {
     use super::*;
-    use crate::libcff::cff_fdselect::CffFdSelect;
-    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::libcff::fdselect::CffFdSelect;
+    use crate::libcff::index::CffIndexCountType;
 
     fn empty_cff_index() -> CffIndex {
         CffIndex {

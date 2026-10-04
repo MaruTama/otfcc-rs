@@ -351,7 +351,7 @@ mod tests {
     // this crate targets), which is exactly `f64::abs`'s own documented
     // contract -- pinned here against the documented contract, the same
     // "no live libc call needed to prove a hardware-identical operation"
-    // choice `libcff/cff_writer.rs`'s own `modf_tests` module already made
+    // choice `libcff/writer.rs`'s own `modf_tests` module already made
     // for `floor`/`trunc`/`fract`.
     #[test]
     fn f64_abs_matches_fabs_contract_on_every_input_class() {

@@ -10,7 +10,7 @@ use crate::libcff::{
 use crate::support::TRUE_0;
 use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
 
-use crate::libcff::cff_opmean::cff_get_standard_arity;
+use crate::libcff::opmean::cff_get_standard_arity;
 use crate::table::glyf::glyf_point_dup;
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_minus, vq_neutral};

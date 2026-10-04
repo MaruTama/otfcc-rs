@@ -38,7 +38,7 @@ pub enum CffCharset {
     Format2(Vec<CffCharsetRangeFormat2>),
 }
 // `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
-// see `libcff/cff_index.rs`'s own conversion for the same move.
+// see `libcff/index.rs`'s own conversion for the same move.
 //
 // Returns `CffCharset` by value instead of writing through a `*mut
 // CffCharset` out-param -- the same "unwrap_X_table" shape used throughout
@@ -48,7 +48,7 @@ pub enum CffCharset {
 // `offset` itself (a negative value, reachable from a malformed DICT key,
 // moved the read pointer *before* the buffer via `.offset()`), not on any
 // of the three formats' arrays. Format0's `count` computation had the
-// same wraparound-to-huge-allocation shape `cff_index.rs`'s 4GB `memcpy`
+// same wraparound-to-huge-allocation shape `index.rs`'s 4GB `memcpy`
 // bug had: `nchars as c_int - 1` for `nchars == 0` went negative in `c_int`
 // arithmetic and was then cast straight to `u32`, producing `0xFFFFFFFF`
 // and an immediate `Vec::with_capacity` abort. `.saturating_sub(1)` closes

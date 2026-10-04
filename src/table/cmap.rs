@@ -3,9 +3,9 @@ use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::support::cstd::strtol::strtol;
 use crate::support::parsed_json::ParsedValue;
 
-use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
-use crate::bk::bkgraph::bk_build_block;
+use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::block::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
+use crate::bk::graph::bk_build_block;
 use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;

@@ -2,10 +2,10 @@
 // around `CffDict`), so the file-level allow for implicit-unsafe-in-
 // unsafe-fn is gone too.
 use crate::libcff::CffDictOperator;
-use crate::libcff::cff_codecs::{
+use crate::libcff::codecs::{
     cff_decode_cff_token, cff_encode_cff_float, cff_encode_cff_integer, cff_encode_cff_operator,
 };
-use crate::libcff::cff_value::CffValue;
+use crate::libcff::value::CffValue;
 use crate::support::buffer::Buffer;
 
 // `vals` was `__caryll_allocate_clean`'d/`free`'d, sized from `cnt` -- an
@@ -37,7 +37,7 @@ pub struct CffDict {
 // call site had to construct that pointer from a font-byte-derived offset
 // with no bounds check of its own -- the Private DICT's `offset`/`length`
 // operands are attacker-controlled, and three call sites
-// (`cff_parser.rs::parse_cff_bytecode`, `cff_parser.rs::cff_parse_subr`,
+// (`parser.rs::parse_cff_bytecode`, `parser.rs::cff_parse_subr`,
 // `table/cff.rs::callback_extract_fd`'s operator-18 arm) turned them
 // straight into `raw_data.offset(private_off)` with nothing stopping
 // `private_off`/`private_len` from running past the real buffer. Taking
@@ -53,7 +53,7 @@ pub struct CffDict {
 // `callback_extract_fd`) behind a shared shape purely so one function
 // pointer type could stand in for all three -- the same "type erasure
 // that was never actually needed" pattern Stage 9 Phase 9 found in
-// `libcff/cff_index.rs`'s `new_index_by_callback` (resolved there by
+// `libcff/index.rs`'s `new_index_by_callback` (resolved there by
 // taking `impl Iterator` instead). Each call site already knows its own
 // concrete callback at compile time, so a generic `impl FnMut` closure
 // carries the same information with no unsafe function-pointer cast and

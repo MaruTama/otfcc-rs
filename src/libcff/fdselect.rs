@@ -26,7 +26,7 @@ pub enum CffFdSelect {
     },
 }
 // `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
-// see `libcff/cff_index.rs`'s own conversion for the same move.
+// see `libcff/index.rs`'s own conversion for the same move.
 //
 // Takes `&CffFdSelect` instead of by value -- it only ever reads the data to
 // serialize it, same reasoning as `cff_build_charset`.
