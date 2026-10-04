@@ -1,9 +1,10 @@
 # The workspace: this package (the otfcc library and its two binaries) and
-# `crates/otfcc-json`, the JSON layer it uses. Declaring it here also stops
+# the layers it uses that know nothing about fonts' tables: `crates/otfcc-json`
+# (JSON) and `crates/otfcc-binary` (binary reading, writing and packing). Declaring it here also stops
 # cargo from looking for a workspace above this checkout. `fuzz/` declares
 # its own workspace.
 [workspace]
-members = ["crates/otfcc-json"]
+members = ["crates/otfcc-binary", "crates/otfcc-json"]
 
 [package]
 name = "otfcc_rust"
@@ -92,6 +93,7 @@ needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
 too_many_arguments = "allow" # 2 -- re-measured (was 4)
 
 [dependencies]
+otfcc-binary = { path = "crates/otfcc-binary" }
 otfcc-json = { path = "crates/otfcc-json" }
 base64 = "0.23.1"
 bitflags = "2.13.1"

@@ -6,16 +6,16 @@ use crate::table::otl::classdef::{
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage, shrink_coverage};
 
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 
-use crate::bk::block::bk_new_block_from_buffer;
-use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::bk::graph::BkGraph;
-use crate::bk::graph::{
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::BkGraph;
+use otfcc_binary::bk::graph::{
     bk_build_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block,
     bk_untangle_graph,
 };
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};

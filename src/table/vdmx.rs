@@ -1,9 +1,9 @@
-use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::bk::graph::bk_build_block_no_minimize;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::bk_build_block_no_minimize;
 use crate::font::sfnt::Packet;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::font_reader::{FontReader, ReadError};
+use otfcc_binary::{FontReader, ReadError};
 use otfcc_json::ParsedValue;
 use otfcc_json::JsonType;
 

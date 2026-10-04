@@ -1,8 +1,8 @@
 
-use crate::support::font_reader::{FontReader, ReadError};
+use otfcc_binary::{FontReader, ReadError};
 
 use crate::font::sfnt::Packet;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use crate::support::primitives::GlyphId;
 
 // Stage 6-4 pilot for `Font`'s `*mut X`-typed table fields Box-ified the

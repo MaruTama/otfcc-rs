@@ -1,12 +1,12 @@
-use crate::bk::block::{
+use otfcc_binary::bk::block::{
     BkBlock, BkCellType, bk_int, bk_new_block, bk_new_block_from_bytes, bk_ptr, bk_push,
 };
-use crate::bk::graph::bk_build_block;
+use otfcc_binary::bk::graph::bk_build_block;
 use crate::font::sfnt::Packet;
 use crate::support::base64::{base64_decode, base64_encode};
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::font_reader::{FontReader, ReadError};
+use otfcc_binary::{FontReader, ReadError};
 use otfcc_json::ParsedValue;
 use otfcc_json::JsonType;
 

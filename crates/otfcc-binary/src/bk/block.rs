@@ -96,7 +96,7 @@ pub enum BkCellType {
     Copy = 254,
     Embed = 255,
 }
-use crate::support::buffer::Buffer;
+use crate::Buffer;
 
 pub fn bk_cell_is_pointer(cell: &BkCell) -> bool {
     cell.t >= BkCellType::P16

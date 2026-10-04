@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use crate::support::options::Options;
 
 use crate::consolidate::consolidate_font;
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     // This is the one genuine `extern "C"` boundary in the crate, so it is
     // also the one place that still needs to hand a `Buffer` back as a raw
     // pointer -- `serialize_to_otf` returns the `Buffer` itself now.
-    let otf: *mut Buffer = serialize_to_otf(&mut font, &options).into_raw();
+    let otf: *mut Buffer = Box::into_raw(Box::new(serialize_to_otf(&mut font, &options)));
     drop(font);
     return otf;
 }
@@ -67,14 +67,15 @@ pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
 }
 /// # Safety
 /// `buf` must either be null or point to a live `Buffer` obtained from
-/// [`otfccbuild_json_otf`] and not already freed -- this hands it to
-/// [`Buffer::from_raw`], which carries the same requirement. Calling this
+/// [`otfccbuild_json_otf`] and not already freed. Calling this
 /// twice on the same pointer, or using `buf` (or any pointer previously
 /// returned by [`otfcc_get_buf_data`] for it) afterward, is a
 /// use-after-free.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_free_otfbuf(buf: *mut Buffer) {
-    drop(Buffer::from_raw(buf));
+    if !buf.is_null() {
+        drop(Box::from_raw(buf));
+    }
 }
 
 #[cfg(test)]

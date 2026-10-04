@@ -6,12 +6,12 @@ use otfcc_json::ParsedValue;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
-use crate::bk::block::bk_new_block_from_buffer;
-use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::bk::graph::bk_build_block;
-use crate::support::buffer::Buffer;
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;

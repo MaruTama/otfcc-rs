@@ -1,4 +1,4 @@
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 use otfcc_json::ParsedValue;
 use crate::support::primitives::Pos;
 

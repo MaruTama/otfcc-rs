@@ -1,5 +1,5 @@
-use crate::support::buffer::Buffer;
-use crate::support::font_reader::FontReader;
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
 
 /// The Top DICT's Charset offset is overloaded by spec: values 0/1/2 select
 /// one of the three predefined charsets (ISOAdobe/Expert/ExpertSubset)

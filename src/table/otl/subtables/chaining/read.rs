@@ -5,7 +5,7 @@ use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 
 use crate::support::primitives::{GlyphId, TableId};
 

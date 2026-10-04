@@ -22,7 +22,6 @@
 //!   smaller standalone utilities; [`ffi`] is the `extern "C"` boundary
 //!   this crate is called through.
 
-pub mod bk;
 pub mod consolidate;
 pub mod ffi;
 pub mod font;

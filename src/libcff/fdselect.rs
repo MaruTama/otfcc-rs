@@ -1,6 +1,6 @@
 
-use crate::support::buffer::Buffer;
-use crate::support::font_reader::FontReader;
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
 
 #[derive(Copy, Clone, Debug)]
 pub struct CffFdSelectRangeFormat3 {

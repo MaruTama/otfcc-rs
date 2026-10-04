@@ -1,5 +1,5 @@
 use crate::libcff::CffCharstringOperator;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 /// A safe, allocation-free reimplementation of C99's `modf`, matching its
 /// exact contract rather than reaching for `f64::trunc`/`f64::fract`
 /// directly, which diverge from it on exactly one input class: for a

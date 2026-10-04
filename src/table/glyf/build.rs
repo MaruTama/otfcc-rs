@@ -1,5 +1,5 @@
 
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use crate::support::primitives::ShapeId;
 
 use crate::table::glyf::{

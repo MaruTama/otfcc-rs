@@ -1,6 +1,6 @@
 
 use crate::logger::ByteStr;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use crate::support::options::Options;
 use crate::support::fmt::Byte;
 #[derive(Debug)]

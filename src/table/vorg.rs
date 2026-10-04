@@ -1,7 +1,7 @@
 
 use crate::font::sfnt::Packet;
-use crate::support::buffer::Buffer;
-use crate::support::font_reader::{FontReader, ReadError};
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
 use crate::support::primitives::{GlyphId, Pos};
 
 #[derive(Copy, Clone, Debug)]

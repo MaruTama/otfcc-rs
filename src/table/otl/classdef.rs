@@ -3,9 +3,9 @@ use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from
 use otfcc_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
 
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 /// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel
 /// arrays (grown, pushed to, and truncated only ever together -- confirmed

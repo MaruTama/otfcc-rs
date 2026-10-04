@@ -1,4 +1,4 @@
-use crate::support::font_reader::FontReader;
+use otfcc_binary::FontReader;
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 

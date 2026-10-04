@@ -288,7 +288,6 @@ jobs:
             ffi::dll \
             support::fmt \
             support::ttinstr \
-            support::buffer \
             table::glyf \
             table::cff \
             table::otl \

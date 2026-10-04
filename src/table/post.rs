@@ -1,7 +1,7 @@
 use crate::font::sfnt::Packet;
-use crate::support::buffer::Buffer;
+use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::font_reader::{FontReader, ReadError};
+use otfcc_binary::{FontReader, ReadError};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::set_glyph_order_by_gid;
 use crate::support::options::Options;

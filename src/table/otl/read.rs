@@ -1,5 +1,5 @@
 use crate::font::sfnt::Packet;
-use crate::support::font_reader::{FontReader, ReadError};
+use otfcc_binary::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 use crate::support::fmt::{Byte, Dec5, Hex2};
