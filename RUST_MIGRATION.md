@@ -67,9 +67,11 @@ Every directory has a sibling module file (`src/support.rs` for
 parsing, the step-time stopwatch, the startup and logging setup they share)
 lives in `src/support/cli/` rather than `src/bin/` — the binaries link
 against it as a library module, and anything directly under `src/bin/`
-would be treated as a third binary target. `table/meta/type.rs` and
-`table/vdmx/type.rs` became `types.rs`, which removes the `r#type` escaping
-from those paths.
+would be treated as a third binary target. Each table is one module
+under `src/table/` holding its reader, JSON parser, JSON dumper and builder
+(`meta` and `vdmx` used to be split into `read`/`parse`/`dump`/`build`/
+`types` submodules; `glyf` and `otl` keep subdirectories because they are
+large).
 
 ## Everyday use: just build and test
 

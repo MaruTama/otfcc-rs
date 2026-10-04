@@ -1,4 +1,3 @@
-pub mod _tsi;
 pub mod base;
 pub mod cff;
 pub mod cmap;
@@ -21,6 +20,7 @@ pub mod os_2;
 pub mod otl;
 pub mod post;
 pub mod svg;
+pub mod tsi;
 pub mod tsi5;
 pub mod vdmx;
 pub mod vhea;
