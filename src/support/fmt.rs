@@ -102,7 +102,7 @@ impl SdsPart for i32 {
     }
 }
 
-impl SdsPart for ::core::ffi::c_uint {
+impl SdsPart for u32 {
     fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{self}"));
     }

@@ -392,7 +392,7 @@ fn figure_out_features_from_json(
     return fh;
 }
 pub fn is_valid_language_name(name: &[u8]) -> bool {
-    return name.len() == 9_usize && name[4] == SCRIPT_LANGUAGE_SEPARATOR as u8;
+    return name.len() == 9_usize && name[4] == SCRIPT_LANGUAGE_SEPARATOR;
 }
 fn figure_out_languages_from_json(
     languages: Option<&ParsedValue>,

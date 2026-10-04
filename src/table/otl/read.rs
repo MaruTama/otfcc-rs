@@ -367,7 +367,7 @@ fn parse_otl_common(
                 Byte((tag_0 >> 16 & 0xff) as u8),
                 Byte((tag_0 >> 8 & 0xff) as u8),
                 Byte((tag_0 & 0xff) as u8),
-                Byte(SCRIPT_LANGUAGE_SEPARATOR as u8),
+                Byte(SCRIPT_LANGUAGE_SEPARATOR),
                 b"DFLT",
             );
             parse_language(
@@ -396,7 +396,7 @@ fn parse_otl_common(
                 Byte((tag_0 >> 16 & 0xff) as u8),
                 Byte((tag_0 >> 8 & 0xff) as u8),
                 Byte((tag_0 & 0xff) as u8),
-                Byte(SCRIPT_LANGUAGE_SEPARATOR as u8),
+                Byte(SCRIPT_LANGUAGE_SEPARATOR),
                 Byte((lang_tag >> 24 & 0xff) as u8),
                 Byte((lang_tag >> 16 & 0xff) as u8),
                 Byte((lang_tag >> 8 & 0xff) as u8),

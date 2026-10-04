@@ -409,7 +409,7 @@ fn il_matchtype(il: &CffCharstringIl, j: u32, k: u32, t: CffInstructionType) -> 
         return false;
     }
     for m in j..k {
-        if il.instr[m as usize].type_0 as ::core::ffi::c_uint != t as ::core::ffi::c_uint {
+        if il.instr[m as usize].type_0 as u32 != t as u32 {
             return false;
         }
     }

@@ -338,7 +338,7 @@ pub fn build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
 }
 
 #[cfg(test)]
-mod otfcc_read_gdef_tests {
+mod read_gdef_tests {
     use super::*;
     use crate::font::sfnt::PacketPiece;
 

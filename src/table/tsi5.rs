@@ -76,7 +76,7 @@ pub fn build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffe
 }
 
 #[cfg(test)]
-mod otfcc_read_tsi5_tests {
+mod read_tsi5_tests {
     use super::*;
     use crate::font::sfnt::PacketPiece;
 
