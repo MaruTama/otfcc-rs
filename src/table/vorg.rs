@@ -1,6 +1,5 @@
 
 use crate::font::sfnt::Packet;
-use crate::support::primitives::pos_to_u16;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::primitives::{GlyphId, Pos};
@@ -66,7 +65,7 @@ pub fn build_vorg(table: Option<&VorgTable>) -> Option<Buffer> {
     let mut buf = Buffer::new();
     buf.write_u16be(1_u16);
     buf.write_u16be(0_u16);
-    buf.write_u16be(pos_to_u16(table.default_vertical_origin));
+    buf.write_i16be(table.default_vertical_origin as i16);
     buf.write_u16be(table.num_vert_origin_y_metrics);
     for entry in table.entries.iter().take(table.num_vert_origin_y_metrics as usize) {
         buf.write_u16be(entry.gid);

@@ -1,5 +1,4 @@
 use crate::font::sfnt::Packet;
-use crate::support::primitives::pos_to_u16;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::primitives::{GlyphId, Length, Pos};
@@ -74,10 +73,10 @@ pub fn build_hmtx(hmtx: Option<&HmtxTable>, count_a: GlyphId, count_k: GlyphId) 
     };
     for m in hmtx.metrics.iter().take(count_a as usize) {
         buf.write_u16be(m.advance_width as u16);
-        buf.write_u16be(pos_to_u16(m.lsb));
+        buf.write_i16be(m.lsb as i16);
     }
     for &lsb in hmtx.left_side_bearing.iter().take(count_k as usize) {
-        buf.write_u16be(pos_to_u16(lsb));
+        buf.write_i16be(lsb as i16);
     }
     buf
 }

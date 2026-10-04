@@ -102,6 +102,16 @@ impl Buffer {
     pub fn write_u16be(&mut self, x: u16) {
         self.push_bytes(&x.to_be_bytes());
     }
+    /// A signed 16-bit value, such as an FWORD (a position or a metric).
+    ///
+    /// Positions are `f64`, so callers write `buf.write_i16be(x as i16)`.
+    /// Never `write_u16be(x as u16)` instead: Rust's float-to-unsigned
+    /// conversion saturates, so every negative side bearing or offset would
+    /// silently become 0. Going through `i16` gives the two's-complement
+    /// bits the font needs (`-41.0` is written as `0xFFD7`).
+    pub fn write_i16be(&mut self, x: i16) {
+        self.push_bytes(&x.to_be_bytes());
+    }
     pub fn write_u24le(&mut self, x: u32) {
         // Low 3 bytes only, matching the original's shift-mask expansion,
         // which never touched bits 24-31 either.
@@ -312,4 +322,19 @@ mod tests {
         assert_eq!(buf.data, vec![0x00, 0x02, 0xca, 0xfe, 0xba, 0xbe]);
         assert_eq!(buf.pos(), end, "cursor left at the end, not the patched slot");
     }
+
+    #[test]
+    fn write_i16be_writes_negative_positions_as_twos_complement() {
+        let mut b = Buffer::new();
+        for x in [-41.0f64, -1.0, -32768.0, 41.9, -41.9, 0.0, 65535.0] {
+            b.write_i16be(x as i16);
+        }
+        assert_eq!(
+            b.data,
+            [0xff, 0xd7, 0xff, 0xff, 0x80, 0x00, 0x00, 41, 0xff, 0xd7, 0x00, 0x00, 0x7f, 0xff]
+        );
+        // ...where a direct unsigned cast would have written 0.
+        assert_eq!(-41.0f64 as u16, 0);
+    }
+
 }
