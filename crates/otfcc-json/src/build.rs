@@ -59,13 +59,28 @@
 
 use ::core::ffi::c_int;
 
-use crate::vendor::emyg_dtoa::emyg_dtoa;
-pub use crate::vendor::json_builder::{
-    JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JSON_SERIALIZE_MODE_SINGLE_LINE,
-    JSON_SERIALIZE_OPT_CRLF, JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON,
-    JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA, JSON_SERIALIZE_OPT_PACK_BRACKETS,
-    JSON_SERIALIZE_OPT_USE_TABS, JsonSerializeOpts,
-};
+use crate::dtoa::emyg_dtoa;
+
+/// How `json_serialize_ex` lays out its output.
+#[derive(Copy, Clone, Debug)]
+pub struct JsonSerializeOpts {
+    pub mode: i32,
+    pub opts: i32,
+    pub indent_size: i32,
+}
+pub const JSON_SERIALIZE_MODE_MULTILINE: i32 = 0_i32;
+pub const JSON_SERIALIZE_MODE_SINGLE_LINE: i32 = 1_i32;
+pub const JSON_SERIALIZE_MODE_PACKED: i32 = 2_i32;
+pub const JSON_SERIALIZE_OPT_CRLF: i32 =
+    1_i32 << 1_i32;
+pub const JSON_SERIALIZE_OPT_PACK_BRACKETS: i32 =
+    1_i32 << 2_i32;
+pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA: i32 =
+    1_i32 << 3_i32;
+pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON: i32 =
+    1_i32 << 4_i32;
+pub const JSON_SERIALIZE_OPT_USE_TABS: i32 =
+    1_i32 << 5_i32;
 
 /// The build-side JSON tree. Unlike `parsed_json::ParsedValue`, no
 /// NUL-termination convention is needed on `Str`/keys: nothing on the
@@ -172,7 +187,7 @@ impl BuiltValue {
     /// `f64::round` directly rather than an `extern "C" { fn round(...) }`
     /// declaration: both round half away from zero identically, so there
     /// is nothing left to import libm for.
-    pub fn position(z: crate::support::primitives::Pos) -> BuiltValue {
+    pub fn position(z: f64) -> BuiltValue {
         if z.round() == z {
             BuiltValue::Int(z as i64)
         } else {

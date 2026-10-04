@@ -2,14 +2,14 @@
 
 use crate::logger::ByteStr;
 use crate::support::json_limits::{MAX_ENTRIES, find_oversized_collection};
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 
 use crate::font::model::{Font, FontSubtype};
 use crate::font::table_registry::PARSE_ORDER;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry, GlyphOrderPass};
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 
 fn decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
     if root.get_typed(b"CFF_", JsonType::Object).is_some() {
@@ -226,7 +226,7 @@ pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>>
 #[cfg(test)]
 mod glyph_count_limit_tests {
     use super::*;
-    use crate::support::parsed_json::parse_json;
+    use otfcc_json::parse_json;
 
     /// `{"glyf":{"g0":{},"g1":{},...}}` with `count` empty glyph objects.
     fn font_json_with_glyph_count(count: usize) -> Vec<u8> {
@@ -277,7 +277,7 @@ mod glyph_count_limit_tests {
 #[cfg(test)]
 mod layout_collection_limit_tests {
     use super::*;
-    use crate::support::parsed_json::parse_json;
+    use otfcc_json::parse_json;
 
     fn read(json: &str) -> Option<Box<Font>> {
         let mut root = parse_json(json.as_bytes()).expect("test JSON parses");

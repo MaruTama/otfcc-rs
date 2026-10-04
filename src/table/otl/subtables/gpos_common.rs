@@ -1,17 +1,17 @@
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::font_reader::FontReader;
 
 use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, Pos, count_u16};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 // `MarkRecord` holds only a `GlyphHandle` plus a plain `Anchor`, so dropping
 // the `Vec` runs `Handle`'s own `Drop` for every entry -- no per-element
 // dtor needed anymore.

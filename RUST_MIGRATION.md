@@ -51,14 +51,16 @@ mirrored the C source directories, so paths read
 named after itself (`src/lib/support/buffer/buffer.rs`). That is now:
 
 ```
-Cargo.toml
+Cargo.toml                  the workspace and the `otfcc_rust` package
 src/lib.rs                  crate root: a flat list of `pub mod`
 src/bin/{otfccdump,otfccbuild}.rs
 src/ffi/dll.rs              the four public extern "C" functions
-src/vendor/{json,json_builder,emyg_dtoa}.rs  third-party C
 src/version.rs              MAIN_VER / SECONDARY_VER / PATCH_VER
 src/{bk,consolidate,font,json_reader,json_writer,libcff,logger,
           otf_reader,otf_writer,support,table,tag,vf}[.rs|/]
+crates/otfcc-json/          `otfcc_json`: JSON parser (`ParsedValue`),
+                            value tree and serializer (`BuiltValue`), and
+                            the vendored Grisu2 dtoa; no otfcc dependency
 ```
 
 Every directory has a sibling module file (`src/support.rs` for
@@ -81,8 +83,8 @@ has been deleted — do not need it present, built, or checked out either:
 
 ```bash
 cargo build --release --locked
-cargo clippy --release --all-targets --locked -- -D warnings
-cargo test --release --locked
+cargo clippy --workspace --release --all-targets --locked -- -D warnings
+cargo test --workspace --release --locked
 ```
 
 That single `cargo test` invocation covers everything a standalone shell/

@@ -1,7 +1,7 @@
 
 use crate::logger::ByteStr;
 use crate::support::options::Options;
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::kind::{LOOKUP_KINDS, LookupKind};
@@ -10,7 +10,7 @@ use crate::table::otl::{
     OtlTable,
 };
 use crate::table::otl::{new_language, new_lookup};
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 /// A transient identity minted for a not-yet-collected `Lookup`, indexing
 /// `PendingLookups.lookups` (position within `LookupEntry.lookup_id`'s own
 /// backing store, *not* the final `OtlTable.lookups` position -- `lh` gets

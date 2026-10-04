@@ -2,7 +2,7 @@ use crate::logger::ByteStr;
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
@@ -10,7 +10,7 @@ use crate::bk::block::bk_new_block_from_buffer;
 use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::graph::bk_build_block;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
@@ -22,7 +22,7 @@ use crate::table::otl::subtables::gpos_common::{
 use crate::table::otl::{
     Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
 };
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 // `LigatureBaseRecord.anchors` is a plain `Vec<Vec<Anchor>>` now and
 // `glyph: GlyphHandle` already has its own `Drop`, so a `LigatureArray`
 // (`Vec<LigatureBaseRecord>`) fully self-drops -- clearing it (still needed:

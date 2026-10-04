@@ -1,10 +1,10 @@
 use crate::font::sfnt::Packet;
 use crate::support::base64::base64_decode;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::font_reader::FontReader;
-use crate::support::parsed_json::ParsedValue;
-use crate::vendor::json::JsonType;
+use otfcc_json::ParsedValue;
+use otfcc_json::JsonType;
 
 // Stage 7-2-c "inner Vec化": `words` was the only allocation this struct
 // owned (Stage 6-4 already Box-ified the outer `CvtTable` itself), so

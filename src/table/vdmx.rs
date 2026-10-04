@@ -2,10 +2,10 @@ use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_pus
 use crate::bk::graph::bk_build_block_no_minimize;
 use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::parsed_json::ParsedValue;
-use crate::vendor::json::JsonType;
+use otfcc_json::ParsedValue;
+use otfcc_json::JsonType;
 
 #[derive(Copy, Clone, Debug)]
 pub struct VdmxRecord {

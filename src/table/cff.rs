@@ -30,9 +30,9 @@ use crate::table::glyf::{
     Contour, GlyfTable, Glyph, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList,
 };
 use crate::table::head::HeadTable;
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::vf::vq::VQ;
 
 use crate::libcff::charset::cff_build_charset;
@@ -48,7 +48,7 @@ use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
 use crate::libcff::subr::{
     cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
 };
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::primitives::{from_fixed, to_fixed};
 use crate::table::fvar::json_new_vq;
 use crate::table::glyf::{StemMask, glyf_point_init, new_glyf_glyph, table_glyf_create_n};

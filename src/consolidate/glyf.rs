@@ -483,7 +483,7 @@ mod composite_reference_cycle_tests {
 mod reference_count_tests {
     use super::*;
     use crate::json_reader::read_json;
-    use crate::support::parsed_json::parse_json;
+    use otfcc_json::parse_json;
 
     /// A font whose glyph `a` is a composite of `count` references to `b`.
     ///
