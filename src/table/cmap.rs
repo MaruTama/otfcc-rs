@@ -1,6 +1,5 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
-use crate::support::primitives::parse_int_prefix;
 use crate::support::parsed_json::ParsedValue;
 
 use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -653,19 +652,31 @@ pub fn dump_cmap(
 // storage NUL stripped by the caller, same as every other `ParsedValue`
 // object-key consumer in this crate) instead of going through an owned
 // C-string copy -- no allocation or `unsafe` `libc` call needed any more.
-pub(crate) fn parse_unicode(unicode_str: &[u8]) -> Unicode {
-    if unicode_str.len() > 2 && unicode_str[0] == b'U' && unicode_str[1] == b'+' {
-        parse_int_prefix(&unicode_str[2..], 16) as Unicode
-    } else {
-        parse_int_prefix(unicode_str, 10) as Unicode
+//
+// A key is `U+` followed by hex digits, or decimal digits; anything else
+// (signs, spaces, trailing text, `0x`, an empty number, one too large for
+// `u32`) is not a code point and gives `None`. The digit check comes first
+// because `from_str_radix` would also accept a leading `+`.
+pub(crate) fn parse_unicode(unicode_str: &[u8]) -> Option<Unicode> {
+    let (digits, radix) = match unicode_str.strip_prefix(b"U+") {
+        Some(hex) => (hex, 16),
+        None => (unicode_str, 10),
+    };
+    if digits.is_empty() || !digits.iter().all(|&b| (b as char).is_digit(radix)) {
+        return None;
     }
+    Unicode::from_str_radix(std::str::from_utf8(digits).ok()?, radix).ok()
 }
 fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, item) in fields {
-        let unicode: Unicode = parse_unicode(&key[..key.len() - 1]);
+        let key = &key[..key.len() - 1];
+        let Some(unicode) = parse_unicode(key) else {
+            tracing::warn!("cmap key \"{}\" is not a code point. This mapping is ignored.", ByteStr(key));
+            continue;
+        };
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
@@ -675,33 +686,29 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
         let gname: Vec<u8> = bytes.to_vec();
         if !encode_cmap_by_name(cmap, unicode as i32, gname.clone())
             && let Some(current_map) = cmap_lookup(cmap, unicode as i32) {
-                tracing::warn!("U+{:04X} is already mapped to {}. Assignment to {} is ignored.", unicode as u32, ByteStr(&current_map.name), ByteStr(&gname));
+                tracing::warn!("U+{:04X} is already mapped to {}. Assignment to {} is ignored.", unicode, ByteStr(&current_map.name), ByteStr(&gname));
             }
     }
 }
-// Same borrow-the-key-directly reasoning as `parse_unicode`. The original
-// scanned byte-by-byte for the first space, splitting the string there;
-// `.iter().position()` is the direct linear-search-with-break replacement
-// (same pattern established for this shape throughout the while-loop-to-
-// iterator conversion), and no space at all means "not a UVS key" -- the
-// default zero-valued `k`, unchanged.
-fn parse_uvs_key(uvs_str: &[u8]) -> CmapUvsKey {
-    let mut k = CmapUvsKey {
-        unicode: 0_u32,
-        selector: 0_u32,
-    };
-    if let Some(pos) = uvs_str.iter().position(|&b| b == b' ') {
-        k.unicode = parse_unicode(&uvs_str[..pos]) as u32;
-        k.selector = parse_unicode(&uvs_str[pos + 1..]) as u32;
-    }
-    k
+// A UVS key is two `parse_unicode` keys separated by the first space; no
+// space, or either half not a code point, means it is not a UVS key.
+fn parse_uvs_key(uvs_str: &[u8]) -> Option<CmapUvsKey> {
+    let pos = uvs_str.iter().position(|&b| b == b' ')?;
+    Some(CmapUvsKey {
+        unicode: parse_unicode(&uvs_str[..pos])?,
+        selector: parse_unicode(&uvs_str[pos + 1..])?,
+    })
 }
 fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, item) in fields {
-        let k: CmapUvsKey = parse_uvs_key(&key[..key.len() - 1]);
+        let key = &key[..key.len() - 1];
+        let Some(k) = parse_uvs_key(key) else {
+            tracing::warn!("cmap_uvs key \"{}\" is not a pair of code points. This mapping is ignored.", ByteStr(key));
+            continue;
+        };
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
@@ -1711,3 +1718,45 @@ mod cmap_read_tests {
     }
 }
 
+
+#[cfg(test)]
+mod parse_unicode_tests {
+    use super::*;
+
+    #[test]
+    fn hex_and_decimal_keys_parse() {
+        assert_eq!(parse_unicode(b"U+0041"), Some(0x41));
+        assert_eq!(parse_unicode(b"U+10ffff"), Some(0x10FFFF));
+        assert_eq!(parse_unicode(b"65"), Some(65));
+        assert_eq!(parse_unicode(b"0"), Some(0));
+    }
+
+    #[test]
+    fn anything_else_is_not_a_code_point() {
+        for key in [
+            &b"65abc"[..],
+            b" 65",
+            b"65 ",
+            b"+65",
+            b"-65",
+            b"",
+            b"U+",
+            b"U+0x41",
+            b"U++41",
+            b"u+0041",
+            b"0x41",
+            b"\xc3\xa9",
+            b"99999999999",
+        ] {
+            assert_eq!(parse_unicode(key), None, "{:?}", String::from_utf8_lossy(key));
+        }
+    }
+
+    #[test]
+    fn a_uvs_key_needs_two_code_points() {
+        let k = parse_uvs_key(b"U+845B U+E0100").unwrap();
+        assert_eq!((k.unicode, k.selector), (0x845B, 0xE0100));
+        assert!(parse_uvs_key(b"U+845B").is_none());
+        assert!(parse_uvs_key(b"U+845B x").is_none());
+    }
+}
