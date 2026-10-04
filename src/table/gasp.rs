@@ -1,4 +1,4 @@
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};

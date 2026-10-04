@@ -18,7 +18,7 @@
 #![allow(dead_code)]
 
 use otfcc_rust::consolidate::consolidate_font;
-use otfcc_rust::font::caryll_sfnt::read_sfnt_from_reader;
+use otfcc_rust::font::sfnt::read_sfnt_from_reader;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::otf_reader::read_otf;

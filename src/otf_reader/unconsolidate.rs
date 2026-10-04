@@ -1,4 +1,4 @@
-use crate::font::caryll_font::Font;
+use crate::font::model::Font;
 use crate::support::buffer::Buffer;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;

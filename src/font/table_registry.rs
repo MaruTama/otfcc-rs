@@ -18,9 +18,9 @@ use crate::consolidate::otl::gdef::consolidate_gdef;
 use crate::consolidate::{
     consolidate_cmap, consolidate_colr, consolidate_glyf, consolidate_otl_table, consolidate_tsi,
 };
-use crate::font::caryll_font::{Font, FontSubtype};
-use crate::font::caryll_sfnt::Packet;
-use crate::font::caryll_sfnt_builder::{SfntBuilder, sfnt_builder_push_table};
+use crate::font::model::{Font, FontSubtype};
+use crate::font::sfnt::Packet;
+use crate::font::sfnt_builder::{SfntBuilder, sfnt_builder_push_table};
 use crate::logger::ByteStr;
 use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;

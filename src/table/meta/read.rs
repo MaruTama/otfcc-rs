@@ -1,4 +1,4 @@
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::font_reader::{FontReader, ReadError};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};

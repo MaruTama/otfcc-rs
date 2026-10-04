@@ -1,5 +1,5 @@
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::parsed_json::ParsedValue;
@@ -28,7 +28,7 @@ pub struct CpalPalette {
 // `table_cpal_{init,dispose,create,copy,free}` all deleted: grepping
 // confirmed `table_cpal_copy` was never called anywhere (not even
 // self-referentially), and `table_cpal_free` was the only one of these
-// ever called from outside this file (from `caryll_font.rs`'s table
+// ever called from outside this file (from `model.rs`'s table
 // disposal).
 #[derive(Clone, Debug)]
 pub struct CpalTable {

@@ -6,7 +6,7 @@ use crate::support::parsed_json::ParsedValue;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
 use crate::bk::bkgraph::bk_build_block;
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
@@ -52,7 +52,7 @@ pub struct CmapUvsKey {
 // slots' backing functions directly (`cmap_lookup`,
 // `encode_cmap_uvs_by_index`) instead of through the vtable --
 // same functions, no behavior change. `.create`/`.free` were confirmed
-// only ever called from `caryll_font.rs`'s table disposal (outside this
+// only ever called from `model.rs`'s table disposal (outside this
 // file) and from this file's own former `table_cmap_create`/`_free`
 // wrappers (now gone). `.unmap`/`.unmap_uvs`/`.encode_by_index`/
 // `.encode_by_name`/`.encode_uvs_by_name` were dead in vtable form (kept

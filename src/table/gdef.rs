@@ -1,5 +1,5 @@
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::font::caryll_sfnt::Packet;
+use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
@@ -340,7 +340,7 @@ pub fn build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
 #[cfg(test)]
 mod otfcc_read_gdef_tests {
     use super::*;
-    use crate::font::caryll_sfnt::PacketPiece;
+    use crate::font::sfnt::PacketPiece;
 
     fn packet_with_gdef(data: Vec<u8>) -> Packet {
         Packet {
