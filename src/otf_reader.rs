@@ -417,7 +417,7 @@ mod regression_tests {
     ///    this font's coverage table expanded into billions of
     ///    `IndexMap::entry` calls. Fixed by
     ///    a table-wide budget, now `OtlReadBudget::coverage_entries`.
-    /// 2. `consolidate.rs::consolidate_lookup`: once (1)'s fix
+    /// 2. `consolidate/otl.rs::consolidate_lookup`: once (1)'s fix
     ///    made most of this font's ~300,000 possible subtable slots
     ///    (`MAX_TOTAL_LOOKUPS_PER_TABLE` * `MAX_TOTAL_SUBTABLES_PER_
     ///    LOOKUP`) fail to parse, this loop's "Ignored empty subtable"
@@ -427,7 +427,7 @@ mod regression_tests {
     ///    were ever actually displayed. Fixed by checking `verbosity_
     ///    limit` before building the message, not after.
     ///
-    /// Neither fix's own test (in `coverage.rs`/`consolidate.rs`) alone
+    /// Neither fix's own test (in `coverage.rs`/`consolidate/`) alone
     /// reproduces this specific font's full cost the way running the
     /// actual fuzz-found bytes through both stages together does, which
     /// is why this test exists in addition to those. This build's

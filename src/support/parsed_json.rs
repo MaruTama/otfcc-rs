@@ -357,7 +357,7 @@ pub fn parse_json(input: &[u8]) -> Option<ParsedValue> {
 // smaller stacks (some server/container environments default well
 // below 8MB) too. Threaded as an explicit `depth` parameter incremented
 // per recursive descent (matching this crate's other recursion-depth
-// guards, e.g. `consolidate.rs`'s `get_point_coordinates`/
+// guards, e.g. `consolidate/glyf.rs`'s `get_point_coordinates`/
 // `MAX_COMPONENT_REFERENCE_DEPTH`) rather than a `Parser` field that
 // would need manual increment/decrement bookkeeping around every one of
 // `parse_object`/`parse_array`'s several early-return points -- a
@@ -1188,7 +1188,7 @@ mod tests {
     // to make recursion depth itself the dominant cost: the first draft
     // of these tests used the full 100,000-level crash-reproduction
     // size and alone added ~90s to this crate's `cargo miri test`).
-    // This is the JSON-input analogue of `consolidate.rs`'s
+    // This is the JSON-input analogue of `consolidate/glyf.rs`'s
     // `MAX_COMPONENT_REFERENCE_DEPTH` fix for composite-glyph reference
     // cycles -- same "unbounded recursion on attacker-controlled
     // structure" shape, this time in the parser itself rather than in a

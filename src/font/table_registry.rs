@@ -15,9 +15,11 @@
 //! say -- simply returns.
 use crate::consolidate::otl::common::fontop_consolidate_class_def;
 use crate::consolidate::otl::gdef::consolidate_gdef;
-use crate::consolidate::{
-    consolidate_cmap, consolidate_colr, consolidate_glyf, consolidate_otl_table, consolidate_tsi,
-};
+use crate::consolidate::cmap::consolidate_cmap;
+use crate::consolidate::colr::consolidate_colr;
+use crate::consolidate::glyf::consolidate_glyf;
+use crate::consolidate::otl::consolidate_otl_table;
+use crate::consolidate::tsi::consolidate_tsi;
 use crate::font::model::{Font, FontSubtype};
 use crate::font::sfnt::Packet;
 use crate::font::sfnt_builder::{SfntBuilder, sfnt_builder_push_table};

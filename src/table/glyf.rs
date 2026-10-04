@@ -89,7 +89,7 @@ pub enum RefAnchorStatus {
     AnchorConsolidatingAnchor = 4,
     AnchorConsolidatingXy = 5,
 }
-// `is_anchored`/`x`/`y` are the three fields `consolidate.rs`'s
+// `is_anchored`/`x`/`y` are the three fields `consolidate/glyf.rs`'s
 // `get_point_coordinates`/`consolidate_anchor_ref` mutate while walking a
 // *shared* `&GlyfTable` (see that file's own doc comment on the pair for
 // why the walk itself can never hold `&mut` access to the table it
@@ -100,7 +100,7 @@ pub enum RefAnchorStatus {
 // `.get()`/`.set()` pair at each site and can never panic. `x`/`y` are
 // `VQ`, not `Copy` (a `Vec`-backed `shift` list), so they need `RefCell`
 // instead -- sound here specifically because every read or write of a
-// given `ComponentReference`'s `x`/`y` in `consolidate.rs` happens as a
+// given `ComponentReference`'s `x`/`y` in `consolidate/glyf.rs` happens as a
 // single, non-recursive statement: `consolidate_anchor_ref` only touches
 // its own `rr.x`/`rr.y` *after* both of its recursive
 // `get_point_coordinates` calls have already returned (never while one is
@@ -109,7 +109,7 @@ pub enum RefAnchorStatus {
 // turned away by the `is_anchored` state-machine guard *before* it ever
 // reaches the `x`/`y`-touching code -- so no borrow of a given
 // `ComponentReference`'s `x`/`y` is ever still outstanding when a nested
-// call could try to borrow that same one again. See `consolidate.rs`'s
+// call could try to borrow that same one again. See `consolidate/glyf.rs`'s
 // own doc comments on `get_point_coordinates`/`consolidate_anchor_ref` for
 // the full trace this reasoning is based on.
 #[derive(Clone, Debug)]

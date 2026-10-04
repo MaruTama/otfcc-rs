@@ -32,7 +32,7 @@ pub type TsiTable = Vec<TsiEntry>;
 // `Copy`). `TABLE_I_TSI.copy` (whole-table clone) was dead before this
 // conversion and is deleted below, not ported -- the one real duplicate
 // this file needs is per-element (`tsi_entry_dup`, used once from
-// `consolidate.rs`), not a `Vec::clone()`.
+// `consolidate/tsi.rs`), not a `Vec::clone()`.
 pub(crate) fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     TsiEntry {
         type_0: e.type_0,
