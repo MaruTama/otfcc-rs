@@ -3,16 +3,14 @@ use otfcc_rust::support::options::Options;
 
 use otfcc_rust::font::model::Font;
 use otfcc_rust::font::sfnt::SplineFontContainer;
-use otfcc_json::BuiltValue;
 use otfcc_rust::support::EXIT_FAILURE;
 
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::sfnt::read_sfnt;
-use otfcc_rust::json_writer::serialize_to_json;
+use otfcc_rust::json_writer::stream_json;
 use otfcc_rust::otf_reader::read_otf;
-use otfcc_json::json_serialize_ex;
 use otfcc_json::{
-    JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts,
+    JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, JsonStreamWriter,
 };
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
@@ -201,68 +199,70 @@ fn run(args: Vec<String>) -> i32 {
         log_step_time(&mut begin);
         stage.finish();
     }
-    // Owned now that `serialize_to_json` returns the `BuiltValue` itself
-    // rather than a `BuiltValue::into_raw` pointer; `Option` only because
-    // the plain block below is what assigns it.
-    let mut root: Option<BuiltValue>;
+    // The JSON is written while it is dumped, a member of the root object
+    // at a time, rather than built whole, turned into one string and then
+    // written: holding the font, the whole tree and the whole text at once
+    // was most of the peak memory on large fonts. So the layout is chosen
+    // and the output opened before the Dump step. The steps and their log
+    // lines stay as they were: Serialize to JSON now only flushes, and a
+    // file that cannot be opened or written is still reported in Output.
+    let mut json_options: JsonSerializeOpts = JsonSerializeOpts {
+        mode: 0,
+        opts: 0,
+        indent_size: 0,
+    };
+    json_options.mode = JSON_SERIALIZE_MODE_PACKED;
+    json_options.opts = 0_i32;
+    json_options.indent_size = 4_i32;
+    if show_pretty as i32 != 0
+        || output_path.is_none() && std::io::stdout().is_terminal()
+    {
+        json_options.mode = JSON_SERIALIZE_MODE_MULTILINE;
+    }
+    if show_ugly {
+        json_options.mode = JSON_SERIALIZE_MODE_PACKED;
+    }
+    // Whether writing the output file has failed so far. Writes to stdout
+    // are not checked, as before.
+    let mut write_failed = false;
+    let mut out: Box<dyn Write> = match output_path {
+        Some(ref output_path) => {
+            let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
+            match std::fs::File::create(std::path::Path::new(os_path)) {
+                Ok(f) => Box::new(std::io::BufWriter::new(f)),
+                Err(_) => {
+                    write_failed = true;
+                    Box::new(std::io::sink())
+                }
+            }
+        }
+        None => Box::new(std::io::BufWriter::new(std::io::stdout().lock())),
+    };
+    if add_bom && out.write_all(&[0xef, 0xbb, 0xbf]).is_err() {
+        write_failed = true;
+    }
+    let mut writer = JsonStreamWriter::new(out, json_options);
     let stage = otfcc_rust::logger::stage("Dump");
     {
-        // The "dump returned null" error path that used to sit here was
-        // already dead: the serializer's every exit built a real
-        // `BuiltValue`, so the pointer it handed back was never null. With
-        // an owned return there is no null to test for at all.
-        root = Some(serialize_to_json(font.as_mut().unwrap(), &options));
+        stream_json(font.as_mut().unwrap(), &options, &mut writer);
         log_step_time(&mut begin);
         stage.finish();
     }
-    let buf: Vec<u8>;
     let stage = otfcc_rust::logger::stage("Serialize to JSON");
     {
-        let mut json_options: JsonSerializeOpts = JsonSerializeOpts {
-            mode: 0,
-            opts: 0,
-            indent_size: 0,
-        };
-        json_options.mode = JSON_SERIALIZE_MODE_PACKED;
-        json_options.opts = 0_i32;
-        json_options.indent_size = 4_i32;
-        if show_pretty as i32 != 0
-            || output_path.is_none() && std::io::stdout().is_terminal()
-        {
-            json_options.mode = JSON_SERIALIZE_MODE_MULTILINE;
+        if writer.finish().is_err() {
+            write_failed = true;
         }
-        if show_ugly {
-            json_options.mode = JSON_SERIALIZE_MODE_PACKED;
-        }
-        buf = json_serialize_ex(
-            root.as_ref().expect("the Dump step above always assigns root"),
-            json_options,
-        );
         log_step_time(&mut begin);
         stage.finish();
     }
     let stage = otfcc_rust::logger::stage("Output");
     {
-        if let Some(ref output_path) = output_path {
-            let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
-            let write_result = std::fs::File::create(std::path::Path::new(os_path)).and_then(
-                |mut f| {
-                    if add_bom {
-                        f.write_all(&[0xef, 0xbb, 0xbf])?;
-                    }
-                    f.write_all(&buf)
-                },
-            );
-            if write_result.is_err() {
-                tracing::error!("Cannot write to file \"{}\". Exit.", ByteStr(output_path.as_bytes()));
-                return EXIT_FAILURE;
-            }
-        } else {
-            let mut stdout_handle = std::io::stdout();
-            if add_bom {
-                let _ = stdout_handle.write_all(&[0xef, 0xbb, 0xbf]);
-            }
-            let _ = stdout_handle.write_all(&buf);
+        if let Some(ref output_path) = output_path
+            && write_failed
+        {
+            tracing::error!("Cannot write to file \"{}\". Exit.", ByteStr(output_path.as_bytes()));
+            return EXIT_FAILURE;
         }
         log_step_time(&mut begin);
         stage.finish();
@@ -270,7 +270,6 @@ fn run(args: Vec<String>) -> i32 {
     let stage = otfcc_rust::logger::stage("Finalize");
     {
         drop(font.take());
-        drop(root.take());
         // `in_path`/`output_path` are `CString`/`Option<CString>` now --
         // both drop on their own at the end of this function's scope, no
         // explicit free needed.
