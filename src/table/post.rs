@@ -1,14 +1,14 @@
 use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::set_glyph_order_by_gid;
 use crate::support::options::Options;
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::support::primitives::{F16Dot16, GlyphId};
 use crate::support::primitives::{from_fixed, to_fixed};
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 
 #[derive(Debug)]
 pub struct PostTable {

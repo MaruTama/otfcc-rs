@@ -3,15 +3,15 @@ use otfcc_rust::support::options::Options;
 
 use otfcc_rust::font::model::Font;
 use otfcc_rust::font::sfnt::SplineFontContainer;
-use otfcc_rust::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use otfcc_rust::support::EXIT_FAILURE;
 
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::sfnt::read_sfnt;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::otf_reader::read_otf;
-use otfcc_rust::support::built_json::json_serialize_ex;
-use otfcc_rust::support::built_json::{
+use otfcc_json::json_serialize_ex;
+use otfcc_json::{
     JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts,
 };
 use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};

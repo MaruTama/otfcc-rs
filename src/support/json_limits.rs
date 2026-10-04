@@ -19,7 +19,7 @@
 //! limit for it. The exceptions are the tables whose size is a byte or entry
 //! count with a 32-bit length in the font, listed in [`UNBOUNDED_TABLES`].
 
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 
 /// The most members a collection may have: what a `u16` count can hold.
 pub const MAX_ENTRIES: usize = u16::MAX as usize;
@@ -100,7 +100,7 @@ fn trim_nul(key: &[u8]) -> &[u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::parsed_json::parse_json;
+    use otfcc_json::parse_json;
 
     fn find(json: &str) -> Option<OversizedCollection> {
         find_oversized_collection(&parse_json(json.as_bytes()).expect("test JSON parses"))

@@ -1,7 +1,7 @@
 use crate::support::handle::{
     GlyphHandle, handle_from_index, handle_from_name,
 };
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
@@ -13,7 +13,7 @@ use crate::support::primitives::{GlyphId, count_u16};
 
 use crate::bk::block::bk_new_block_from_buffer;
 use crate::bk::graph::bk_build_block;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, Subtable};

@@ -1,5 +1,5 @@
 use crate::logger::ByteStr;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::{Feature, Lookup, OtlTable};

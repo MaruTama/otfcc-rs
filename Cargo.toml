@@ -1,6 +1,9 @@
-# An empty workspace of its own, so cargo never looks for one in a directory
-# above this checkout. `fuzz/` declares its own workspace too.
+# The workspace: this package (the otfcc library and its two binaries) and
+# `crates/otfcc-json`, the JSON layer it uses. Declaring it here also stops
+# cargo from looking for a workspace above this checkout. `fuzz/` declares
+# its own workspace.
 [workspace]
+members = ["crates/otfcc-json"]
 
 [package]
 name = "otfcc_rust"
@@ -19,14 +22,17 @@ edition = "2024"
 name = "otfcc_rust"
 crate-type = ["staticlib", "rlib", "cdylib"]
 
-[lints.rust]
+[lints]
+workspace = true
+
+[workspace.lints.rust]
 # The 0-warning invariant, enforced instead of eyeballed. Safe to make fatal only
 # because rust-toolchain.toml pins an exact compiler: a new stable cannot break
 # the build by inventing a lint. Bumping that pin is where new warnings get dealt
 # with, deliberately.
 warnings = "deny"
 
-[lints.clippy]
+[workspace.lints.clippy]
 # CI runs `cargo clippy --all-targets -- -D warnings`, so any lint not listed
 # here is a hard build failure -- the same ratchet `unsafe_op_in_unsafe_fn`'s
 # per-file `allow` already uses (RUST_MIGRATION.md, "Next steps"), just crate-wide
@@ -86,6 +92,7 @@ needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
 too_many_arguments = "allow" # 2 -- re-measured (was 4)
 
 [dependencies]
+otfcc-json = { path = "crates/otfcc-json" }
 base64 = "0.23.1"
 bitflags = "2.13.1"
 indexmap = "2.14.0"
@@ -99,7 +106,7 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
 
 [dev-dependencies]
 # Only tests call libc: they check the `printf`-style formatting helpers
-# and the JSON parser against the real C library.
+# against the real C library.
 libc = "0.2.189"
 criterion = "0.5"
 libloading = "0.9.0"

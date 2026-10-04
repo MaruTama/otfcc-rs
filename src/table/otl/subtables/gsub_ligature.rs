@@ -1,5 +1,5 @@
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
@@ -9,12 +9,12 @@ use crate::bk::block::bk_new_block_from_buffer;
 use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::graph::bk_build_block;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::primitives::GlyphId;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable};
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 // `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
 // `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
 // per-element dtor needed anymore.

@@ -1,6 +1,5 @@
 pub mod base64;
 pub mod buffer;
-pub mod built_json;
 pub mod cli;
 pub mod fmt;
 pub mod font_reader;
@@ -8,7 +7,6 @@ pub mod glyph_order;
 pub mod handle;
 pub mod json_limits;
 pub mod options;
-pub mod parsed_json;
 pub mod primitives;
 pub mod ttinstr;
 pub mod unicode;

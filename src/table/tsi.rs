@@ -1,14 +1,14 @@
 use crate::logger::ByteStr;
 use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, handle_empty,
 };
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::support::primitives::GlyphId;
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]

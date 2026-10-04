@@ -1,8 +1,8 @@
 use crate::support::handle::{LookupHandle, handle_from_name, handle_empty};
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 
 use crate::support::primitives::TableId;
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 
 use crate::table::otl::coverage::parse_coverage;
 use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingSubtable, Subtable};

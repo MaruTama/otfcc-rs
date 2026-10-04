@@ -1,4 +1,4 @@
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::table::otl::classdef::{ClassDef, push_class_def};
 
 use crate::support::handle::handle_from_index;
@@ -7,10 +7,10 @@ use crate::support::font_reader::FontReader;
 
 use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::table::otl::classdef::{dump_class_def, parse_class_def};
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 
 pub type Tsi5Table = ClassDef;
 // Stage 6-4 "Box化": `Font.tsi5` is an `Option<Box<Tsi5Table>>`. The

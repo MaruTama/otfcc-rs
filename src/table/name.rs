@@ -1,11 +1,11 @@
 use crate::font::sfnt::Packet;
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::support::unicode::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 
 // `Copy` dropped (`name_string` is now `Vec<u8>`, the `sds` sweep's last

@@ -1,9 +1,9 @@
 use crate::support::font_reader::FontReader;
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::support::primitives::Pos;
 
 use crate::font::sfnt::Packet;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::primitives::from_fixed;
 use crate::vf::axis::{VfAxes, VfAxis};
 use crate::vf::region::{VqAxisSpan, VqRegion};

@@ -109,14 +109,14 @@ jobs:
       # stage rather than fixed here; anything not on that list is a hard
       # failure.
       - name: Clippy
-        run: cargo clippy --release --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --release --all-targets --locked -- -D warnings
 
       # Default (parallel) test runner: the OTL read budgets are per-table
       # values rather than process-wide statics, and each tests/golden.rs
       # test writes to its own scratch subdirectory, so tests no longer
       # share mutable state.
       - name: cargo test
-        run: cargo test --release --locked
+        run: cargo test --workspace --release --locked
 
   # Advisory, NOT a merge gate (continue-on-error on every step): this is new
   # dynamic-analysis tooling added specifically because the byte-comparison
@@ -286,12 +286,8 @@ jobs:
             consolidate \
             otf_writer::stat \
             ffi::dll \
-            support::parsed_json \
-            support::ctype_compat \
             support::fmt \
-            support::stopwatch \
             support::ttinstr \
-            support::strtol \
             support::buffer \
             table::glyf \
             table::cff \

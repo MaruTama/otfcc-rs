@@ -7,7 +7,7 @@ use crate::consolidate::consolidate_font;
 use crate::json_reader::read_json;
 use crate::otf_writer::serialize_to_otf;
 use crate::support::options::options_optimize_to;
-use crate::support::parsed_json::parse_json;
+use otfcc_json::parse_json;
 
 /// # Safety
 /// `injson` must be non-null and point to at least `inlen` readable bytes
