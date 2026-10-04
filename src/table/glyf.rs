@@ -10,7 +10,7 @@ use crate::support::handle::{
     FdHandle, GlyphHandle, Handle, HandleState, handle_from_name, handle_empty,
 };
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
+use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId, until_nul};
 use crate::table::fvar::FvarTable;
 use otfcc_json::JsonType;
 
@@ -573,8 +573,7 @@ pub fn dump_glyf(
     sink.begin_field_object(b"glyf");
     for slot in table {
         let g = slot.as_deref().unwrap();
-        let name_len = g.name.iter().position(|&b| b == 0).unwrap_or(g.name.len());
-        sink.field(&g.name[..name_len], glyf_dump_glyph(g, options, ctx));
+        sink.field(until_nul(&g.name), glyf_dump_glyph(g, options, ctx));
     }
     sink.end_object();
     if !options.ignore_glyph_order {

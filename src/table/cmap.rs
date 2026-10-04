@@ -11,7 +11,7 @@ use crate::support::buffer::Buffer;
 use otfcc_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, TableId, Unicode};
+use crate::support::primitives::{GlyphId, TableId, Unicode, until_nul};
 use otfcc_json::JsonType;
 use crate::support::fmt::Hex4Upper;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -626,7 +626,7 @@ pub fn dump_cmap(
                 } else {
                     crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
                 };
-                sink.field(truncated_at_nul(&key), BuiltValue::str_truncated_at_nul(&glyph.name));
+                sink.field(until_nul(&key), BuiltValue::str_truncated_at_nul(&glyph.name));
             }
         }
         sink.end_object();
@@ -645,16 +645,12 @@ pub fn dump_cmap(
                         Hex4Upper(key.selector),
                     )
                 };
-                sink.field(truncated_at_nul(&key_0), BuiltValue::str_truncated_at_nul(&glyph.name));
+                sink.field(until_nul(&key_0), BuiltValue::str_truncated_at_nul(&glyph.name));
             }
         }
         sink.end_object();
     }
     stage.finish();
-}
-fn truncated_at_nul(bytes: &[u8]) -> &[u8] {
-    let len = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-    &bytes[..len]
 }
 // `unicode_str` borrows the object key's own storage directly (the trailing
 // storage NUL stripped by the caller, same as every other `ParsedValue`

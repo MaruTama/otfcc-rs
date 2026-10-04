@@ -124,6 +124,26 @@ pub fn f1616_divide(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     return divide((a as i64) << F16DOT16_PRECISION, b);
 }
 
+/// `bytes` up to its first NUL, or all of it if it has none: how glyph
+/// names and other strings that came from C strings are read.
+pub fn until_nul(bytes: &[u8]) -> &[u8] {
+    let len = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    &bytes[..len]
+}
+
+#[cfg(test)]
+mod until_nul_tests {
+    use super::until_nul;
+
+    #[test]
+    fn cuts_at_the_first_nul_only() {
+        assert_eq!(until_nul(b"abc"), b"abc");
+        assert_eq!(until_nul(b"ab\0c\0"), b"ab");
+        assert_eq!(until_nul(b"\0abc"), b"");
+        assert_eq!(until_nul(b""), b"");
+    }
+}
+
 #[cfg(test)]
 mod count_u16_tests {
     use super::*;
