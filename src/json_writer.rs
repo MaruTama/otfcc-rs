@@ -2,7 +2,7 @@ use crate::support::options::Options;
 
 use crate::font::model::Font;
 use crate::font::table_registry::DUMP_ORDER;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 
 /// Dumps a consolidated font into the JSON value tree otfccdump prints.
 ///

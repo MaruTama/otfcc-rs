@@ -1,4 +1,4 @@
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::dump_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_const};
 use crate::table::otl::{ChainingRule, Subtable};

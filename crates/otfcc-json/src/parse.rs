@@ -65,7 +65,7 @@ pub enum ParsedValue {
     Object(Vec<(Vec<u8>, ParsedValue)>),
 }
 
-use crate::vendor::json::JsonType;
+use crate::kind::JsonType;
 
 // Stage 11 (complete): `ParsedValue`'s data has been fully safe from the
 // start (it's a plain enum over `Vec`/`Box`-owned variants, no zero-copy
@@ -733,6 +733,7 @@ mod tests {
     /// across the crate rely on.
     #[test]
     #[cfg_attr(miri, ignore = "calls libc::strcmp directly, unsupported under Miri")]
+    #[allow(unsafe_code)]
     fn accessor_strings_are_nul_terminated() {
         let root = parse_json(br#"{"abc":"xyz"}"#).unwrap();
         let (key, val) = &root.as_object().unwrap()[0];
@@ -770,8 +771,10 @@ mod tests {
     )]
     fn every_committed_payload_json_parses() {
         let mut any = false;
+        // The fixtures live at the workspace root, two levels above this crate.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         for dir in ["tests/payload", "build"] {
-            let Ok(entries) = std::fs::read_dir(dir) else {
+            let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
                 continue;
             };
             for entry in entries.flatten() {

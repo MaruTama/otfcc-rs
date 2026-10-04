@@ -1,9 +1,9 @@
 use crate::logger::ByteStr;
 use crate::font::sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::options::Options;
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 
 // `tag` is written on every construction path (read: unconditionally

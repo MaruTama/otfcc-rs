@@ -1,10 +1,10 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 /// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel

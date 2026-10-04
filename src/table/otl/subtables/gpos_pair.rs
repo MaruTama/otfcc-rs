@@ -1,5 +1,5 @@
 use crate::support::handle::{GlyphHandle, handle_from_index};
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::ParsedValue;
 use crate::table::otl::classdef::{
     ClassDef, expand_class_def, read_class_def,
 };
@@ -16,7 +16,7 @@ use crate::bk::graph::{
     bk_untangle_graph,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::BuiltValue;
+use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;
@@ -26,7 +26,7 @@ use crate::table::otl::subtables::gpos_common::{
     position_zero, read_gpos_value, required_position_format,
 };
 use crate::table::otl::{GposPairSubtable, PositionValue, Subtable};
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 
 // `fv`/`sv` hold the matched cell's value directly now, not a pointer into
 // `first_values`/`second_values` -- `PositionValue` is `Copy`, and with the
@@ -819,7 +819,7 @@ mod otl_read_gpos_pair_tests {
 #[cfg(test)]
 mod otl_gpos_parse_pair_class_limit_tests {
     use super::*;
-    use crate::support::parsed_json::parse_json;
+    use otfcc_json::parse_json;
 
     fn parse(json: &str) -> Option<Subtable> {
         otl_gpos_parse_pair(Some(&parse_json(json.as_bytes()).unwrap()))

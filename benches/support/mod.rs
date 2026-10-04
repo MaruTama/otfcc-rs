@@ -23,9 +23,9 @@ use otfcc_rust::json_reader::read_json;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::otf_writer::serialize_to_otf;
-use otfcc_rust::support::built_json::{JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_serialize_ex};
+use otfcc_json::{JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_serialize_ex};
 use otfcc_rust::support::options::{Options, options_optimize_to};
-use otfcc_rust::support::parsed_json::parse_json;
+use otfcc_json::parse_json;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 

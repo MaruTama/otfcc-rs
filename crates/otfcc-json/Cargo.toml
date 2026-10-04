@@ -1,0 +1,14 @@
+[package]
+name = "otfcc-json"
+version = "0.10.4"
+publish = false
+edition = "2024"
+description = "otfcc's JSON parser, value tree and serializer"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+# A parser test compares a parsed key's storage against the C library's
+# strcmp, the way the code that used to consume it did.
+libc = "0.2.189"

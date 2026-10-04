@@ -11,10 +11,10 @@ use crate::support::handle::{
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
 use crate::table::fvar::FvarTable;
-use crate::vendor::json::JsonType;
+use otfcc_json::JsonType;
 
-use crate::support::built_json::BuiltValue;
-use crate::support::parsed_json::ParsedValue;
+use otfcc_json::BuiltValue;
+use otfcc_json::ParsedValue;
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vf::vq::VQ;
