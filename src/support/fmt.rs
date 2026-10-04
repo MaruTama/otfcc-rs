@@ -8,6 +8,9 @@
 //! had zero callers, confirmed by grep before this file split off). What's
 //! left is purely this: a trait deciding how to append one typed piece to a
 //! growing `Vec<u8>`, and the macro that chains pieces together.
+
+use crate::support::primitives::until_nul;
+
 /// One piece of a [`bytesbuild!`] call: knows how to append itself to a
 /// growing `Vec<u8>`.
 ///
@@ -53,11 +56,7 @@ impl SdsPart for &str {
 /// output.
 impl SdsPart for &Vec<u8> {
     fn append_to_vec(self, v: &mut Vec<u8>) {
-        let bytes = match self.iter().position(|&b| b == 0) {
-            Some(nul_pos) => &self[..nul_pos],
-            None => &self[..],
-        };
-        bytes.append_to_vec(v);
+        until_nul(self).append_to_vec(v);
     }
 }
 

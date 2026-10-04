@@ -49,7 +49,7 @@ use crate::libcff::subr::{
     cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
 };
 use otfcc_json::BuiltValue;
-use crate::support::primitives::{from_fixed, to_fixed};
+use crate::support::primitives::{from_fixed, to_fixed, until_nul};
 use crate::table::fvar::json_new_vq;
 use crate::table::glyf::{StemMask, glyf_point_init, new_glyf_glyph, table_glyf_create_n};
 use crate::vf::vq::{
@@ -1667,10 +1667,7 @@ fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, B
 // behavior), but the winning entry's full byte content, NUL and all, is
 // still what ends up in the output.
 fn sidof(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> i32 {
-    let key: Vec<u8> = match s.iter().position(|&b| b == 0) {
-        Some(p) => s[..p].to_vec(),
-        None => s.to_vec(),
-    };
+    let key: Vec<u8> = until_nul(s).to_vec();
     if let Some(idx) = h.get_index_of(&key) {
         return 391_i32 + idx as i32;
     }

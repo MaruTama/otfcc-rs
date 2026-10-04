@@ -1,6 +1,7 @@
 pub mod build;
 pub mod read;
 
+use crate::json_writer::DumpSink;
 use crate::logger::ByteStr;
 use crate::support::TRUE_0;
 use crate::support::buffer::Buffer;
@@ -9,7 +10,7 @@ use crate::support::handle::{
     FdHandle, GlyphHandle, Handle, HandleState, handle_from_name, handle_empty,
 };
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
+use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId, until_nul};
 use crate::table::fvar::FvarTable;
 use otfcc_json::JsonType;
 
@@ -548,17 +549,20 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
     }
     glyph
 }
-pub fn dump_glyphorder(table: &GlyfTable, root: &mut BuiltValue) {
+fn dump_glyphorder(table: &GlyfTable) -> BuiltValue {
     let mut order = BuiltValue::new_array(table.len());
     for slot in table {
         let g = slot.as_deref().unwrap();
         order.push_item(BuiltValue::str_truncated_at_nul(&g.name));
     }
-    root.push_field(b"glyph_order", order.preserialize());
+    order.preserialize()
 }
+/// Writes `glyf` and `glyph_order` into `sink` one glyph at a time, so a
+/// sink that writes straight out never holds more than one glyph's JSON.
+/// Glyph names are cut at the first NUL, as `push_field_bytes_key` does.
 pub fn dump_glyf(
     table: Option<&GlyfTable>,
-    root: &mut BuiltValue,
+    sink: &mut dyn DumpSink,
     options: &Options,
     ctx: &GlyfIOContext<'_>,
 ) {
@@ -566,14 +570,14 @@ pub fn dump_glyf(
         return;
     };
     let stage = crate::logger::stage("glyf");
-    let mut glyf = BuiltValue::new_object(table.len());
+    sink.begin_field_object(b"glyf");
     for slot in table {
         let g = slot.as_deref().unwrap();
-        glyf.push_field_bytes_key(&g.name, glyf_dump_glyph(g, options, ctx));
+        sink.field(until_nul(&g.name), glyf_dump_glyph(g, options, ctx));
     }
-    root.push_field(b"glyf", glyf);
+    sink.end_object();
     if !options.ignore_glyph_order {
-        dump_glyphorder(table, root);
+        sink.field(b"glyph_order", dump_glyphorder(table));
     }
     stage.finish();
 }

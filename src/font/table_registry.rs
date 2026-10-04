@@ -364,7 +364,9 @@ impl FontTable for Glyf {
     fn parse(&self, font: &mut Font, root: &mut ParsedValue, options: &Options) {
         font.glyf = parse_glyf(root, font.glyph_order.as_deref(), options);
     }
-    fn dump(&self, font: &mut Font, root: &mut BuiltValue, options: &Options) {
+    /// Writes `glyf` glyph by glyph rather than through `dump`, so that
+    /// streaming never holds the whole table's JSON.
+    fn dump_to(&self, font: &mut Font, sink: &mut dyn DumpSink, options: &Options) {
         // `GlyfIOContext` needs both `head` (for `index_to_loc_format`) and
         // `maxp` (for `num_glyphs`); a malformed or CFF-flavored font can
         // legitimately have neither, the same case `read` leaves `glyf` at
@@ -380,7 +382,7 @@ impl FontTable for Glyf {
             has_vertical_metrics: font.vhea.is_some(),
             export_fd_select: font.cff.as_deref().is_some_and(|c| c.is_cid),
         };
-        dump_glyf(font.glyf.as_ref(), root, options, &ctx);
+        dump_glyf(font.glyf.as_ref(), sink, options, &ctx);
     }
     /// Builds a TrueType font's `glyf` and `loca`. This sets
     /// `head.indexToLocFormat`, so it has to come before `head` is built.
@@ -407,8 +409,10 @@ impl FontTable for Cmap {
     fn parse(&self, font: &mut Font, root: &mut ParsedValue, _options: &Options) {
         font.cmap = parse_cmap(root);
     }
-    fn dump(&self, font: &mut Font, root: &mut BuiltValue, options: &Options) {
-        dump_cmap(font.cmap.as_deref(), root, options);
+    /// Writes `cmap` mapping by mapping rather than through `dump`, so
+    /// that streaming never holds the whole table's JSON.
+    fn dump_to(&self, font: &mut Font, sink: &mut dyn DumpSink, options: &Options) {
+        dump_cmap(font.cmap.as_deref(), sink, options);
     }
     fn build(&self, font: &mut Font, builder: &mut SfntBuilder, options: &Options) {
         sfnt_builder_push_table(builder, TAG_CMAP, build_cmap(font.cmap.as_deref(), options));
