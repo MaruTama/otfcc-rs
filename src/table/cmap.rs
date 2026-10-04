@@ -1,3 +1,4 @@
+use crate::json_writer::DumpSink;
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use otfcc_json::ParsedValue;
@@ -606,15 +607,18 @@ pub fn read_cmap(packet: &Packet) -> Option<Box<CmapTable>> {
     }
 }
 #[allow(improper_ctypes_definitions)]
+/// Writes `cmap` and `cmap_uvs` into `sink` one mapping at a time, so a
+/// sink that writes straight out never holds the whole table's JSON. Keys
+/// and glyph names are cut at the first NUL, as `push_field_bytes_key` does.
 pub fn dump_cmap(
     table: Option<&CmapTable>,
-    root: &mut BuiltValue,
+    sink: &mut dyn DumpSink,
     options: &Options,
 ) {
     let Some(table) = table else { return };
     let stage = crate::logger::stage("cmap");
     if !table.unicodes.is_empty() {
-        let mut cmap = BuiltValue::new_object(table.unicodes.len());
+        sink.begin_field_object(b"cmap");
         for (&unicode, glyph) in table.unicodes.iter() {
             if !glyph.name.is_empty() {
                 let key: Vec<u8> = if options.decimal_cmap {
@@ -622,13 +626,13 @@ pub fn dump_cmap(
                 } else {
                     crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
                 };
-                cmap.push_field_bytes_key(&key, BuiltValue::str_truncated_at_nul(&glyph.name));
+                sink.field(truncated_at_nul(&key), BuiltValue::str_truncated_at_nul(&glyph.name));
             }
         }
-        root.push_field(b"cmap", cmap);
+        sink.end_object();
     }
     if !table.uvs.is_empty() {
-        let mut uvs = BuiltValue::new_object(table.uvs.len());
+        sink.begin_field_object(b"cmap_uvs");
         for (key, glyph) in table.uvs.iter() {
             if !glyph.name.is_empty() {
                 let key_0: Vec<u8> = if options.decimal_cmap {
@@ -641,12 +645,16 @@ pub fn dump_cmap(
                         Hex4Upper(key.selector),
                     )
                 };
-                uvs.push_field_bytes_key(&key_0, BuiltValue::str_truncated_at_nul(&glyph.name));
+                sink.field(truncated_at_nul(&key_0), BuiltValue::str_truncated_at_nul(&glyph.name));
             }
         }
-        root.push_field(b"cmap_uvs", uvs);
+        sink.end_object();
     }
     stage.finish();
+}
+fn truncated_at_nul(bytes: &[u8]) -> &[u8] {
+    let len = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    &bytes[..len]
 }
 // `unicode_str` borrows the object key's own storage directly (the trailing
 // storage NUL stripped by the caller, same as every other `ParsedValue`
