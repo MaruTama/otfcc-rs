@@ -1,6 +1,6 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
-use crate::support::cstd::strtol::strtol;
+use crate::support::primitives::parse_int_prefix;
 use crate::support::parsed_json::ParsedValue;
 
 use crate::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -655,9 +655,9 @@ pub fn dump_cmap(
 // C-string copy -- no allocation or `unsafe` `libc` call needed any more.
 pub(crate) fn parse_unicode(unicode_str: &[u8]) -> Unicode {
     if unicode_str.len() > 2 && unicode_str[0] == b'U' && unicode_str[1] == b'+' {
-        strtol(&unicode_str[2..], 16) as Unicode
+        parse_int_prefix(&unicode_str[2..], 16) as Unicode
     } else {
-        strtol(unicode_str, 10) as Unicode
+        parse_int_prefix(unicode_str, 10) as Unicode
     }
 }
 fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {

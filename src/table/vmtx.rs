@@ -1,5 +1,5 @@
 use crate::font::sfnt::Packet;
-use crate::support::cstd::binio::pos_to_u16;
+use crate::support::primitives::pos_to_u16;
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::primitives::{GlyphId, Length, Pos};
