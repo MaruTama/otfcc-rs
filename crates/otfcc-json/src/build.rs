@@ -58,6 +58,7 @@
 //!   nothing was lost by not narrowing further here.
 
 use ::core::ffi::c_int;
+use std::io::{self, Write};
 
 use crate::dtoa::emyg_dtoa;
 
@@ -265,7 +266,163 @@ pub fn json_serialize_ex(value: &BuiltValue, opts: JsonSerializeOpts) -> Vec<u8>
     out
 }
 
-fn push_newline_indent(out: &mut Vec<u8>, opts: JsonSerializeOpts, flags: c_int, depth: c_int) {
+/// Writes one JSON object to an `io::Write` member by member, so a caller
+/// can hand over each member's value as soon as it is built and drop it once
+/// written, instead of building the whole document and then the whole
+/// string first. The bytes are exactly what [`json_serialize_ex`] writes for
+/// the same tree: both lay objects out through `begin_member` and
+/// `close_object`.
+///
+/// A write error does not stop the caller: the writer keeps the first one,
+/// writes nothing more, and [`finish`](Self::finish) returns it.
+pub struct JsonStreamWriter<W: Write> {
+    out: IoOut<W>,
+    opts: JsonSerializeOpts,
+    flags: c_int,
+    /// How many members each open object has so far, outermost first.
+    open: Vec<usize>,
+}
+
+impl<W: Write> JsonStreamWriter<W> {
+    pub fn new(w: W, opts: JsonSerializeOpts) -> Self {
+        JsonStreamWriter {
+            out: IoOut { w, err: None },
+            opts,
+            flags: get_serialize_flags(opts),
+            open: Vec::new(),
+        }
+    }
+
+    /// Opens the top-level object. Nothing is written until its first
+    /// member arrives, because an object with no members is written `{}`.
+    pub fn begin_object(&mut self) {
+        assert!(self.open.is_empty(), "begin_object opens the top-level object only");
+        self.open.push(0);
+    }
+
+    /// Writes `key: value` into the innermost open object.
+    pub fn field(&mut self, key: &[u8], value: BuiltValue) {
+        self.begin_member(key);
+        let depth = self.open.len() as c_int;
+        write_value(&value, self.opts, self.flags, depth, &mut self.out);
+    }
+
+    /// Writes `key` into the innermost open object and opens an object as
+    /// its value; the following members go into it until
+    /// [`end_object`](Self::end_object).
+    pub fn begin_field_object(&mut self, key: &[u8]) {
+        self.begin_member(key);
+        self.open.push(0);
+    }
+
+    /// Closes the innermost open object.
+    pub fn end_object(&mut self) {
+        let len = self.open.pop().expect("end_object without an open object");
+        let depth = self.open.len() as c_int;
+        close_object(&mut self.out, self.opts, self.flags, depth, len);
+    }
+
+    /// Flushes the output and returns it, or the first write error.
+    pub fn finish(mut self) -> io::Result<W> {
+        assert!(self.open.is_empty(), "finish with an object still open");
+        if let Some(err) = self.out.err.take() {
+            return Err(err);
+        }
+        self.out.w.flush()?;
+        Ok(self.out.w)
+    }
+
+    fn begin_member(&mut self, key: &[u8]) {
+        let depth = self.open.len() - 1;
+        let index = self.open[depth];
+        self.open[depth] += 1;
+        begin_member(&mut self.out, self.opts, self.flags, depth as c_int, index, key);
+    }
+}
+
+/// Where the serializer writes: a `Vec` for [`json_serialize_ex`], an
+/// [`IoOut`] for [`JsonStreamWriter`].
+trait Out {
+    fn push(&mut self, b: u8);
+    fn extend_from_slice(&mut self, bytes: &[u8]);
+}
+
+impl Out for Vec<u8> {
+    fn push(&mut self, b: u8) {
+        Vec::push(self, b);
+    }
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        Vec::extend_from_slice(self, bytes);
+    }
+}
+
+/// An `io::Write` as an [`Out`]. It keeps the first write error and drops
+/// every write after it, so the serializer never has to handle one.
+struct IoOut<W: Write> {
+    w: W,
+    err: Option<io::Error>,
+}
+
+impl<W: Write> Out for IoOut<W> {
+    fn push(&mut self, b: u8) {
+        self.extend_from_slice(&[b]);
+    }
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        if self.err.is_none()
+            && let Err(err) = self.w.write_all(bytes)
+        {
+            self.err = Some(err);
+        }
+    }
+}
+
+/// Writes what comes before member `index` of an object at `depth`: the
+/// opening brace for the first member, a comma for the others, then the
+/// line break and indent of `depth + 1`, the key and the colon.
+fn begin_member<O: Out>(
+    out: &mut O,
+    opts: JsonSerializeOpts,
+    flags: c_int,
+    depth: c_int,
+    index: usize,
+    key: &[u8],
+) {
+    if index == 0 {
+        out.push(b'{');
+        if flags & F_SPACES_AROUND_BRACKETS != 0 {
+            out.push(b' ');
+        }
+    } else {
+        out.push(b',');
+        if flags & F_SPACES_AFTER_COMMAS != 0 {
+            out.push(b' ');
+        }
+    }
+    push_newline_indent(out, opts, flags, depth + 1);
+    out.push(b'"');
+    escape_string_into(key, out);
+    out.push(b'"');
+    out.push(b':');
+    if flags & F_SPACES_AFTER_COLONS != 0 {
+        out.push(b' ');
+    }
+}
+
+/// Closes an object at `depth` that has `len` members; one with none is
+/// written `{}`.
+fn close_object<O: Out>(out: &mut O, opts: JsonSerializeOpts, flags: c_int, depth: c_int, len: usize) {
+    if len == 0 {
+        out.extend_from_slice(b"{}");
+        return;
+    }
+    push_newline_indent(out, opts, flags, depth);
+    if flags & F_SPACES_AROUND_BRACKETS != 0 {
+        out.push(b' ');
+    }
+    out.push(b'}');
+}
+
+fn push_newline_indent<O: Out>(out: &mut O, opts: JsonSerializeOpts, flags: c_int, depth: c_int) {
     if opts.mode != JSON_SERIALIZE_MODE_MULTILINE {
         return;
     }
@@ -279,12 +436,12 @@ fn push_newline_indent(out: &mut Vec<u8>, opts: JsonSerializeOpts, flags: c_int,
     }
 }
 
-fn write_value(
+fn write_value<O: Out>(
     value: &BuiltValue,
     opts: JsonSerializeOpts,
     flags: c_int,
     depth: c_int,
-    out: &mut Vec<u8>,
+    out: &mut O,
 ) {
     match value {
         BuiltValue::Array(items) => {
@@ -315,38 +472,11 @@ fn write_value(
             out.push(b']');
         }
         BuiltValue::Object(fields) => {
-            if fields.is_empty() {
-                out.extend_from_slice(b"{}");
-                return;
-            }
-            out.push(b'{');
-            if flags & F_SPACES_AROUND_BRACKETS != 0 {
-                out.push(b' ');
-            }
-            let inner_depth = depth + 1;
-            push_newline_indent(out, opts, flags, inner_depth);
             for (i, (key, val)) in fields.iter().enumerate() {
-                if i > 0 {
-                    out.push(b',');
-                    if flags & F_SPACES_AFTER_COMMAS != 0 {
-                        out.push(b' ');
-                    }
-                    push_newline_indent(out, opts, flags, inner_depth);
-                }
-                out.push(b'"');
-                escape_string_into(key, out);
-                out.push(b'"');
-                out.push(b':');
-                if flags & F_SPACES_AFTER_COLONS != 0 {
-                    out.push(b' ');
-                }
-                write_value(val, opts, flags, inner_depth, out);
+                begin_member(out, opts, flags, depth, i, key);
+                write_value(val, opts, flags, depth + 1, out);
             }
-            push_newline_indent(out, opts, flags, depth);
-            if flags & F_SPACES_AROUND_BRACKETS != 0 {
-                out.push(b' ');
-            }
-            out.push(b'}');
+            close_object(out, opts, flags, depth, fields.len());
         }
         BuiltValue::PreSerialized(bytes) => out.extend_from_slice(bytes),
         BuiltValue::Str(s) => {
@@ -374,7 +504,7 @@ fn write_value(
 /// backslash escapes for the rest, everything else copied through
 /// unchanged (including raw non-UTF-8/Latin-1 bytes -- object keys and
 /// string values are `Vec<u8>`, not `String`, for exactly this reason).
-fn escape_string_into(s: &[u8], out: &mut Vec<u8>) {
+fn escape_string_into<O: Out>(s: &[u8], out: &mut O) {
     for &c in s {
         match c {
             0 => out.extend_from_slice(b"\\u0000"),
@@ -617,5 +747,117 @@ mod tests {
             BuiltValue::PreSerialized(bytes) => assert_eq!(bytes, br#"{"x":42}"#),
             _ => panic!("expected PreSerialized"),
         }
+    }
+
+    /// Streams `tree` (an object) member by member, opening every member
+    /// that is itself an object with `begin_field_object` so nesting goes
+    /// through the writer too.
+    fn stream_members<W: Write>(w: &mut JsonStreamWriter<W>, fields: &[(Vec<u8>, BuiltValue)]) {
+        for (key, value) in fields {
+            match value {
+                BuiltValue::Object(inner) => {
+                    w.begin_field_object(key);
+                    stream_members(w, inner);
+                    w.end_object();
+                }
+                _ => w.field(key, value.clone()),
+            }
+        }
+    }
+
+    fn stream(tree: &BuiltValue, opts: JsonSerializeOpts) -> Vec<u8> {
+        let BuiltValue::Object(fields) = tree else {
+            panic!("the streamed root is an object");
+        };
+        let mut w = JsonStreamWriter::new(Vec::new(), opts);
+        w.begin_object();
+        stream_members(&mut w, fields);
+        w.end_object();
+        w.finish().unwrap()
+    }
+
+    fn nested_tree() -> BuiltValue {
+        let mut root = build_sample_tree();
+        let mut inner = BuiltValue::new_object(3);
+        inner.push_field(b"key \"quoted\"\n", BuiltValue::Int(1));
+        inner.push_field(b"empty", BuiltValue::new_object(0));
+        let mut deeper = BuiltValue::new_object(1);
+        deeper.push_field(b"pre", build_sample_tree().preserialize());
+        inner.push_field(b"deeper", deeper);
+        root.push_field(b"inner", inner);
+        root
+    }
+
+    #[test]
+    fn stream_writer_matches_json_serialize_ex_in_every_layout() {
+        let trees = [nested_tree(), build_sample_tree(), BuiltValue::new_object(0)];
+        for mode in [
+            JSON_SERIALIZE_MODE_MULTILINE,
+            JSON_SERIALIZE_MODE_SINGLE_LINE,
+            JSON_SERIALIZE_MODE_PACKED,
+        ] {
+            for opt_bits in 0..32 {
+                for indent_size in [0, 2, 4] {
+                    let opts = JsonSerializeOpts {
+                        mode,
+                        opts: opt_bits << 1,
+                        indent_size,
+                    };
+                    for tree in &trees {
+                        assert_eq!(
+                            stream(tree, opts),
+                            json_serialize_ex(tree, opts),
+                            "mode {mode}, opts {:#x}, indent {indent_size}",
+                            opt_bits << 1
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Accepts `budget` bytes, then fails every write.
+    struct FailAfter {
+        budget: usize,
+        written: Vec<u8>,
+    }
+
+    impl Write for FailAfter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            if self.budget == 0 {
+                return Err(io::Error::other("full"));
+            }
+            let n = buf.len().min(self.budget);
+            self.budget -= n;
+            self.written.extend_from_slice(&buf[..n]);
+            Ok(n)
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn stream_writer_reports_the_first_write_error() {
+        let tree = nested_tree();
+        let BuiltValue::Object(fields) = &tree else { unreachable!() };
+        let opts = JsonSerializeOpts {
+            mode: JSON_SERIALIZE_MODE_MULTILINE,
+            opts: 0,
+            indent_size: 4,
+        };
+        let full = json_serialize_ex(&tree, opts);
+        for budget in [0, 1, 10, full.len() - 1] {
+            let mut w = JsonStreamWriter::new(FailAfter { budget, written: Vec::new() }, opts);
+            w.begin_object();
+            stream_members(&mut w, fields);
+            w.end_object();
+            assert!(w.finish().is_err(), "budget {budget}");
+        }
+        let mut w = JsonStreamWriter::new(FailAfter { budget: full.len(), written: Vec::new() }, opts);
+        w.begin_object();
+        stream_members(&mut w, fields);
+        w.end_object();
+        assert_eq!(w.finish().unwrap().written, full);
     }
 }

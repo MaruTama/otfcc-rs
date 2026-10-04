@@ -23,6 +23,7 @@ use crate::consolidate::tsi::consolidate_tsi;
 use crate::font::model::{Font, FontSubtype};
 use crate::font::sfnt::Packet;
 use crate::font::sfnt_builder::{SfntBuilder, sfnt_builder_push_table};
+use crate::json_writer::DumpSink;
 use crate::logger::ByteStr;
 use otfcc_json::BuiltValue;
 use crate::support::options::Options;
@@ -87,6 +88,20 @@ pub trait FontTable: Sync {
     fn parse(&self, _font: &mut Font, _root: &mut ParsedValue, _options: &Options) {}
     /// Writes this table as otfcc's JSON.
     fn dump(&self, _font: &mut Font, _root: &mut BuiltValue, _options: &Options) {}
+    /// Writes this table as otfcc's JSON into `sink`, which may write each
+    /// member out as soon as it gets it. By default the members [`dump`]
+    /// would add to the root are built and handed over one by one.
+    ///
+    /// [`dump`]: FontTable::dump
+    fn dump_to(&self, font: &mut Font, sink: &mut dyn DumpSink, options: &Options) {
+        let mut root = BuiltValue::new_object(2);
+        self.dump(font, &mut root, options);
+        if let BuiltValue::Object(fields) = root {
+            for (key, value) in fields {
+                sink.field(&key, value);
+            }
+        }
+    }
     /// Writes this table into a binary font.
     fn build(&self, _font: &mut Font, _builder: &mut SfntBuilder, _options: &Options) {}
     /// Resolves the glyph references in this table against the font's glyph
