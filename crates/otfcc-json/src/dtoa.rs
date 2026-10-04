@@ -14,7 +14,7 @@ static K_DP_EXPONENT_MASK: u64 = (0x7ff00000_i32 as u64)
     | 0_i32 as u64;
 static K_DP_SIGNIFICAND_MASK: u64 = (0xfffff_i32 as u64)
     << 32_i32
-    | 0xffffffff as ::core::ffi::c_uint as u64;
+    | 0xffffffff_u32 as u64;
 static K_DP_HIDDEN_BIT: u64 = (0x100000_i32 as u64) << 32_i32
     | 0_i32 as u64;
 #[inline]
@@ -60,7 +60,7 @@ fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     let mut tmp: u64 = (bd >> 32_i32)
         .wrapping_add(ad & m32)
         .wrapping_add(bc & m32);
-    tmp = tmp.wrapping_add(((1 as ::core::ffi::c_uint) << 31_i32) as u64);
+    tmp = tmp.wrapping_add((1_u32 << 31_i32) as u64);
     return diy_fp_from_parts(
         ac.wrapping_add(ad >> 32_i32)
             .wrapping_add(bc >> 32_i32)
@@ -70,7 +70,7 @@ fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
 }
 #[inline]
 fn normalize(lhs: DiyFp) -> DiyFp {
-    let s: i32 = (lhs.f as ::core::ffi::c_ulonglong).leading_zeros() as i32;
+    let s: i32 = lhs.f.leading_zeros() as i32;
     return diy_fp_from_parts(lhs.f << s, lhs.e - s);
 }
 #[inline]
@@ -109,180 +109,180 @@ fn normalized_boundaries(lhs: DiyFp, minus: &mut DiyFp, plus: &mut DiyFp) {
 #[inline]
 fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
     static K_CACHED_POWERS_F: [u64; 87] = [
-        (0xfa8fd5a0 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xfa8fd5a0_u32 as u64) << 32_i32
             | 0x81c0288_i32 as u64,
-        (0xbaaee17f as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xa23ebf76 as ::core::ffi::c_uint as u64,
-        (0x8b16fb20 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xbaaee17f_u32 as u64) << 32_i32
+            | 0xa23ebf76_u32 as u64,
+        (0x8b16fb20_u32 as u64) << 32_i32
             | 0x3055ac76_i32 as u64,
-        (0xcf42894a as ::core::ffi::c_uint as u64) << 32_i32
+        (0xcf42894a_u32 as u64) << 32_i32
             | 0x5dce35ea_i32 as u64,
-        (0x9a6bb0aa as ::core::ffi::c_uint as u64) << 32_i32
+        (0x9a6bb0aa_u32 as u64) << 32_i32
             | 0x55653b2d_i32 as u64,
-        (0xe61acf03 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xe61acf03_u32 as u64) << 32_i32
             | 0x3d1a45df_i32 as u64,
-        (0xab70fe17 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xc79ac6ca as ::core::ffi::c_uint as u64,
-        (0xff77b1fc as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xbebcdc4f as ::core::ffi::c_uint as u64,
-        (0xbe5691ef as ::core::ffi::c_uint as u64) << 32_i32
+        (0xab70fe17_u32 as u64) << 32_i32
+            | 0xc79ac6ca_u32 as u64,
+        (0xff77b1fc_u32 as u64) << 32_i32
+            | 0xbebcdc4f_u32 as u64,
+        (0xbe5691ef_u32 as u64) << 32_i32
             | 0x416bd60c_i32 as u64,
-        (0x8dd01fad as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x907ffc3c as ::core::ffi::c_uint as u64,
-        (0xd3515c28 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x8dd01fad_u32 as u64) << 32_i32
+            | 0x907ffc3c_u32 as u64,
+        (0xd3515c28_u32 as u64) << 32_i32
             | 0x31559a83_i32 as u64,
-        (0x9d71ac8f as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xada6c9b5 as ::core::ffi::c_uint as u64,
-        (0xea9c2277 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x9d71ac8f_u32 as u64) << 32_i32
+            | 0xada6c9b5_u32 as u64,
+        (0xea9c2277_u32 as u64) << 32_i32
             | 0x23ee8bcb_i32 as u64,
-        (0xaecc4991 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xaecc4991_u32 as u64) << 32_i32
             | 0x4078536d_i32 as u64,
-        (0x823c1279 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x823c1279_u32 as u64) << 32_i32
             | 0x5db6ce57_i32 as u64,
-        (0xc2109436 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xc2109436_u32 as u64) << 32_i32
             | 0x4dfb5637_i32 as u64,
-        (0x9096ea6f as ::core::ffi::c_uint as u64) << 32_i32
+        (0x9096ea6f_u32 as u64) << 32_i32
             | 0x3848984f_i32 as u64,
-        (0xd77485cb as ::core::ffi::c_uint as u64) << 32_i32
+        (0xd77485cb_u32 as u64) << 32_i32
             | 0x25823ac7_i32 as u64,
-        (0xa086cfcd as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x97bf97f4 as ::core::ffi::c_uint as u64,
-        (0xef340a98 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xa086cfcd_u32 as u64) << 32_i32
+            | 0x97bf97f4_u32 as u64,
+        (0xef340a98_u32 as u64) << 32_i32
             | 0x172aace5_i32 as u64,
-        (0xb23867fb as ::core::ffi::c_uint as u64) << 32_i32
+        (0xb23867fb_u32 as u64) << 32_i32
             | 0x2a35b28e_i32 as u64,
-        (0x84c8d4df as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xd2c63f3b as ::core::ffi::c_uint as u64,
-        (0xc5dd4427 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x84c8d4df_u32 as u64) << 32_i32
+            | 0xd2c63f3b_u32 as u64,
+        (0xc5dd4427_u32 as u64) << 32_i32
             | 0x1ad3cdba_i32 as u64,
-        (0x936b9fce as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xbb25c996 as ::core::ffi::c_uint as u64,
-        (0xdbac6c24 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x936b9fce_u32 as u64) << 32_i32
+            | 0xbb25c996_u32 as u64,
+        (0xdbac6c24_u32 as u64) << 32_i32
             | 0x7d62a584_i32 as u64,
-        (0xa3ab6658 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xa3ab6658_u32 as u64) << 32_i32
             | 0xd5fdaf6_i32 as u64,
-        (0xf3e2f893 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xdec3f126 as ::core::ffi::c_uint as u64,
-        (0xb5b5ada8 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xaaff80b8 as ::core::ffi::c_uint as u64,
-        (0x87625f05 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xf3e2f893_u32 as u64) << 32_i32
+            | 0xdec3f126_u32 as u64,
+        (0xb5b5ada8_u32 as u64) << 32_i32
+            | 0xaaff80b8_u32 as u64,
+        (0x87625f05_u32 as u64) << 32_i32
             | 0x6c7c4a8b_i32 as u64,
-        (0xc9bcff60 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xc9bcff60_u32 as u64) << 32_i32
             | 0x34c13053_i32 as u64,
-        (0x964e858c as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x91ba2655 as ::core::ffi::c_uint as u64,
-        (0xdff97724 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x964e858c_u32 as u64) << 32_i32
+            | 0x91ba2655_u32 as u64,
+        (0xdff97724_u32 as u64) << 32_i32
             | 0x70297ebd_i32 as u64,
-        (0xa6dfbd9f as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xb8e5b88f as ::core::ffi::c_uint as u64,
-        (0xf8a95fcf as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x88747d94 as ::core::ffi::c_uint as u64,
-        (0xb9447093 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x8fa89bcf as ::core::ffi::c_uint as u64,
-        (0x8a08f0f8 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xbf0f156b as ::core::ffi::c_uint as u64,
-        (0xcdb02555 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xa6dfbd9f_u32 as u64) << 32_i32
+            | 0xb8e5b88f_u32 as u64,
+        (0xf8a95fcf_u32 as u64) << 32_i32
+            | 0x88747d94_u32 as u64,
+        (0xb9447093_u32 as u64) << 32_i32
+            | 0x8fa89bcf_u32 as u64,
+        (0x8a08f0f8_u32 as u64) << 32_i32
+            | 0xbf0f156b_u32 as u64,
+        (0xcdb02555_u32 as u64) << 32_i32
             | 0x653131b6_i32 as u64,
-        (0x993fe2c6 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xd07b7fac as ::core::ffi::c_uint as u64,
-        (0xe45c10c4 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x993fe2c6_u32 as u64) << 32_i32
+            | 0xd07b7fac_u32 as u64,
+        (0xe45c10c4_u32 as u64) << 32_i32
             | 0x2a2b3b06_i32 as u64,
-        (0xaa242499 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xaa242499_u32 as u64) << 32_i32
             | 0x697392d3_i32 as u64,
-        (0xfd87b5f2 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x8300ca0e as ::core::ffi::c_uint as u64,
-        (0xbce50864 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x92111aeb as ::core::ffi::c_uint as u64,
-        (0x8cbccc09 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xfd87b5f2_u32 as u64) << 32_i32
+            | 0x8300ca0e_u32 as u64,
+        (0xbce50864_u32 as u64) << 32_i32
+            | 0x92111aeb_u32 as u64,
+        (0x8cbccc09_u32 as u64) << 32_i32
             | 0x6f5088cc_i32 as u64,
-        (0xd1b71758 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xe219652c as ::core::ffi::c_uint as u64,
-        (0x9c400000 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xd1b71758_u32 as u64) << 32_i32
+            | 0xe219652c_u32 as u64,
+        (0x9c400000_u32 as u64) << 32_i32
             | 0_i32 as u64,
-        (0xe8d4a510 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xe8d4a510_u32 as u64) << 32_i32
             | 0_i32 as u64,
-        (0xad78ebc5 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xac620000 as ::core::ffi::c_uint as u64,
-        (0x813f3978 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xf8940984 as ::core::ffi::c_uint as u64,
-        (0xc097ce7b as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xc90715b3 as ::core::ffi::c_uint as u64,
-        (0x8f7e32ce as ::core::ffi::c_uint as u64) << 32_i32
+        (0xad78ebc5_u32 as u64) << 32_i32
+            | 0xac620000_u32 as u64,
+        (0x813f3978_u32 as u64) << 32_i32
+            | 0xf8940984_u32 as u64,
+        (0xc097ce7b_u32 as u64) << 32_i32
+            | 0xc90715b3_u32 as u64,
+        (0x8f7e32ce_u32 as u64) << 32_i32
             | 0x7bea5c70_i32 as u64,
-        (0xd5d238a4 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xabe98068 as ::core::ffi::c_uint as u64,
-        (0x9f4f2726 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xd5d238a4_u32 as u64) << 32_i32
+            | 0xabe98068_u32 as u64,
+        (0x9f4f2726_u32 as u64) << 32_i32
             | 0x179a2245_i32 as u64,
-        (0xed63a231 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xd4c4fb27 as ::core::ffi::c_uint as u64,
-        (0xb0de6538 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x8cc8ada8 as ::core::ffi::c_uint as u64,
-        (0x83c7088e as ::core::ffi::c_uint as u64) << 32_i32
+        (0xed63a231_u32 as u64) << 32_i32
+            | 0xd4c4fb27_u32 as u64,
+        (0xb0de6538_u32 as u64) << 32_i32
+            | 0x8cc8ada8_u32 as u64,
+        (0x83c7088e_u32 as u64) << 32_i32
             | 0x1aab65db_i32 as u64,
-        (0xc45d1df9 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xc45d1df9_u32 as u64) << 32_i32
             | 0x42711d9a_i32 as u64,
-        (0x924d692c as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xa61be758 as ::core::ffi::c_uint as u64,
-        (0xda01ee64 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x924d692c_u32 as u64) << 32_i32
+            | 0xa61be758_u32 as u64,
+        (0xda01ee64_u32 as u64) << 32_i32
             | 0x1a708dea_i32 as u64,
-        (0xa26da399 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x9aef774a as ::core::ffi::c_uint as u64,
-        (0xf209787b as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xb47d6b85 as ::core::ffi::c_uint as u64,
-        (0xb454e4a1 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xa26da399_u32 as u64) << 32_i32
+            | 0x9aef774a_u32 as u64,
+        (0xf209787b_u32 as u64) << 32_i32
+            | 0xb47d6b85_u32 as u64,
+        (0xb454e4a1_u32 as u64) << 32_i32
             | 0x79dd1877_i32 as u64,
-        (0x865b8692 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x865b8692_u32 as u64) << 32_i32
             | 0x5b9bc5c2_i32 as u64,
-        (0xc83553c5 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xc8965d3d as ::core::ffi::c_uint as u64,
-        (0x952ab45c as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xfa97a0b3 as ::core::ffi::c_uint as u64,
-        (0xde469fbd as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x99a05fe3 as ::core::ffi::c_uint as u64,
-        (0xa59bc234 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xdb398c25 as ::core::ffi::c_uint as u64,
-        (0xf6c69a72 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xa3989f5c as ::core::ffi::c_uint as u64,
-        (0xb7dcbf53 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xc83553c5_u32 as u64) << 32_i32
+            | 0xc8965d3d_u32 as u64,
+        (0x952ab45c_u32 as u64) << 32_i32
+            | 0xfa97a0b3_u32 as u64,
+        (0xde469fbd_u32 as u64) << 32_i32
+            | 0x99a05fe3_u32 as u64,
+        (0xa59bc234_u32 as u64) << 32_i32
+            | 0xdb398c25_u32 as u64,
+        (0xf6c69a72_u32 as u64) << 32_i32
+            | 0xa3989f5c_u32 as u64,
+        (0xb7dcbf53_u32 as u64) << 32_i32
             | 0x54e9bece_i32 as u64,
-        (0x88fcf317 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xf22241e2 as ::core::ffi::c_uint as u64,
-        (0xcc20ce9b as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xd35c78a5 as ::core::ffi::c_uint as u64,
-        (0x98165af3 as ::core::ffi::c_uint as u64) << 32_i32
+        (0x88fcf317_u32 as u64) << 32_i32
+            | 0xf22241e2_u32 as u64,
+        (0xcc20ce9b_u32 as u64) << 32_i32
+            | 0xd35c78a5_u32 as u64,
+        (0x98165af3_u32 as u64) << 32_i32
             | 0x7b2153df_i32 as u64,
-        (0xe2a0b5dc as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x971f303a as ::core::ffi::c_uint as u64,
-        (0xa8d9d153 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xe2a0b5dc_u32 as u64) << 32_i32
+            | 0x971f303a_u32 as u64,
+        (0xa8d9d153_u32 as u64) << 32_i32
             | 0x5ce3b396_i32 as u64,
-        (0xfb9b7cd9 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xa4a7443c as ::core::ffi::c_uint as u64,
-        (0xbb764c4c as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xa7a44410 as ::core::ffi::c_uint as u64,
-        (0x8bab8eef as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xb6409c1a as ::core::ffi::c_uint as u64,
-        (0xd01fef10 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xa657842c as ::core::ffi::c_uint as u64,
-        (0x9b10a4e5 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xe9913129 as ::core::ffi::c_uint as u64,
-        (0xe7109bfb as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xa19c0c9d as ::core::ffi::c_uint as u64,
-        (0xac2820d9 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xfb9b7cd9_u32 as u64) << 32_i32
+            | 0xa4a7443c_u32 as u64,
+        (0xbb764c4c_u32 as u64) << 32_i32
+            | 0xa7a44410_u32 as u64,
+        (0x8bab8eef_u32 as u64) << 32_i32
+            | 0xb6409c1a_u32 as u64,
+        (0xd01fef10_u32 as u64) << 32_i32
+            | 0xa657842c_u32 as u64,
+        (0x9b10a4e5_u32 as u64) << 32_i32
+            | 0xe9913129_u32 as u64,
+        (0xe7109bfb_u32 as u64) << 32_i32
+            | 0xa19c0c9d_u32 as u64,
+        (0xac2820d9_u32 as u64) << 32_i32
             | 0x623bf429_i32 as u64,
-        (0x80444b5e as ::core::ffi::c_uint as u64) << 32_i32
+        (0x80444b5e_u32 as u64) << 32_i32
             | 0x7aa7cf85_i32 as u64,
-        (0xbf21e440 as ::core::ffi::c_uint as u64) << 32_i32
+        (0xbf21e440_u32 as u64) << 32_i32
             | 0x3acdd2d_i32 as u64,
-        (0x8e679c2f as ::core::ffi::c_uint as u64) << 32_i32
+        (0x8e679c2f_u32 as u64) << 32_i32
             | 0x5e44ff8f_i32 as u64,
-        (0xd433179d as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x9c8cb841 as ::core::ffi::c_uint as u64,
-        (0x9e19db92 as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xb4e31ba9 as ::core::ffi::c_uint as u64,
-        (0xeb96bf6e as ::core::ffi::c_uint as u64) << 32_i32
-            | 0xbadf77d9 as ::core::ffi::c_uint as u64,
-        (0xaf87023b as ::core::ffi::c_uint as u64) << 32_i32
-            | 0x9bf0ee6b as ::core::ffi::c_uint as u64,
+        (0xd433179d_u32 as u64) << 32_i32
+            | 0x9c8cb841_u32 as u64,
+        (0x9e19db92_u32 as u64) << 32_i32
+            | 0xb4e31ba9_u32 as u64,
+        (0xeb96bf6e_u32 as u64) << 32_i32
+            | 0xbadf77d9_u32 as u64,
+        (0xaf87023b_u32 as u64) << 32_i32
+            | 0x9bf0ee6b_u32 as u64,
     ];
     static K_CACHED_POWERS_E: [i16; 87] = [
         -1220_i32 as i16,
@@ -380,8 +380,8 @@ fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
     if k as f64 != dk {
         k += 1;
     }
-    let index: ::core::ffi::c_uint =
-        ((k >> 3_i32) + 1_i32) as ::core::ffi::c_uint;
+    let index: u32 =
+        ((k >> 3_i32) + 1_i32) as u32;
     *k_out =
         -(-348_i32 + (index << 3_i32) as i32);
     return diy_fp_from_parts(
@@ -401,35 +401,35 @@ fn grisu_round(buffer: &mut [u8], len: i32, delta: u64, mut rest: u64, ten_kappa
     }
 }
 #[inline]
-fn count_decimal_digit32(n: u32) -> ::core::ffi::c_uint {
+fn count_decimal_digit32(n: u32) -> u32 {
     if n < 10_u32 {
-        return 1 as ::core::ffi::c_uint;
+        return 1_u32;
     }
     if n < 100_u32 {
-        return 2 as ::core::ffi::c_uint;
+        return 2_u32;
     }
     if n < 1000_u32 {
-        return 3 as ::core::ffi::c_uint;
+        return 3_u32;
     }
     if n < 10000_u32 {
-        return 4 as ::core::ffi::c_uint;
+        return 4_u32;
     }
     if n < 100000_u32 {
-        return 5 as ::core::ffi::c_uint;
+        return 5_u32;
     }
     if n < 1000000_u32 {
-        return 6 as ::core::ffi::c_uint;
+        return 6_u32;
     }
     if n < 10000000_u32 {
-        return 7 as ::core::ffi::c_uint;
+        return 7_u32;
     }
     if n < 100000000_u32 {
-        return 8 as ::core::ffi::c_uint;
+        return 8_u32;
     }
     if n < 1000000000_u32 {
-        return 9 as ::core::ffi::c_uint;
+        return 9_u32;
     }
-    return 10 as ::core::ffi::c_uint;
+    return 10_u32;
 }
 #[inline]
 fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i32, k_out: &mut i32) {

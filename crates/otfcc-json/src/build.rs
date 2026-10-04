@@ -57,7 +57,6 @@
 //!   is still ported in full below (it was cheap and already written), so
 //!   nothing was lost by not narrowing further here.
 
-use ::core::ffi::c_int;
 use std::io::{self, Write};
 
 use crate::dtoa::emyg_dtoa;
@@ -198,10 +197,10 @@ impl BuiltValue {
 
     /// Serialize a bitfield as a JSON object of `label: true` pairs, one
     /// per set bit -- matches the old `otfcc_dump_flags` exactly.
-    pub fn dump_flags(flags: c_int, labels: &[&str]) -> BuiltValue {
+    pub fn dump_flags(flags: i32, labels: &[&str]) -> BuiltValue {
         let mut v = BuiltValue::new_object(0);
         for (j, label) in labels.iter().enumerate() {
-            if flags & (1 as c_int) << j != 0 {
+            if flags & 1_i32 << j != 0 {
                 v.push_field(label.as_bytes(), BuiltValue::Bool(true));
             }
         }
@@ -226,15 +225,15 @@ impl BuiltValue {
 
 }
 
-const F_SPACES_AROUND_BRACKETS: c_int = 1 << 0;
-const F_SPACES_AFTER_COMMAS: c_int = 1 << 1;
-const F_SPACES_AFTER_COLONS: c_int = 1 << 2;
-const F_TABS: c_int = 1 << 3;
+const F_SPACES_AROUND_BRACKETS: i32 = 1 << 0;
+const F_SPACES_AFTER_COMMAS: i32 = 1 << 1;
+const F_SPACES_AFTER_COLONS: i32 = 1 << 2;
+const F_TABS: i32 = 1 << 3;
 
 /// Ported verbatim from `vendor::json_builder::get_serialize_flags` --
 /// pure, cheap, and already fully general, so there's no reason to narrow
 /// it to just the two mode/opts combinations real call sites use.
-fn get_serialize_flags(opts: JsonSerializeOpts) -> c_int {
+fn get_serialize_flags(opts: JsonSerializeOpts) -> i32 {
     if opts.mode == JSON_SERIALIZE_MODE_PACKED {
         return 0;
     }
@@ -278,7 +277,7 @@ pub fn json_serialize_ex(value: &BuiltValue, opts: JsonSerializeOpts) -> Vec<u8>
 pub struct JsonStreamWriter<W: Write> {
     out: IoOut<W>,
     opts: JsonSerializeOpts,
-    flags: c_int,
+    flags: i32,
     /// How many members each open object has so far, outermost first.
     open: Vec<usize>,
 }
@@ -303,7 +302,7 @@ impl<W: Write> JsonStreamWriter<W> {
     /// Writes `key: value` into the innermost open object.
     pub fn field(&mut self, key: &[u8], value: BuiltValue) {
         self.begin_member(key);
-        let depth = self.open.len() as c_int;
+        let depth = self.open.len() as i32;
         write_value(&value, self.opts, self.flags, depth, &mut self.out);
     }
 
@@ -318,7 +317,7 @@ impl<W: Write> JsonStreamWriter<W> {
     /// Closes the innermost open object.
     pub fn end_object(&mut self) {
         let len = self.open.pop().expect("end_object without an open object");
-        let depth = self.open.len() as c_int;
+        let depth = self.open.len() as i32;
         close_object(&mut self.out, self.opts, self.flags, depth, len);
     }
 
@@ -336,7 +335,7 @@ impl<W: Write> JsonStreamWriter<W> {
         let depth = self.open.len() - 1;
         let index = self.open[depth];
         self.open[depth] += 1;
-        begin_member(&mut self.out, self.opts, self.flags, depth as c_int, index, key);
+        begin_member(&mut self.out, self.opts, self.flags, depth as i32, index, key);
     }
 }
 
@@ -382,8 +381,8 @@ impl<W: Write> Out for IoOut<W> {
 fn begin_member<O: Out>(
     out: &mut O,
     opts: JsonSerializeOpts,
-    flags: c_int,
-    depth: c_int,
+    flags: i32,
+    depth: i32,
     index: usize,
     key: &[u8],
 ) {
@@ -410,7 +409,7 @@ fn begin_member<O: Out>(
 
 /// Closes an object at `depth` that has `len` members; one with none is
 /// written `{}`.
-fn close_object<O: Out>(out: &mut O, opts: JsonSerializeOpts, flags: c_int, depth: c_int, len: usize) {
+fn close_object<O: Out>(out: &mut O, opts: JsonSerializeOpts, flags: i32, depth: i32, len: usize) {
     if len == 0 {
         out.extend_from_slice(b"{}");
         return;
@@ -422,7 +421,7 @@ fn close_object<O: Out>(out: &mut O, opts: JsonSerializeOpts, flags: c_int, dept
     out.push(b'}');
 }
 
-fn push_newline_indent<O: Out>(out: &mut O, opts: JsonSerializeOpts, flags: c_int, depth: c_int) {
+fn push_newline_indent<O: Out>(out: &mut O, opts: JsonSerializeOpts, flags: i32, depth: i32) {
     if opts.mode != JSON_SERIALIZE_MODE_MULTILINE {
         return;
     }
@@ -439,8 +438,8 @@ fn push_newline_indent<O: Out>(out: &mut O, opts: JsonSerializeOpts, flags: c_in
 fn write_value<O: Out>(
     value: &BuiltValue,
     opts: JsonSerializeOpts,
-    flags: c_int,
-    depth: c_int,
+    flags: i32,
+    depth: i32,
     out: &mut O,
 ) {
     match value {

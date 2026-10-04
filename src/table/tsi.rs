@@ -181,7 +181,7 @@ pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
         let mut _extra = BuiltValue::new_object(entries.len());
         for entry in entries.iter() {
             if entry.type_0 != TsiEntryType::Glyph {
-                let extra_key: &[u8] = match entry.type_0 as ::core::ffi::c_uint {
+                let extra_key: &[u8] = match entry.type_0 as u32 {
                     3 => b"cvt",
                     1 => b"fpgm",
                     2 => b"prep",
@@ -316,7 +316,7 @@ pub fn build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
 }
 
 #[cfg(test)]
-mod otfcc_read_tsi_tests {
+mod read_tsi_tests {
     use super::*;
     use crate::font::sfnt::PacketPiece;
 

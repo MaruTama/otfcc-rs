@@ -33,7 +33,7 @@ pub enum StatStatus {
     Doing = 1,
     Completed = 2,
 }
-pub const POS_MAX: ::core::ffi::c_float = FLT_MAX;
+pub const POS_MAX: f32 = f32::MAX;
 pub fn stat_single_glyph(
     table: &GlyfTable,
     gr: &mut ComponentReference,
@@ -199,10 +199,10 @@ pub fn stat_glyf(font: &mut Font) {
     let head = font.head.as_deref_mut().unwrap();
     let glyf = font.glyf.as_mut().unwrap();
     let mut stated: Vec<StatStatus> = vec![StatStatus::NotStarted; glyf.len()];
-    let mut xmin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
-    let mut xmax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
-    let mut ymin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
-    let mut ymax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
+    let mut xmin: Pos = 0xffffffff_u32 as Pos;
+    let mut xmax: Pos = 0xffffffff_u32.wrapping_neg() as Pos;
+    let mut ymin: Pos = 0xffffffff_u32 as Pos;
+    let mut ymax: Pos = 0xffffffff_u32.wrapping_neg() as Pos;
     for j in 0..count_u16(glyf.len()) {
         let mut gr: ComponentReference = ComponentReference {
             x: std::cell::RefCell::new(VQ {
@@ -955,8 +955,6 @@ pub fn unstat_font(font: &mut Font) {
     font.vmtx = None;
     font.ltsh = None;
 }
-pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
-pub const __FLT_MAX__: ::core::ffi::c_float = 3.402_823_5e38_f32;
 
 #[cfg(test)]
 mod stat_os_2_average_width_tests {
