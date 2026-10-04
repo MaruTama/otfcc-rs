@@ -12,7 +12,6 @@ use crate::table::fvar::FvarTable;
 use crate::table::gasp::GaspTable;
 use crate::table::gdef::GdefTable;
 use crate::table::glyf::GlyfTable;
-use crate::table::hdmx::HdmxTable;
 use crate::table::head::HeadTable;
 use crate::table::hhea::HheaTable;
 use crate::table::hmtx::HmtxTable;
@@ -45,7 +44,6 @@ pub struct Font {
     pub os_2: Option<Box<Os2Table>>,
     pub hmtx: Option<Box<HmtxTable>>,
     pub post: Option<Box<PostTable>>,
-    pub hdmx: Option<Box<HdmxTable>>,
     pub vhea: Option<Box<VheaTable>>,
     pub vmtx: Option<Box<VmtxTable>>,
     pub vorg: Option<Box<VorgTable>>,
@@ -94,7 +92,6 @@ impl Default for Font {
             os_2: None,
             hmtx: None,
             post: None,
-            hdmx: None,
             vhea: None,
             vmtx: None,
             vorg: None,

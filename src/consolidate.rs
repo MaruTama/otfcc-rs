@@ -780,7 +780,6 @@ mod consolidate_otl_table_tests {
             os_2: None,
             hmtx: None,
             post: None,
-            hdmx: None,
             vhea: None,
             vmtx: None,
             vorg: None,
