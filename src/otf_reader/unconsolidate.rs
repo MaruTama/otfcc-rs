@@ -3,7 +3,7 @@ use otfcc_binary::Buffer;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, count_u16};
-use crate::support::fmt::{Hex2Upper, Hex4Upper, SdsPart};
+use crate::support::fmt::{Hex2Upper, Hex4Upper, BytePart};
 
 use crate::table::glyf::{GlyfTable, Glyph, PostscriptHintMask};
 

@@ -18,7 +18,7 @@ use std::fmt;
 use std::io::Write;
 use std::sync::Mutex;
 
-use crate::support::fmt::SdsPart;
+use crate::support::fmt::BytePart;
 
 use tracing::field::{Field, Visit};
 use tracing::span::{Attributes, Id, Record};
@@ -49,13 +49,13 @@ const LOG_VL_PROGRESS: u8 = 10;
 static OTFCC_LOGGER_TYPE_NAMES: [&str; 3] = ["[ERROR]", "[WARNING]", "[NOTE]"];
 
 /// Displays one piece of a log message exactly as the old byte-based
-/// `bytesbuild!` messages rendered it (via `SdsPart`): a `&Vec<u8>` (a
+/// `bytesbuild!` messages rendered it (via `BytePart`): a `&Vec<u8>` (a
 /// glyph name) is cut at its first NUL, a `&[u8]`/`&[u8; N]` is written
 /// whole, and integers print in decimal. Bytes that are not valid UTF-8
 /// show as U+FFFD. Rendered only when the message is actually printed.
 pub struct ByteStr<T>(pub T);
 
-impl<T: SdsPart + Copy> fmt::Display for ByteStr<T> {
+impl<T: BytePart + Copy> fmt::Display for ByteStr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut bytes = Vec::new();
         self.0.append_to_vec(&mut bytes);
