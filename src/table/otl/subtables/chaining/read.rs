@@ -163,7 +163,7 @@ const MAX_POSITIONS_PER_RULE: u16 = 50;
 /// `single_coverage`/`format3_coverage` ignore this value entirely
 /// (their own coverage doesn't depend on which side of the rule it's
 /// for), but still take a real `ContextKind` rather than `Option<_>` or a
-/// leftover `u16`, so every implementer of the shared `fn_0` callback
+/// leftover `u16`, so every implementer of the shared `coverage_of` callback
 /// shape agrees on one type for this parameter.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum ContextKind {
@@ -194,7 +194,7 @@ pub fn class_coverage(
 ) -> Coverage {
     // `.expect()`, not a null-pointer deref: every caller that reaches here
     // (`general_read_contextual_rule`/`general_read_chaining_rule` via
-    // `class_coverage`'s `fn_0` slot) only ever asks for a `kind` whose
+    // `class_coverage`'s `coverage_of` slot) only ever asks for a `kind` whose
     // matching field was populated by `read_contextual_format2`/
     // `read_chaining_format2` beforehand -- `read_class_def` itself never
     // returns null, so this can't actually fail; panicking instead of a
@@ -348,7 +348,7 @@ pub fn general_read_contextual_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    mut fn_0: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
+    mut coverage_of: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
     max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingRule>> {
@@ -397,7 +397,7 @@ pub fn general_read_contextual_rule(
     rule.sequence = Vec::with_capacity(rule.match_count as usize);
     if minus_one {
         rule.sequence
-            .push(fn_0(
+            .push(coverage_of(
                 slice,
                 start_gid,
                 offset,
@@ -413,7 +413,7 @@ pub fn general_read_contextual_rule(
             .u16()
             .unwrap();
         rule.sequence
-            .push(fn_0(
+            .push(coverage_of(
                 slice,
                 gid,
                 offset,
@@ -734,7 +734,7 @@ pub fn general_read_chaining_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    mut fn_0: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
+    mut coverage_of: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
     max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingRule>> {
@@ -801,7 +801,7 @@ pub fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.sequence
-            .push(fn_0(
+            .push(coverage_of(
                 slice,
                 gid,
                 offset,
@@ -812,7 +812,7 @@ pub fn general_read_chaining_rule(
     }
     if minus_one {
         rule.sequence
-            .push(fn_0(
+            .push(coverage_of(
                 slice,
                 start_gid,
                 offset,
@@ -836,7 +836,7 @@ pub fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.sequence
-            .push(fn_0(
+            .push(coverage_of(
                 slice,
                 gid,
                 offset,
@@ -853,7 +853,7 @@ pub fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.sequence
-            .push(fn_0(
+            .push(coverage_of(
                 slice,
                 gid,
                 offset,
