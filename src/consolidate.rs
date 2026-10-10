@@ -28,13 +28,6 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
     if font.glyph_order.is_none()
         && let Some(glyf) = font.glyf.as_mut()
     {
-        // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
-        // (`malloc`) + `Box::from_raw` -- `Box::from_raw` requires the
-        // pointer to have come from Rust's global allocator, which a bare
-        // libc `malloc` is not guaranteed to match. `go` borrows `go_box`
-        // for the rest of this block (unchanged from here down), matching
-        // the `GaspTable`/`CmapTable` "accumulator is `Option<Box<X>>`/
-        // `Box<X>` from the start" idiom.
         let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
             entries: Vec::new(),
             by_gid: ::std::collections::BTreeMap::new(),

@@ -22,13 +22,9 @@ use crate::libcff::{
 const CFF_STANDARD_ENCODING_OFFSET: i32 = 0;
 const CFF_EXPERT_ENCODING_OFFSET: i32 = 1;
 // The Type 2 Charstring spec (Adobe TN #5177) caps subroutine call nesting
-// at 10. Neither this parser nor the C implementation it was transpiled
-// from ever enforced that: `callsubr`/`callgsubr` recursed into
-// `cff_parse_outline` unconditionally, so a subroutine that (directly or
-// through a cycle of other subroutines) calls itself recurses until the
-// native stack overflows -- a crash confirmed to reproduce in the C
-// toolchain too (`fuzz/README.md`), not a migration regression.
-// `FDArrayTest257.otf` in the fuzz seed corpus triggers exactly this.
+// at 10. A subroutine that calls itself, directly or through others, would
+// otherwise recurse until the stack overflows, as the C implementation
+// does; `FDArrayTest257.otf` in the fuzz seed corpus is such a font.
 pub(crate) const MAX_SUBR_CALL_DEPTH: u32 = 10;
 // `MAX_SUBR_CALL_DEPTH` bounds how deep `callsubr`/`callgsubr` can nest,
 // but says nothing about how many calls happen *within* one nesting level
@@ -53,30 +49,10 @@ pub(crate) const MAX_SUBR_CALL_DEPTH: u32 = 10;
 // nowhere near it) while stopping the amplification attack at a small
 // fraction of a second.
 pub(crate) const MAX_TOTAL_SUBR_CALLS: u32 = 10_000;
-// `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
-// see `libcff/index.rs`'s own conversion for the same move.
-//
-// Returns `CffEncoding` by value instead of writing through a `*mut
-// CffEncoding` out-param -- the same "unwrap_X_table"-adjacent shape as
-// every other `parse_*`/`read_*` function elsewhere in this migration
-// that used to fill an already-allocated out-param slot.
-//
-// No longer `extern "C"`: `CffEncoding` is a data-carrying enum with no C
-// spelling, so claiming the C ABI would be a lie (`improper_ctypes_definitions`).
-// Only called from within this file, not part of the crate's public ABI.
-//
-// The original had no bounds checking anywhere in this function -- not on
-// `offset` (a negative value, reachable from a malformed DICT key, moved
-// the read pointer *before* the buffer), not on any of the three formats'
-// arrays. Every read now goes through one sequential `FontReader`: all
-// three formats lay their count field and array immediately after the
-// format byte with no gaps, so one reader walking forward covers the
-// whole record (matches `cff_extract_fd_select`'s equivalent conversion).
-// On any bounds failure, or a negative `offset`, this falls back to
-// `Unspecified` -- the same fallback the original already used at its own
-// call site for "no Encoding key in the DICT at all"; this function
-// itself drew no such distinction before, since it never had a failure
-// path.
+// Reads the Encoding at `offset`. The three formats put their count and
+// array right after the format byte, so one `FontReader` walks the whole
+// record. A negative `offset` or any read past the table gives
+// `Unspecified`, as a font with no Encoding key does.
 fn parse_encoding(cff: &CffFile, offset: i32) -> CffEncoding {
     if offset == CFF_STANDARD_ENCODING_OFFSET {
         return CffEncoding::Standard;
@@ -86,8 +62,6 @@ fn parse_encoding(cff: &CffFile, offset: i32) -> CffEncoding {
     if offset < 0 {
         return CffEncoding::Unspecified;
     }
-    // `raw_data` is a plain `Vec<u8>` now (Stage M-10) -- no raw pointer to
-    // bridge into a slice, just borrow it.
     let slice = cff.raw_data.as_slice();
     let result: Option<CffEncoding> = 'parse: {
         let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
@@ -121,9 +95,7 @@ fn parse_encoding(cff: &CffFile, offset: i32) -> CffEncoding {
                 break 'parse Some(CffEncoding::Format1(range1));
             }
             _ => {
-                // The original re-reads the format byte itself as `nsup`
-                // here (both are `data[offset]`) -- preserved verbatim,
-                // out of this PR's scope to second-guess.
+                // `nsup` re-reads the format byte, as the C code did.
                 let nsup = format;
                 let mut supplement: Vec<CffEncodingSupplement> = Vec::with_capacity(nsup as usize);
                 for _ in 0..nsup {
@@ -142,17 +114,8 @@ fn parse_encoding(cff: &CffFile, offset: i32) -> CffEncoding {
 fn parse_cff_bytecode(cff: &mut CffFile) {
     let mut pos: u32;
     let offset: i32;
-    // No length check guarded these 4 header-byte reads at all -- a `raw_
-    // length` shorter than 4 read straight past the allocation. Every
-    // field now defaults to 0 on a bounds failure instead: `extract_index`
-    // below is already bounds-checked regardless of what `pos` it's given
-    // (a garbage `hdr_size` just makes it fail cleanly too, same as any
-    // other malformed offset), so there's nothing to gain from bailing out
-    // of this function early on a too-short header.
-    //
-    // `raw_data` is a plain `Vec<u8>` now (Stage M-10); every other
-    // operation below only reads/writes `cff`'s already-safe fields or
-    // reuses this one bounds-checked `header_slice`.
+    // A header shorter than 4 bytes leaves its fields 0; `extract_index`
+    // then fails cleanly on whatever position that gives.
     let header_slice = cff.raw_data.as_slice();
     let mut header_reader = FontReader::new(header_slice);
     cff.head.major = header_reader.u8().unwrap_or(0);
@@ -180,13 +143,8 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
     // ever has, per `cff.name.count != cff.top_dict.count`'s warning
     // below) starts at `offset[0] - 1`, which `extract_index`'s validation
     // guarantees is 0 (CFF INDEX offsets are 1-based). Computed once and
-    // reused for every key looked up in the Top DICT below -- previously
-    // each lookup recomputed the identical `data.as_ptr()` + manual
-    // offset-diff pointer pair from scratch. `.get(..len)` (rather than a
-    // raw pointer) makes the "entry 0 starts at 0" assumption load-bearing
-    // instead of implicit: a `top_dict` INDEX with more than one entry now
-    // safely gets just its first entry's bytes instead of silently reading
-    // past them.
+    // reused for every key looked up in the Top DICT below. A `top_dict`
+    // INDEX with more than one entry gets just its first entry's bytes.
     let top_dict_bytes: &[u8] = if !cff.top_dict.data.is_empty() {
         let top_dict_offset = &cff.top_dict.offset;
         let top_dict_len = top_dict_offset[1].wrapping_sub(top_dict_offset[0]) as usize;
@@ -238,17 +196,9 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
         private_len = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 0_u32);
         private_off = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 1_u32);
     }
-    // `private_off`/`private_len` are the Private DICT's own `offset`/
-    // `length` operands -- values taken straight from the font's (attacker-
-    // controlled) Top DICT bytes, not yet validated against the actual
-    // buffer. The original turned them directly into `raw_data.offset(
-    // private_off)` with no check that `private_off + private_len` stays
-    // inside `raw_length` at all -- an out-of-bounds read the moment either
-    // operand pointed past the real buffer. Building one bounds-checked
-    // slice via `.get(start..).and_then(|s| s.get(..len))` and only calling
-    // `parse_dict_key_int` when that succeeds closes it; a negative operand
-    // or an out-of-range pair now falls through to the same `empty_index`
-    // fallback the "no Private key at all" case already used.
+    // The Private DICT's offset and length come from the font: read it only
+    // when the range lies inside the table, and otherwise fall back to no
+    // local subroutines, as when there is no Private key.
     let private_dict_bytes: Option<&[u8]> = if private_off >= 0 && private_len >= 0 {
         header_slice
             .get(private_off as usize..)
@@ -272,35 +222,9 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
     };
 }
 pub fn cff_open_stream(data: &[u8]) -> Box<CffFile> {
-    // `CffFile` owns several `Vec`-backed fields (each `CffIndex`'s
-    // `offset`/`data`, and `CffEncoding`/`CffCharset`/`CffFdSelect`'s
-    // `Vec`-carrying variants) -- calloc'ing it and then letting
-    // `parse_cff_bytecode` fill each field in with a plain `(*file).field
-    // = value;` assignment is UB the instant the first such assignment
-    // runs: the assignment drops the *old* value first, and an all-zero
-    // bit pattern is never a valid `Vec`/enum-with-a-`Vec`-variant to
-    // begin with ("constructing invalid value... encountered 0" under
-    // Miri) -- see [[otfcc-vec-field-assign-needs-calloc]]. The same bug
-    // also fires on disposing a malformed font whose empty Top DICT left
-    // `char_strings`/`font_dict`/`encodings`/`charsets`/`fdselect` never
-    // written by `parse_cff_bytecode` at all: dropping them unconditionally
-    // (as this struct's own `Drop` glue already does) is the identical
-    // first-write-onto-zeroed-memory pattern. Building the whole value via
-    // `Box::new` up front (instead of calloc) closes both: every field
-    // starts out as a real, valid (empty) value, so every later plain `=`
-    // -- in `parse_cff_bytecode` or on drop -- safely drops a real prior
-    // value instead of an invalid zeroed one.
-    //
-    // Stage M-14: returns the `Box<CffFile>` itself now, instead of
-    // `Box::into_raw`-ing it purely to hand back a pointer. This function
-    // already built the value as an owned local (the `Box::new(...)`
-    // above) -- boxing it into a raw pointer only to have its one caller
-    // immediately `Box::from_raw` it back at the end of that caller's
-    // scope was pure ABI-shaped roundtrip, the same pattern this
-    // migration already removed from `cff_dict_create`/`new_index_by_
-    // callback` and friends at Stage M-10. Nothing aliases `file` between
-    // construction and return, so ownership transfers cleanly through the
-    // `Box` itself.
+    // Every field starts as a valid empty value: `parse_cff_bytecode`
+    // assigns them one by one, and a malformed font may leave some
+    // unassigned.
     let mut file: Box<CffFile> = Box::new(CffFile {
         raw_data: Vec::new(),
         cnt_glyph: 0,
@@ -321,30 +245,13 @@ pub fn cff_open_stream(data: &[u8]) -> Box<CffFile> {
         font_dict: new_empty_cff_index(),
         local_subr: new_empty_cff_index(),
     });
-    // Stage M-19: `data`/`len` used to be a raw mutable byte pointer plus
-    // a `u32` length, requiring an unsafe call to `core::slice::from_raw_parts(data,
-    // len as usize)` here and an `unsafe fn` signature purely to carry
-    // that contract -- but this function's one production caller
-    // (`table/cff.rs`'s `read_cff_and_glyf_tables`) already had a
-    // real `&[u8]` in hand (`PacketPiece.data`) and was only decomposing
-    // it into a pointer+length to satisfy this signature, the same
-    // "raw pointer purely dodging the borrow checker" shape M-3/M-9/
-    // M-14/M-16/M-17 removed elsewhere. Taking `&[u8]` directly removes
-    // the decompose-then-reconstruct round trip and the unsafe wrapping
-    // it required at both call sites (this file's one test included) --
-    // `to_vec()` needs no unsafe at all once `data` is already a real
-    // slice.
     file.raw_data = data.to_vec();
     file.cnt_glyph = 0_u16;
     parse_cff_bytecode(&mut file);
     return file;
 }
-// No longer `extern "C"`: `&CffFdSelect` has no C spelling. Only called
-// from within `table/cff.rs`, not part of the crate's public ABI -- same
-// reasoning as `parse_encoding`. Takes `&CffFdSelect` rather than by value
-// since its two callers both read `(*f).fdselect` from a shared `CffFile`
-// across repeated per-glyph calls -- moving it out on the first call would
-// leave it invalid for the rest.
+// Takes `&CffFdSelect` because both callers read it from a shared
+// `CffFile` once per glyph.
 pub fn cff_parse_subr(
     idx: u16,
     raw: &[u8],
@@ -395,9 +302,7 @@ pub fn cff_parse_subr(
     // and `extract_index` guarantees `fdarray.offset.len() == fdarray.count
     // + 1` and that every entry is a valid, non-decreasing 1-based offset
     // into `fdarray.data` -- so this FD's dict-data slice is always in
-    // bounds. `.get(start..).and_then(|s| s.get(..len))` makes that
-    // structural guarantee explicit instead of relying on raw pointer
-    // arithmetic to happen to land inside the allocation.
+    // bounds; `.get(start..).and_then(|s| s.get(..len))` checks it anyway.
     let fd_dict_start = fdarray.offset[fd as usize].wrapping_sub(1) as usize;
     let fd_dict_len =
         fdarray.offset[fd as usize + 1].wrapping_sub(fdarray.offset[fd as usize]) as usize;
@@ -430,26 +335,9 @@ pub fn cff_parse_subr(
     return fd;
 }
 #[inline]
-// The subroutine index a `callsubr`/`callgsubr` operator uses is an
-// entirely attacker-controlled Type2 CharString operand (a stack value,
-// popped and cast to `u32`). The original indexed `gsubr`/`lsubr`'s own
-// offset array with it via raw `.offset()` arithmetic and no bounds
-// check at all, then used the (possibly garbage) result to derive a
-// *pointer and length* for a *recursive* `cff_parse_outline` call -- a
-// malformed subroutine index could recurse into arbitrary memory.
-// `extract_index` (`libcff/index.rs`) only validates an INDEX's
-// *last* offset entry against the wraparound-to-4GB bug; intermediate
-// entries can still be zero or non-monotonic, so this also re-validates
-// the specific pair this call needs (both in bounds, and consistent with
-// each other and with the INDEX's own data length), not just that
-// `offset.get(idx)` succeeds.
-// Returns the subroutine's own bytes directly instead of a `(*const u8,
-// u32)` pair -- the `.add(data_offset)` pointer arithmetic that used to
-// follow the bounds check above was itself provably in-bounds (the check
-// just above it guarantees `data_offset + data_len <= subr_index.data.
-// len()`), so it was pure c2rust residue on top of an already-safe
-// design: `.get(data_offset..)?.get(..data_len)` expresses the exact
-// same guarantee as a bounds-checked slice instead of a raw offset.
+// The subroutine index comes from a charstring operand, so both offsets it
+// needs are checked: in bounds, in order, and within the INDEX's data (an
+// INDEX's intermediate offsets are not validated when it is read).
 // `subr` is the signed operand of `callsubr`/`callgsubr`: subroutine
 // numbers run from `-bias` upward, so a font with more than 107
 // subroutines calls the lower ones with negative numbers.
@@ -515,16 +403,12 @@ mod cff_header_and_encoding_tests {
 
     #[test]
     fn header_fields_default_to_zero_instead_of_reading_oob() {
-        // The original read the 4 fixed header bytes with no check that
-        // `raw_length` was even that long.
+        // The 4 fixed header bytes must be present.
         let data = [0x01u8]; // only 1 byte, header needs 4
         let mut cff = cff_file_over(&data);
-        // Never dereferenced on this path: `name.count == top_dict.count`
-        // (both 0 for a header this short), so the only place this
-        // function reads `options` -- the mismatch-count warning log --
-        // is never reached. A default `Options` stands in for "never
-        // used" now that the parameter is a real reference and can't be
-        // null the way the old raw pointer could.
+        // Never read on this path: `name.count == top_dict.count` (both 0
+        // for a header this short), so the mismatch-count warning that
+        // reads `options` is never reached.
         parse_cff_bytecode(&mut cff);
         assert_eq!(cff.head.major, 1);
         assert_eq!(cff.head.minor, 0);
@@ -567,15 +451,10 @@ mod cff_header_and_encoding_tests {
         // 1-entry Name INDEX + 1-entry Top DICT INDEX + empty String INDEX +
         // empty Global Subr INDEX). The Top DICT's only entry is `size 20
         // offset 32767 Private` -- a Private DICT operand pair the DICT
-        // parser itself never validates (that's `parse_to_callback`'s job:
-        // walk exactly `size`/`offset` bytes of *whatever pointer it's
-        // given*). The original built that pointer as `raw_data.offset(
-        // 32767)` unconditionally, 32739 bytes past this 28-byte buffer's
-        // end -- a real out-of-bounds read `cargo miri test` confirms (see
-        // the sibling test below, which reverts the fix and checks Miri
-        // actually flags it). With the fix, `private_off`/`private_len` are
-        // validated against `raw_length` before any pointer is built, so a
-        // malformed offset like this now just yields no Local Subrs.
+        // parser itself never validates. `private_off`/`private_len` must be
+        // validated against `raw_length` (32767 is 32739 bytes past this
+        // buffer's end), so a malformed offset like this just yields no
+        // Local Subrs.
         let data: [u8; 28] = [
             // header: major, minor, hdrSize, offSize
             1, 0, 4, 4, // Name INDEX: count=1, offSize=1, offset=[1,2], data=[0]
@@ -600,32 +479,10 @@ mod cff_open_stream_tests {
 
 
     // A minimal CFF blob whose Top DICT INDEX is empty (`count == 0`):
-    // header + 4 empty INDEXes (Name/Top DICT/String/Global Subr). With
-    // an empty Top DICT, `parse_cff_bytecode` never writes
-    // `char_strings`/`font_dict`/`encodings`/`charsets`/`fdselect` at
-    // all -- this exercises `Box::from_raw`'s (formerly `cff_close`'s)
-    // *unconditional* disposal of those fields on whatever
-    // `cff_open_stream` initialized them to.
-    //
-    // Before this fix, `cff_open_stream` calloc'd the whole `CffFile`
-    // and left every field an invalid all-zero bit pattern until first
-    // written. Disposing of the never-written fields (originally inside
-    // `cff_close`, now `CffFile`'s own field-by-field `Drop` glue) was
-    // itself the first "write" to them (a plain `=` inside
-    // `cff_index_dispose`) -- UB under Miri ("constructing invalid
-    // value... encountered 0") the instant that assignment drops the
-    // old, invalid value, regardless of whether this test's assertions
-    // below ever observe anything wrong at runtime. Building the whole
-    // `CffFile` via `Box::new` up front (this fix) makes every field a
-    // real, valid (empty) value from construction, so disposing of it is
-    // always dropping a real prior value.
-    //
-    // Stage M-14: `cff_open_stream` now returns `Box<CffFile>` directly,
-    // so this test drops the plain `Box` at scope end instead of a
-    // separate `Box::from_raw` call.
-    //
-    // Stage M-19: `cff_open_stream` takes `&[u8]` directly now, so this
-    // call needs no unsafe wrapper any more either.
+    // header + 4 empty INDEXes (Name/Top DICT/String/Global Subr). With an
+    // empty Top DICT, `parse_cff_bytecode` never assigns `char_strings`,
+    // `font_dict`, `encodings`, `charsets` or `fdselect`; dropping the
+    // `CffFile` must still be sound (checked under Miri).
     #[test]
     fn open_and_close_on_a_font_with_an_empty_top_dict_does_not_construct_invalid_values() {
         let data: [u8; 16] = [
@@ -673,9 +530,8 @@ mod locate_subr_tests {
 
     #[test]
     fn subroutine_index_past_the_end_is_rejected_instead_of_reading_oob() {
-        // The original indexed the offset array with a raw, unchecked
-        // `.offset()` -- a `callsubr`/`callgsubr` operand large enough to
-        // run past it read (and then recursed into) arbitrary memory.
+        // A `callsubr`/`callgsubr` operand large enough to run past the
+        // offset array must not read (and recurse into) out-of-range data.
         let idx = subr_index(vec![1, 3, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
         assert!(locate_subr(&idx, 0, 5).is_none());
     }

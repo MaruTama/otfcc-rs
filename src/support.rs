@@ -9,10 +9,8 @@ pub mod primitives;
 pub mod ttinstr;
 pub mod unicode;
 
-// c2rust re-emitted these in every translation unit that included the C header
-// defining them, since it has no way to refer to another file's copy. They are
-// not otfcc's own vocabulary (that is `support::primitives`) -- just the pieces
-// of the C standard library that `libc` does not carry.
+// Process exit status used by the binaries (C's `EXIT_FAILURE`). Not otfcc's
+// own vocabulary -- that is `support::primitives`.
 
 pub const EXIT_FAILURE: i32 = 1_i32;
 

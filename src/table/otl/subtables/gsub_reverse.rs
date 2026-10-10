@@ -17,16 +17,8 @@ use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage}
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubReverseSubtable, Subtable};
 
-// Was a manual index-swapping loop over `start..end`, meeting in the
-// middle -- exactly what `[T]::reverse` does, now that `match_0` is a real
-// `Vec<Coverage>` slice instead of an array of raw pointers to swap by
-// value. `input_index == 0` (nothing to reverse) falls out of slicing an
-// empty range, no separate guard needed. Only the parse side
-// (`otl_read_gsub_reverse`, below) still calls this in place -- it owns
-// `subtable`'s only reference during construction, so the `&mut` it takes
-// is sound there; the build side (`build_gsub_reverse`) needed a
-// different fix (clone-then-reverse a local instead) once it started
-// taking a shared `&Subtable`.
+// Reverses the backtrack portion (`[0, input_index)`) in place: it is
+// stored nearest-first but read and written in wire order.
 fn reverse_backtracks(sequence: &mut [Coverage], input_index: TableId) {
     sequence[..input_index as usize].reverse();
 }
@@ -85,11 +77,8 @@ pub fn otl_read_gsub_reverse(
 
         // `match_count` (a `TableId`/u16 field) is `n_backtrack + n_forward
         // + 1` -- each addend is individually bounded to u16, but their
-        // sum is not, and the original's implicit `as TableId` cast just
-        // truncated it. A truncated `match_count` here would go on to
-        // index `match_0` (sized to the truncated count) with the *real*
-        // `n_backtrack`/`n_forward` below and panic out of bounds, rather
-        // than merely produce a wrong-but-safe result -- rejected instead.
+        // sum is not. A truncated count would size `sequence` too small
+        // for the real `n_backtrack`/`n_forward` below, so it is rejected.
         let Some(match_count_u32) = (n_backtrack as u32)
             .checked_add(n_forward as u32)
             .and_then(|s| s.checked_add(1))
@@ -105,10 +94,7 @@ pub fn otl_read_gsub_reverse(
         // Filled out of sequential order below (backtrack slots, then the
         // input slot at `input_index`, then forward slots) -- every one of
         // the `match_count` slots is written exactly once by the time this
-        // subtable is returned, so pre-sizing with placeholder empty
-        // `Coverage`s and index-assigning is the direct replacement for
-        // the old `offset`-indexed writes into `__caryll_allocate_clean`'d
-        // memory.
+        // subtable is returned.
         subtable.sequence = vec![Coverage::new(); match_count as usize];
         subtable.input_index = n_backtrack;
 
@@ -185,14 +171,10 @@ pub fn build_gsub_reverse(
     let Subtable::GsubReverse(subtable) = _subtable else {
         unreachable!()
     };
-    // The backtrack portion (indices [0, input_index)) needs to be read in
-    // wire order, which is the reverse of `match_0`'s storage order. Rather
-    // than sort `match_0` in place (which used to need a const-cast to a
-    // shared `*const` -- unsound now that this function takes a genuine
-    // shared `&Subtable`), clone just that slice into a local and reverse
-    // the clone; every read below of a backtrack-region index goes through
-    // `backtrack` instead of `subtable.match_0`, and every other region
-    // reads `subtable.match_0` directly, unmodified.
+    // The backtrack portion (indices [0, input_index)) is written in wire
+    // order, the reverse of `sequence`'s storage order. Clone just that
+    // slice into a local and reverse the clone; every other region reads
+    // `subtable.sequence` directly.
     let mut backtrack: Vec<Coverage> = subtable.sequence[..subtable.input_index as usize].to_vec();
     backtrack.reverse();
     let mut root: BkBlock = bk_new_block(vec![
@@ -229,8 +211,7 @@ pub fn build_gsub_reverse(
                 - 1_i32) as u32,
         )],
     );
-    // Forward-region slice: [input_index + 1, match_count), same explicit
-    // bound the original indexed by, not the full `match_0` container.
+    // Forward-region slice: [input_index + 1, match_count).
     let forward_start = subtable.input_index as usize + 1;
     let forward_end = subtable.match_count as usize;
     for cov in subtable.sequence[forward_start..forward_end].iter() {
@@ -318,11 +299,9 @@ mod otl_read_gsub_reverse_tests {
     )]
     fn match_count_overflow_is_rejected_instead_of_panicking() {
         // `match_count` (`n_backtrack + n_forward + 1`, a u16 field) can
-        // overflow even though each addend is individually u16-bounded.
-        // The original's implicit `as TableId` cast truncated it, which
-        // would have gone on to index `match_0` (sized to the truncated
-        // count) with the real, larger `n_backtrack` below and panic out
-        // of bounds. `n_backtrack` here is pushed to `u16::MAX` and
+        // overflow even though each addend is individually u16-bounded;
+        // truncating it would size `sequence` too small for the real
+        // `n_backtrack`. `n_backtrack` here is pushed to `u16::MAX` and
         // `n_forward` to 1, so their sum plus the input slot overflows
         // `u16::MAX` by one.
         let mut data = vec![0u8; 131082];

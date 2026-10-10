@@ -24,12 +24,6 @@ pub struct HheaTable {
     pub metric_data_format: i16,
     pub number_of_metrics: u16,
 }
-// Stage 6-4 "Box化": every field is a scalar/fixed-size array, so no
-// `Drop` impl is needed -- `Box::new` construction is sufficient
-// (`Copy, Clone` stay on the struct, same reasoning as `Os2Table`). The
-// entire vtable is deleted: grepping the bare `TABLE_I_HHEA` identifier
-// confirmed only `.create`/`.free` were ever called, both internal to
-// this crate.
 fn decode_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
     let mut r = FontReader::new(data);
     Ok(HheaTable {

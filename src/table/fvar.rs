@@ -19,33 +19,14 @@ pub struct FvarInstance {
     pub coordinates: VV,
     pub post_script_name_id: u16,
 }
-// C由来の時点で素のベクタ形。要素は `coordinates: VV`(`Vec<Pos>`)を所有するが
-// `Pos` はプリミティブなので `Vec<FvarInstance>` の `Drop` だけで再帰的に
-// 解放できる——`SvgAssignment`/`NameRecord` のような raw ポインタ所有型と違い、
-// 専用の要素dispose関数が不要（詳細は下の `dispose_fvar`）。テーブル全体の
-// `.copy`（`FVAR_I_INSTANCE_LIST.copy`）は一度も呼ばれておらず削除。
 pub type FvarInstanceList = Vec<FvarInstance>;
 #[derive(Debug)]
 pub struct FvarMaster {
     pub name: Vec<u8>,
     pub region: Rc<VqRegion>,
 }
-// A `VqRegion` used to be a fixed header (`dimensions: ShapeId`) followed
-// by a C "flexible array member" trailing `spans: [VqAxisSpan; 0]`,
-// allocated as one contiguous block, so the original uthash table's
-// `memcmp`-based key could walk it as a single byte range. `dimensions`/
-// `spans` are no longer contiguous (`vf/region.rs`'s `Vec`-ification), and
-// `VqAxisSpan`'s fields (`Pos` = `f64`) don't implement `Eq`/`Hash` on
-// their own -- so `RegionKey` owns a byte-pattern copy of both, cloned
-// once at construction (`f64::to_ne_bytes()` per field, `VqAxisSpan` being
-// three `f64`s with no interior padding reproduces the same comparison the
-// original's single memcmp'd range did, minus the few bytes of zeroed
-// alignment padding that range also swept in between `dimensions` and
-// `spans` -- not something this conversion set out to fix, just a side
-// effect of comparing the two pieces separately). This never needed to be
-// a `*const VqRegion` wrapper at all: the raw pointer it used to hold was
-// about working around the `Eq`/`Hash` gap, not about sharing ownership
-// with `masters`' canonical region.
+// The registration key of a region: its contents as bytes, so it can be
+// `Eq` and `Hash` (`f64` is neither).
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct RegionKey {
     dimensions: crate::support::primitives::ShapeId,
@@ -69,24 +50,9 @@ impl RegionKey {
         }
     }
 }
-// `axes: VfAxes`(`Vec<VfAxis>`)/`instances: FvarInstanceList`(`Vec<FvarInstance>`)
-// を値で持つため `Copy` は落とす。`FvarTable` は crate 全体で常に `*mut`/
-// `*const` 経由でしか触られておらず（`Font.fvar: *mut FvarTable`）、値渡し・
-// 値コピーの箇所は無いため `Clone` すら不要（テーブル全体の `.copy` は
-// 呼ばれておらず削除済み）。
-//
-// `masters`（uthash `FvarMaster` テーブル）は`IndexMap<RegionKey, FvarMaster>`
-// に変換 —— `BTreeMap`ではない。挿入順に「m1」「m2」…と命名され
-// （`fvar_register_region`が挿入直前の`.len()`から採番）、`dump_fvar`が
-// その順序のまま`masters`オブジェクトを書き出す。この uthash テーブルには
-// `HASH_SORT`呼び出しが1つも無い（`grep`で確認済み）ので、出力は挿入順で
-// タグ順ではない —— `ScriptStatHash`（`table/otl/build.rs`）と同じ理由で
-// `BTreeMap`は不適格。`ScriptStatHash`との違いは規模: あちらはフォント1つ
-// あたりのスクリプト数（一桁が普通）に収まるので線形走査で十分だったが、
-// こちらは`gvar`の全グリフの全タプルバリエーションから登録されうるため
-// 件数が実質的に無制限 —— 線形走査は実アルゴリズム的退行になり得るので
-// `IndexMap`（挿入順を保ちつつO(1)平均ルックアップ）を使う。このcrateで
-// 初めて`indexmap`に依存する箇所。
+// `masters` is an `IndexMap`: masters are named "m1", "m2", ... in
+// registration order and dumped in that order, and a variable font can
+// register a great many regions, so lookups must be fast.
 #[derive(Debug)]
 pub struct FvarTable {
     pub major_version: u16,
@@ -95,49 +61,14 @@ pub struct FvarTable {
     pub instances: FvarInstanceList,
     pub masters: indexmap::IndexMap<RegionKey, FvarMaster>,
 }
-// `FvarMaster.region` is `Rc<VqRegion>` (Stage M-27), and as of Stage M-28
-// this function returns `Rc<VqRegion>` too, not `*const VqRegion` -- the
-// last genuine raw-pointer wall in this crate (`VqSegmentDelta.region`,
-// `vf/vq.rs`, read back at OTF-write time, long after the borrow that
-// registered it here ended) is gone: `VqSegmentDelta.region` is now an
-// `Rc<VqRegion>` of its own, a clone of the exact same allocation this
-// function's caller (`table/glyf/read.rs`'s `polymorphize_glyph`) hands
-// straight to `VqSegmentDelta` construction.
+// Registers `region` as a master, or finds the master already registered
+// with the same contents, and returns the shared region. A duplicate is
+// dropped here, so every tuple with the same region shares one allocation.
+// New masters are named "m1", "m2", ... in registration order.
 //
-// Two approaches were considered and rejected first: a `RegionKey`-owned-
-// value field on `VqSegmentDelta` risked silently changing sort order,
-// since `vqs_compare`/`vqs_compatible` (`vf/vq.rs`) use `vq_compare_region`
-// for actual **sorting** (true `f64` numeric order), while `RegionKey`
-// compares IEEE-754 bit patterns (chosen for `Eq`/`Hash`, not order) --
-// swapping one for the other would change final output byte order, which
-// this project treats as sacred; an index-into-`masters` approach needed
-// real region *content* to sort by, not just an index, so it would have
-// had to thread `&FvarTable` through `consolidate.rs`, `table/cff.rs`, and
-// `libcff/charstring_il.rs` -- well beyond this pointer's actual reach.
-// `Rc` sidesteps both: `Rc::clone` is a refcount bump (no allocation, no
-// content copy), so every consumer keeps comparing the exact same
-// `VqRegion` content via the existing `vq_compare_region` (no sort-order
-// risk), and it needs no lifetime threading through any of the three files
-// above (this crate has zero threading -- no `Send`/`Sync` bounds, no
-// `thread::spawn`/`rayon` anywhere -- so `Rc`, not `Arc`, is the right
-// tool).
-//
-// Deduplicates by `region`'s content (`RegionKey`), not identity: a
-// `region` that content-matches an already-registered master is dropped
-// here and the existing master's own `Rc<VqRegion>` is cloned and returned
-// instead, so every caller ends up sharing one canonical `VqRegion`
-// allocation per distinct content -- callers (`glyf/read.rs`'s gvar
-// tuple-variation parsing) rely on this to avoid allocating a fresh region
-// per tuple when many tuples share the same region. First registration
-// wins the name "m1", "m2", ... in registration order (`(*fvar).masters
-// .len() + 1` at insert time, exactly reproducing the original's
-// `HASH_COUNT`-at-insert-time scheme).
-//
-// `fvar` itself is `&mut FvarTable`, not `*mut FvarTable`: its one caller
-// (`glyf/read.rs`'s `polymorphize_glyph`) already held a real `&mut
-// FvarTable` and only relied on Rust's implicit reference-to-raw-pointer
-// coercion to satisfy this signature. Both test call sites already pass
-// `&mut fvar` directly.
+// The region is an `Rc` because `VqSegmentDelta` keeps it and segments are
+// sorted by region contents compared numerically (`vq_compare_region`),
+// not by the bitwise `RegionKey`.
 pub(crate) fn fvar_register_region(fvar: &mut FvarTable, region: Box<VqRegion>) -> Rc<VqRegion> {
     let key = RegionKey::from_region(&region);
     if let Some(existing) = fvar.masters.get(&key) {
@@ -158,24 +89,9 @@ fn fvar_find_master_by_region<'a>(fvar: &'a FvarTable, region: &VqRegion) -> Opt
 /// `axisSize`/`AXIS_RECORD_SIZE`(20 bytes): `axis_tag`(4) + `min`/`default`/
 /// `max_value`(4 each) + `flags`(2) + `axis_name_id`(2).
 const AXIS_RECORD_SIZE: usize = 20;
-/// The original's overall-length guard computed `instance_size *
-/// instance_count` in **32-bit signed** `c_int` arithmetic
-/// (`be16(header.instance_size) as c_int * be16(header.instance_count) as
-/// c_int`) -- both operands up to 65535, so the true product (up to
-/// ~4.29 billion) overflows `i32::MAX` and wraps to a negative value in
-/// release builds (checked overflow is off by default outside `cargo
-/// test`/debug). That negative `c_int`, cast `as usize`, sign-extends into
-/// a huge `usize` near `usize::MAX`; the outer `.wrapping_add` then wraps
-/// *again* around `usize`'s own width, landing back on some small,
-/// wrong-but-plausible-looking total. A `table.length` this small final
-/// value passes against would then have `n_instances` up to 65535 records
-/// of `instance_size` bytes each read via raw `.offset()` past the real
-/// end of the table -- worse than `table/cpal.rs`'s single-wraparound bug,
-/// this one wraps twice (`i32` overflow, then the `usize` sum). Every
-/// multiplication and addition below goes through `checked_mul`/
-/// `checked_add` (via `Option`'s own overflow-is-`None` propagation, `?`),
-/// so an overflow anywhere in the chain rejects the table outright instead
-/// of wrapping either width.
+/// Reads an `fvar` table. The size checks multiply 16-bit counts and sizes
+/// from the file (up to ~4.29 billion), so all of the arithmetic is checked
+/// and an overflow rejects the table.
 fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
     let mut h = FontReader::new(data);
     let major_version = h.u16().ok()?;
@@ -339,12 +255,8 @@ pub fn json_new_vq_segment(s: &VqSegment, fvar: Option<&FvarTable>) -> BuiltValu
             if !delta.touched {
                 d.push_field(b"implicit", BuiltValue::Bool(!delta.touched));
             }
-            // A `Delta` segment only ever exists on a variable font's
-            // glyphs, i.e. only when a real `fvar` table (the one that
-            // registered `delta.region`) is present -- the same
-            // precondition the old raw-pointer code silently assumed
-            // (and would have dereferenced null under, UB, had it ever
-            // been violated) is now a checked `expect`.
+            // A `Delta` segment only exists in a variable font, which has
+            // the `fvar` table that registered its region.
             let fvar = fvar.expect("a VQ delta segment implies a variable font's fvar table");
             d.push_field(b"on", json_new_vq_region(&delta.region, fvar));
             d
@@ -417,14 +329,6 @@ fn json_new_vq_region_explicit(region: &VqRegion, fvar: &FvarTable) -> BuiltValu
         r_0
     }
 }
-// `rs` used to be the one genuinely raw, aliasing-wall pointer here (a `VQ`
-// delta's long-lived, non-owning alias into a `Box<VqRegion>`'s stable heap
-// address). Stage M-28 makes `VqSegmentDelta.region` an `Rc<VqRegion>`
-// (shared ownership of the exact same allocation `FvarTable.masters` holds,
-// per this file's own doc comment above `fvar_register_region`), so `rs`
-// is now a plain `&VqRegion` -- through `Rc`'s `Deref`, at the one call
-// site below (`json_new_vq_segment`) -- with no dereference of a raw
-// pointer left anywhere in this pair.
 fn json_new_vq_region_impl(rs: &VqRegion, fvar: &FvarTable) -> BuiltValue {
     match fvar_find_master_by_region(fvar, rs) {
         Some(m) if !m.name.is_empty() => BuiltValue::str_truncated_at_nul(&m.name),

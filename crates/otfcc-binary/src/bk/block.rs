@@ -1,50 +1,19 @@
-// Stage D (2026-09): `BkBlock`/`BkCellValue::Ptr` become an owned, `Box`-based
-// recursive tree. The previous version of this comment (added 2026-09-07,
-// correcting an even earlier "single-parent forest" claim) argued this was
-// *impossible*: `bk_minimize_graph`/`replaceptr` (in `graph.rs`) make
-// multiple cells alias the same block after minimization, so -- the argument
-// went -- two `Box`es would have to alias one allocation.
-//
-// That argument conflated two different types. `bk_minimize_graph` operates
-// entirely inside `graph.rs`'s `BkGraph` arena, on `ArenaCellValue::
-// Ptr(Option<BlockId>)` -- a `Copy` index, not a pointer, and a completely
-// separate type from this file's `BkCellValue::Ptr`. By the time any
-// aliasing happens, `bk_new_graph_from_root_block`'s `dfs_convert` has
-// already walked the *raw* `BkBlock` tree once, post-order, converting every
-// node into the arena and freeing every original raw block via `to_free` --
-// so there are zero `BkCellValue::Ptr` values left alive to alias. An
-// exhaustive audit of every one of this crate's ~19 files that call into
-// `bk/` (2026-09, re-run independently of the above argument) confirms
-// aliasing never happens on the construction side either: every block
-// pointer produced by `bk_new_block`/`bk_push`/helper functions is consumed
-// by exactly one later `bk_ptr` call (folded into exactly one parent), or
-// flows straight into `bk_build_block`. `BkCellType::Copy` (the one cell
-// kind whose contract doesn't consume its target) has zero callers anywhere
-// in the crate -- only `Embed` (splice-and-free, i.e. still single-owner) is
-// ever used.
-//
-// So the ownership model this file actually needs is a plain tree, not an
-// arena: `Ptr(*mut BkBlock)` -> `Ptr(Option<Box<BkBlock>>)`. Post-minimize
-// sharing is real, but it happens one level up, entirely inside `graph.rs`'s
-// already-arena-based `BkGraph` -- this file's raw tree is consumed, not
-// retained, by the time that sharing occurs.
+// `BkBlock` is the construction-side tree: every block is owned by exactly
+// one parent cell (`Ptr(Option<Box<BkBlock>>)`), or is the root handed to
+// `bk_build_block`/`bk_new_graph_from_root_block`. Sharing between blocks
+// only happens after `graph.rs`'s `dfs_convert` has consumed this tree into
+// its `BkGraph` arena, where `bk_minimize_graph` makes cells point at the
+// same `BlockId`.
 #[derive(Debug)]
 pub struct BkBlock {
     pub cells: Vec<BkCell>,
 }
-// Was a C-shaped `struct { t: BkCellType, c2rust_unnamed: union { z: u32,
-// p: *mut BkBlock } } }`. Unlike the crate's other tag+union conversions,
-// `t`'s ten values don't map 1:1 onto the union's two arms -- `B8`/`B16`/
-// `B32` share `.z`, `P16`/`P32`/`Sp16`/`Sp32`/`Copy`/`Embed` share `.p`, and
-// `Over` uses neither (see `bkpushitems`/`build_bkblock`'s catch-all
-// `_ => {}` arms) -- so `t` stays a separate field carrying the width/kind
-// distinctions the two-variant `BkCellValue` enum below can't express on
-// its own; `bk_cell_is_pointer`'s `t >= BkCellType::P16` still decides
-// which variant a given `t` implies.
-//
-// No longer `Copy`, and no longer `Clone` either: `Ptr` now owns a
-// `Box<BkBlock>`, and every construction-time consumer moves cells (built
-// fresh as `vec![...]` literals) exactly once -- nothing needs a second copy.
+// `t`'s ten kinds don't map 1:1 onto `BkCellValue`'s two arms -- `B8`/`B16`/
+// `B32` hold an `Int`, `P16`/`P32`/`Sp16`/`Sp32`/`Copy`/`Embed` hold a
+// `Ptr`, and `Over` uses neither -- so `t` stays a separate field carrying
+// the width/kind distinctions; `bk_cell_is_pointer` decides which variant
+// a given `t` implies. Not `Clone`: `Ptr` owns its `Box<BkBlock>`, and
+// every cell is moved exactly once.
 #[derive(Debug)]
 pub struct BkCell {
     pub t: BkCellType,
@@ -107,19 +76,11 @@ fn bkpushitems(b: &mut BkBlock, items: Vec<BkCell>) {
         match curtype {
             BkCellType::Copy | BkCellType::Embed => {
                 // Splices the target's cells into `b`, consuming the
-                // target itself -- the one remaining genuine single-owner
-                // teardown in this file, distinct from a `BkBlock` that
-                // survives into a `BkGraph` (see the module-level comment).
-                // `Copy`/`Embed` only differed (in the old raw-pointer
-                // world) when the source was *also* reachable through some
-                // other cell -- "splice without freeing the source" vs
-                // "splice and free" -- but an owned `Box` tree makes a
-                // second reference to the same target impossible by
-                // construction, and `BkCellType::Copy` has zero callers
-                // anywhere in this crate (confirmed by grep), so both arms
-                // collapse to the same "take ownership, move the cells
-                // over" operation; the (unreachable) `Copy` shell simply
-                // drops, empty, at the end of this block.
+                // target itself -- the one genuine single-owner teardown
+                // in this file, distinct from a `BkBlock` that survives
+                // into a `BkGraph` (see the module-level comment). An owned
+                // `Box` tree cannot have a second reference to the same
+                // target, so `Copy` and `Embed` are the same operation.
                 if let Some(par) = item.into_ptr() {
                     for cell in par.cells {
                         b.cells.push(cell);
@@ -153,8 +114,8 @@ pub fn bk_int(t: BkCellType, z: u32) -> BkCell {
 
 /// A cell holding a block pointer -- `BkCellType::P16`/`BkCellType::P32`/`BkCellType::Sp16`/`BkCellType::Sp32` for an offset, or
 /// `BkCellType::Copy`/`BkCellType::Embed` to splice the target's cells in.
-/// `p` is `None` for what used to be a null pointer -- a real, frequently
-/// hit state (an absent optional sub-table, for instance).
+/// `p` is `None` for an absent target (an absent optional sub-table, for
+/// instance).
 #[inline]
 pub fn bk_ptr(t: BkCellType, p: Option<BkBlock>) -> BkCell {
     BkCell {

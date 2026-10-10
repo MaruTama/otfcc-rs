@@ -1,10 +1,8 @@
 //! What each table of a [`Font`] does at every stage of the pipeline, in
 //! one place.
 //!
-//! A font's tables used to be wired into each pipeline by hand: reading a
-//! binary font, reading otfcc's JSON and so on were each a function listing
-//! every table with its own call. Each table now implements [`FontTable`]
-//! once, and each pipeline walks its own order list.
+//! Each table implements [`FontTable`] once, and each pipeline walks its
+//! own order list.
 //!
 //! The order lists are not shared, because each pipeline's order shows in
 //! its output and the orders differ: the order tables are read in is the
@@ -320,9 +318,8 @@ impl FontTable for Cff {
         if is_ttf(font) {
             return;
         }
-        // A CFF-subtype font is assumed to have a CFF table, the same
-        // assumption the original made implicitly (it left an unchecked null
-        // deref inside `writecff_cid_keyed` if it ever didn't hold).
+        // A CFF-subtype font is assumed to have a CFF table (the subtype
+        // is decided by its presence).
         let r = CffAndGlyfRef {
             meta: font
                 .cff
@@ -342,12 +339,10 @@ impl FontTable for Glyf {
         if !is_ttf(font) {
             return;
         }
-        // `loca_is_long`/`num_glyphs` come from `head`/`maxp`. A malformed
-        // font missing (or failing to parse) either table used to panic
-        // here instead of the "skip this table, keep going" every other
-        // reader does; a fuzz-found input with a `glyf`/`loca` pair but no
-        // `maxp` hit exactly this. `glyf` genuinely cannot be read without
-        // both, so it is left `None` rather than guessing at either value.
+        // `loca_is_long`/`num_glyphs` come from `head`/`maxp`. `glyf`
+        // cannot be read without both, so a font missing (or failing to
+        // parse) either leaves it `None` -- the "skip this table, keep
+        // going" every other reader does.
         let (Some(head), Some(maxp)) = (font.head.as_deref(), font.maxp.as_deref()) else {
             return;
         };

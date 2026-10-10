@@ -13,27 +13,13 @@ use crate::table::otl::classdef::{dump_class_def, parse_class_def};
 use otfcc_json::JsonType;
 
 pub type Tsi5Table = ClassDef;
-// Stage 6-4 "Box化": `Font.tsi5` is an `Option<Box<Tsi5Table>>`. The
-// `unwrap_class_def` shim that used to adopt `parse_class_def`'s raw
-// `*mut ClassDef` into that `Box` is gone with Stage M-3 -- the producers
-// return owned values now, so this is a plain `.map(Box::new)`.
-// The original loop condition (`j * 2 < table.length`) admitted one
-// out-of-bounds 2-byte read whenever `table.length` was odd: e.g. a
-// 1-byte table has `j = 0` satisfy `0 < 1`, then reads bytes `[0, 1]` --
-// the second of which does not exist. `FontReader::u16` requires both
-// bytes to actually be present, so the loop below now stops one entry
-// earlier on an odd-length table instead of reading past the end; a
-// well-formed (even-length) table parses identically to before.
+// One class per glyph, 2 bytes each. `FontReader::u16` requires both bytes
+// to be present, so a trailing odd byte is ignored rather than read past.
 pub fn read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_TSI5)?;
-    // Built as a plain local value rather than through
-    // `otl_class_def_create()`/`unwrap_class_def` (both stay, for
-    // `classdef.rs`'s own raw-pointer-constructible callers elsewhere) --
-    // `push_class_def` is already a safe `fn`, so nothing here needs a box
-    // until the very end.
     let mut tsi5 = ClassDef {
         maxclass: 0,
         glyphs: Vec::new(),

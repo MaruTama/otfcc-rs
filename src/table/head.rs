@@ -26,12 +26,6 @@ pub struct HeadTable {
     pub index_to_loc_format: i16,
     pub glyph_data_format: i16,
 }
-// Stage 6-4 "Box化": every field is a scalar, so no `Drop` impl is
-// needed -- `Box::new` construction is sufficient (`Copy, Clone` stay
-// on the struct, same reasoning as `Os2Table`/`HheaTable`/`VheaTable`).
-// The entire vtable is deleted: grepping the bare `TABLE_I_HEAD`
-// identifier confirmed only `.create`/`.free` were ever called, both
-// internal to this crate.
 fn decode_head(data: &[u8]) -> Result<HeadTable, ReadError> {
     let mut r = FontReader::new(data);
     Ok(HeadTable {

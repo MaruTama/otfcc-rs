@@ -1,10 +1,5 @@
 //! Named constants for the SFNT/OpenType four-byte tags this crate matches
-//! on. c2rust transpiled every tag comparison and table-directory entry as
-//! a raw decimal `u32` literal (e.g. `1835365473` for `'meta'`), which is
-//! opaque to read and easy to mistype when hand-editing. These constants
-//! are derived from the tag's byte string with `u32::from_be_bytes`, so the
-//! value is guaranteed identical to the literal it replaces while staying
-//! legible.
+//! on, derived from the tag's byte string with `u32::from_be_bytes`.
 //!
 //! A few tags have a second, legacy `_ALT` form: otfcc accepts an
 //! alternate spelling (`_` in place of `/` or a trailing space) for tags
@@ -57,9 +52,7 @@ pub const TAG_VMTX: u32 = u32::from_be_bytes(*b"vmtx");
 /// SFNT container format signatures: the 4-byte value at the very start of
 /// the file (or, for `ttcf`, the start of a TrueType Collection header),
 /// identifying which flavor of sfnt follows. Distinct from a table tag —
-/// these never appear in the table directory — but transpiled the same way
-/// c2rust always turns a `uint32_t` FourCC constant: as an opaque decimal
-/// literal.
+/// these never appear in the table directory.
 pub const SFNT_VERSION_TRUE_TYPE: u32 = 0x00010000; // big-endian 1.0, TrueType-flavored
 pub const SFNT_VERSION_OTTO: u32 = u32::from_be_bytes(*b"OTTO"); // CFF-flavored OpenType
 pub const SFNT_VERSION_MAC_TRUE: u32 = u32::from_be_bytes(*b"true"); // legacy Mac TrueType

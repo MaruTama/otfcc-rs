@@ -17,10 +17,9 @@ use crate::table::otl::{
 /// binary LookupList/FeatureList this module writes -- `Some(dense_pos)`
 /// for a live (`Some`) slot, `None` for a hole consolidation punched.
 /// Holes are omitted from binary output entirely (no empty placeholder
-/// slot, matching what the old `Vec::retain`-based compaction did before
-/// `OtlTable.lookups`/`.features` became hole-preserving); a *live* lookup
-/// that happens to build zero binary subtables is a different, pre-existing
-/// case (see `write_otl_lookups`'s own handling) and is not a hole.
+/// slot); a *live* lookup that happens to build zero binary subtables is a
+/// different case (see `write_otl_lookups`'s own handling) and is not a
+/// hole.
 fn storage_to_dense<T>(list: &[Option<T>]) -> Vec<Option<u16>> {
     let mut dense: u16 = 0;
     list.iter()
@@ -154,12 +153,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         .enumerate()
         .filter_map(|(i, l)| l.as_deref().map(|l| (LookupIdx(i as u32), l)))
         .collect();
-    // `subtables`/`subtable_quantity`/`prefer_ext_for_this_lut` were three
-    // separately `__caryll_allocate_clean`'d, index-parallel arrays, sized
-    // once to `lookups.len()` and never resized after -- `Vec`s built the
-    // same way (`vec![default; live.len()]`) reproduce the exact same
-    // shape without a matching `free()` trio to remember at every exit
-    // point below.
+    // Three index-parallel arrays, one slot per live lookup.
     let mut subtables: Vec<Vec<Buffer>> = vec![Vec::new(); live.len()];
     let mut subtable_quantity: Vec<TableId> = vec![0 as TableId; live.len()];
     let mut prefer_ext_for_this_lut: Vec<bool> = vec![false; live.len()];
@@ -229,11 +223,9 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
                 (subtable_quantity[j_1] as i32) as u32,
             ),
         ]);
-        // Bounded by `subtable_quantity[j_1]`, not assumed equal to
-        // `subtables[j_1].len()` (same count-vs-length caution
-        // established in PR #422/#423/#426-428, even though the two are
-        // always equal by construction here -- `build_lookup` returns
-        // exactly the count it pushed).
+        // Bounded by `subtable_quantity[j_1]` rather than assumed equal
+        // to `subtables[j_1].len()` (they are equal by construction --
+        // `build_lookup` returns exactly the count it pushed).
         let quantity = subtable_quantity[j_1] as usize;
         for buf in subtables[j_1].iter_mut().take(quantity) {
             if use_extended_for_it {
@@ -299,11 +291,9 @@ fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock
     return root;
 }
 // Resolves a `FeatureIdx` (storage index) to its dense binary position via
-// `feature_dense` -- `0xffff` (the binary format's own "no feature" /
-// out-of-range sentinel) both when there is no reference at all (`None`)
-// and when `feature_dense` reports a hole, matching what the old raw-
-// pointer `feature_index`'s linear "not found" fallthrough already did for
-// a dangling/absent target.
+// `feature_dense` -- `0xffff` (the binary format's own "no feature"
+// sentinel) both when there is no reference at all (`None`) and when
+// `feature_dense` reports a hole.
 fn feature_index(idx: Option<FeatureIdx>, feature_dense: &[Option<u16>]) -> TableId {
     idx.and_then(|i| feature_dense[i.0 as usize])
         .map_or(0xffff as TableId, |d| d as TableId)
@@ -356,22 +346,13 @@ fn write_script(
 fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>]) -> BkBlock {
     // Groups languages by script tag (the first 4 bytes of `language.name`),
     // tracking each script's default (dflt/DFLT) language separately from
-    // its other languages, in the order languages are first seen. Unlike
-    // every other uthash instance converted so far in this migration, the
-    // original C here never calls `HASH_SORT` before its `HASH_ITER` --
-    // output order is insertion order, not tag order, so `BTreeMap` (which
-    // this migration has used for every prior instance) is the wrong
-    // container. A plain `Vec` with a linear "already seen" scan preserves
-    // insertion order directly; the number of distinct scripts in a real
-    // font is small (typically single digits), so the O(n) scan costs
-    // nothing observable -- not worth introducing an `indexmap` dependency
-    // for a handful of entries (that crate remains the intended tool for
-    // the much larger order-dependent uthash tables noted in RUST_MIGRATION.md).
+    // its other languages, in the order scripts are first seen (output
+    // order is insertion order, not tag order). A plain `Vec` with a linear
+    // "already seen" scan: a real font has few distinct scripts.
     //
     // A later language with the same script tag whose name is *also*
-    // dflt/DFLT silently overwrites the script's recorded default -- the
-    // original never guarded against a second default and neither does
-    // this rewrite; not a case this function warns about.
+    // dflt/DFLT silently overwrites the script's recorded default; not a
+    // case this function warns about.
     struct ScriptGroup<'a> {
         tag: Vec<u8>,
         default_language: Option<&'a LanguageSystem>,
@@ -380,10 +361,8 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
     let mut scripts: Vec<ScriptGroup> = Vec::new();
     for language in table.languages.iter() {
         let script_tag: Vec<u8> = language.name[..4].to_vec();
-        // Behaviorally identical to the original `strncmp(..., 4)` early-NUL
-        // comparison: the compared window never contains an embedded NUL, so
-        // direct byte-slice equality can never disagree with `strncmp`'s
-        // verdict here.
+        // The compared 4-byte window never contains an embedded NUL, so
+        // plain byte-slice equality is the whole comparison.
         let is_default: bool =
             &language.name[5..9] == b"DFLT" || &language.name[5..9] == b"dflt";
         let mut found: Option<usize> = None;

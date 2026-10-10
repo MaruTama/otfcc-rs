@@ -84,25 +84,6 @@ pub struct CffPrivateDict {
     pub default_width_x: f64,
     pub nominal_width_x: f64,
 }
-// Stage 6-4 "Box化": `CffTable.private_dict` becomes
-// `Option<Box<CffPrivateDict>>`. `Copy`/`Clone` dropped (nothing cloned
-// this type -- confirmed by grep). The six `*mut c_double` arrays (each
-// paired with its own `_count: Arity`, left raw at the time -- matching
-// `CffTable.fd_array`'s own still-raw-pointer status then) are now plain
-// `Vec<f64>`, so the custom `Drop` impl that used to free each one by hand
-// is gone entirely: Rust's own field-by-field drop glue reaches them.
-// Construction goes through `new_cff_private()` returning
-// `Box<CffPrivateDict>` directly at each call site, matching the
-// `new_lookup`/`new_feature`/`GaspTable` precedent.
-// `Copy`/`Clone` dropped: nine fields are now `Vec<u8>` (the `sds` sweep
-// reached `CffTable`'s font-info fields). Every use of this type is behind
-// `*mut CffTable`/`*const CffTable` (confirmed by grep before starting;
-// `fd_array: *mut *mut CffTable` is likewise a pointer array, never a value
-// copy) so there was no cascade to chase -- `table_cff_copy` (the `.copy`
-// vtable slot, a raw `memcpy`) was already unreachable from any live call
-// site and is deleted below rather than left as a would-be-unsound
-// landmine, matching this migration's established pattern for confirmed
-// -dead vtable slots.
 #[derive(Debug)]
 pub struct CffTable {
     pub font_name: Vec<u8>,
@@ -133,35 +114,11 @@ pub struct CffTable {
     pub uid_base: u32,
     pub fd_array: Vec<Box<CffTable>>,
 }
-// Stage 6-4 "Box化", now complete for `CffTable`: `private_dict`/
-// `font_matrix`/`fd_array` (self-referential -- each FD is itself a full
-// `CffTable`) are all real owned Rust types now (`Option<Box<>>`,
-// `Option<Box<>>`, `Vec<Box<CffTable>>`). Every field self-drops through
-// ordinary compiler-generated field-by-field drop glue, so `CffTable`
-// needs **no custom `Drop` impl at all** anymore -- the previous
-// `impl Drop for CffTable` (which called `dispose_fd`, itself only doing
-// real work for the now-gone raw `fd_array` recursive-free loop) is
-// deleted outright, along with `dispose_fd`/`table_cff_dispose`/
-// `table_cff_free` (all now fully dead -- confirmed via crate-wide grep).
-// `table_cff_new` is how every `CffTable` value -- top-level or `fd_array`
-// child -- gets constructed (Stage M-10 deleted the `table_cff_create`/
-// `unwrap_cff_table` `Box::into_raw`/`Box::from_raw` shell that used to sit
-// on top of it; see this file's own note there).
-// Was one `CffAndGlyf { meta: *mut CffTable, glyphs: *mut GlyfTable }`,
-// `Copy`/`Clone`, shared between two genuinely different use shapes: the
-// *read* side (`read_cff_and_glyf_tables`) always builds a fresh,
-// owned pair (or leaves both `None` for a font with no `CFF ` table at
-// all), while the *write* side (`build_cff`) only ever borrows into
-// a `Font`'s already-owned `cff`/`glyf` fields. A single raw-pointer
-// struct could paper over both (null standing in for `Option` on read,
-// and for a borrow with no owner on write), but that's exactly the "one
-// type, two lifetimes of ownership" shape this migration's later stages
-// keep finding and splitting apart. Stage M-10 gives each side its own
-// type instead.
+// Reading and writing use different types: reading produces an owned pair,
+// writing borrows the `Font`'s own fields.
 /// The owned result of reading a `CFF ` table (`read_cff_and_glyf_tables`).
 /// Both fields are `None` when the packet has no `CFF ` table, or its Top
-/// DICT INDEX is empty -- the same "nothing to read" case the old
-/// `CffAndGlyf { meta: null, glyphs: null }` represented.
+/// DICT INDEX is empty.
 #[derive(Default, Debug)]
 pub struct CffAndGlyfOwned {
     pub meta: Option<Box<CffTable>>,
@@ -183,33 +140,14 @@ pub struct CffAndGlyfRef<'a> {
     pub meta: &'a mut CffTable,
     pub glyphs: Option<&'a GlyfTable>,
 }
-// Scoped to the Top/Font/Private DICT extraction phase only -- `glyphs`
-// doesn't exist yet when `callback_extract_fd`/`callback_extract_private`
-// run (`read_cff_and_glyf_tables` only builds it after this phase's
-// loop completes), so it is deliberately not a field here rather than an
-// `Option<&mut GlyfTable>` no caller would ever populate. Was a single
-// `CffExtractContext` struct with all four fields as raw pointers,
-// constructed once (all-null) and incrementally filled in -- that shape
-// only worked because raw pointers can represent "not yet populated" as
-// null; a real `&'a mut CffTable` field cannot. See
-// `read_cff_and_glyf_tables`'s doc comment for how this phase hands
-// off to the (separate, plain-reference-parameter) glyph-outline phase.
+// State for the Top/Font/Private DICT extraction phase. The glyphs do not
+// exist yet in this phase; `read_cff_and_glyf_tables` builds them afterwards.
 #[derive(Debug)]
 struct CffFdExtractContext<'a> {
     fd_array_index: i32,
     meta: &'a mut CffTable,
     cff_file: &'a CffFile,
 }
-// Was `g: *mut Glyph` + `#[derive(Copy, Clone)]` (never actually exercised
-// -- `build_outline` constructs exactly one value, moves it once into
-// `cff_parse_outline`, and it flows through that recursive call and the 8
-// `callback_draw_*` functions below by reference the whole time; grep
-// confirms no `.clone()`/by-value copy anywhere). `g` outlives the `Box`
-// that owns the `Glyph` it points at (the `Box` moves into
-// `context.glyphs[i]` before `g` is taken), so a plain borrow works: taking
-// `&mut` from `context.glyphs[i]` *after* that move, instead of `&raw mut
-// *g_owner` *before* it, points at the exact same allocation the old raw
-// pointer did, just as a lifetime-checked reference instead.
 #[derive(Debug)]
 pub struct OutlineBuilderContext<'a> {
     pub g: &'a mut Glyph,
@@ -223,12 +161,6 @@ pub struct OutlineBuilderContext<'a> {
     pub defined_contour_masks: u8,
     pub randx: u64,
 }
-// `glyf`/`options` were the stale artifact Stage M-10's `CffAndGlyf`
-// split left behind: `*mut GlyfTable`/`*const Options` fields that
-// `cff_make_charstrings` only ever read through (never null, never
-// written), purely because `writecff_cid_keyed`'s own `glyf`/`options`
-// were themselves raw pointers/needed no lifetime at the time. Both are
-// plain borrows now, tied to this context's own lifetime.
 #[derive(Debug)]
 pub struct CffCharstringBuilderContext<'a> {
     pub glyf: &'a GlyfTable,
@@ -295,18 +227,6 @@ fn table_cff_new() -> Box<CffTable> {
         fd_array: Vec::new(),
     })
 }
-// `table_cff_create`/`unwrap_cff_table` (a `Box::into_raw`/`Box::from_raw`
-// shell around `table_cff_new()`, `table_glyf_create_n`'s `unwrap_glyf_table`
-// sibling) are gone as of Stage M-10: their one caller
-// (`read_cff_and_glyf_tables`) now calls `table_cff_new()` directly
-// and keeps the `Box<CffTable>` it already returns, instead of boxing it,
-// erasing it to a raw pointer, and immediately re-adopting it.
-// Reaches zero `unsafe` -- every field access below is a plain safe
-// reborrow of `context`/`context.meta` (the `fd_array_index >= 0` arm and
-// the `else` arm are independent reborrows of the same root that NLL never
-// sees as live simultaneously), and this function never touches
-// `context.cff_file` or calls `get_cff_sid`, unlike its sibling
-// `callback_extract_fd` below.
 fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], context: &mut CffFdExtractContext) {
     let meta: &mut CffTable = if context.fd_array_index >= 0
         && (context.fd_array_index as usize) < context.meta.fd_array.len()
@@ -604,16 +524,9 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
                     stack[top as usize - 1],
                 ) as u32;
                 meta.private_dict = Some(new_cff_private());
-                // `private_offset`/`private_length` are DICT operator-18's
-                // own operands -- attacker-controlled bytes from the font's
-                // Top/Font DICT, not yet checked against the real buffer.
-                // The original built `raw_data.offset(private_offset)`
-                // unconditionally; a value past `raw_length` read straight
-                // out of bounds. Same fix as `parser.rs`'s two other
-                // Private-DICT-offset call sites: build one bounds-checked
-                // slice and simply skip the callback (leaving the just-
-                // created, all-default `private_dict` in place) when it
-                // doesn't fit.
+                // The Private DICT's offset and length come from the font;
+                // skip the DICT, keeping the default `private_dict`, when
+                // they do not fit in the table.
                 let raw_slice = file.raw_data.as_slice();
                 if let Some(private_bytes) = raw_slice
                     .get(private_offset as usize..)
@@ -768,11 +681,8 @@ pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> f64 
     x ^= x << 25_i32;
     x ^= x >> 27_i32;
     context.randx = x;
-    // Classic xorshift-then-bit-cast trick: pack `bits` into an f64's
-    // exponent/mantissa layout to land a uniform double in [1, 2), then
-    // subtract to land in [0, 1). Was a `CffDoubleBits` union (`u: u64`/
-    // `d: f64`, written via `.u` then read via `.d`); `f64::from_bits` is
-    // the same bit-for-bit reinterpretation without a union.
+    // xorshift, then put the bits into an f64's mantissa with an exponent
+    // of 0 to get a uniform double in [1, 2), and subtract 1.
     let mut bits: u64 = x.wrapping_mul(2685821657736338717_u64);
     bits = bits >> 12_i32 | 0x3ff0000000000000_u64;
     let q: f64 = if bits & 2048_u64 != 0 {
@@ -832,14 +742,6 @@ fn build_outline(
         offset: Vec::new(),
         data: Vec::new(),
     };
-    // Borrowed *after* the move above, from the slot it now lives in --
-    // the exact same heap allocation the old `g: *mut Glyph = &raw mut
-    // *g_owner` (taken *before* the move) pointed at, just as a lifetime-
-    // checked `&mut Glyph` instead. Every later use of the glyph in this
-    // function, including the closing-point cleanup loop below (which
-    // used to go through that separate raw `g`, aliasing this same
-    // allocation for the whole time `bc.g` was conceptually "borrowing"
-    // it), now goes through `bc.g` alone.
     let mut bc: OutlineBuilderContext = OutlineBuilderContext {
         g: glyphs[i as usize].as_deref_mut().unwrap(),
         j_contour: 0 as ShapeId,
@@ -886,16 +788,9 @@ fn build_outline(
     // this whole array (non-decreasing, every entry >= 1, and the final
     // entry exactly matches `data.len() + 1`) -- so `offset[i] - 1` is
     // always in `0..=data.len()` for any `i` within the INDEX's own
-    // count, the same invariant `locate_subr`/`get_cff_sid` already rely
-    // on elsewhere. Slicing (rather than raw pointer arithmetic) makes
-    // that bound a checked one instead of an assumed one.
+    // count, the same invariant `locate_subr`/`get_cff_sid` rely on.
     let char_string_start = (char_strings_offset[i as usize] - 1_u32) as usize;
     let char_string_end = (char_strings_offset[(i as i32 + 1_i32) as usize] - 1_u32) as usize;
-    // `cff_parse_outline` now takes a checked slice directly -- this turns
-    // the bound `extract_index` already establishes (non-decreasing
-    // `offset[]`, every entry >= 1, final entry == `data.len() + 1`) from
-    // an assumed invariant backing raw pointer arithmetic into one the
-    // slicing operation itself enforces.
     let char_string_bytes: &[u8] = &f.char_strings.data[char_string_start..char_string_end];
     bc.j_contour = 0 as ShapeId;
     bc.j_point = 0 as ShapeId;
@@ -979,18 +874,8 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
 fn qround(x: f64) -> f64 {
     return from_fixed(to_fixed(x));
 }
-// `head: Option<&HeadTable>`, not a nullable `*const HeadTable` -- the
-// caller (`read_cff_and_glyf_tables`) used to build this from
-// `Font.head`'s `Option<Box<HeadTable>>` via `.map_or(ptr::null(), ...)`
-// and then unconditionally dereference it (`&*head`) *before* even
-// calling this function, which segfaulted `otfccdump` on any CFF font
-// with a Top DICT `FontMatrix` and no `head` table (confirmed: the
-// original C otfcc has the identical null-deref bug, so there is no
-// legacy behavior being preserved by keeping it). A missing `head` means
-// there is no `unitsPerEm` to scale by, so this now just leaves the
-// outline unscaled -- the same "skip this table, keep going" idiom every
-// other optional-table reader in this crate already uses for a genuinely
-// absent table.
+// Applies the Top DICT's `FontMatrix`, scaled by `head.unitsPerEm`. Without
+// a `head` table there is nothing to scale by, so the outline stays as is.
 fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Option<&HeadTable>) {
     let Some(head) = head else {
         return;
@@ -1039,55 +924,15 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Option<&HeadTabl
         }
     }
 }
-// Stage M-14: no longer `unsafe fn`. `cff_file` (formerly `*mut CffFile`,
-// paired with a manual `Box::from_raw` at the bottom of this function --
-// see `parser.rs`'s `cff_open_stream`) is a plain `Box<CffFile>` now:
-// `cff_open_stream` already built it as an owned local internally and only
-// `Box::into_raw`-ed it to hand back a pointer, which this function's one
-// call site immediately `Box::from_raw`-ed back at the end of its own
-// scope -- the same "producer already owns the value, boxing-to-a-pointer
-// was pure roundtrip" pattern this migration already removed from
-// `cff_dict_create`/`new_index_by_callback` at Stage M-10. Every
-// `(*cff_file).field`/`&*cff_file` deref below becomes a plain field
-// access/reborrow through the `Box`, and the trailing `Box::from_raw` is
-// gone -- `cff_file`'s own `Drop` (via `CffFile`'s field-by-field glue)
-// runs when it goes out of scope at the end of the `if let` arm below,
-// same as any other owned local.
-//
-// Stage M-19: the unsafe block this comment used to describe as "the one
-// remaining unsafe operation" is gone too. `cff_open_stream` now takes
-// `&[u8]` directly instead of a raw `data`/`len` pointer pair, and this
-// function already had a real `&[u8]` in hand (`table.data`, a
-// `Vec<u8>` field) -- decomposing it into `table.data.as_ptr() as
-// FontFilePointer` + `table.length` was pure borrow-checker-dodging, the
-// pointer never outliving this scope and never aliased. Passing
-// `&table.data` straight through removes the decompose/reconstruct round
-// trip along with the unsafe wrapping it required.
 pub fn read_cff_and_glyf_tables(
     packet: &Packet,
     head: Option<&HeadTable>,
 ) -> CffAndGlyfOwned {
     let mut ret: CffAndGlyfOwned = CffAndGlyfOwned::default();
-    // Only the first `CFF ` table in the packet is ever read. No longer a
-    // c2rust `__fortable_*`/`__notfound`-flagged loop simulating the
-    // original's `for` + `goto` out on first match -- same "find the one
-    // piece with this tag" idiom `read_otl` (`table/otl/read.rs`)
-    // already uses for the identical kind of lookup.
+    // Only the first `CFF ` table in the packet is read.
     if let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CFF) {
-        // `meta`/`glyphs` (this function's own two results) are plain
-        // owned values, not a second raw-pointer round trip through
-        // `table_cff_create`/`unwrap_cff_table` on top of the first one.
         let cff_file: Box<CffFile> = cff_open_stream(&table.data);
-        // A CFF table's Top DICT INDEX with a declared `count`
-        // of 0 has no entries at all -- `extract_index` only
-        // populates `offset` (`count + 1` entries) when
-        // `count > 0`, so it stays empty here. A malformed font
-        // claiming a CFF table with no top dict used to index
-        // `top_dict.offset[0]`/`[1]` unconditionally below,
-        // panicking ("index out of bounds") on real input a
-        // local fuzzing run found. Same guard shape as
-        // `font_dict.count != 0` a few lines down for the
-        // FDArray INDEX.
+        // A Top DICT INDEX with a count of 0 has no offsets to read.
         if cff_file.top_dict.count != 0 {
             let mut meta: Box<CffTable> = table_cff_new();
 
@@ -1192,12 +1037,6 @@ pub fn read_cff_and_glyf_tables(
                 name_glyphs_according_to_cff(meta_ref, glyphs_ref, cff_file_ref);
             } // `meta_ref`/`glyphs_ref`/`cff_file_ref` end here.
 
-            // Plain owned values -- no live reference to extract a pointer
-            // out of, unlike the old `ret.meta = context.meta;` (which ran
-            // mid-function, before `glyphs` even existed, purely because
-            // the raw-pointer style never forced any ordering). Both
-            // assignments now land together, after every borrow of
-            // `meta`/`glyphs` above has gone out of scope.
             ret.meta = Some(meta);
             ret.glyphs = Some(glyphs);
         }
@@ -1353,14 +1192,8 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
     if !table.fd_array.is_empty() {
         let mut _fd_array = BuiltValue::new_object(table.fd_array.len());
         for fd in &table.fd_array {
-            // Each FD's own name is already the key it's stored under in
-            // `fdArray` -- the original raw-pointer code achieved this by
-            // temporarily taking `font_name` out of `fd` (so the nested
-            // `fd_to_json` call saw it as empty and skipped the `fontName`
-            // field entirely) before restoring it for use as the key.
-            // Building the child fully and then dropping that one field
-            // reproduces the exact same output without needing a mutable
-            // borrow of `table` here.
+            // An FD's name is already its key in `fdArray`, so drop the
+            // `fontName` field from its object.
             let mut child = fd_to_json(fd);
             if let BuiltValue::Object(fields) = &mut child {
                 fields.retain(|(k, _)| k != b"fontName");
@@ -1406,10 +1239,7 @@ fn pd_from_json(dump: Option<&ParsedValue>) -> Option<Box<CffPrivateDict>> {
     Some(pd_box)
 }
 // Builds the whole tree of `CffTable`/`fd_array` children as owned local
-// values first, `Box`ing each one only once it's fully populated -- same
-// "build locally, box at the end" shape as `new_index_by_callback`/
-// `read_class_def`/`read_coverage` -- rather than allocating up front via
-// `table_cff_create()` and writing through a raw pointer field by field.
+// values first, `Box`ing each one only once it's fully populated.
 fn fd_from_json(dump: Option<&ParsedValue>, options: &Options, top_level: bool) -> Box<CffTable> {
     let mut table = table_cff_new();
     let Some(dump) = dump.filter(|v| v.as_object().is_some()) else {
@@ -1486,8 +1316,6 @@ pub fn parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffTable>>
     stage.finish();
     Some(cff)
 }
-// `CffCharstringBuilderContext.glyf`/`.options` are plain borrows now
-// (Stage M-10) -- this function reaches zero `unsafe`.
 fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, Buffer, Buffer) {
     let glyf: &GlyfTable = context.glyf;
     if glyf.is_empty() {
@@ -1508,29 +1336,10 @@ fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, B
     }
     cff_il_graph_to_buffers(&mut context.graph)
 }
-// Deduplicates by string content, first registration wins -- returns the
-// existing SID if the string was already registered, otherwise assigns
-// the next sequential SID (391 + the map's current length, matching the
-// original's `391 + HASH_COUNT`-at-insert-time scheme exactly, since
-// registration order is SID order here). `by_sid` fed a `HASH_SORT`
-// before `cffstrings_to_indexblob` iterated (see there), so output order
-// is ascending SID -- which is registration order by construction, so an
-// `IndexMap` (insertion-ordered) needs no separate sort step the way
-// `BTreeMap`-based instances did.
-//
-// The dedup key is `strlen`-bounded bytes (matching the original's Bob
-// Jenkins hash + `memcmp`, both driven by `strlen(s)`), not the full sds
-// length -- glyph names and font metadata strings can be arbitrary,
-// non-ASCII byte content in this codebase (see this file's other notes
-// on `%s`/non-UTF-8 glyph names), so an embedded NUL in a name is a real,
-// if obscure, possibility worth preserving faithfully rather than
-// assumed away. The *stored* value is still the full byte content of
-// `s`, matching what the original's `.str_0` held and what `bufnwrite8`
-// (in `cffstrings_to_indexblob`) writes out for real --
-// so two strings identical only up to their first NUL byte are still
-// treated as the same string for dedup purposes (the original's exact
-// behavior), but the winning entry's full byte content, NUL and all, is
-// still what ends up in the output.
+// Returns the SID of `s`, registering it if new: strings get SIDs from 391
+// up in the order they are first seen, and the `IndexMap` keeps that order
+// for writing. Strings are compared up to their first NUL, but the first
+// one registered is stored, and written, in full.
 fn sidof(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> i32 {
     let key: Vec<u8> = until_nul(s).to_vec();
     if let Some(idx) = h.get_index_of(&key) {
@@ -1547,23 +1356,14 @@ fn cffdict_givemeablank(dict: &mut CffDict) -> &mut CffDictEntry {
     });
     dict.ents.last_mut().unwrap()
 }
-/// Append a DICT entry whose operands are numbers.
-///
-/// Was `cffdict_input(dict, op, t, arity, ...)`: a count, a value type (the
-/// long-gone `CffValueType`), and that many varargs read as `c_double` or
-/// `c_int` depending on it. Every one of the 30 call sites passed either
-/// the `Double` type with `Pos` operands or `Integer` with integer ones, so
-/// the runtime branch on the type was really two functions -- this one and
-/// [`cffdict_input_ints`] -- and the count is the slice's length.
+/// Append a DICT entry whose operands are numbers. See also
+/// [`cffdict_input_ints`].
 fn cffdict_input_doubles(dict: &mut CffDict, op: CffDictOperator, values: &[f64]) {
     let mut vals: Vec<CffValue> = Vec::with_capacity(values.len());
     for &x in values.iter() {
-        // A whole number is stored as an integer, which is what decides
-        // whether the DICT is encoded with an integer or a real operand
-        // later. `f64::round` matches C99 `round()` (round half away from
-        // zero) bit-for-bit -- verified across ~16,000 inputs (half-cases,
-        // NaN, +/-inf included) when `support/primitives.rs` made the same
-        // substitution; see [[otfcc-libc-differs-where-c-is-undefined]].
+        // A whole number is stored as an integer, which decides whether
+        // the DICT encodes it as an integer or a real operand.
+        // `f64::round` rounds half away from zero, like C's `round()`.
         vals.push(if x == x.round() {
             CffValue::Integer(x.round() as i32)
         } else {
@@ -1602,12 +1402,6 @@ fn cffdict_input_array(dict: &mut CffDict, op: CffDictOperator, arr: &[f64]) {
     }
     cffdict_input_doubles(dict, op, arr);
 }
-// Builds the `CffDict` as an owned local value (`CffDict`'s one field,
-// `ents`, is `pub`) rather than allocating up front via `cff_dict_create()`
-// and writing through a raw pointer -- same "build locally, box at the
-// end" shape as `fd_from_json` above. Returns it by value now (Stage
-// M-10, matching this migration's Stage M-3 `ClassDef` treatment) -- the
-// caller no longer needs `cff_dict_free` at all.
 fn cff_make_fd_dict(fd: &CffTable, h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> CffDict {
     let mut dict = CffDict { ents: Vec::new() };
     if !fd.cid_registry.is_empty() && !fd.cid_ordering.is_empty() {
@@ -1715,10 +1509,7 @@ fn cff_make_private_dict(pd: Option<&CffPrivateDict>) -> CffDict {
 }
 fn cffstrings_to_indexblob(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> Buffer {
     let n: u32 = h.len() as u32;
-    // `IndexMap`'s iteration order is insertion order, which is SID
-    // order by construction (`sidof` assigns each new string the next
-    // sequential SID), so no separate sort step is needed here the way
-    // the original's `HASH_SORT` (via `by_sid`) was.
+    // The `IndexMap` is in SID order (see `sidof`).
     let blobs: Vec<Buffer> = ::core::mem::take(h)
         .into_iter()
         .map(|(_, value)| Buffer::from_bytes(&value))
@@ -1734,9 +1525,7 @@ fn cff_compile_nameindex(cff: &mut CffTable) -> Buffer {
     name_index.count = 1 as Arity;
     name_index.off_size = 4_u8;
     name_index.offset = vec![1, cff.font_name.len() as u32 + 1];
-    // Was `__caryll_allocate_clean`'d to `font_name.len() + 1` bytes but
-    // only `font_name.len()` of them ever `memcpy`'d -- the trailing byte
-    // stayed zero. `.push(0)` reproduces that exact trailing NUL.
+    // The name is written with a trailing NUL.
     let mut name_data: Vec<u8> = cff.font_name.clone();
     name_data.push(0_u8);
     name_index.data = name_data;
@@ -1977,12 +1766,6 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
     }
     return blob;
 }
-// `build_cff`/`writecff_cid_keyed` are plain safe `fn`s now (Stage
-// M-10): `cff`/`glyf` are `CffAndGlyfRef`'s own borrows, `fd_array_index`
-// is an owned `Option<CffIndex>`, and every dict/index producer this
-// function calls returns an owned value -- no raw pointer, and no
-// `cff_dict_free`/`cff_index_free` call, is left anywhere in this
-// function's body.
 pub fn build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Buffer {
     writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options)
 }
@@ -1997,19 +1780,9 @@ mod cff_matrix_no_head_regression_tests {
     use crate::font::sfnt::{Packet, PacketPiece};
     use crate::support::options::Options;
 
-    // `otfccdump` SIGSEGV'd (exit code 139) on any CFF font with a Top
-    // DICT `FontMatrix` whose `head` table had been stripped: `read_otf`
-    // built `head: *const HeadTable` from `Font.head` via
-    // `.map_or(ptr::null(), ...)` and `read_cff_and_glyf_tables`
-    // immediately did `apply_cff_matrix(meta_ref, glyphs_ref, &*head)` --
-    // an unconditional deref of that null pointer, before
-    // `apply_cff_matrix` even got a chance to check anything. Reproduced
-    // concretely against a real fixture during Stage M-10's own
-    // investigation (strip `head` from a CFF OTF font, run it through
-    // `otfccdump`); confirmed CFF-specific (stripping `head` from a TTF,
-    // or stripping other tables from the same CFF font, does not crash)
-    // and that the original C otfcc has the identical null-deref bug, so
-    // there is no legacy behavior being preserved by keeping it.
+    // A CFF font with a Top DICT `FontMatrix` but no `head` table used to
+    // crash `otfccdump` (upstream otfcc has the same null deref): applying
+    // the matrix read `head` unconditionally.
     //
     // This builds the minimal scenario directly rather than shipping a
     // binary fixture: a `CffTable` with a real `font_matrix` and one
@@ -2019,10 +1792,8 @@ mod cff_matrix_no_head_regression_tests {
     // genuine CFF Top DICT `FontMatrix` operator in the bytes, then fed
     // back through the real read entry point
     // (`read_cff_and_glyf_tables`) with `head: None` -- exactly the
-    // "font has no `head` table" case. Before Stage M-10's fix this
-    // segfaults the whole test process instead of failing a `#[test]]`
-    // assertion; after it, `apply_cff_matrix` takes its `None` branch and
-    // simply leaves the outline unscaled.
+    // "font has no `head` table" case. `apply_cff_matrix` must take its
+    // `None` branch and simply leave the outline unscaled.
     #[test]
     fn cff_font_matrix_with_no_head_table_does_not_crash() {
         let mut cff = table_cff_new();

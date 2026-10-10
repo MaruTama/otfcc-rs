@@ -27,16 +27,9 @@ pub struct VheaTable {
     pub metric_data_format: i16,
     pub num_of_long_ver_metrics: u16,
 }
-// Stage 6-4 "Box化": every field is a scalar, so no `Drop` impl is
-// needed -- `Box::new` construction is sufficient (`Copy, Clone` stay
-// on the struct, same reasoning as `Os2Table`/`HheaTable`). The entire
-// vtable is deleted: grepping the bare `TABLE_I_VHEA` identifier
-// confirmed only `.create`/`.free` were ever called, both internal to
-// this crate.
-// `dummy0..3` and `metric_data_format` are never read from the table data --
-// only zeroed -- matching the original, which set them directly rather than
-// reading bytes 24..34; only `num_of_long_ver_metrics` at offset 34 follows
-// that gap.
+// `dummy0..3` and `metric_data_format` are not read from the table data --
+// they are zeroed; only `num_of_long_ver_metrics` at offset 34 follows that
+// gap.
 fn decode_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.i32()? as F16Dot16;

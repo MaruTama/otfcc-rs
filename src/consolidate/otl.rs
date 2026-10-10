@@ -50,60 +50,33 @@ pub fn consolidate_lookup(
             let sub = slot.as_deref_mut().unwrap();
             let subtable_removed = kind.consolidate_subtable(sub, &ctx);
             if subtable_removed {
-                // Was a `fndel: SubtableRemover` parameter, one
-                // `LookupType`-keyed function pointer per call site
-                // below, each `transmute`d from `*mut ConcreteType` to
-                // `*mut Subtable` -- sound only because `Subtable` used
-                // to be a union with no discriminant to misinterpret.
-                // Now that it is an enum, `Subtable`'s own `Drop` does
-                // this dispatch, self-describing off the enum's tag, so
-                // setting the slot to `None` (dropping the `Box` in
-                // place) is all that is needed -- no per-type function
-                // pointer, no separate explicit `Box::from_raw`.
+                // Dropping the `Box` disposes the subtable.
                 *slot = None;
                 tracing::warn!("[Consolidate] Ignored empty subtable {} of lookup {}.\n", j as i32, ByteStr(&lookup.name));
             }
         }
     }
-    // `Vec::retain` drops every discarded `Box<Subtable>` in place (its
-    // `Drop` runs as part of the retain-internal shift), the same thing
-    // the old manual `.take()`-then-`truncate()` two-pass compaction did
-    // by hand -- no risk of the double-owned-`Box` hazard that reasoning
-    // used to warn about, since `retain` never leaves two slots pointing
-    // at the same allocation to begin with.
+    // `Vec::retain` drops every discarded `Box<Subtable>` in place.
     lookup.subtables.retain(|s| s.is_some());
     if lookup.subtables.is_empty() {
         tracing::warn!("[Consolidate] Lookup {} is empty and will be removed.\n", ByteStr(&lookup.name));
     }
     stage.finish();
 }
-// Stage L-7: `table` is a real `&mut OtlTable` now, not a raw pointer --
-// closing the aliasing hazard the plan doc flagged this stage for. The one
-// wrinkle: `consolidate_lookup`'s call into `consolidate_chaining`
-// still needs read access to *every* lookup, including the very one whose
-// `&mut Lookup` this loop is holding at the time (a chaining rule can name
-// its own containing lookup -- `k == self_index` below). A blanket
-// `&table.lookups` alongside a live `&mut Lookup` borrowed from inside
-// that same `Vec` is a real, ordinary (not just Stacked-Borrows-flavored)
-// borrow-checker conflict -- there is no way around it by index alone.
-// `Option::take()` resolves it: physically remove the lookup being
-// processed from its slot (leaving a plain `None` there, not a dangling
-// borrow) before handing out `&table.lookups`, then put it back
-// afterwards. A naive version of this (deliberately *not* what this does)
-// would silently break self-reference -- with the lookup missing from the
-// list, a name/index scan that includes itself would come up empty, and
-// `consolidate_chaining` would treat a real self-reference as an invalid
-// lookup and discard it, a genuine output regression. `self_index`/
-// `self_name` (the latter cloned *before* the `take`, since it borrows
-// from the very value about to be reborrowed mutably) are threaded down
-// so `consolidate_chaining` can special-case exactly that slot instead of
-// reading it (as `None`) from `lookups`.
+// `consolidate_lookup`'s call into `consolidate_chaining` needs read access
+// to *every* lookup, including the one being consolidated (a chaining rule
+// can name its own containing lookup -- `k == self_index` below). So the
+// lookup being processed is `take()`n out of its slot before handing out
+// `&table.lookups`, then put back afterwards. With the lookup missing from
+// the list, a scan that includes itself would come up empty and discard a
+// real self-reference; `self_index`/`self_name` (the latter cloned *before*
+// the `take`) are threaded down so `consolidate_chaining` can special-case
+// exactly that slot instead of reading it (as `None`) from `lookups`.
 pub(crate) fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut OtlTable>, options: &Options) {
     // Every lookup consolidator below reads exactly one thing from the font:
-    // its glyph order (checked across `consolidate/otl/` -- nothing else).
-    // So this takes `glyph_order`, not the `Font`, which is what lets the
-    // caller borrow `font.glyph_order` and `font.gsub`/`.gpos` (disjoint
-    // fields) at the same time without a raw pointer.
+    // its glyph order. So this takes `glyph_order`, not the `Font`, which
+    // lets the caller borrow `font.glyph_order` and `font.gsub`/`.gpos`
+    // (disjoint fields) at the same time.
     let Some(glyph_order) = glyph_order else {
         return;
     };
@@ -135,24 +108,15 @@ pub(crate) fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Opt
             });
         }
         for lang in table.languages.iter_mut() {
-            // `required_feature` is a single borrowed `Option<FeatureIdx>`,
-            // not a list element `otl_feature_ref_list_filter_env` (below)
-            // ever touches -- it was set once at parse time and otherwise
-            // never revisited. Below, this same pass drops every `Feature`
-            // whose `.lookups` is empty from `table.features` (punching a
-            // hole where its `Box` used to live); a `required_feature`
-            // still pointing at one of those becomes a dangling read the
-            // very next time this language is dumped or built.
-            // `feature_ref_is_not_empty`'s check (`.lookups.is_empty()`) is
-            // applied here too, so a `required_feature` is cleared in the
-            // same pass, by the same rule, as every other reference to
-            // that feature -- closing a real fuzzer-found use-after-free
-            // (heap-use-after-free reading a freed `Feature`'s `name` from
-            // `dump_otl`, ASan-confirmed). `feature_at` resolving to
-            // `None` (an out-of-range index, never expected here, or a
-            // hole punched by an *earlier* iteration of this same loop)
-            // is treated the same as "empty": either way, nothing valid to
-            // require.
+            // This same pass drops every `Feature` whose `.lookups` is
+            // empty from `table.features` (punching a hole in its slot), so
+            // `required_feature` is cleared by the same rule
+            // (`feature_ref_is_not_empty`) as every other reference to that
+            // feature; a stale one made `dump_otl` read a dropped feature's
+            // name (fuzz-found). `feature_at` resolving to `None` (an
+            // out-of-range index, never expected here, or a hole punched by
+            // an *earlier* iteration of this same loop) is treated the same
+            // as "empty": either way, nothing valid to require.
             if let Some(rf) = lang.required_feature {
                 let target_empty = crate::table::otl::feature_at(&table.features, rf)
                     .is_none_or(|f| f.lookups.is_empty());
@@ -248,10 +212,7 @@ mod consolidate_otl_table_tests {
     #[test]
     fn required_feature_pointing_at_a_lookup_with_no_valid_subtables_is_cleared_not_left_dangling() {
         // `LookupIdx(0)`/`FeatureIdx(0)` reference the one lookup/feature
-        // slot below directly -- no raw pointers or `unsafe` needed to
-        // build this fixture anymore, now that the cross-references are
-        // plain indices rather than borrows into a `Box` this test would
-        // otherwise have to keep pinned in place.
+        // slot below directly.
         let mut table = Box::new(OtlTable {
             lookups: vec![Some(new_lookup())], // subtables empty -- "no valid subtables"
             features: Vec::new(),
@@ -320,17 +281,15 @@ mod consolidate_otl_table_tests {
         lookup
     }
 
-    // Stage L-7's own reason for existing: `consolidate_otl_table` now
-    // `take()`s the lookup being processed out of `table.lookups` before
-    // handing `consolidate_chaining` a shared `&LookupList` (so that
-    // shared borrow can't alias the `&mut Subtable` also being threaded
-    // through), which means a naive scan for "does lookup k exist" would
-    // see the current lookup's own slot as an empty hole. A chaining rule
-    // whose one lookup application names its own containing lookup (a
-    // real OpenType idiom, e.g. an iterative contextual substitution) is
-    // exactly the case that would silently break: without the `self_index`/
-    // `self_name` special-casing this test pins down, the self-reference
-    // would be misdiagnosed as an invalid lookup and discarded.
+    // `consolidate_otl_table` `take()`s the lookup being processed out of
+    // `table.lookups` before handing `consolidate_chaining` a shared
+    // `&LookupList`, so a naive scan for "does lookup k exist" would see the
+    // current lookup's own slot as an empty hole. A chaining rule whose one
+    // lookup application names its own containing lookup (a real OpenType
+    // idiom, e.g. an iterative contextual substitution) must survive:
+    // without the `self_index`/`self_name` special-casing this test pins
+    // down, the self-reference would be misdiagnosed as an invalid lookup
+    // and discarded.
     #[test]
     fn chaining_rule_naming_its_own_lookup_by_name_resolves_instead_of_being_invalidated() {
         let lookup = self_referencing_chaining_lookup(

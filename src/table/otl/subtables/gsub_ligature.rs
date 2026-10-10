@@ -21,12 +21,8 @@ use otfcc_json::JsonType;
 pub(crate) fn dispose_gsub_ligature_subtable(arr: &mut GsubLigatureSubtable) {
     *arr = Vec::new();
 }
-/// The one live `.replace` among all the `Subtable`-union-blocked
-/// containers: `consolidate_gsub_ligature` builds a fresh, empty `nt`,
-/// filters/moves entries into it, then swaps it in here. `src` is always
-/// that fresh local -- never reused by the caller afterward -- so disposing
-/// the old `*dst` and move-assigning `src` in is equivalent to (and safer
-/// than) the original's dispose-then-`memcpy`.
+/// Replaces `*dst` with `src` (consolidation builds a fresh, filtered
+/// subtable and swaps it in).
 pub(crate) fn subtable_gsub_ligature_replace(
     dst: &mut GsubLigatureSubtable,
     src: GsubLigatureSubtable,
@@ -169,16 +165,9 @@ pub fn otl_gsub_parse_ligature(
         Some(Subtable::GsubLigature(st_0))
     }
 }
-// Deduplicates by the ligature rule's starting glyph id -- the original
-// uthash `LigatureAggregator` table carried no data beyond a `gid`
-// (`HASH_SORT` by `by_gid` before `HASH_ITER`, no companion payload per
-// entry): it was used purely to build the sorted, deduplicated Coverage
-// of "first glyphs", then the original re-scanned the whole subtable
-// per distinct gid (twice: once to count, once to emit) to build each
-// glyph's `LigatureSet`. A `BTreeSet<i32>` reproduces the sorted,
-// deduplicated set directly -- there is no value to carry, so this isn't
-// even a map the way every other uthash instance in this migration has
-// been.
+// The ligature rules' starting glyph ids, sorted and deduplicated, form the
+// Coverage of "first glyphs"; each glyph's `LigatureSet` is then built by
+// re-scanning the subtable for that gid.
 pub fn build_gsub_ligature_subtable(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,

@@ -19,45 +19,10 @@ pub struct CmapUvsKey {
     pub unicode: u32,
     pub selector: u32,
 }
-/// `unicodes` replaces the uthash-based `CmapEntry` -- unlike every
-/// uthash instance converted so far in this migration, this map is not
-/// a transient, build-then-drain scratch structure: it's a *persistent*
-/// field of `CmapTable` itself, read/written/iterated throughout the
-/// table's whole lifetime (encode/unmap/lookup during parse and JSON
-/// encode, sorted iteration during dump and binary build). `BTreeMap`'s
-/// dedup key and `by_unicode`'s `HASH_SORT` key are the same field
-/// (`unicode`), so it supports every operation this file needs natively
-/// -- no separate sort step anywhere, matching `LanguageHash`.
-///
-/// `uvs` follows the same shape: `by_uvs_key` sorts by `(unicode,
-/// selector)` in that order, which is exactly `CmapUvsKey`'s derived
-/// `Ord` (fields compared in declaration order), and `HASH_FIND`'s key
-/// equality is the same two-field comparison -- sort key, dedup key and
-/// derived `Ord` all agree, so `BTreeMap<CmapUvsKey, GlyphHandle>` needs
-/// no wrapper struct and no explicit sort at drain time either.
-// Stage 6-4 "Box化": both fields are already `BTreeMap`s (owning
-// `GlyphHandle` values, which themselves have real `Drop`/`Clone` from
-// the `Handle` pilot earlier in this migration), so no manual `Drop`
-// impl is needed -- `Box::new` construction plus the derived drop glue
-// is sufficient. The entire vtable is deleted, but unlike every other
-// table converted so far, four of its "method" slots (`.lookup`,
-// `.encode_uvs_by_index`, used from `read_uvs_default`/
-// `read_uvs_non_default`/`build_cmap_format14`) genuinely were
-// called *through the vtable*, not just assigned to it -- a first-pass
-// grep for `TABLE_I_CMAP\.` on one line missed them because the call
-// syntax wraps the method name onto its own line
-// (`TABLE_I_CMAP\n    .lookup\n    .expect(...)`), a lesson for future
-// vtable-deletion greps in this crate: search for the bare identifier,
-// not an anchored one-line pattern. Fixed by calling the four live
-// slots' backing functions directly (`cmap_lookup`,
-// `encode_cmap_uvs_by_index`) instead of through the vtable --
-// same functions, no behavior change. `.create`/`.free` were confirmed
-// only ever called from `model.rs`'s table disposal (outside this
-// file) and from this file's own former `table_cmap_create`/`_free`
-// wrappers (now gone). `.unmap`/`.unmap_uvs`/`.encode_by_index`/
-// `.encode_by_name`/`.encode_uvs_by_name` were dead in vtable form (kept
-// as ordinary exported functions, since deleting live-looking public API
-// during a type-only conversion would be scope creep).
+/// `unicodes` maps code points to glyphs, and `uvs` maps (code point,
+/// variation selector) pairs to glyphs. Both are `BTreeMap`s, so they
+/// iterate in key order, which is the order the dump and the binary writer
+/// need.
 #[derive(Debug)]
 pub struct CmapTable {
     pub unicodes: std::collections::BTreeMap<i32, GlyphHandle>,
@@ -77,12 +42,8 @@ pub fn encode_cmap_by_index(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-// `name` is a caller-owned `Vec<u8>` now (the two callers -- `parse_cmap_
-// unicodes`/`parse_cmap_uvs` -- pass a clone, keeping their own copy for
-// the log message that follows on the Occupied path). The Occupied
-// ("already mapped") path used to leave the old `SdsRaw` `name` unfreed
-// -- a pre-existing leak this migration didn't own until now -- but that
-// hazard is gone by construction: an unused `Vec<u8>` just drops.
+// Maps `unicode` to the glyph named `name`. Returns `false`, keeping the
+// existing mapping, when `unicode` is already mapped.
 pub fn encode_cmap_by_name(
     cmap: &mut CmapTable,
     c: i32,
@@ -97,9 +58,6 @@ pub fn encode_cmap_by_name(
     }
 }
 pub fn unmap_cmap(cmap: &mut CmapTable, c: i32) -> bool {
-    // Removing the entry drops its `GlyphHandle` (freeing the glyph
-    // name), replacing the explicit `otfcc_handle_dispose` + manual
-    // node walk this walk used to do.
     cmap.unicodes.remove(&c).is_some()
 }
 pub fn cmap_lookup(cmap: &CmapTable, c: i32) -> Option<&GlyphHandle> {
@@ -139,64 +97,22 @@ pub fn unmap_cmap_uvs(cmap: &mut CmapTable, c: CmapUvsKey) -> bool {
 pub fn cmap_lookup_uvs(cmap: &CmapTable, c: CmapUvsKey) -> Option<&GlyphHandle> {
     cmap.uvs.get(&c)
 }
-// Every reader below takes the *whole* cmap table's bytes (`data`) plus an
-// absolute offset into it, instead of the original's `(start: pointer,
-// length_limit: u32)` pair. That pairing is what let the plan's two
-// headline bugs happen: `length_limit` was computed once, elsewhere, via
-// `length.wrapping_sub(table_offset)` -- an offset read straight from the
-// file and never checked against `length` first, so a `table_offset`
-// larger than `length` wrapped the subtraction to a huge number and every
-// downstream `length_limit < ...` guard passed vacuously. Dropping
-// `length_limit` entirely and re-deriving "how much is left" as
-// `data.len() - offset` fresh at each `FontReader::at(offset)` call closes
-// this by construction: `at` itself rejects `offset > data.len()` before
-// any arithmetic on it happens, so there is nothing left to underflow.
-// This also applies recursively -- `read_format14`'s dispatch into
-// `read_uvs_default`/`read_uvs_non_default` had the exact same
-// `length_limit.wrapping_sub(offset)` shape one level down.
+// Every reader below takes the whole cmap table's bytes (`data`) and an
+// absolute offset into it, so "how much is left" is always `data.len() -
+// offset`, checked by `FontReader::at`, and an offset past the table cannot
+// underflow anything. Counts read from the file (`n_groups` and friends)
+// are checked with `require_room`, which cannot overflow either.
 //
-// The other bug class -- a `count`-driven guard computed with
-// `wrapping_add`/`wrapping_mul` on a `count` read straight from the file
-// (`n_groups`, `num_unicode_value_ranges`, `num_uvs_mappings`, all full
-// 32-bit fields) -- is closed the same way it already was in `name.rs`/
-// `meta.rs`: `FontReader::require_room`'s `checked_mul`/`checked_add`.
-// Global across the whole cmap table, threaded through every codepoint-
-// mapping loop below (format4/format12's main mappings, format14's UVS
-// default *and* non-default ranges): each individual group/segment/range
-// is already clamped to its own bounded space (`read_format12`'s
-// `clamped_end` caps a group to the Unicode ceiling, `read_format4` caps a
-// segment to 0xffff), but nothing ties the SUM across many such
-// groups/segments to any real limit. A subtable well within any real
-// byte-size limit can pack thousands of groups, each individually
-// clamped, that still multiply out to billions of loop iterations -- the
-// same "individually bounded, unbounded in aggregate" amplification shape
-// as `table/otl/read.rs`'s `MAX_TOTAL_LANGUAGES` (found here by `cargo
-// fuzz run otf_dump`: a single crafted format12 subtable pushed a parse
-// past several minutes and toward the fuzzer's rss_limit_mb).
-// `read_uvs_non_default` didn't get this budget threaded to it when the
-// rest of this scheme was built out -- its own per-call guard
-// (`require_room(num_mappings, 5)`) only bounds one call's own mapping
-// count against its subtable's own bytes, not how many *times*
-// `read_format14` calls it: many `VarSelectorRecord`s (up to
-// `n_groups`, each with a distinct `varSelector`) can all alias the
-// same small non-default-UVS subtable, and since `CmapUvsKey` includes
-// `selector`, every alias inserts a genuinely new, distinct set of
-// `cmap.uvs` entries rather than repeating idempotent work the way the
-// directory-level offset dedup above handles aliased format4/12/14
-// *table* offsets -- a real, unbounded multiplication a fuzz-found
-// ~70KB input rode to a 2.1GB-vs-2048MB OOM (`tests/fuzz-corpus/
-// known-issues/otf-dump-cmap-uvs-non-default-aliasing-oom.bin`). Fixed
-// by threading the same shared budget into `read_uvs_non_default` that
-// `read_uvs_default` already had. No legitimate cmap needs anywhere near
-// this many total codepoint mappings even summed across every subtable --
-// several subtables each covering the full Unicode range would still only
-// total a few million -- so this budget is generous for real fonts and a
-// hard stop for crafted ones.
+// The total number of code point mappings across the whole table is
+// budgeted too: each group or range is bounded on its own, but a small
+// subtable can pack enough of them to take minutes (a fuzzed format 12
+// subtable did), and many variation selector records can share one
+// non-default UVS subtable, each adding new entries (a fuzzed 70 KB input
+// reached 2.1 GB; `tests/fuzz-corpus/known-issues/
+// otf-dump-cmap-uvs-non-default-aliasing-oom.bin`). Even several
+// subtables covering all of Unicode total only a few million mappings.
 //
-// `pub(crate)`, not private: `otf_reader.rs`'s regression test for the
-// non-default-UVS aliasing bug above asserts `cmap.uvs.len()` never
-// exceeds this, the same way `otl/read.rs`'s own budgets are
-// `pub(crate)` for the equivalent OTL regression tests.
+// `pub(crate)` for `otf_reader.rs`'s regression test.
 pub(crate) const MAX_TOTAL_CMAP_MAPPINGS: u32 = 4_000_000;
 fn read_format12(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u32) {
     let mut r = match FontReader::new(data).at(offset) {
@@ -227,14 +143,6 @@ fn read_format12(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut 
         // are always <= 0x10FFFF) and turns the unbounded/infinite cases
         // into a bounded, still-correct partial read of the group.
         let clamped_end = end_code.min(0x10ffff);
-        // `start_code..=clamped_end`: both ends are fixed once computed
-        // above (neither depends on `budget`), so this is the exact same
-        // walked range the `while` used to compute one step at a time --
-        // an empty range when `start_code > clamped_end`, matching the
-        // `while`'s own zero-iteration case. `budget` only ever causes an
-        // *early* `break`, checked first thing in the body (before the
-        // decrement), the same position the `while`'s own `&& *budget > 0`
-        // clause checked it in.
         for c in start_code..=clamped_end {
             if *budget == 0 {
                 break;
@@ -428,10 +336,8 @@ fn read_format14(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut 
         return; // format, length
     }
     let Ok(n_groups) = r.u32() else { return }; // numVarSelectorRecords, at offset+6
-    // The original's guard is `length_limit >= 11 + 11*n_groups` -- one
-    // byte more than the VarSelectorRecord array's actual size
-    // (10 + 11*n_groups) needs. Preserved exactly: it's stricter, not
-    // weaker, so keeping it doesn't reopen any bound.
+    // Requires one byte more than the VarSelectorRecord array (10 + 11 *
+    // n_groups) needs, as the C code did; stricter, so kept.
     let Some(needed) = (n_groups as usize)
         .checked_mul(11)
         .and_then(|n| n.checked_add(11))
@@ -943,14 +849,8 @@ fn build_format14_for_selector(
     dflt: &mut Buffer,
     nondflt: &mut Buffer,
 ) -> u8 {
-    // Was two `__caryll_allocate_clean` (calloc) scratch arrays, walked
-    // with `.offset()` and manually `free()`'d at the end -- `GlyphId` is
-    // `Copy` (a plain `u16`), so a `Vec` sized and zero-filled up front
-    // (here, filled with the `0xffff` "unset" sentinel instead of zero,
-    // matching the fill loop below that used to run over the raw
-    // allocation) gives the exact same shape with no manual free to
-    // remember, the same conversion `PR #277` applied to this file's
-    // hintmask/cntrmask scratch arrays.
+    // Per code point, the glyph a default or non-default mapping for this
+    // selector gives, or 0xffff for none.
     let mut defaults: Vec<GlyphId> = vec![0xffff; MAX_UNICODE as usize];
     let mut non_defaults: Vec<GlyphId> = vec![0xffff; MAX_UNICODE as usize];
     for (key, glyph) in cmap.uvs.iter() {
@@ -1223,9 +1123,7 @@ mod cmap_read_tests {
 
     #[test]
     fn format4_budget_stops_mid_segment_at_the_exact_boundary() {
-        // Pins the `while c < 0xffff && c <= end_code as u32 && *budget >
-        // 0` -> `for c in start_code..=upper { if *budget == 0 { break }
-        // ... }` conversion (Stage M-42): a single direct-delta segment
+        // Pins the budget check inside the segment loop: a single direct-delta segment
         // spanning 16 codepoints (0x41..=0x50), given a budget of only 5,
         // must map exactly the first 5 codepoints in the segment's own
         // order and leave the budget fully spent -- not skip one, not map
@@ -1385,9 +1283,7 @@ mod cmap_read_tests {
 
     #[test]
     fn uvs_default_budget_stops_mid_range_at_the_exact_boundary() {
-        // Pins the `while u <= end && *budget > 0` -> `for u in
-        // start_unicode_value..=end { if *budget == 0 { break } ... }`
-        // conversion (Stage M-42): a single default-UVS range spanning 16
+        // Pins the budget check inside the range loop: a single default-UVS range spanning 16
         // codepoints (0x41..=0x50, `additionalCount == 15`), given a
         // budget of only 5, must register a UVS mapping for exactly the
         // first 5 codepoints in the range's own order and leave the

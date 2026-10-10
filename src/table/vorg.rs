@@ -15,20 +15,11 @@ pub struct VorgTable {
     pub default_vertical_origin: Pos,
     pub entries: Vec<VorgEntry>,
 }
-// Stage 6-4 "Box化" Box-ified the outer `VorgTable` itself (replacing the
-// entire `VorgTableElementInterface` vtable); Stage 7-2-c "inner Vec化"
-// finishes the job here: `entries` was the only allocation this struct
-// owned, so `Vec<VorgEntry>` plus its own drop glue replaces the manual
-// `free`-based `impl Drop` that used to live here. `num_vert_origin_y_metrics`
-// is kept as a real field (not collapsed into `entries.len()`, unlike
-// `CvtTable.length`): it is read independently at
-// `otf_reader/unconsolidate.rs`'s `merge_vmtx` as the loop bound, and always
-// equals `entries.len()` by construction at every write site, so keeping it
-// is a conservative choice that changes no call site beyond the storage
-// mechanism.
-// `data`'s first 4 bytes (majorVersion/minorVersion) are read by neither
-// this nor the original C -- VORG only ever shipped as version 1.0, and
-// nothing here branches on it.
+// `num_vert_origin_y_metrics` always equals `entries.len()`; it is kept as
+// a field because `otf_reader/unconsolidate.rs`'s `merge_vmtx` reads it as
+// its loop bound.
+// `data`'s first 4 bytes (majorVersion/minorVersion) are not read -- VORG
+// only ever shipped as version 1.0, and nothing here branches on it.
 fn parse_vorg(data: &[u8]) -> Result<(GlyphId, Pos, Vec<VorgEntry>), ReadError> {
     let mut r = FontReader::new(data);
     r.skip(4)?;
@@ -109,8 +100,7 @@ mod parse_vorg_tests {
     #[test]
     fn entries_array_shorter_than_declared_count_errs_instead_of_reading_oob() {
         // num_vert_origin_y_metrics says 2 but only one 4-byte entry
-        // actually follows the 8-byte header -- the original read past the
-        // table's real end here unconditionally.
+        // actually follows the 8-byte header; must not read past the end.
         let mut data = header(0, 2);
         data.extend_from_slice(&5u16.to_be_bytes());
         data.extend_from_slice(&10i16.to_be_bytes());

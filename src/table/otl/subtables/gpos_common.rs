@@ -64,19 +64,10 @@ pub(crate) fn dispose_mark_array(arr: &mut MarkArray) {
 /// bounding worst-case memory to a few tens of MB instead of exhausting
 /// all available RAM.
 pub(crate) const MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE: u32 = 2_000_000;
-/// The original checked only that `MarkCount` itself (2 bytes at `offset`)
-/// was in bounds, then read `mark_count` 4-byte records with no room check
-/// at all -- a `mark_count` large enough to run past `table_length` read
-/// straight off the end of the table. `require_room` closes that.
-///
-/// It also indexed `cov[j]` for every `j` up to `mark_count` with no check
-/// against `cov`'s own length: `mark_count` (read from this MarkArray) and
-/// `cov.len()` (the sibling Coverage table's glyph count) are two
-/// independent, both attacker-controlled fields that a well-formed font
-/// happens to keep equal but nothing here enforced -- a `MarkCount` larger
-/// than the Coverage table's glyph count panicked on `Vec` index out of
-/// bounds (a real, crafted-font-reachable crash, not a memory-safety bug
-/// but still a DoS). Capping the loop at `cov.len()` too fixes it.
+/// Reads a MarkArray at `offset`. Its record count is checked against the
+/// table, and the marks are capped at `cov.len()`: the MarkArray's count and
+/// the Coverage's glyph count come from the font independently and need not
+/// agree.
 pub fn otl_read_mark_array(array: &mut MarkArray, cov: &Coverage, data: &[u8], offset: u32) {
     let Ok(mut r) = FontReader::new(data).at(offset as usize) else {
         return;
@@ -127,16 +118,8 @@ pub fn otl_parse_mark_array(
                 array.push(mark);
             }
             Some(class_name_val) => {
-                // Deduplicates by class name, matching the original's Bob
-                // Jenkins hash + `memcmp` -- see `CffSidEntry`
-                // (RUST_MIGRATION.md) for why this distinction is preserved
-                // rather than simplified away. The id registered here is
-                // a placeholder, overwritten below once every distinct
-                // class name is known and can be renumbered in
-                // alphabetical order -- the original's insert-time id
-                // (`HASH_COUNT` at insert time) is equally provisional,
-                // later replaced by a `HASH_SORT`-driven renumbering
-                // pass.
+                // Classes are keyed by name; the id given here is replaced
+                // below once all names are known and numbered alphabetically.
                 let class_name = class_name_val.as_str_bytes().unwrap_or(&[]).to_vec();
                 h.entry(class_name).or_insert(0 as GlyphClass);
                 mark.anchor.present = true;
@@ -146,13 +129,8 @@ pub fn otl_parse_mark_array(
             }
         }
     }
-    // The original's `HASH_SORT`-with-`compare_class_hash` step sorts
-    // hash nodes alphabetically by class name (`strcmp`), then renumbers
-    // `class_id` sequentially over that order. `BTreeMap<Vec<u8>, _>`
-    // already iterates in that same byte-wise-ascending order (matching
-    // `strcmp` exactly on NUL-free byte sequences), so no separate sort
-    // step is needed here -- just walk the already-sorted map and
-    // replace each placeholder id with its final, alphabetical-rank one.
+    // Number the classes in alphabetical order of their names (the
+    // `BTreeMap`'s order).
     // Class ids and the class count are 16-bit. Each mark names one class and
     // a `marks` object is bounded by `support::json_limits`, so the distinct
     // classes cannot outnumber 65,535.
@@ -160,16 +138,9 @@ pub fn otl_parse_mark_array(
     for (rank, id) in h.values_mut().enumerate() {
         *id = rank as GlyphClass;
     }
-    // Marks were pushed above with `mark_class` left at its placeholder;
-    // re-walk them, re-deriving each one's class name from the same JSON
-    // data the first pass read (mirroring the original's second
-    // traversal -- marks don't carry their own class-name string, only
-    // the resolved id) and looking up its now-final id. Every entry with
-    // `.anchor.present` is guaranteed to have registered its class name
-    // in the loop above, so (as in the original) there is no null/absent
-    // check here before re-deriving it. `fields.len() == (*array).len()`
-    // here: the loop above pushes exactly one mark per field, on every
-    // branch.
+    // Give each mark its final class id, re-reading its class name from the
+    // JSON (marks keep only the id). Every mark with an anchor registered
+    // its class above, and the loop above pushed one mark per field.
     for (idx, (_, anchor_record)) in fields.iter().enumerate() {
         if array[idx].anchor.present {
             let class_name = anchor_record

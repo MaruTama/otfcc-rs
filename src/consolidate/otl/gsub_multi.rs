@@ -19,12 +19,9 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
     };
     // Deduplicates by `from.index`, first occurrence wins -- a later
     // duplicate's already-consolidated `to` coverage is simply dropped along
-    // with the rest of the pre-dedup `subtable` when it's disposed below,
-    // exactly what the uthash HASH_FIND-then-skip-if-found this replaced
-    // did. `BTreeMap`, not `IndexMap`: the original also did a HASH_SORT by
-    // `fromid` right before reading entries back out, so the final order is
-    // ascending by glyph id, not insertion order -- a `BTreeMap`'s iteration
-    // order already is that, for free.
+    // with the rest of the pre-dedup `subtable` when it's disposed below.
+    // `BTreeMap` so the result is ascending by glyph id, not insertion
+    // order.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, Coverage)> =
         std::collections::BTreeMap::new();
     for entry in subtable.iter_mut() {

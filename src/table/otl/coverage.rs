@@ -6,61 +6,29 @@ use otfcc_json::BuiltValue;
 use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphId, count_u16};
 use crate::table::otl::budget::OtlReadBudget;
-/// A glyph coverage set: C by way of c2rust had this as a hand-rolled
-/// `malloc`/`realloc` array (`num_glyphs`/`capacity`/`glyphs: *mut
-/// GlyphHandle`); it was never anything but a growable array of
-/// `GlyphHandle`, so `Vec<GlyphHandle>` *is* `Coverage` now, not a struct
-/// wrapping one -- same "C-native vector shape becomes a bare `pub type`"
-/// call as `ColrTable`/`TsiTable` earlier in this migration.
+/// A glyph coverage set, in coverage-index order.
 pub type Coverage = Vec<GlyphHandle>;
-/// The `coverage_entries` limit of `OtlReadBudget`. It bounds the total cost of *building* a `Coverage` -- format 1's `for _ in
-/// 0..glyph_count { h.insert(...) }` loop and format 2's `while k <= end`
-/// range-expansion loop, both in `read_coverage` below -- across a *whole*
-/// GSUB/GPOS/GDEF table, every `read_coverage` call combined, not just one.
-/// Originally guarded only format 2's range expansion; a `cargo fuzz run otf_parse` CI
-/// job later found that format 1 has the exact same "per-call cap alone
-/// still multiplies into a table-wide cost explosion" gap -- `glyph_count`
-/// is individually bounded (`require_room` against the table, at most
-/// 65,536 entries), but nothing capped how many separate `read_coverage`
-/// calls across a table's many lookups/subtables could each pay that cost,
-/// and each fully-populated `Coverage` retained afterward (a real,
-/// persistent `Vec<GlyphHandle>`, not a temporary) costs real memory --
-/// unlike a coverage table's actual byte size, that cost doesn't shrink
-/// just because the subtable offsets referencing it alias each other or
-/// point at the same bytes from unrelated (or corrupted) lookups.
-/// `cargo fuzz` found a GSUB table whose ~300 processed lookups' subtable
-/// dispatches repeatedly, independently built full ~65,535-glyph `Coverage`
-/// values this way, pushing RSS well past a 2048MB limit. Same
-/// "per-subtable cap alone still multiplies into a table-wide hang" shape
-/// `OtlReadBudget`'s `class_zero_glyphs`/`class_coverage_calls`
-/// document and fix for a different call site (see that file's own
-/// comments for the fuller reasoning). Sized at ~76x the largest amount of
-/// work any single legitimate coverage table could ever need (65,536
-/// distinct glyphs), leaving generous headroom for a table with many real,
-/// non-adversarial coverage tables while still keeping worst-case
-/// adversarial cost bounded (confirmed against both the original
-/// format-2-only fuzz-found font, which otherwise timed out at 1753s under
-/// CI's fuzz job, and the format-1 OOM this comment now also documents).
+/// The `coverage_entries` limit of `OtlReadBudget`. It bounds the total
+/// cost of *building* a `Coverage` -- format 1's per-glyph loop and format
+/// 2's range expansion, both in `read_coverage` below -- across a *whole*
+/// GSUB/GPOS/GDEF table, every `read_coverage` call combined.
+///
+/// Each call is individually bounded (at most 65,536 glyphs), but many
+/// lookups' subtables can point at the same maximal coverage bytes, so a
+/// per-call cap alone still multiplies into a table-wide hang or OOM (both
+/// formats were found this way by `cargo fuzz`). This is the same shape
+/// `OtlReadBudget`'s `class_zero_glyphs`/`class_coverage_calls` handle for
+/// `chaining/read.rs`'s `class_coverage`. Sized at ~76x the largest amount
+/// of work a single legitimate coverage table can need (65,536 distinct
+/// glyphs), leaving headroom for fonts with many real coverage tables.
 pub(crate) const MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE: u32 = 5_000_000;
 pub(crate) fn push_to_coverage(coverage: &mut Coverage, h: GlyphHandle) {
     coverage.push(h);
 }
-// `data`/`table_length` are always the untouched pointer/length of the
-// whole owning GSUB/GPOS/GDEF table (confirmed by tracing every call site
-// up to `read_otl`/`read_gdef`, which read `table.length` once
-// from the `PacketPiece` and thread it unchanged through every layer down
-// to here -- only `offset` grows as recursion descends into subtables).
-// That means `slice::from_raw_parts(data, table_length as usize)` below
-// really does describe the same allocation the top-level table reader
-// validated, so every bounds check downstream of it is real.
-//
-// The original's own guards here used `wrapping_add` on `offset` (a `u32`
-// read from the file, unbounded) plus a small constant: `offset` close to
-// `u32::MAX` could wrap the whole comparison back down to something
-// small, passing a guard that should have failed -- the same overflow-
-// defeats-guard shape as `cmap.rs`'s bugs, just via addition instead of
-// multiplication. `FontReader::at`/`require_room` use `checked_add`/
-// `checked_mul` throughout, closing this.
+// `data` is always the whole owning GSUB/GPOS/GDEF table; only `offset`
+// grows as reading descends into subtables. `offset` comes from the file,
+// so every position is computed through `FontReader::at`/`require_room`
+// (`checked_add`/`checked_mul`), never by plain addition that could wrap.
 pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Coverage {
     let mut coverage: Coverage = Vec::new();
     let Ok(mut r) = FontReader::new(data).at(offset as usize) else {
@@ -77,21 +45,16 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget
             if r.require_room(glyph_count as usize, 2).is_err() {
                 return coverage;
             }
-            // `HASH_SORT`-by-`covIndex` is a no-op here: `covIndex` was
-            // assigned `j` (this loop's own position) at insert time, and
-            // only a first occurrence of each `gid` is ever inserted, so
-            // the sequence of inserted `covIndex` values is already
-            // strictly increasing -- sorting by it reproduces insertion
-            // order exactly. `IndexSet` (insertion-order-preserving,
-            // dedups on `.insert()`) needs no explicit sort step at all.
+            // Each glyph's coverage index is its position `j`, and only a
+            // first occurrence of each `gid` is inserted, so insertion
+            // order is coverage-index order. `IndexSet` dedups on
+            // `.insert()` and needs no sort step.
             //
             // `glyph_count` is individually bounded (`require_room`
             // against the table, at most 65,536 entries) but, like format
-            // 2's range expansion below, nothing capped how many separate
-            // `read_coverage` calls across a table's many lookups/
-            // subtables could each pay that cost -- see
-            // `MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE`'s doc comment for the
-            // fuzz-found OOM this loop's own missing budget check caused.
+            // 2's range expansion below, many `read_coverage` calls across
+            // a table's lookups/subtables could each pay that cost -- see
+            // `MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE`'s doc comment.
             let mut h: indexmap::IndexSet<GlyphId> = indexmap::IndexSet::new();
             'glyphs: for _ in 0..glyph_count {
                 if !budget.take_coverage_entry() {
@@ -111,46 +74,20 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget
                 return coverage;
             }
             // Unlike format 1, `covIndex` here is `startCoverageIndex + k`
-            // (`k` the absolute gid, per the original C -- see
-            // RUST_MIGRATION.md) which is *not* generally monotonic with
-            // insertion order once ranges overlap or run out of order, so
-            // the `HASH_SORT`-by-`covIndex` step is not a no-op and must
-            // be reproduced explicitly: dedup-by-gid (first occurrence
-            // wins) via `IndexMap`, then a stable sort by the stored
-            // `covIndex`, matching `HASH_SORT`'s documented mergesort
-            // stability for ties.
+            // (`k` the absolute gid -- see RUST_MIGRATION.md), which is
+            // *not* generally monotonic with insertion order once ranges
+            // overlap or run out of order. So: dedup-by-gid (first
+            // occurrence wins) via `IndexMap`, then a stable sort by the
+            // stored `covIndex`.
             //
-            // `range_count` (bounded by `require_room` against the table)
-            // and each range's own `start..=end` span (bounded by u16,
-            // at most 65,536 glyphs) are each individually bounded -- but
-            // nothing capped their *product*, and nothing capped the
-            // total across the many separate `read_coverage` calls one
-            // table's worth of lookups/subtables can make either. CI
-            // fuzz found a coverage table (~511KB) whose ~65,535 range
-            // records each spanned close to the full glyph ID space,
-            // expanding into billions of `IndexMap::entry` calls (a
-            // libFuzzer timeout after 1753s) despite `h` itself never
-            // holding more than 65,536 entries -- every range past the
-            // first that already covers the full space is 100% wasted
-            // work. A per-call cap alone was not enough: `otl/read.rs`'s
-            // own budgets (`MAX_TOTAL_SUBTABLES_PER_LOOKUP` /
-            // `MAX_TOTAL_LOOKUPS_PER_TABLE`) still allow many lookups'
-            // worth of subtables to alias the same maximal-cost coverage
-            // bytes, multiplying a fast single call back into the same
-            // hang -- confirmed by instrumenting this exact fuzz-found
-            // font, which kept timing out under a per-call-only cap.
-            // The table-wide `OtlReadBudget::coverage_entries` (one
-            // budget per table read) closes that gap the
-            // same way `class_zero_glyphs`/`class_coverage_calls` do for
-            // `chaining/read.rs`'s `class_coverage`.
-            // No coverage table can ever usefully describe more than
-            // 65,536 distinct glyphs (the whole `GlyphId` space), so
-            // this budget -- many multiples of that -- only ever
-            // discards genuinely redundant/adversarial range expansion
-            // across the whole table, not real coverage. Shared with
-            // format 1's loop above: both are the same class of cost
-            // (building a `Coverage`), so they draw from one combined
-            // table-wide ceiling rather than each getting their own.
+            // `range_count` and each range's `start..=end` span are each
+            // bounded, but their product is not: ~65,535 ranges each
+            // spanning the whole glyph space expand into billions of
+            // `IndexMap::entry` calls although `h` never holds more than
+            // 65,536 entries. The table-wide
+            // `OtlReadBudget::coverage_entries` (shared with format 1's
+            // loop above) caps that; it only ever discards redundant range
+            // expansion, never real coverage.
             let mut h: indexmap::IndexMap<GlyphId, i32> = indexmap::IndexMap::new();
             'ranges: for _ in 0..range_count {
                 let start = r.u16().unwrap();
@@ -183,10 +120,6 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget
     }
     coverage
 }
-// No longer `extern "C"`: every call site (`gsub_multi.rs`, `gsub_ligature.rs`,
-// `gsub_reverse.rs`, `chaining/dump.rs`) calls this directly by name, never
-// through a function-pointer value -- confirmed by grep across the crate.
-// Same for `parse_coverage`/`build_coverage_format`/`build_coverage` below.
 pub(crate) fn dump_coverage(coverage: &Coverage) -> BuiltValue {
     let mut a = BuiltValue::new_array(coverage.len());
     for h in coverage {
@@ -213,11 +146,7 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
         buf.write_u16be(0_u16);
         return buf;
     }
-    // A local `Vec` scratch buffer, not a `__caryll_allocate_clean`/`qsort`/
-    // `free` trio: `sort_by_key` (stable, matching the conservative choice
-    // made everywhere else in this file) reproduces `by_gid`'s ordering,
-    // and the `Vec` drops itself at every one of this function's several
-    // return points instead of needing a matching `free` at each.
+    // `sort_by_key` is stable, like every other sort in this file.
     let mut r: Vec<GlyphId> = coverage.iter().map(|h| h.index).collect();
     r.sort_by_key(|&gid| gid);
     let jj: GlyphId = count_u16(r.len());
@@ -278,13 +207,8 @@ pub(crate) fn build_coverage(coverage: &Coverage) -> Buffer {
     build_coverage_format(coverage, 0_u16)
 }
 pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
-    // Two `truncate`s, not one `num_glyphs = k` at the end as the original
-    // did: each `truncate` lets `Vec`'s own drop glue free every handle
-    // past the new length, including ones this function's own compaction
-    // loops never got around to resetting to `Handle::default()` directly
-    // (a survivor that gets superseded by a *later* compaction write, but
-    // never becomes a write target itself, is exactly that case) -- the
-    // original leaked that name; `truncate` doesn't.
+    // `truncate` drops every handle past the compacted length, including
+    // survivors that were superseded but never overwritten themselves.
     let mut k: usize = 0;
     for j in 0..coverage.len() {
         if !coverage[j].name.is_empty() {
@@ -369,10 +293,8 @@ mod read_coverage_tests {
 
     #[test]
     fn offset_near_u32_max_does_not_wrap_the_guard() {
-        // The original computed `offset.wrapping_add(4)` -- an offset this
-        // close to u32::MAX wraps that addition back down to a small
-        // number, which could pass the `table_length < ...` guard even
-        // though `offset` itself points nowhere near the table.
+        // An offset this close to u32::MAX must not wrap `offset + 4` back
+        // down to a small number that passes the length check.
         let data = [0u8; 8];
         let cov = read_coverage(&data, 0xFFFF_FFF0, &mut OtlReadBudget::new());
         assert!(cov.is_empty());

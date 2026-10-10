@@ -11,12 +11,6 @@ use crate::font::sfnt_builder::{
 use crate::otf_writer::stat::{stat_font, unstat_font};
 
 /// Serializes a consolidated font into sfnt (OTF/TTF) bytes.
-///
-/// Was a `FontSerializer` impl on a zero-sized `OtfSerializer` marker
-/// struct plus a casting wrapper; see `otf_reader::read_otf` for why that
-/// trait is gone. With the erased return type went the reason to hand back
-/// a `Buffer::into_raw` pointer -- only `ffi/dll.rs`'s genuine `extern "C"`
-/// boundary needs one, and it makes that conversion itself now.
 pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
     stat_font(&mut *font, options);
     let mut builder = SfntBuilder::new(

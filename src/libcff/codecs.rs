@@ -82,46 +82,20 @@ pub fn cff_encode_cff_float(val: f64) -> Buffer {
     }
     blob
 }
-// Every one of the token decoders in this file (`cff_decode_cs2_token`,
-// `cff_dec_i`/`cff_dec_r`/`cff_dec_o`/`cff_dec_e`) used to read up to 5
-// bytes from `start` unconditionally, based only on the *first* byte's
-// value, with no idea how many bytes actually remained. Both this file's
-// callers already bound their own top-level walk against a real length
-// (`cff_parse_outline`'s `while start < data.offset(len)`, `dict.rs`'s
-// `parse_to_callback`'s equivalent) -- but that only checks *before*
-// decoding a token, not that the token *itself* stays within bounds, so a
-// token starting near the end of a truncated CharString or DICT could
-// still read past it. Every decoder here takes a `slice` (the bytes
-// actually available from `start`) and returns `Option<u32>`, `None` on
-// any read that would run past it; both callers stop their walk on
-// `None` instead of reading on.
-//
-// The `*const u8`/`remaining` raw-pointer-plus-length pair each decoder
-// originally took was itself pure c2rust residue on top of the above --
-// every call site already holds the bytes as a real slice before
-// calling in, so passing `&[u8]` directly (rather than reconstructing
-// one via `slice::from_raw_parts` on this side) removes the last unsafe
-// operation from every decoder. `cff_dec_r`'s `atof`/`strtod` FFI call
-// and `cff_encode_cff_float`'s `sprintf`-based `%.13g` formatting --
-// once the file's last two `unsafe` operations, kept that way
-// deliberately for output byte-precision preservation -- are now safe
-// Rust too (`str::parse::<f64>()` and a from-scratch `%.13g`
-// reimplementation, respectively); see each function's own comment.
+// Every token decoder in this file takes the bytes that remain from the
+// token's start and returns `None` if the token would run past them; the
+// charstring and DICT walks stop there. A token starting near the end of a
+// truncated charstring or DICT is otherwise read past its end.
 pub fn cff_decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let mut r = FontReader::new(slice);
     let b0 = r.u8().ok()?;
-    // A CS2 "operand" always becomes a `Double`, never stays an `Integer`
-    // -- the original built it as `CS2_OPERAND` (== `Integer`) and then
-    // unconditionally normalized it to `CS2_FRACTION` (== `Double`)
-    // immediately afterward, so this constructs the normalized value
-    // directly instead of writing-then-retagging.
+    // A CS2 operand always becomes a `Double`.
     let (value, advance): (CffValue, u32) = if b0 <= 27 {
         if b0 == 12 {
             let b1 = r.u8().ok()?;
             (CffValue::Operator(((b0 as i32) << 8) | b1 as i32), 2)
         } else {
-            // 0-11 and 13-27 all take this same one-byte-operator shape
-            // in the original.
+            // 0-11 and 13-27 are all one-byte operators.
             (CffValue::Operator(b0 as i32), 1)
         }
     } else if b0 == 28 {
@@ -193,13 +167,8 @@ fn cff_dec_i(slice: &[u8], val: &mut CffValue) -> Option<u32> {
         i = ((b1 as i32) << 24) | ((b2 as i32) << 16) | ((b3 as i32) << 8) | b4 as i32;
         len = 5;
     } else {
-        // Not a recognized lead byte -- `len = 0` signals "no token
-        // consumed" to the caller the same way the original did; the
-        // integer payload was left as whatever garbage sat in the
-        // calloc'd/reused union in that case, never read since nothing
-        // downstream trusts a zero-length token's value. `0` here is an
-        // explicit, defined stand-in for that same "never actually read"
-        // slot, not a behavior change.
+        // Not a recognized lead byte: a length of 0 means no token was
+        // consumed, and the value is never read.
         i = 0;
         len = 0;
     }
@@ -209,17 +178,9 @@ fn cff_dec_i(slice: &[u8], val: &mut CffValue) -> Option<u32> {
 static NIBBLE_SYMB: [&str; 15] = [
     "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "E", "E-", "", "-",
 ];
-// The original scanned the nibble string with no bound at all beyond
-// finding a `0xF` terminator nibble -- a malformed DICT real number that
-// never has one read arbitrarily far past the buffer. It also built the
-// decoded text with `strcat` into a fixed 72-byte stack buffer with no
-// check that the (attacker-controlled) nibble count actually fit --
-// `restr` is exactly the C-string-manipulation shape flagged crate-wide
-// as the main outstanding risk here. Both are closed by scanning through
-// a bounds-checked slice and building the text into a growable `Vec<u8>`
-// instead of a fixed buffer; `atof`/`strtod` is still what actually
-// parses it, unchanged, since that's the number-formatting fidelity this
-// PR isn't trying to touch.
+// Decodes a DICT real number: nibbles up to a 0xF terminator, read only
+// within the slice (a number with no terminator fails), into text that is
+// then parsed.
 fn cff_dec_r(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let mut text: Vec<u8> = Vec::new();
     let mut nibst: usize = 1;
@@ -274,21 +235,8 @@ fn cff_dec_o(slice: &[u8], val: &mut CffValue) -> Option<u32> {
 }
 fn cff_dec_e(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let &b0 = slice.first()?;
-    // Used to `printf` "Undefined Byte in CFF: %d." here on every call --
-    // a raw libc `printf`, not `logger_log_sds`, so it wrote to real stdout
-    // unconditionally, bypassing `--quiet`/the fuzz harness's empty logger
-    // target entirely. This function decodes one *token* while walking a
-    // charstring/DICT byte-by-byte, so a charstring built almost entirely
-    // of undefined-opcode bytes calls it once per byte -- a CI fuzz run
-    // found a single input that turned this into a genuine hang (a
-    // "slow-unit" of 588 seconds for what should be a near-instant parse),
-    // the unbuffered-`printf`-per-byte cost multiplied across a
-    // charstring/glyph count already large enough on its own (see the
-    // `build_outline` per-glyph-stack fix elsewhere in this README for the
-    // same "small input, huge glyph/byte count" shape). No other decoder
-    // in `DE_T2` logs anything at all; removing this brings `cff_dec_e` in
-    // line with the rest and closes the amplification at the source
-    // instead of trying to rate-limit or dedupe it.
+    // Undefined bytes are decoded silently: one per byte of a charstring
+    // made of them, so logging each made a fuzzed input take 588 seconds.
     *val = CffValue::Integer(b0 as i32);
     Some(1)
 }

@@ -22,16 +22,11 @@ pub enum CffInstructionType {
     PhantomOperator = 3,
     PhantomOperand = 4,
 }
-// Was a C-shaped `struct { type_0: CffInstructionType, arity: Arity,
-// c2rust_unnamed: union { d: f64, i: i32 } }`. `type_0`'s five values don't
-// map 1:1 onto the union's two arms -- `Operand`/`PhantomOperand` share
-// `.d`, `Operator`/`Special`/`PhantomOperator` share `.i` -- so `type_0`
-// stays a separate field (its own value still matters beyond "which arm is
-// live": it distinguishes a real operator from a `Special` non-operator
-// byte occupying the same `.i` storage, and the "Phantom" variants from
-// their non-phantom counterparts, both invisible to `CffCharstringArgument`
-// alone). Both arms are `Copy` (no owned heap data), so this enum stays
-// `Copy` too.
+// `kind`'s five values don't map 1:1 onto `CffCharstringArgument`'s two
+// arms -- `Operand`/`PhantomOperand` hold a number, `Operator`/`Special`/
+// `PhantomOperator` an opcode -- so `kind` stays a separate field: it also
+// distinguishes a real operator from a `Special` non-operator byte, and
+// the "Phantom" variants from their non-phantom counterparts.
 #[derive(Copy, Clone, Debug)]
 pub struct CffCharstringInstruction {
     pub kind: CffInstructionType,
@@ -70,11 +65,6 @@ impl CffCharstringInstruction {
         self.arg = CffCharstringArgument::I(v);
     }
 }
-// `instr` was `__caryll_reallocate`'d in 256-instruction blocks by
-// `ensure_there_is_space`, tracked by a hand-rolled `length`/`free` pair --
-// exactly what `Vec` already provides, so both counters are dropped
-// entirely (`length` duplicated `.len()`; `free` duplicated spare
-// capacity) and the three push helpers below become plain `.push()`.
 #[derive(Clone, Debug)]
 pub struct CffCharstringIl {
     pub instr: Vec<CffCharstringInstruction>,
@@ -198,10 +188,8 @@ fn il_push_masks(
     _il_push_maskgroup(il, &g.contour_masks, &position, &stems, jh, OP_CNTRMASK);
     _il_push_maskgroup(il, &g.hint_masks, &position, &stems, jm, OP_HINTMASK);
 }
-// `stems` is never null in practice -- both call sites below pass a
-// reference to a `Glyph`'s own `stem_h`/`stem_v` field, an owned `Vec`, not
-// an `Option` -- but the emptiness check the original also made stays,
-// since a genuinely empty stem list is a normal, well-formed glyph.
+// A genuinely empty stem list is a normal, well-formed glyph, so it pushes
+// nothing.
 fn _il_push_stemgroup(
     il: &mut CffCharstringIl,
     stems: &StemDefList,
@@ -654,18 +642,10 @@ mod cff_compile_glyph_to_il_tests {
     use crate::table::glyf::{Point, new_glyf_glyph};
     use crate::vf::vq::vq_create_still;
 
-    // `cff_compile_glyph_to_il` calloc's a scratch `*mut Contour` array
-    // (one slot per source contour) and used to write each slot's first
-    // value via a plain `*newcontour = Vec::new();` -- an all-zero bit
-    // pattern is not a valid `Vec`, so that assignment's implicit drop of
-    // the "old" value was UB under Miri regardless of whether a real
-    // contour ever made it through afterward (see
-    // [[otfcc-vec-field-assign-needs-calloc]]; this crate's own
-    // in-code comment arguing the opposite -- "a Vec with capacity 0
-    // never touches its pointer field when dropped" -- is exactly the
-    // belief the project's README later retracted). Needs at least one
-    // contour with at least one point to actually reach the scratch
-    // array's write at all.
+    // Compiling a glyph with at least one contour with at least one point
+    // exercises `cff_compile_glyph_to_il`'s per-contour scratch copies;
+    // under Miri this checks no invalid value is ever constructed or
+    // dropped there.
     #[test]
     fn compiling_a_glyph_with_one_contour_does_not_construct_invalid_scratch_values() {
         let mut g = new_glyf_glyph();

@@ -46,23 +46,13 @@ pub struct Os2Table {
     pub us_lower_optical_point_size: u16,
     pub us_upper_optical_point_size: u16,
 }
-// Stage 6-4 "Box化": every field is a scalar/fixed-size array, so no
-// `Drop` impl is needed -- `Box::new` construction is sufficient. The
-// entire vtable is deleted: grepping (for the bare `TABLE_I_OS_2`
-// identifier, not an anchored `\.` pattern -- see the `CmapTable` PR's
-// note on why that matters) confirmed only `.create`/`.free` were ever
-// called, both from within this crate (this file's own read/parse entry
-// points, and `model.rs`'s table disposal).
 // `length` here means "the whole declared version tier's fields must fit,
-// or the whole table is rejected" -- not merely "read as much as fits".
-// The three `version >= N && length < M` gates are the original's, kept
-// verbatim: a table that *claims* a higher version than its actual length
-// supports is dropped entirely rather than silently truncated, exactly as
-// before. Because each threshold (68 < 78 < 86 < 96 < 100) is strictly
-// increasing and every version-gated read only happens once the
-// corresponding threshold has already passed, reading sequentially through
-// one `FontReader` lands on the same fixed byte offsets the original's
-// `data.offset(N)` calls used explicitly -- confirmed field-by-field below.
+// or the whole table is rejected" -- not merely "read as much as fits". A
+// table that *claims* a higher version than its length supports is dropped
+// entirely rather than silently truncated. Because each threshold (68 < 78
+// < 86 < 96 < 100) is strictly increasing and every version-gated read only
+// happens once its threshold has passed, reading sequentially through one
+// `FontReader` lands on the fixed byte offsets the spec gives each field.
 fn decode_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     if data.len() < 2 {
         return Err(ReadError {
@@ -71,8 +61,7 @@ fn decode_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
         });
     }
     // All-zero is a valid bit pattern for every field (integers and
-    // fixed-size byte arrays only), matching the old `memset`-then-
-    // `.version = 4` construction.
+    // fixed-size byte arrays only).
     let mut os2 = Os2Table {
         version: 4,
         x_avg_char_width: 0,
@@ -183,11 +172,10 @@ fn decode_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
         });
     }
     if os2.version >= 5 {
-        // Preserving the original's bug verbatim: both reads assign to
-        // `us_lower_optical_point_size`, so `us_upper_optical_point_size`
-        // is never actually populated from the file (stays 0). Fixing this
-        // is a correctness change outside this migration's parse-bounds-
-        // safety scope; see RUST_MIGRATION.md.
+        // Kept from upstream otfcc for byte-identical output: both reads
+        // assign to `us_lower_optical_point_size`, so
+        // `us_upper_optical_point_size` is never populated from the file
+        // (stays 0). See RUST_MIGRATION.md.
         os2.us_lower_optical_point_size = r.u16()?;
         os2.us_lower_optical_point_size = r.u16()?;
     }
@@ -753,8 +741,8 @@ mod parse_os_2_tests {
     fn version_1_table_shorter_than_86_is_rejected_even_though_base_fields_parsed() {
         // The base (0..68) and typo/win (68..78) fields are all in bounds
         // here -- only the version-1-specific code-page-range fields
-        // (78..86) are missing. The original drops the *whole* table in
-        // this case rather than returning what it already read.
+        // (78..86) are missing. The *whole* table is dropped in this case
+        // rather than returning what was already read.
         let mut data = version_0_base(0);
         data[0..2].copy_from_slice(&1u16.to_be_bytes()); // version 1
         data.resize(85, 0);
@@ -773,8 +761,8 @@ mod parse_os_2_tests {
 
     #[test]
     fn version_5_table_leaves_upper_optical_point_size_at_zero() {
-        // Preserving the original's field-name bug: both reads at this
-        // version tier assign to `us_lower_optical_point_size`, so
+        // The upstream field-name bug: both reads at this version tier
+        // assign to `us_lower_optical_point_size`, so
         // `us_upper_optical_point_size` is never actually populated.
         let mut data = version_0_base(0);
         data[0..2].copy_from_slice(&5u16.to_be_bytes());

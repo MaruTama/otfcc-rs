@@ -1,6 +1,6 @@
 
-//! otfcc — an OpenType font manipulation library, transpiled from C and
-//! progressively rewritten in Rust (see RUST_MIGRATION.md).
+//! otfcc — an OpenType font manipulation library, ported from C to Rust
+//! (see RUST_MIGRATION.md).
 //!
 //! The only symbols any external caller uses are the four `extern "C"`
 //! functions re-exported from [`ffi::dll`]; everything else is internal.

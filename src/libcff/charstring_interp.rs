@@ -837,16 +837,7 @@ mod cff_parse_outline_total_calls_tests {
     // this test), the last is "push operand 0 (byte 139), return (11)".
     // With this index's count (108, `compute_subr_bias`'s bias-107
     // bracket), pushing operand 0 before `callgsubr` resolves to `bias +
-    // 0` = index 107, this index's own last entry -- deliberately avoids
-    // ever needing a *negative* pushed operand (which real fonts use to
-    // reach a low subroutine index): `cffnum(...) as u32`, downstream of
-    // this in `callgsubr`'s own handling, is a float-to-int cast, and
-    // Rust's saturates a negative float to `0` rather than wrapping the
-    // way the C original's cast did, so a negative operand here would
-    // resolve to index `bias + 0` = 107 anyway, not to the small index it
-    // looks like it should -- a real, pre-existing quirk of this already-
-    // migrated cast, unrelated to this test's own purpose, sidestepped
-    // instead of exercised.
+    // 0` = index 107, this index's own last entry.
     //
     // The subroutine's pushed operand is never popped by anything
     // (`return` doesn't touch the stack), so `stack.index` at the end
@@ -906,10 +897,7 @@ mod cff_parse_outline_total_calls_tests {
         };
         let mut total_calls: u32 = 0;
         // This charstring only calls `callgsubr`; it never reaches a draw
-        // operator, so the outline context is never actually touched --
-        // still needs to be a real `&mut Glyph`-backed context now that
-        // `cff_parse_outline` takes one unconditionally rather than a
-        // nullable `*mut c_void`.
+        // operator, so the outline context is never actually touched.
         let mut g = new_glyf_glyph();
         let mut ctx = dummy_outline_context(&mut g);
         cff_parse_outline(
@@ -1055,20 +1043,15 @@ mod cff_parse_outline_hintmask_tests {
         assert_eq!(stack.stem, 1);
     }
 
-    // A second, independent fuzz-found crash in this same op family: a
-    // charstring chaining enough `hstem` operators to push the *real*
-    // cumulative hint count (tracked by `context.g.stem_h`, an unbounded
-    // `Vec`) past 255, while `(*stack).stem` -- back when it was a `u8`
-    // used to size the `hintmask` bit array -- silently wrapped back down
-    // to a small value at the same point. `callback_draw_setmask` then
-    // indexed the undersized array using the real (large) `stem_h.len()`,
-    // an out-of-bounds panic (`table/cff.rs`, CI-found: "index out of
-    // bounds: the len is 74 but the index is 716").
+    // Fuzz-found: a charstring chaining enough `hstem` operators to push
+    // the real cumulative hint count (`context.g.stem_h`) past 255. The
+    // hint count used to be a `u8` that wrapped back down to a small value,
+    // and `callback_draw_setmask` then indexed an undersized mask with the
+    // real (large) `stem_h.len()`.
     //
     // 256 single-hint `hstem` calls (push 0, push 0, `hstem`) push exactly
-    // 256 real entries into `stem_h` -- old `u8` arithmetic wrapped
-    // `255 + 1` back to `0`; `stem` is now `u32` and must read back the
-    // true 256.
+    // 256 real entries into `stem_h`; `stem` is `u32` and must read back
+    // the true 256.
     #[test]
     fn chained_hstem_operators_past_255_do_not_wrap_the_hint_count() {
         let mut data: Vec<u8> = Vec::new();
@@ -1122,16 +1105,10 @@ mod cff_parse_outline_stack_operator_tests {
     use crate::table::glyf::new_glyf_glyph;
 
     // A charstring's `put`/`get`/`index`/`roll` operators each take a
-    // charstring-supplied stack *value* (not the trusted `(*stack).index`
-    // cursor) and use it as an array index or modulus divisor into a
-    // small fixed-size structure (`transient[32]`, or the operand stack
-    // itself), with no range check. Found by reading the interpreter
-    // directly (not fuzzing) while investigating this file as the
-    // successor to `dict.rs`'s Private-DICT-offset fix (PR #262):
-    // that fix closed an out-of-bounds *read*, these are guaranteed
-    // Rust *panics* (array-index or divide-by-zero) reachable with a
-    // handful of ordinary charstring bytes -- a different bug class
-    // (DoS, not memory corruption), but real and previously unguarded.
+    // charstring-supplied stack *value* and use it as an array index or
+    // modulus divisor into a small fixed-size structure (`transient[32]`,
+    // or the operand stack itself). Each must be range-checked rather than
+    // panic (array-index or divide-by-zero).
 
     fn empty_cff_index() -> CffIndex {
         CffIndex {

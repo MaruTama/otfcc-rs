@@ -30,26 +30,11 @@ pub fn consolidate_gsub_reverse(
     }
     let input_index = subtable.input_index as usize;
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later
-    // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
-    // not `IndexMap`: the original also did a HASH_SORT by that same id
-    // right before reading entries back out. Same overall shape as
-    // `consolidate_gsub_single`'s uthash -> `BTreeMap` rewrite (both share
-    // the same C-side dedup-hash node), but names are `sdsdup`'d into the
-    // map up front here rather than aliasing `from`/`to`'s existing
-    // `SdsRaw` pointers the way the original uthash node did. The original
-    // then truncated `from`/`to` to the survivor count *before* reading
-    // those aliases back out -- harmless in C (truncating a length field
-    // frees nothing), but `from`/`to` are real `Vec<GlyphHandle>` now and
-    // `Handle` owns its name (`Drop` frees it): truncating first can drop
-    // (and free) a survivor whose original index landed past the new
-    // length, leaving a still-pending alias dangling before it's read.
-    // Confirmed empirically (not just by inspection) with a synthetic
-    // duplicate placed away from the end of `from`, which reproduces the
-    // exact use-after-free ordering; a build with intervening allocations
-    // happened not to visibly corrupt the output, but the read is still of
-    // freed memory. Owned copies collected up front, with `from`/`to`
-    // rebuilt from scratch afterward, sidestep the ordering hazard
-    // entirely instead of preserving it.
+    // duplicate is logged as a warning and dropped, not merged. `BTreeMap`
+    // so the survivors come back out sorted by that id. Names are copied
+    // into the map up front and `from`/`to` are rebuilt from scratch
+    // afterward, so no survivor is read after truncation could have
+    // dropped it.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
     // `.zip()` stops at the shorter side on its own, the same bound `n =

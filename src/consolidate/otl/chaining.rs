@@ -67,10 +67,9 @@ pub(crate) fn consolidate_chaining(
         let mut found_lookup: bool = false;
         if !app.lookup.name.is_empty() {
             // Deliberately no early exit on the first match: a later `k`
-            // matching the same name overwrites `app.lookup` again, same
-            // as the original's own unconditional overwrite -- "last
+            // matching the same name overwrites `app.lookup` again -- "last
             // matching index wins" for a font with duplicate lookup names,
-            // preserved exactly rather than "fixed" to first-match.
+            // as upstream otfcc does.
             for (k, slot) in lookups.iter().enumerate() {
                 let k = k as TableId;
                 // `k == self_index` is answered from `self_name` instead

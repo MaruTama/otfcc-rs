@@ -14,11 +14,6 @@ pub struct GaspRecord {
     pub symmetric_smoothing: bool,
     pub symmetric_gridfit: bool,
 }
-// Stage 6-4 "Box化": every field this struct owns is already a
-// `Vec`/scalar, so no `Drop` impl is needed -- `Box::new` construction
-// plus the standard drop glue is sufficient. The entire
-// `GaspTableElementInterface` vtable is deleted: grepping confirmed only
-// `.create`/`.free` were ever called from outside this file.
 #[derive(Clone, Debug)]
 pub struct GaspTable {
     pub version: u16,

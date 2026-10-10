@@ -24,10 +24,7 @@ pub struct Options {
     pub name_glyphs_by_hash: bool,
     pub name_glyphs_by_gid: bool,
     /// `None` = no `--glyph-name-prefix` given; `Some(bytes)` (possibly empty)
-    /// = the prefix, without a trailing NUL. Was a `strdup`'d `*mut c_char`
-    /// that `otfcc_delete_options` had to `free` by hand -- the only source
-    /// was a CLI argument that had already been a Rust `CString`, so the
-    /// C-string round trip bought nothing.
+    /// = the prefix, without a trailing NUL.
     pub glyph_name_prefix: Option<Vec<u8>>,
     // Bounds the total number of "invalid lookup reference" warnings
     // `consolidate_chaining` will actually log for one `otfcc_consolidate_

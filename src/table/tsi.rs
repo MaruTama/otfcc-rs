@@ -45,11 +45,6 @@ pub struct TsiBuildTarget {
     pub index_part: Option<Buffer>,
     pub text_part: Option<Buffer>,
 }
-// Stage 6-4 "Box化": `Font.tsi_01`/`Font.tsi_23` become `Option<Vec<TsiEntry>>`
-// (not `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
-// `.glyph` (a `Handle`) and `.content` (a `Vec<u8>`) both have real drop
-// glue on their own, so a `TsiEntry` (and therefore a `TsiTable`) tears
-// itself down correctly with no manual per-element walk needed.
 #[inline]
 fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
@@ -61,10 +56,8 @@ fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
 }
 // One 8-byte record: gid(u16) + text_length(u16, widened) + text_offset(u32).
 // `FontReader::at` + the three field reads only succeed together when the
-// full 8 bytes are actually present -- unlike the original's `j * 8 <
-// index_part.length` loop guard, which admits a final *partial* record
-// whenever `index_part.length` isn't a multiple of 8 (the same off-by-one
-// class `table/tsi5.rs::read_tsi5` had, fixed two PRs ago).
+// full 8 bytes are present, so a trailing partial record (an index length
+// that isn't a multiple of 8) is ignored.
 #[derive(Debug)]
 struct TsiIndexEntry {
     gid: u16,
@@ -113,15 +106,11 @@ pub fn read_tsi(
             } else {
                 entry.text_length
             };
-            // The original read `text_length` bytes from `text_offset`
-            // unconditionally, trusting the declared length even when it
-            // wasn't the `>= 0x8000` "compute it instead" sentinel --
-            // `text_offset < text_len` alone does not imply `text_offset +
-            // text_length <= text_len`. `at` + `peek_bytes` check that
-            // full span actually fits `text_part` before any bytes are
-            // read; a declared length that doesn't fit drops this index
-            // entry entirely; matches the "corrupted piece, skip it"
-            // pattern the rest of this migration uses.
+            // `text_offset < text_len` alone does not imply that
+            // `text_offset + text_length <= text_len`. `at` + `peek_bytes`
+            // check that the full span fits `text_part`; a declared length
+            // that doesn't fit drops this index entry ("corrupted piece,
+            // skip it").
             let content = match FontReader::new(&text_part.data)
                 .at(entry.text_offset as usize)
                 .and_then(|r| r.peek_bytes(text_length as usize))
@@ -237,21 +226,10 @@ pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
     stage.finish();
     Some(tsi)
 }
-// c2rust residue: the original had this as a numeric `switch` over
-// `TsiEntryType as c_uint` with a fallthrough `panic!` for "no case
-// matched" -- but `TsiEntryType` is a closed 5-variant enum (`Glyph=0`,
-// `Fpgm=1`, `Prep=2`, `Cvt=3`, `ReservedFffc=4`) and the switch already
-// covered all five, so that arm was unreachable, not a real error path.
-// Matching on the enum directly instead of its numeric cast makes that
-// exhaustiveness compiler-checked rather than asserted at runtime, and
-// the panic falls away with it.
-//
-// `entry` is only actually dereferenced in the `Glyph` arm --
-// `push_tsi_entries` (below) passes a null `entry` from its own
-// `min_n`-padding loop, but only ever calls this with `type_0 ==
-// TsiEntryType::Glyph` when `min_n` is `0`, which keeps that loop from
-// running at all for `Glyph` (see `build_tsi`'s call sites), so the
-// null never actually reaches this arm.
+// The reserved glyph ids TSI uses for the non-glyph entries. `entry` is
+// only needed for `Glyph`, and `push_tsi_entries` only passes `None` from
+// its `min_n` padding loop, which never runs for `Glyph` (`min_n` is 0
+// there; see `build_tsi`'s call sites).
 fn propergid(entry: Option<&TsiEntry>, kind: TsiEntryType) -> GlyphId {
     match kind {
         TsiEntryType::Cvt => 0xfffb as GlyphId,
@@ -317,9 +295,8 @@ mod read_tsi_tests {
     use crate::font::sfnt::PacketPiece;
 
     // No committed payload has a TSI0/TSI1 (or TSI2/TSI3) pair (checked by
-    // hand against every tests/payload/*.ttf), so this whole module is the
-    // only coverage -- both of the fix and of the original three bugs it
-    // replaces.
+    // hand against every tests/payload/*.ttf), so this module is the only
+    // coverage of the reader.
 
     fn index_record(gid: u16, text_length: u16, text_offset: u32) -> Vec<u8> {
         let mut b = Vec::new();
@@ -394,9 +371,8 @@ mod read_tsi_tests {
     #[test]
     fn trailing_partial_index_record_is_dropped_not_read_oob() {
         // One full 8-byte record, then 3 stray bytes -- not a full second
-        // record. The original `j * 8 < index_part.length` loop guard
-        // would have read 5 bytes past the (8+3)-byte index buffer trying
-        // to parse that partial record as real.
+        // record. Reading the partial record would run 5 bytes past the
+        // (8+3)-byte index buffer.
         let mut index = index_record(9, 2, 0);
         index.extend_from_slice(&[0xAA, 0xBB, 0xCC]);
         let tsi = read(index, b"AB".to_vec());
@@ -406,10 +382,8 @@ mod read_tsi_tests {
 
     #[test]
     fn declared_length_longer_than_the_text_part_is_dropped_not_read_oob() {
-        // The actual overread this migration exists to fix: a declared
-        // (non-sentinel) text_length that runs past text_part's real
-        // length. text_offset(0) < text_len(2) passes the original's only
-        // check, but 0 + 100 > 2.
+        // A declared (non-sentinel) text_length that runs past text_part's
+        // real length: text_offset(0) < text_len(2), but 0 + 100 > 2.
         let index = index_record(9, 100, 0);
         let tsi = read(index, b"AB".to_vec());
         assert!(tsi.is_empty());
@@ -417,8 +391,7 @@ mod read_tsi_tests {
 
     #[test]
     fn text_offset_past_the_text_part_is_skipped() {
-        // Preserved from the original: an out-of-range text_offset was
-        // already checked (`text_offset >= text_part.length`).
+        // An out-of-range text_offset (`text_offset >= text_part.length`).
         let index = index_record(9, 1, 5);
         let tsi = read(index, b"AB".to_vec());
         assert!(tsi.is_empty());

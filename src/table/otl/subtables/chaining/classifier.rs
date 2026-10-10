@@ -82,11 +82,8 @@ fn build_rule(
     hi: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
     hf: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
 ) -> Box<ChainingRule> {
-    // `Box` is the allocation, the struct literal is the zero-init the old
-    // `__caryll_allocate_clean` provided -- see `read.rs`'s
-    // `general_read_contextual_rule`. This never fails (building from
-    // already-valid in-memory data, not parsing untrusted bytes), so
-    // unlike the `read.rs` constructors this returns `Box`, not `Option<Box>`.
+    // Building from already-valid in-memory data cannot fail, so unlike
+    // the `read.rs` constructors this returns `Box`, not `Option<Box>`.
     let mut new_rule: Box<ChainingRule> = Box::new(ChainingRule {
         match_count: rule.match_count,
         input_begins: rule.input_begins,
@@ -105,11 +102,6 @@ fn build_rule(
         .enumerate()
         .take(rule.match_count as usize)
     {
-        // Built as a plain local `Vec` and pushed directly -- no need for
-        // the `otl_coverage_create()`/`coverage_from_raw()` raw-pointer
-        // round trip other constructors use, since `Coverage` is just
-        // `Vec<GlyphHandle>` and this function never hands the pointer to
-        // anyone else in between.
         let mut cov: Coverage = Coverage::new();
         if !match_entry.is_empty() {
             let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
@@ -140,9 +132,6 @@ fn build_rule(
         }
         new_rule.sequence.push(cov);
     }
-    // Plain assignment is fine here (unlike the calloc'd-memory case
-    // elsewhere in this crate): `Box::new` above already gave `.apply` a
-    // valid empty `Vec`, so there's a real (if empty) value to drop first.
     new_rule.apply = Vec::with_capacity(rule.apply.len());
     for entry in rule.apply.iter() {
         new_rule.apply.push(ChainLookupApplication {
@@ -153,20 +142,8 @@ fn build_rule(
     new_rule
 }
 fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> Box<ClassDef> {
-    // The dedup key (gid) and the original's `HASH_SORT` key (also gid,
-    // via `by_gid_clsh`) are the same, so `BTreeMap`'s natural `Ord`
-    // reproduces the sorted walk with no separate sort step -- the
-    // `by_gid_clsh` comparator itself is gone, subsumed entirely by the
-    // container. Borrowing rather than consuming `h` matches the
-    // original, where `to_class` sorts and reads but never frees --
-    // disposal was always the caller's job, and here that's simply
-    // `try_classify_around` letting its `BTreeMap`s drop at scope exit.
-    //
-    // Built as a plain local `Box` (matching `otl_class_def_create`'s own
-    // zero-init literal) rather than routing through that raw-pointer
-    // constructor -- returning `Box<ClassDef>` directly lets the caller
-    // assign straight into `Option<Box<ClassDef>>` with `Some(...)`,
-    // no `classdef_from_raw` bridge needed.
+    // The dedup key and the sort key are both the gid, so `BTreeMap`'s
+    // natural `Ord` gives the sorted walk with no separate sort step.
     let mut cd = Box::new(ClassDef {
         maxclass: 0,
         glyphs: Vec::new(),
@@ -193,17 +170,6 @@ fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> Box<Cla
 /// replacement value to build from instead of `subtables[j]` itself), or
 /// `None` when `j`'s own subtable has no compatible neighbor to merge with
 /// (the caller should build from `subtables[j]` unchanged).
-///
-/// Stage L-6: `classified` used to be built by `__caryll_allocate_clean`
-/// (a raw `*mut ChainingSubtable`, `ptr::write`-initialized in place) and
-/// handed back through a `classified_st: *mut *mut ChainingSubtable` out
-/// parameter; the caller then had to compare that pointer against the
-/// original by identity (`if st != st0 { subtable_chaining_free(st) }`) to
-/// know whether a new allocation needs freeing. Returning the value owned
-/// in an `Option` instead removes both the calloc'd intermediate and the
-/// pointer-identity check: there is nothing to free by hand, because a
-/// `None` never allocated anything and a `Some` simply drops when the
-/// caller is done with it.
 pub fn try_classify_around(
     subtables: &[Option<Box<Subtable>>],
     j: usize,
@@ -220,9 +186,9 @@ pub fn try_classify_around(
 
     let rule0 = chaining_rule_const(chaining_subtable_ref(&subtables[j]));
 
-    // Was a `current_block`-flagged `loop`: this runs to completion (every
-    // one of `rule0`'s own matches is class-compatible) or stops early on
-    // the first incompatible one -- `rule0_is_compatible` records which.
+    // Runs to completion (every one of `rule0`'s own matches is
+    // class-compatible) or stops early on the first incompatible one --
+    // `rule0_is_compatible` records which.
     let mut rule0_is_compatible = true;
     for (m, cov) in rule0.sequence.iter().enumerate().take(rule0.match_count as usize) {
         let (h, classno) = if m < rule0.input_begins as usize {
@@ -243,12 +209,8 @@ pub fn try_classify_around(
 
     // Scan forward for a run of subtables that all classify compatibly
     // against the same maps -- `compatible_count` is how many of them (not
-    // counting `rule0` itself) qualify. `allcheck` in the original C-shaped
-    // code was declared `true` and never reassigned anywhere in this loop
-    // (any incompatible subtable broke the loop outright, via `break
-    // 's_74`, before ever reaching the `if allcheck` check) -- dead, so
-    // there is nothing to reproduce beyond "reaching the bottom of the loop
-    // body always counts".
+    // counting `rule0` itself) qualify. The first incompatible subtable
+    // ends the run.
     let mut compatible_count: usize = 0;
     'run: for slot in subtables.iter().skip(j + 1) {
         let rule = chaining_rule_const(chaining_subtable_ref(slot));

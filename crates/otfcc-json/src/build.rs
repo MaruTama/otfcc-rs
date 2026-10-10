@@ -1,61 +1,11 @@
-//! Stage 6-2.5, C-3: a safe Rust representation for the JSON *build/dump*
-//! side, replacing the old vendored `JsonValue`-based builder for every
-//! consumer that only *constructs* a value (the whole `table/*/dump.rs`
-//! family, plus `bin/otfccdump.rs`'s own serialize call). Every consumer
-//! has been switched over to this module's constructor API and its
-//! `json_serialize_ex`.
+//! The JSON value tree that otfcc dumps a font into, `BuiltValue`, and its
+//! serializer: `json_serialize_ex` for a whole tree, `JsonStreamWriter` for
+//! writing one member at a time.
 //!
-//! `BuiltValue` is a genuinely separate type from `parsed_json::ParsedValue`
-//! (the parse side's own safe representation, from Stage 6-2.5 C-2) even
-//! though both ultimately replaced pieces of the same old vendored
-//! `JsonValue` union: the two object graphs never intersected at runtime
-//! (the whole parse tree was freed before any build tree existed), so
-//! there was never a reason to unify them.
-//!
-//! The old vendored parser (`vendor/json.rs`) and builder
-//! (`vendor/json_builder.rs`) were deleted entirely in Stage 6-2.5 C-4,
-//! once grep confirmed neither had any remaining caller in this crate --
-//! this module's own differential test suite (which used to build the same
-//! sample tree with both this module and the old builder, then compare the
-//! serialized bytes) was rewritten to assert against fixed byte fixtures
-//! instead, captured from this module's own output after that comparison
-//! had already confirmed it matched. Their real contracts, once actually
-//! read end to end while porting them here, turned out narrower than their
-//! generality suggested:
-//!
-//! - `builderize()` -- the old builder's "upgrade a bare `JsonValue`
-//!   produced by the *parser* into a builder value in place" escape hatch
-//!   -- never fired in practice. Every value ever passed to a
-//!   `json_*_push` call in this crate was itself produced by a
-//!   `json_*_new` call; once C-2 split `ParsedValue` (parse) from
-//!   `JsonValue` (build) into distinct Rust types, a parsed value reaching
-//!   this API became a compile error, not a runtime "maybe" -- so
-//!   `BuiltValue` needs no such upgrade path at all.
-//! - `json_object_sort`/`json_object_merge` had zero callers anywhere in
-//!   this crate (confirmed by grep) -- dropped rather than ported.
-//! - `.parent`/`length_iterated` existed purely so the old builder's
-//!   `json_measure_ex`/`json_serialize_ex`/`json_builder_free` could walk
-//!   the tree *iteratively* (stack-frugal C recursion avoidance) rather
-//!   than recursively. A `Vec`/`Box`-owned tree needs none of that -- this
-//!   module's serializer is ordinary recursion over `&BuiltValue`, and
-//!   there is no `BuiltValue`-side `free` at all (`Drop` does it).
-//! - **`json_measure_ex` itself turned out to exist purely to pre-size a
-//!   `calloc`'d C buffer before `json_serialize_ex` fills it -- and it
-//!   deliberately *over*-estimated** (its own arithmetic double-counted
-//!   indent width; `bin/otfccdump.rs` used to scan backward over the
-//!   resulting buffer's trailing zero padding to find where the real
-//!   content actually ended, purely to work around the over-estimate). A
-//!   `Vec<u8>`-returning serializer needs no upfront size at all -- it
-//!   grows exactly as far as the real content requires, so this module has
-//!   no `json_measure_ex` equivalent; `json_serialize_ex` below returns
-//!   the exact bytes directly, and `bin/otfccdump.rs`'s scan-for-trailing-
-//!   zeros step was deleted along with it.
-//! - `JSON_SERIALIZE_MODE_SINGLE_LINE` (the old builder's fallback
-//!   `DEFAULT_OPTS` mode) was never reached by any real call site either --
-//!   both callers (`bin/otfccdump.rs`, this module's own `preserialize`)
-//!   always pass `PACKED` or `MULTILINE` explicitly. `get_serialize_flags`
-//!   is still ported in full below (it was cheap and already written), so
-//!   nothing was lost by not narrowing further here.
+//! The serializer is ordinary recursion over `&BuiltValue` and returns
+//! exactly the bytes it writes. `JSON_SERIALIZE_MODE_SINGLE_LINE` is kept
+//! with the other layouts though otfcc itself only uses `PACKED` and
+//! `MULTILINE`.
 
 use std::io::{self, Write};
 
@@ -103,21 +53,6 @@ pub enum BuiltValue {
     Object(Vec<(Vec<u8>, BuiltValue)>),
 }
 
-// Stage 10 (complete): `BuiltValue`'s data has been fully safe from the
-// start (it's a plain enum over `Vec`/`Box`-owned variants) -- the
-// unsafety was entirely in a free-function shell (`json_array_new`/
-// `json_object_push`/etc., kept raw-pointer-shaped on purpose so
-// `table/*/dump.rs` call sites could stay textually identical to the old C
-// `json_builder` idiom during the mechanical c2rust port, the same
-// reasoning `support/buffer.rs` used for `Buffer`, Stage 9's target). This
-// `impl` is the safe replacement API; every consumer across the crate now
-// calls it directly, so the free-function shell itself has been deleted
-// (see the plan doc's Stage 10 Phase 12). An `into_raw`/`from_raw` pair
-// used to live here too, as the bridge across the `FontSerializer`
-// type-erasure boundary; with that boundary gone (`serialize_to_json`
-// returns a `BuiltValue` now) the pair had no callers left and was
-// deleted. `Buffer` keeps its own equivalent pair -- `ffi/dll.rs`'s
-// genuine `extern "C"` return still needs one.
 impl BuiltValue {
     /// Pre-sized array constructor; `capacity` is a capacity hint only
     /// (`Vec::push` beyond it just reallocates).
@@ -144,9 +79,8 @@ impl BuiltValue {
     }
 
     /// Pushes `(key, value)`, `key` copied verbatim (embedded NULs
-    /// included) -- matches the old `json_object_push`/
-    /// `json_object_push_length`'s raw `memcpy`. No-op (but still drops
-    /// `value`) if `self` isn't actually an object.
+    /// included). No-op (but still drops `value`) if `self` isn't an
+    /// object.
     pub fn push_field(&mut self, key: &[u8], value: BuiltValue) {
         if let BuiltValue::Object(fields) = self {
             fields.push((key.to_vec(), value));
@@ -154,9 +88,7 @@ impl BuiltValue {
     }
 
     /// [`push_field`](Self::push_field), for a `Handle.name`-shaped `&[u8]`
-    /// key -- truncates at the first embedded NUL the same way `strlen`
-    /// would, matching `parsed_json`'s and the old `json_builder`'s own
-    /// `json_object_push_bytes_key`.
+    /// key: cut at the first embedded NUL, as C's `strlen` would.
     pub fn push_field_bytes_key(&mut self, key: &[u8], value: BuiltValue) {
         let len = key.iter().position(|&b| b == 0).unwrap_or(key.len());
         self.push_field(&key[..len], value);
@@ -183,10 +115,7 @@ impl BuiltValue {
     }
 
     /// A coordinate, written as an integer when it is one so the JSON stays
-    /// readable -- matches the old `json_new_position` exactly. Uses
-    /// `f64::round` directly rather than an `extern "C" { fn round(...) }`
-    /// declaration: both round half away from zero identically, so there
-    /// is nothing left to import libm for.
+    /// readable. `f64::round` rounds half away from zero, like C's `round`.
     pub fn position(z: f64) -> BuiltValue {
         if z.round() == z {
             BuiltValue::Int(z as i64)
@@ -196,7 +125,7 @@ impl BuiltValue {
     }
 
     /// Serialize a bitfield as a JSON object of `label: true` pairs, one
-    /// per set bit -- matches the old `otfcc_dump_flags` exactly.
+    /// per set bit.
     pub fn dump_flags(flags: i32, labels: &[&str]) -> BuiltValue {
         let mut v = BuiltValue::new_object(0);
         for (j, label) in labels.iter().enumerate() {
@@ -209,10 +138,7 @@ impl BuiltValue {
 
     /// Serializes `self` now (packed mode) and keeps the bytes, so the
     /// writer can splice them in verbatim later instead of descending into
-    /// `self` a second time. Consumes `self` -- matches the old
-    /// `preserialize`'s contract exactly, minus the separate
-    /// `json_measure_ex`/`malloc`/`json_builder_free` steps that a
-    /// `Vec<u8>`-returning serializer makes unnecessary.
+    /// `self` a second time. Consumes `self`.
     pub fn preserialize(self) -> BuiltValue {
         let opts = JsonSerializeOpts {
             mode: JSON_SERIALIZE_MODE_PACKED,
@@ -539,12 +465,7 @@ mod tests {
         root.push_field(b"controls", BuiltValue::Str(control_bytes.to_vec()));
 
         let mut arr = BuiltValue::new_array(5);
-        // `i64::MIN` is deliberately excluded, matching what the
-        // former differential test against the old builder also had
-        // to exclude: this module's own `write_value` uses
-        // `i64::to_string()` and handles it correctly, but is kept out
-        // of this fixture for continuity with that history rather than
-        // for any correctness reason of its own.
+        // `i64::MIN` is left out of this fixture; `write_value` handles it.
         for n in [0i64, 1, -1, 12345, i64::MIN + 1, i64::MAX] {
             arr.push_item(BuiltValue::Int(n));
         }
@@ -572,15 +493,8 @@ mod tests {
     }
 
     /// Fixed-fixture regression coverage for `json_serialize_ex`'s exact
-    /// byte output, replacing what used to be a differential comparison
-    /// against `vendor::json_builder`'s own serializer (deleted along with
-    /// the rest of the now-fully-superseded old builder -- see
-    /// `RUST_MIGRATION.md`'s Stage 6-2.5 C-4 entry). The expected bytes below
-    /// were captured from this function's own output after confirming it
-    /// matched the old builder byte-for-byte, so this still protects
-    /// against an accidental future change to escaping, number formatting,
-    /// or bracket/indent spacing -- just without a live second
-    /// implementation to compare against.
+    /// byte output: escaping, number formatting, bracket and indent spacing.
+    /// The expected bytes match the C builder's output.
     #[test]
     // vendor/emyg_dtoa.rs's `prettify` calls libc `memmove` to shift digits
     // when rounding carries a decimal point -- Miri (at least on the macOS

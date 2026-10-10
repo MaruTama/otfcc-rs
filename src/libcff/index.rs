@@ -1,6 +1,3 @@
-// Stage M-10 removed this file's last `unsafe` (the `cff_index_free`/
-// `cff_index_create` shell around `CffIndex`), so the file-level allow
-// for implicit-unsafe-in-unsafe-fn is gone too.
 use otfcc_binary::Buffer;
 use otfcc_binary::FontReader;
 use crate::support::primitives::Arity;
@@ -11,14 +8,6 @@ pub enum CffIndexCountType {
     U16 = 0,
     U32 = 1,
 }
-// `offset`/`data` were `__caryll_allocate_clean`'d/`free`'d raw arrays,
-// sized from a font-byte-derived `count` in `extract_index` (the parse
-// path) -- a genuine untrusted-input-driven allocation, not just style.
-// `Vec` removes the manual free pair and the OOB-write risk a counting
-// mistake there would have caused. Neither array is ever aliased outside
-// this struct's own accessor functions, so no `Copy`/`Clone` derive
-// survives (matches every other malloc-array-to-Vec conversion this crate
-// has made).
 #[derive(Debug)]
 pub struct CffIndex {
     pub count_type: CffIndexCountType,
@@ -39,21 +28,8 @@ pub(crate) fn cff_index_dispose(x: &mut CffIndex) {
     x.offset = Vec::new();
     x.data = Vec::new();
 }
-// `cff_index_free`/`cff_index_create` (a `Box::into_raw`/`Box::from_raw`
-// shell -- the latter kept around post-Stage-7-2-d only as a test
-// convenience, per its own doc comment) are gone as of Stage M-10:
-// `new_index_by_callback` below returns `CffIndex` by value now (matching
-// this migration's Stage M-3 treatment of `ClassDef`), and every test that
-// used to reach for `cff_index_create()` just builds a plain
-// `new_empty_cff_index()` local instead -- `extract_index` already takes
-// `&mut CffIndex`, no pointer to adopt either way.
-// A real, valid, empty `CffIndex` value -- as opposed to the all-zero bit
-// pattern `__caryll_allocate_clean` (calloc) would produce, which is NOT a
-// valid `CffIndex` since it owns two `Vec`s. Also used by `parser.rs`'s
-// `cff_open_stream` to build a whole `CffFile` (which embeds 7 of these) as
-// one real value up front, instead of calloc'ing `CffFile` and letting each
-// field's first write be a plain `=` onto still-invalid zeroed memory (see
-// [[otfcc-vec-field-assign-needs-calloc]]).
+/// An empty INDEX. `CffFile` is built from these, so every field starts as a
+/// valid value.
 pub(crate) fn new_empty_cff_index() -> CffIndex {
     CffIndex {
         count_type: CffIndexCountType::U16,
@@ -80,23 +56,10 @@ pub(crate) fn empty_index(i: &mut CffIndex) {
     i.count = 0 as Arity;
     i.off_size = 0;
 }
-// This used to run entirely off a bare `*mut u8` with no length at all --
-// `count`/`off_size` and the whole `offset[]` array were read with no
-// bounds checking whatsoever, and the final `data_len` (the INDEX's data
-// block size) was computed as `offset[count].wrapping_sub(1)`: a
-// malformed INDEX whose last entry is 0 (invalid per spec -- offsets are
-// 1-based and non-decreasing, so a well-formed INDEX's last offset is
-// always >= 1) wrapped that subtraction to `0xFFFFFFFF`, and the `memcpy`
-// that followed copied up to ~4GB from wherever `data` happened to point
-// (the exact bug the plan's own writeup names by file and line). Every
-// read here now goes through `FontReader`, checked against `table_length`
-// -- that alone closes the wraparound (a `data_len` this large can never
-// fit in a real table, so `bytes()` below simply fails) without needing a
-// separate `checked_sub` special case. On any bounds failure `in_0` is
-// left as an empty index (matching this function's own existing "count
-// == 0" branch) rather than reading adjacent bytes -- the original never
-// had a failure path to distinguish "malformed" from "legitimately
-// empty" at all.
+// Reads the INDEX at `pos` into `in_0`. Every read is checked against the
+// table, so a malformed INDEX (one whose last offset is 0 would otherwise
+// claim a data block of nearly 4 GB) leaves `in_0` empty, like an INDEX
+// with a count of 0.
 pub(crate) fn extract_index(data: &[u8], pos: u32, in_0: &mut CffIndex) {
     let result: Option<()> = 'parse: {
         let Ok(mut r) = FontReader::new(data).at(pos as usize) else {
@@ -172,18 +135,7 @@ pub(crate) fn extract_index(data: &[u8], pos: u32, in_0: &mut CffIndex) {
         in_0.data = Vec::new();
     }
 }
-// Was a `context: *mut c_void` + function-pointer pair (three call sites,
-// each with a genuinely different context shape: `subr.rs`'s `from_array`
-// walked an existing `Vec<Buffer>` via `.offset()`, `table/cff.rs`'s
-// `callback_makestringindex` indexed a `Vec<*mut Buffer>`, and
-// `callback_makefd` built a fresh `Buffer` per call from an
-// `FdArrayCompileContext`). All three call in strictly increasing `i`
-// order, once each -- an `impl Iterator<Item = Buffer>` replaces the
-// `void*` erasure entirely: each call site now builds an iterator that
-// matches its own real type directly, no shared context struct needed.
-// This also folds in what used to be the callback's own allocation +
-// this function's matching `buffree`: the iterator yields owned
-// `Buffer`s, each consumed (and dropped) exactly once per `.next()`.
+// Builds an INDEX from `length` buffers taken from `items`.
 pub(crate) fn new_index_by_callback(
     length: u32,
     mut items: impl Iterator<Item = Buffer>,
@@ -265,11 +217,8 @@ mod extract_index_tests {
     fn last_offset_of_zero_is_rejected_instead_of_a_4gb_memcpy() {
         // count=1, off_size=1, offset=[1,0] -- the last offset entry is 0,
         // which is invalid per spec (offsets are 1-based and
-        // non-decreasing). The original computed `data_len =
-        // offset[count].wrapping_sub(1)`, which wraps a 0 to
-        // 0xFFFFFFFF and `memcpy`s up to ~4GB from wherever `data`
-        // happened to point -- the exact bug the plan's own writeup
-        // names by file and line.
+        // non-decreasing). `offset[count] - 1` must not wrap to 0xFFFFFFFF
+        // and copy ~4GB.
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x00];
         let mut idx = new_empty_cff_index();
             extract_index(&data, 0, &mut idx);
@@ -282,8 +231,6 @@ mod extract_index_tests {
     fn truncated_offset_array_is_rejected_instead_of_reading_oob() {
         // count=5, off_size=4, but the table ends right after off_size --
         // the offset array (and everything past it) is missing entirely.
-        // The original had no length parameter to check this against at
-        // all.
         let data = [0x00u8, 0x05, 0x04];
         let mut idx = new_empty_cff_index();
             extract_index(&data, 0, &mut idx);
@@ -310,12 +257,12 @@ mod extract_index_tests {
     fn non_decreasing_offsets_are_required_not_just_the_last_one() {
         // count=2, off_size=1, offset=[1, 5, 3] -- entry 1 (5) is *larger*
         // than entry 2 (3), so the array isn't monotonic even though the
-        // final entry (3) alone would pass the old checked_sub(1) check
-        // fine. A consumer computing `offset[i + 1] - offset[i]` for the
-        // *first* entry's length (5 - 1 = 4) would demand data this index
-        // never actually promised -- and one going the other direction
-        // (`offset[2] - offset[1]` = 3 - 5, unsigned) is exactly the
-        // `get_cff_sid` wraparound this guard exists to close.
+        // final entry (3) alone looks fine. A consumer computing
+        // `offset[i + 1] - offset[i]` for the *first* entry's length
+        // (5 - 1 = 4) would demand data this index never actually promised
+        // -- and one going the other direction (`offset[2] - offset[1]` =
+        // 3 - 5, unsigned) is exactly the `get_cff_sid` wraparound this
+        // guard exists to close.
         let data = [0x00u8, 0x02, 0x01, 0x01, 0x05, 0x03, 0xAA, 0xBB, 0xCC];
         let mut idx = new_empty_cff_index();
             extract_index(&data, 0, &mut idx);
@@ -325,10 +272,9 @@ mod extract_index_tests {
 
     #[test]
     fn invalid_off_size_is_rejected_instead_of_producing_all_zero_offsets() {
-        // off_size must be 1-4; the original's `match` fell through to
-        // pushing 0 for every offset entry on an out-of-range value,
-        // which is just another way to reach the same wraparound bug
-        // above (an all-zero offset array's last entry is 0).
+        // off_size must be 1-4; an out-of-range value would otherwise read
+        // as an all-zero offset array, whose last entry is 0 -- the same
+        // wraparound as above.
         let data = [0x00u8, 0x01, 0x05, 0x00, 0x00];
         let mut idx = new_empty_cff_index();
             extract_index(&data, 0, &mut idx);

@@ -25,19 +25,11 @@ pub struct MaxpTable {
     pub max_component_elements: u16,
     pub max_component_depth: u16,
 }
-// Stage 6-4 "Box化": every field is a scalar, so no `Drop` impl is
-// needed -- `Box::new` construction is sufficient (`Copy, Clone` stay
-// on the struct, same reasoning as `Os2Table`/`HheaTable`/`VheaTable`/
-// `HeadTable`). The entire vtable is deleted: grepping the bare
-// `TABLE_I_MAXP` identifier confirmed only `.create`/`.free` were ever
-// called, both internal to this crate.
 // `length` must be *exactly* 32 (version 1.0, full table) or 6 (version 0.5,
-// version+numGlyphs only) -- not merely "at least" -- matching the original
-// guard. A table that claims to be the 6-byte short form but whose first 4
-// bytes happen to spell version 1.0 now correctly fails to parse (dropping
-// the whole table) instead of reading the 26 version-1.0-only fields past
-// the buffer's actual end, which the original pointer-arithmetic version
-// would have done unconditionally once past the length check.
+// version+numGlyphs only) -- not merely "at least". A table that claims to
+// be the 6-byte short form but whose first 4 bytes spell version 1.0 fails
+// to parse (dropping the whole table) instead of reading the 26
+// version-1.0-only fields past the end.
 fn decode_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
     if data.len() != 32 && data.len() != 6 {
         return Err(ReadError {
@@ -244,10 +236,8 @@ mod parse_maxp_tests {
     #[test]
     fn six_byte_table_claiming_version_1_0_is_rejected_instead_of_reading_oob() {
         // The version field itself (the first 4 bytes) can claim 1.0 even
-        // though the table is only the 6-byte short form -- the original
-        // pointer-arithmetic reader would have read the 26 version-1.0-only
-        // bytes straight past this 6-byte buffer's end once it took that
-        // branch.
+        // though the table is only the 6-byte short form; the 26
+        // version-1.0-only bytes must not be read past this buffer's end.
         let mut data = vec![0u8; 6];
         data[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes());
         assert!(decode_maxp(&data).is_err());

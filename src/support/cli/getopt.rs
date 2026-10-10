@@ -1,28 +1,18 @@
 //! A hand-rolled, GNU `getopt_long`-compatible argument parser.
 //!
-//! Replaces the FFI binding this file used to hold: `libc` declares
-//! `struct option`/`getopt_long` for the BSDs, Apple, Solaris, Android and
-//! Hurd, but **not** for `*-unknown-linux-gnu` -- so real `getopt_long` was
-//! never portable to this crate's own CI target in the first place. This
-//! reimplements the two behaviors that made it worth having (over a plain
-//! positional scan): permuting options in front of positional arguments
-//! regardless of where they appear in argv, and matching an unambiguous
-//! prefix of a long option's name. Both are pinned by
-//! `tests/getopt.rs`, added before this file was rewritten specifically
-//! so the behavior being replaced was captured first, not reconstructed from
-//! memory of what `getopt_long` does.
+//! `libc` does not declare `getopt_long` for `*-unknown-linux-gnu`, so this
+//! reimplements the two behaviors that matter here (over a plain positional
+//! scan): permuting options in front of positional arguments regardless of
+//! where they appear in argv, and matching an unambiguous prefix of a long
+//! option's name. Both are pinned by `tests/getopt.rs`.
 //!
 //! Deliberately narrower than the real thing: no `-W longopt` extension, no
 //! `optstring` leading `+`/`-` mode switches, no `POSIXLY_CORRECT` handling
-//! -- this crate's two binaries never used any of those, and glibc's own
-//! `getopt_long` documentation calls them all rarely-used corners even in C
-//! code.
+//! -- this crate's two binaries never use any of those.
 
-/// One long option's spec. `short`, when set, is the character `optstring`
-/// would have paired with it in the old `getopt_long` call -- both spellings
-/// resolve to the same [`GetoptItem::Opt`] `val`, matching how the original
-/// `longopts` arrays in `bin/otfccbuild.rs`/`bin/otfccdump.rs` reused a
-/// short option's own char as that entry's `val` instead of `0`.
+/// One long option's spec. `short`, when set, is the matching short option
+/// character -- both spellings resolve to the same [`GetoptItem::Opt`]
+/// `val`, the short option's own char.
 #[derive(Debug)]
 pub struct LongOpt {
     pub name: &'static str,

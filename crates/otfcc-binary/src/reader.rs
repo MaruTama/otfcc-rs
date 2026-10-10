@@ -1,19 +1,13 @@
-//! Bounds-checked reading over a table's raw bytes, replacing
-//! `support/binio.rs`'s `read_*` family (a bare `*const u8` with no length,
-//! trusted by 465 call sites across 41 files -- see RUST_MIGRATION.md's Phase 5
-//! plan, "Stage 7-1"). Every read here is checked against the buffer's
+//! Bounds-checked reading over a table's raw bytes. Every read here is checked against the buffer's
 //! actual length before it happens; on failure it returns a `ReadError`
 //! instead of reading past the end.
 //!
 //! This intentionally changes behavior on malformed input: where the old
 //! `read_*` functions would read (and the caller would go on to use)
 //! whatever bytes happened to be adjacent in memory, a `FontReader` call
-//! fails cleanly. Each table reader migrated onto this converts that
-//! `Result::Err` into the same "log a warning, skip this table" outcome the
-//! table already used for its one or two existing length checks -- so a
-//! well-formed font's output is unaffected (checked by the golden-fixture
-//! comparison), and a malformed one that used to read/copy garbage now just
-//! loses that one table instead.
+//! fails cleanly. Table readers turn that `Result::Err` into "log a warning,
+//! skip this table", so a malformed table is lost rather than read past its
+//! end.
 //!
 //! `require()` guards the multiply-then-compare shape a `count`-driven loop
 //! needs (`count * stride` bytes available) with `checked_mul`/`checked_add`

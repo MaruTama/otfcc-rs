@@ -16,17 +16,6 @@ pub struct SvgAssignment {
     pub end: GlyphId,
     pub document: Vec<u8>,
 }
-// C由来の時点で素のベクタ形（ラッパー構造体なし）。要素の `document` はこの
-// stage で `*mut Buffer`（`buffree` 所有）から `Vec<u8>` へ直接移行した
-// （`Buffer` 自体はまだ libc アロケータのままだが、このフィールドに限り
-// 経由せずに済ませる）。`Vec<u8>` は `Clone` を持つので `svg_assignment_dup`
-// は素直な `.clone()` でディープコピーできる。
-//
-// Stage 6-4 "Box化": `Font.svg` becomes `Option<Vec<SvgAssignment>>` (not
-// `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer, a
-// second `Box` layer would be pure overhead). `document: Vec<u8>` now
-// self-drops along with the rest of `SvgAssignment`, so no `Drop` impl is
-// needed for this type any more.
 pub type SvgTable = Vec<SvgAssignment>;
 #[inline]
 fn svg_assignment_empty() -> SvgAssignment {
@@ -36,7 +25,7 @@ fn svg_assignment_empty() -> SvgAssignment {
         document: Vec::new(),
     }
 }
-/// 本物のディープコピー（`document` の `Vec<u8>` を複製する）。
+/// A deep copy, document included.
 fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     let mut dst: SvgAssignment = svg_assignment_empty();
     dst.start = src.start;
@@ -44,16 +33,9 @@ fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     dst.document = src.document.clone();
     dst
 }
-/// `offset_to_svg_doc_index`, `docstart` and `doclen` are each a raw `u32`
-/// read straight from the file (full attacker control, up to `u32::MAX`).
-/// The original guarded the per-record document span with
-/// `offset_to_svg_doc_index.wrapping_add(docstart).wrapping_add(doclen) <=
-/// table.length` -- three chained 32-bit additions, any pair of which can
-/// wrap the sum back down to something small enough to pass the check even
-/// though the real (unwrapped) span reaches nowhere near this table. Same
-/// shape as `table/cpal.rs`'s `offset_first_color_record` bug, just with
-/// three operands chained instead of one. `FontReader::sub`'s
-/// `checked_add` (used twice below, once per addition) closes it.
+/// `offset_to_svg_doc_index`, `docstart` and `doclen` are `u32`s from the
+/// file, so each document's span is added up with checked arithmetic
+/// (`FontReader::sub`): wrapping sums could otherwise pass the length check.
 fn decode_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
     if data.len() < 10 {
         return Err(ReadError { needed: 10, available: data.len() });
@@ -156,19 +138,12 @@ pub fn build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
         Some(s) if !s.is_empty() => s,
         _ => return None,
     };
-    // `TABLE_I_SVG.copy` の代わりに各要素を `svg_assignment_dup` で明示的に
-    // ディープコピー（`ColrTable`/`TsiTable` の前例どおり `.clone()` は不可）。
     let mut svg: SvgTable = _svg.iter().map(svg_assignment_dup).collect();
     svg.sort_by_key(|a| a.start);
     let mut major: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (svg.len()) as u32)]);
     for a in svg.iter() {
-        // `bk_new_block_from_buffer_copy` takes `Option<&Buffer>`;
-        // build a stack-local `Buffer` view over `a.document`'s bytes
-        // for this one call. Stage 7-2-e made `Buffer.data` an owned
-        // `Vec<u8>`, so unlike before this is a real clone, not a
-        // zero-copy borrow -- correctness-preserving and cheap enough
-        // (once per SVG assignment during build, not a hot per-byte
-        // path).
+        // `bk_new_block_from_buffer_copy` takes a `Buffer`; this copies the
+        // document once per SVG assignment.
         let doc_buf = Buffer::from_bytes(&a.document);
         bk_push(
             &mut major,

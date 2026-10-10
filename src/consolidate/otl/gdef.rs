@@ -21,9 +21,6 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
         let cd = gdef.glyph_class_def.as_deref_mut().unwrap();
         shrink_class_def(cd);
         if cd.glyphs.is_empty() {
-            // Dropping the `Box` here does exactly what
-            // `otl_class_def_free` used to (see `table/gdef.rs`'s
-            // `GdefTable` comment) -- no leak, no behavior change.
             gdef.glyph_class_def = None;
         }
     }
@@ -41,25 +38,12 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
         // duplicate is logged as a warning and dropped (its own caret list
         // simply stays behind in `lig_carets` and gets freed when that
         // `Vec` is cleared below, since it was never taken out).
-        // `BTreeMap`, not `IndexMap`: the original also did a HASH_SORT by
-        // glyph id right before reading entries back out, so the final
-        // order is ascending by glyph id, not insertion order. Same shape
-        // as `consolidate_gpos_cursive`'s uthash -> `BTreeMap` rewrite
-        // (RUST_MIGRATION.md), with a `CaretValueList` (`Vec<CaretValue>`,
-        // moved out via `mem::take`) in place of a `Copy` value type.
+        // `BTreeMap` so the result is ascending by glyph id, not insertion
+        // order. Each `CaretValueList` is moved out via `mem::take`.
         //
-        // Two behavioral differences from the previous three instances,
-        // both confirmed by fully reading this function rather than
-        // assumed from the shape: a glyph handle that fails to resolve is
-        // silently skipped here, with no "[Consolidate] Ignored missing
-        // glyph" warning the other three log; and unlike those, the
-        // original here `sdsdup`s the glyph name *unconditionally* before
-        // checking for a duplicate, leaking that copy on the duplicate
-        // path. That leak is invisible in output bytes (same category as
-        // other incidental leaks this migration has let disappear
-        // elsewhere) and disappears naturally here too, since this only
-        // dups the name when actually inserting -- the warning message
-        // reads the name directly off the un-consolidated entry instead.
+        // Unlike the other dedup passes, a glyph handle that fails to
+        // resolve is silently skipped here, with no "[Consolidate] Ignored
+        // missing glyph" warning.
         let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, CaretValueList)> =
             std::collections::BTreeMap::new();
         for rec in lig_carets.iter_mut() {

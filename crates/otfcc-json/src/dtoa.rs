@@ -25,9 +25,6 @@ fn diy_fp_from_parts(f: u64, e: i32) -> DiyFp {
     return fp;
 }
 pub fn diy_fp_from_double(d: f64) -> DiyFp {
-    // Was a `DoubleBits` union (`d: f64`/`u64_0: u64`, written via `.d`
-    // then read via `.u64_0`); `f64::to_bits` is the same bit-for-bit
-    // reinterpretation without a union.
     let bits: u64 = d.to_bits();
     let mut res: DiyFp = DiyFp { f: 0, e: 0 };
     let biased_e: i32 =
@@ -635,10 +632,8 @@ fn prettify(buffer: &mut [u8], length: i32, k: i32) {
     };
 }
 /// Writes `value`'s shortest round-tripping decimal representation into
-/// `buffer`, NUL-terminated, matching the original C `%g`-compatible
-/// formatting byte for byte -- callers still slice up to the first NUL
-/// (e.g. `CStr::from_bytes_until_nul`) rather than reading a returned
-/// length, unchanged from the original C-shaped contract.
+/// `buffer`, NUL-terminated, matching upstream otfcc's formatting byte for
+/// byte. Callers slice up to the first NUL.
 pub fn emyg_dtoa(mut value: f64, buffer: &mut [u8]) {
     let mut buffer = buffer;
     if value == 0_i32 as f64 {
@@ -672,14 +667,8 @@ mod tests {
         String::from_utf8(buffer[..nul].to_vec()).expect("emyg_dtoa only ever writes ASCII")
     }
 
-    /// This crate's whole reason to keep a from-scratch Grisu2 port
-    /// (rather than reaching for `{}`/`ryu`/any other formatter) is that
-    /// its output must round-trip: parsing the text back must recover
-    /// `value`'s exact bit pattern, not just "a close decimal". No
-    /// existing test pinned this property directly before this file's
-    /// raw-pointer-to-safe-slice rewrite -- every previous check of this
-    /// file's correctness was indirect, via `tests/golden.rs`'s byte
-    /// comparison of real fonts' `Double` fields.
+    /// The output must round-trip: parsing the text back must recover
+    /// `value`'s exact bit pattern, not just "a close decimal".
     fn assert_round_trips(value: f64) {
         let text = format(value);
         let parsed: f64 = text.parse().unwrap_or_else(|e| panic!("{text:?} (from {value}) failed to parse: {e}"));

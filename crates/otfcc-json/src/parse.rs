@@ -1,33 +1,9 @@
-//! Stage 6-2.5, C-2: a safe, single-pass JSON parser and tree, replacing
-//! the old vendored `JsonValue`-based parser for every consumer that only
-//! *reads* a parsed value (the whole `table/*/parse.rs` family, plus
-//! `bin/otfccbuild.rs`'s and `ffi/dll.rs`'s own `json_parse` calls). Every
-//! consumer has been switched over to this module's `parse_json`/accessor
-//! API.
+//! The JSON parser and the parsed tree, `ParsedValue`, that otfcc reads a
+//! font's JSON into.
 //!
-//! `ParsedValue` is a genuinely separate type from `built_json::BuiltValue`
-//! (the build side's own safe representation, from Stage 6-2.5 C-3) even
-//! though both ultimately replaced pieces of the same old vendored
-//! `JsonValue` union: the two object graphs never intersected at runtime
-//! (the entire parse tree was freed before any build tree was
-//! constructed), so there was never a reason to unify them.
-//!
-//! The old vendored parser (`vendor/json.rs`) was deleted entirely in
-//! Stage 6-2.5 C-4, once grep confirmed it had no remaining caller in this
-//! crate -- this module's own test suite below no longer differential-
-//! tests against it for the same reason; it asserts directly against
-//! `parse_json`'s own output instead. Its real contract, once actually
-//! read end to end while porting it here, turned out narrower than its
-//! generality suggested: the old `json_parse_ex`, as actually used in this
-//! crate (`json_parse`, called from exactly two places -- `bin/
-//! otfccbuild.rs` and `ffi/dll.rs` -- both just checking the result for
-//! null), always passed `error_buf = null` (parse-error text/position was
-//! never surfaced anywhere in this codebase) and `settings.settings = 0`
-//! (`JSON_ENABLE_COMMENTS` unset, so comment support was dead code in this
-//! crate's actual usage even though the vendored parser implemented it).
-//! That's why this replacement only needs to parse standard JSON, or not
-//! -- no line/column tracking, no comment syntax, no custom allocator
-//! hookup (moot once `Vec`/`Box` own the memory).
+//! It parses standard JSON only: no comments, and no error position (a
+//! failed parse is just `None`). Objects keep their members in order,
+//! duplicate keys included, and lookups take the first match.
 
 /// The parse-side JSON tree. String content is `Vec<u8>`, not `String`:
 /// glyph names can be non-UTF-8 (Latin-1), a documented invariant carried
@@ -67,19 +43,6 @@ pub enum ParsedValue {
 
 use crate::kind::JsonType;
 
-// Stage 11 (complete): `ParsedValue`'s data has been fully safe from the
-// start (it's a plain enum over `Vec`/`Box`-owned variants, no zero-copy
-// borrow into the original input buffer -- `parse_string` copies every
-// byte out during parsing, and the `Parser` is discarded once parsing
-// finishes). What was unsafe was a free-function accessor shell, kept
-// raw-pointer-shaped for the same c2rust-port reason `support::buffer`
-// and `support::built_json` used for `Buffer`/`BuiltValue` (Stage 9/10);
-// this `impl` was always the safe replacement API underneath it, and
-// every former consumer now calls it directly -- the shell itself is
-// gone (Phase 12), and the last two raw-pointer entry points,
-// `json_parse`/`json_value_free`, went in Stage M-7: they were a
-// `Box::into_raw`/`Box::from_raw` wrapper around `parse_json`, and the
-// callers now use `parse_json`'s `Option<ParsedValue>` directly.
 impl ParsedValue {
     /// The `JsonType` tag for this value -- `Null` here always means a
     /// real JSON `null`, never "absent"; a lookup that found nothing
@@ -156,9 +119,8 @@ impl ParsedValue {
 
     /// Look up `key` (no trailing NUL needed) in this object, of whatever
     /// type; `None` when there is no such member or this isn't an object.
-    /// The first member whose name matches wins -- matters because the
-    /// parser keeps duplicate keys rather than collapsing them, matching
-    /// the old `json_obj_get`'s contract exactly.
+    /// The first member whose name matches wins: the parser keeps duplicate
+    /// keys.
     pub fn get(&self, key: &[u8]) -> Option<&ParsedValue> {
         self.as_object()?
             .iter()
@@ -180,20 +142,10 @@ impl ParsedValue {
     }
 
     /// [`get_typed`](Self::get_typed), but returns a mutable reference to
-    /// the found child instead of a shared one -- for the Stage 7-4
-    /// JSON-parse-side `unsafe fn` trio (`json_reader::read_json`,
-    /// `table::glyf::parse_glyf`, `table::otl::parse::
-    /// parse_otl`; see `RUST_MIGRATION.md`'s "Stage 7-4 plan"
-    /// section), which each need to resolve a named child and then mutate
-    /// it in place (`set_field`/`take_field` on it, or recurse into it
-    /// mutably) instead of just reading it. Same first-match-only
-    /// semantics as `get_typed`: a later duplicate key is never reached
-    /// even if it would satisfy the type asked for. `None` under the same
-    /// conditions `get_typed` returns `None` for (no such member, or the
-    /// first match has the wrong type). Stage M-31 adds this method alone
-    /// -- nothing in the crate calls it yet; M-32/M-33 are what actually
-    /// use it, once `parse_glyf`/`parse_otl` take `&mut
-    /// ParsedValue` themselves.
+    /// the found child, for readers that take members out of the tree as
+    /// they go (`json_reader::read_json`, `table::glyf::parse_glyf`,
+    /// `table::otl::parse::parse_otl`). Same first-match-only semantics as
+    /// `get_typed`.
     pub fn get_typed_mut(&mut self, key: &[u8], kind: JsonType) -> Option<&mut ParsedValue> {
         let fields = match self {
             ParsedValue::Object(fields) => fields,
@@ -207,9 +159,8 @@ impl ParsedValue {
     }
 
     /// A member's boolean value; `false` when absent or not a boolean.
-    /// First-match-only, like [`get_typed`](Self::get_typed) (not
-    /// [`get_num_or`](Self::get_num_or)'s "keep looking" behavior) --
-    /// matches the old `json_obj_getbool`'s contract exactly.
+    /// First-match-only, like [`get_typed`](Self::get_typed), not
+    /// [`get_num_or`](Self::get_num_or)'s "keep looking" behavior.
     pub fn get_bool(&self, key: &[u8]) -> bool {
         self.get_typed(key, JsonType::Boolean)
             .and_then(ParsedValue::as_bool)
@@ -234,15 +185,13 @@ impl ParsedValue {
         fallback
     }
 
-    /// [`get_num_or`](Self::get_num_or) with a `0.0` fallback -- matches
-    /// the old `json_obj_getnum`'s contract exactly.
+    /// [`get_num_or`](Self::get_num_or) with a `0.0` fallback.
     pub fn get_num(&self, key: &[u8]) -> f64 {
         self.get_num_or(key, 0.0)
     }
 
-    /// [`get_num_or`](Self::get_num_or), truncated to `i32` -- matches
-    /// the old `json_obj_getint_fallback`'s contract exactly (including
-    /// its own "keep looking" behavior).
+    /// [`get_num_or`](Self::get_num_or), truncated to `i32`, including its
+    /// "keep looking" behavior.
     pub fn get_int_or(&self, key: &[u8], fallback: i32) -> i32 {
         if let Some(fields) = self.as_object() {
             for (k, v) in fields {
@@ -258,8 +207,7 @@ impl ParsedValue {
         fallback
     }
 
-    /// [`get_int_or`](Self::get_int_or) with a `0` fallback -- matches
-    /// the old `json_obj_getint`'s contract exactly.
+    /// [`get_int_or`](Self::get_int_or) with a `0` fallback.
     pub fn get_int(&self, key: &[u8]) -> i32 {
         self.get_int_or(key, 0)
     }
@@ -273,16 +221,14 @@ impl ParsedValue {
             .and_then(ParsedValue::as_str_bytes)
     }
 
-    /// [`get_bytes`](Self::get_bytes), copied into a fresh `Vec<u8>` --
-    /// matches the old `json_obj_getsds`'s contract exactly.
+    /// [`get_bytes`](Self::get_bytes), copied into a fresh `Vec<u8>`.
     pub fn get_bytes_owned(&self, key: &[u8]) -> Option<Vec<u8>> {
         self.get_bytes(key).map(|b| b.to_vec())
     }
 
     /// Overwrites the `i`th object member's value with `value`, dropping
     /// whatever was there before. No-op if this isn't an object or `i` is
-    /// out of range -- matches the old `json_obj_set_val_at`'s contract
-    /// exactly.
+    /// out of range.
     pub fn set_field(&mut self, i: usize, value: ParsedValue) {
         if let ParsedValue::Object(fields) = self
             && let Some((_, v)) = fields.get_mut(i) {
@@ -605,12 +551,10 @@ impl<'a> Parser<'a> {
             digits += 1;
             self.pos += 1;
         }
-        // NOTE: unlike the fraction/exponent digit counts below, the
-        // vendored parser has no "at least one digit" check on the
-        // integer part itself -- confirmed empirically: `json_parse` on
-        // `{"v":-}` succeeds and produces `Int(0)` (the value's `.integer`
-        // starts calloc'd-zero and a bare `-` never gets any digit added
-        // to it). So a lone `-` is accepted here too, not rejected.
+        // NOTE: unlike the fraction/exponent digit counts below, there is
+        // no "at least one digit" check on the integer part itself:
+        // `{"v":-}` parses as `Int(0)`, as upstream otfcc's parser does.
+        // So a lone `-` is accepted here too, not rejected.
 
         let mut is_double = false;
         let mut dbl = 0.0f64;
@@ -686,15 +630,6 @@ impl<'a> Parser<'a> {
     }
 }
 
-// Stage 11 completion (Phase 12): the accessor-layer free-function shell
-// this comment used to describe has been fully migrated away and deleted
-// -- every former consumer now calls the safe `impl ParsedValue` API
-// above directly. `otfcc_parse_flags`, its last raw-pointer-shaped
-// survivor (bridging `table/head.rs`'s `parse_head`), lost its own
-// last caller once that function switched to calling `ParsedValue::flags`
-// directly and was deleted here too. `json_parse`/`json_value_free` above
-// remain, as the legitimate FFI-adjacent generation/destruction pair
-// `bin/otfccbuild.rs`/`ffi/dll.rs` still use.
 
 #[cfg(test)]
 mod tests {
@@ -726,11 +661,8 @@ mod tests {
     /// Direct coverage for the accessor layer's NUL-termination contract
     /// (see `ParsedValue`'s doc comment): confirms an object key's and a
     /// `Str` value's own storage are actually usable with
-    /// `strcmp`/`CStr::from_ptr` via a raw pointer straight into that
-    /// storage (`key.as_ptr()`, the same idiom `table/cmap.rs`'s
-    /// `parse_unicode` and `json_reader.rs`'s `place_order_entries_from_
-    /// cmap` call sites use), the exact pattern dozens of call sites
-    /// across the crate rely on.
+    /// `strcmp`/`CStr::from_ptr` via a pointer straight into that storage
+    /// (`key.as_ptr()`).
     #[test]
     #[cfg_attr(miri, ignore = "calls libc::strcmp directly, unsupported under Miri")]
     #[allow(unsafe_code)]
@@ -994,10 +926,6 @@ mod tests {
         }
     }
 
-    // The tests below exercise the safe `impl ParsedValue` API (Stage 11
-    // Phase 1) directly, with no `unsafe` at all -- unlike the tests
-    // above, which still go through the old free-function shell to keep
-    // covering it while consumer files migrate off it one batch at a time.
 
     #[test]
     fn safe_api_kind_matches_every_variant() {

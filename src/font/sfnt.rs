@@ -1,10 +1,5 @@
 use std::io::{Read, Seek, SeekFrom};
 
-// `data` was `__caryll_allocate_clean`'d/`free`'d, sized from `length` --
-// read straight out of the SFNT table directory, i.e. untrusted font bytes.
-// The same risk class `CffIndex`/`CffDict` closed: a counting mistake in
-// `read_packets` below would have been an immediate OOB write: `Vec`
-// removes that structurally.
 #[derive(Debug)]
 pub struct PacketPiece {
     pub tag: u32,
@@ -13,13 +8,6 @@ pub struct PacketPiece {
     pub length: u32,
     pub data: Vec<u8>,
 }
-// `pieces` was similarly `__caryll_allocate_clean`'d/`free`'d, sized from
-// `num_tables` (also untrusted). `Packet` used to derive `Copy` purely so
-// every `table/*.rs` parser (~30 files) and `otf_reader.rs`'s `read_sfnt`
-// (which reuses one `packet` across ~20 sequential calls) could pass it by
-// value without borrow-checker friction -- none of those sites ever needed
-// ownership, only read access, so every one of them now takes `&Packet`
-// instead. `Copy` is dropped along with the raw pointer it was papering over.
 #[derive(Debug)]
 pub struct Packet {
     pub sfnt_version: u32,
@@ -29,8 +17,6 @@ pub struct Packet {
     pub range_shift: u16,
     pub pieces: Vec<PacketPiece>,
 }
-// `offsets`/`packets` were `__caryll_allocate_clean`'d/`free`'d, sized from
-// `count` (either `1`, or read from a TTC header -- also untrusted).
 #[derive(Debug)]
 pub struct SplineFontContainer {
     pub header_tag: u32,
@@ -38,31 +24,12 @@ pub struct SplineFontContainer {
     pub offsets: Vec<u32>,
     pub packets: Vec<Packet>,
 }
-// `false` on any I/O failure -- EOF partway through a read, or a seek past
-// the end of file, either one meaning a truncated or otherwise malformed
-// file, not an in-memory bug -- and the caller (`read_sfnt`) tears
-// down the partially-built `font` and returns null instead. `otfccdump.rs`'s
-// caller already null-checks `read_sfnt`'s return and logs a clean
-// "Cannot read SFNT file ...". Exit." through the normal `Logger` channel,
-// so routing failure there reuses an error path that already existed.
-//
-// This used to read each table's actual bytes with `fread`, discarding the
-// return value -- so a table whose declared `length` ran past the actual
-// end of a truncated file was silently zero-padded instead of failing the
-// read. `Read::read_exact` (below, and in `get16u`/`32`) fails
-// instead, the same way the header/directory fields already did.
+// Reads every member font's table directory and table data. `false` on any
+// I/O failure (a short read, or a seek past the end): the file is truncated
+// or malformed, and `read_sfnt` then fails as a whole.
 fn read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) -> bool {
-    // `offset`/`length` below are attacker-controlled (raw fields straight
-    // out of the table directory), so a table declaring a length up to
-    // u32::MAX used to reach `vec![0u8; length as usize]` unconditionally
-    // -- a small crafted file could request a multi-gigabyte allocation
-    // before this function ever tried to read a single byte of that
-    // table. Getting the file's real length once up front (this seek
-    // doesn't disturb anything after it: every read below starts with its
-    // own absolute `SeekFrom::Start`) lets each entry be checked against
-    // it before allocating, the same "fail before doing unbounded work"
-    // shape `read_exact`'s own short-read failure already gave the actual
-    // byte-copying step.
+    // Table offsets and lengths come from the file, so each table is checked
+    // against the file's real length before anything is allocated for it.
     let Ok(total_len) = file.seek(SeekFrom::End(0)) else {
         return false;
     };
@@ -120,24 +87,8 @@ fn read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) ->
         }
         {
             let packet = &mut font.packets[count as usize];
-            // Was bounded by packet 0's `num_tables` instead of this
-            // packet's own -- a quirk preserved exactly from the original
-            // C (`(*(*font).packets.offset(0)).num_tables`), silently
-            // harmless there only because C's unchecked array indexing
-            // just read stale/adjacent memory instead of crashing. A
-            // TrueType Collection's member fonts are independent and can
-            // have different table counts (nothing in the format requires
-            // otherwise), so a font whose first member has more tables
-            // than a later one used to index that later packet's
-            // `pieces` (sized from *its own* `num_tables`) past its end
-            // -- an out-of-bounds panic here, found by fuzzing shortly
-            // after this file's TTC-count allocation-budget fix started
-            // actually reaching this loop with realistic small counts.
-            // `packet.pieces.len()` is exactly this packet's own table
-            // count (one `push` per table in the loop above), so bounding
-            // by it instead fixes both: no more cross-packet indexing,
-            // and no behavior change for the common case where every
-            // member does share the same table count.
+            // Bounded by this member's own table count: TTC members can have
+            // different numbers of tables.
             for i_0 in 0..packet.pieces.len() as u32 {
                 let piece = &mut packet.pieces[i_0 as usize];
                 if file.seek(SeekFrom::Start(piece.offset as u64)).is_err() {
@@ -188,20 +139,9 @@ fn read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) 
             let Some(count) = get32u(file) else {
                 return false;
             };
-            // `count` is the TTC header's own `numFonts` field, read
-            // directly out of the file with no upper bound -- a 15-byte
-            // crafted file (the 12-byte TTC header plus one more 4-byte
-            // word standing in for `numFonts`) used to reach
-            // `vec![0; count as usize]` / `(0..count).map(...).collect()`
-            // unconditionally below, both sized from a value up to
-            // `u32::MAX`: a multi-gigabyte allocation before a single
-            // per-font offset was ever actually read. Each collection
-            // member needs at least its own 4-byte offset entry in the
-            // header that follows, so `count` can't legitimately exceed
-            // however many 4-byte words remain in the file at this point
-            // -- the same "check against the real file length before
-            // allocating" shape `read_packets` already uses for
-            // each table's `length`.
+            // `numFonts` comes from the file. Each member needs a 4-byte
+            // offset after it, so it cannot exceed the 4-byte words left;
+            // checking that first avoids a huge allocation.
             let Ok(current_pos) = file.stream_position() else {
                 return false;
             };
@@ -244,27 +184,14 @@ fn read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) 
     }
 }
 /// Opens and reads an SFNT (or TTC) file by path, returning `None` on any
-/// failure -- the file doesn't exist, isn't readable, or is truncated/
-/// malformed partway through. `otfccdump.rs`'s caller checks the result and
-/// logs accordingly; there is no separate "couldn't open" vs. "couldn't
-/// parse" signal, matching how this always worked.
-///
-/// Was `(*const c_char) -> *mut SplineFontContainer` (null for failure,
-/// and a matching `otfcc_delete_sfnt` to give it back). The path is a
-/// `&Path` now -- which also retires the "null path" case, since a
-/// reference cannot be null -- and the result is the owned value, so the
-/// caller's scope frees it and there is no delete function to forget.
+/// failure -- the file doesn't exist, isn't readable, or is truncated or
+/// malformed.
 pub fn read_sfnt(path: &std::path::Path) -> Option<SplineFontContainer> {
     let mut file = std::fs::File::open(path).ok()?;
     read_sfnt_from_reader(&mut file)
 }
-/// [`read_sfnt`]'s file-opening split from its actual reading, for
-/// callers that already have bytes in memory rather than a path -- the
-/// `otf_parse` fuzz target uses this with a `std::io::Cursor<&[u8]>` over
-/// the fuzzer-provided input instead of writing it to a real temp file on
-/// every one of its thousands-per-process iterations (this used to be
-/// `fmemopen` wrapping a byte buffer as a `FILE*`, back when
-/// `read_sfnt` itself was `FILE*`-shaped).
+/// [`read_sfnt`] for bytes already in memory (the `otf_parse` fuzz target
+/// passes a `std::io::Cursor` over its input).
 pub fn read_sfnt_from_reader<R: Read + Seek>(file: &mut R) -> Option<SplineFontContainer> {
     let mut font = SplineFontContainer {
         header_tag: 0,
@@ -311,9 +238,8 @@ mod tests {
         assert!(read_sfnt(std::path::Path::new("/nonexistent/otfcc-test-path")).is_none());
     }
 
-    // The bug this file's rewrite fixes: a table whose declared length runs
-    // past the truncated file's actual end used to be silently zero-padded
-    // (`fread`'s return value discarded) instead of failing the read.
+    // A table whose declared length runs past the truncated file's actual
+    // end must fail the read, not be silently zero-padded.
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn table_length_past_truncated_file_end_fails_instead_of_zero_padding() {
@@ -337,13 +263,12 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    // The bug fixed alongside the one above: a table's declared length was
-    // used to size an allocation (`vec![0u8; length as usize]`) before ever
-    // checking it against the file's actual size, so a tiny file could
-    // still make this request a multi-gigabyte allocation. This declares a
-    // length one byte short of u32::MAX in a file a few dozen bytes long;
-    // if the length-vs-file-size check regressed, this test would hang or
-    // OOM instead of failing promptly.
+    // A table's declared length must be checked against the file's actual
+    // size before it sizes an allocation, or a tiny file could request a
+    // multi-gigabyte one. This declares a length one byte short of
+    // u32::MAX in a file a few dozen bytes long; if the length-vs-file-size
+    // check regressed, this test would hang or OOM instead of failing
+    // promptly.
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn table_length_far_past_file_end_fails_without_allocating_it() {
@@ -363,23 +288,16 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    // The bug found by fuzzing after this file's TTC-count allocation-budget
-    // fix landed: `numFonts` from a TTC header's own bytes used to size
-    // `font.offsets`/`font.packets` before ever checking it against the
-    // file's actual size, so a 15-byte file could still make this request
-    // a multi-gigabyte allocation. This declares a `numFonts` far larger
-    // than the tiny file that follows could possibly hold; if the
-    // count-vs-file-size check regressed, this test would hang or OOM
-    // instead of failing promptly.
-    // The bug found immediately after the fix above started actually
-    // reaching this code with realistic small TTC counts: `otfcc_read_
-    // packets`'s per-font data-read loop used to be bounded by packet 0's
-    // `num_tables`, not each packet's own -- harmless in the original C
-    // (an unchecked, silently-wrong array read), but an out-of-bounds
-    // panic in Rust for any TTC whose first member has *more* tables than
-    // a later one. Two members: the first with one table, the second with
-    // none; if the cross-packet bound regressed, reading the second
-    // member would panic instead of succeeding.
+    // Fuzz-found: `numFonts` from a TTC header must be checked against the
+    // file's actual size before it sizes `font.offsets`/`font.packets`, or
+    // a 15-byte file could request a multi-gigabyte allocation. This
+    // declares a `numFonts` far larger than the tiny file that follows
+    // could possibly hold; if the count-vs-file-size check regressed, this
+    // test would hang or OOM instead of failing promptly.
+    // Each packet's data-read loop must be bounded by that packet's own
+    // `num_tables`, not packet 0's -- otherwise any TTC whose first member
+    // has *more* tables than a later one panics out of bounds. Two members:
+    // the first with one table, the second with none.
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn ttc_member_with_fewer_tables_than_the_first_member_reads_cleanly() {

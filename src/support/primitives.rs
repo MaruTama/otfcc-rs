@@ -2,11 +2,10 @@
 //! otfcc's scalar vocabulary, the Rust counterpart of
 //! `c/include/otfcc/primitives.h`.
 //!
-//! c2rust declared each of these in every file that used one — `GlyphId` 65
-//! times, `Pos` 57 — so the whole set now lives here and is imported. The
-//! comments come from the C header: they are the only place the *meaning* of
-//! these aliases is written down, and `u16` on its own does not tell a reader
-//! whether a number is a glyph index, a class, or a table index.
+//! The comments come from the C header: they are the only place the
+//! *meaning* of these aliases is written down, and `u16` on its own does
+//! not tell a reader whether a number is a glyph index, a class, or a table
+//! index.
 
 /// 2.14 fixed-point, a value in [-1, 1].
 pub type F2Dot14 = i16;

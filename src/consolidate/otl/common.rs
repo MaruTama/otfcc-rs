@@ -32,17 +32,11 @@ pub fn fontop_consolidate_class_def(
     let Some(cd) = cd else {
         return;
     };
-    // Unlike this file's other caller chain (OTL lookup consolidation,
-    // always glyf-gated by the time it reaches here), `consolidate.rs`
-    // also calls this directly for TSI5, which is NOT glyf-gated -- a
-    // JSON font can declare a `TSI5` table with no `glyf` table at all, in
-    // which case `glyph_order` is never created. The original C (and this
-    // function's own body below) unconditionally dereferenced `go` with no
-    // null check, so that combination was a null-pointer segfault; this
-    // early return is a genuine fix uncovered by requiring a real
-    // `&GlyphOrder` here; every glyph reference in the table below simply
-    // stays unresolved, matching how an unresolved reference is already
-    // handled elsewhere in this file.
+    // OTL lookup consolidation always has a glyph order by the time it
+    // reaches here, but TSI5 consolidation does not: a JSON font can
+    // declare a `TSI5` table with no `glyf` table at all, in which case
+    // `glyph_order` is never created. Every glyph reference then simply
+    // stays unresolved, like any other unresolved reference.
     let Some(glyph_order) = glyph_order else {
         return;
     };

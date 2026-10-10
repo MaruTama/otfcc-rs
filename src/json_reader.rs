@@ -17,14 +17,6 @@ fn decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
         FontSubtype::Ttf
     }
 }
-// `name` is `Vec<u8>` now instead of `SdsRaw`: the duplicate-name path
-// used to leave the old `SdsRaw` `name` deliberately un-freed (a
-// pre-existing leak this migration didn't own until it reached this
-// function directly), but that hazard is gone by construction -- an
-// unused `Vec<u8>` just drops.
-//
-// Never a real FFI boundary -- internal call site only, same rationale
-// as every other instance of this allow in the crate.
 fn set_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, order_type: GlyphOrderPass, order_entry: u32) {
     match go.by_name.get(&name).copied() {
         None => {
@@ -96,15 +88,9 @@ fn place_order_entries_from_glyf(table: &ParsedValue, go: &mut GlyphOrder) {
         }
     }
 }
-// `strlen`/pointer arithmetic on `key.as_ptr()`: a separate, not-yet-
-// converted raw-C-string shell -- same shape as `table/cmap.rs`'s
-// `parse_unicode` (this function inlines the identical U+XXXX-or-decimal
-// parse and stays unsafe for the same reason), out of scope here.
-// The `U+XXXX`-or-decimal object-key parse this used to inline byte for
-// byte (`strlen`/`strtol`/`.offset()` over the key's raw storage) is
-// `table/cmap.rs`'s own `parse_unicode` -- the old comment here said so and
-// then duplicated it anyway. Calling it directly is the whole function's
-// unsafety gone, and leaves one parser to keep correct instead of two.
+// Glyph-order entries for every glyph the cmap names, keyed by code point.
+// Keys go through `table/cmap.rs`'s `parse_unicode`, the same parser the
+// cmap itself uses.
 fn place_order_entries_from_cmap(table: &ParsedValue, go: &mut GlyphOrder) {
     let Some(fields) = table.as_object() else {
         return;
@@ -135,10 +121,6 @@ fn place_order_entries_from_subtable(table: &ParsedValue, go: &mut GlyphOrder, z
     }
 }
 fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphOrder>> {
-    // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
-    // (`malloc`) + `Box::from_raw` -- see the matching note in
-    // `consolidate.rs`'s `consolidate_font`. `go` borrows `go_box` for
-    // the rest of this function (unchanged from here down).
     let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
         entries: Vec::new(),
         by_gid: ::std::collections::BTreeMap::new(),
@@ -171,44 +153,17 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
 }
 /// Builds a font from an already-parsed JSON tree.
 ///
-/// Was a `FontBuilder` impl on a zero-sized `JsonReader` marker struct
-/// plus a casting wrapper; see `otf_reader::read_otf` for why that trait
-/// is gone. The subfont index the erased signature forced this side to
-/// accept was never read -- a JSON tree describes exactly one font --
-/// so it is dropped rather than kept as a silently-ignored parameter.
-///
-/// `root` is `&mut ParsedValue`, not `&ParsedValue`. An earlier revision of
-/// this function kept `root: &ParsedValue` (`read_json` was `unsafe fn`)
-/// and reborrowed it into a `&mut ParsedValue` at each of the three call
-/// sites that needed one (`parse_glyf`, then `parse_otl` twice
-/// for GSUB/GPOS) via an explicit `as *mut` cast, on the reasoning that
-/// "nothing else reads `root` during this call" was enough to make it
-/// sound. **That reasoning is wrong, and Miri caught it on the very next
-/// CI run**: a `&T`-typed reference's own tag caps every pointer derived
-/// from it at `SharedReadOnly` for that borrow's whole lifetime under
-/// Stacked Borrows, independent of what else does or doesn't read through
-/// it -- casting it to `*mut` and dereferencing mutably is undefined
-/// behavior unconditionally, not something "nothing else aliases it" can
-/// excuse away. Every one of this function's three real call sites already
-/// owns its `ParsedValue` as a mutable local that is never read again
-/// afterward (`ffi/dll.rs`, `bin/otfccbuild.rs`, `benches/support/mod.rs`),
-/// so taking `&mut ParsedValue` here costs nothing at any of them, and
-/// every call this function makes to `parse_glyf`/`parse_otl`
-/// (both `&mut ParsedValue` themselves, Stage M-32/M-33) is now a plain,
-/// ordinary, sound reborrow -- no raw pointer and no `unsafe` anywhere in
-/// this function, closing the JSON-parse `unsafe fn` trio this migration's
-/// "Stage 7-4 plan" set out to make safe (M-31 through this, its own
-/// planned M-34).
+/// `root` is `&mut` because `parse_glyf` and `parse_otl` (for GSUB and
+/// GPOS) take their subtrees mutably; every caller owns the tree and does
+/// not read it again afterward.
 pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>> {
     // Counts in an OpenType table are 16 bits, so a JSON collection with
-    // 65,536 or more members cannot become a font -- and used to make
-    // `otfccbuild` hang (65,536 `glyf` entries, 65,536 references on one
-    // glyph), panic (65,536 mark classes) or write a table whose count had
-    // wrapped. See `support::json_limits` for the rule and its exceptions.
-    // Reject it here, before any glyph-order or table work, the way any other
-    // JSON that cannot become a font is rejected: `None` is what `otfccbuild`
-    // reports as "Cannot parse JSON file ... as a font" and what
-    // `otfccbuild_json_otf` turns into a null buffer.
+    // 65,536 or more members cannot become a font (it would hang, panic or
+    // wrap a count further on). See `support::json_limits` for the rule and
+    // its exceptions. Reject it here, before any glyph-order or table work,
+    // the way any other JSON that cannot become a font is rejected: `None`
+    // is what `otfccbuild` reports as "Cannot parse JSON file ... as a
+    // font" and what `otfccbuild_json_otf` turns into a null buffer.
     if let Some(found) = find_oversized_collection(root) {
         tracing::error!("Too many entries in \"{}\": {} (at most {} are supported; counts in an OpenType table are 16-bit).\n", ByteStr(&found.path), found.len as u32, MAX_ENTRIES as u32);
         return None;

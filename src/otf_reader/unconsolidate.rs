@@ -30,10 +30,8 @@ fn hash_vqs(buf: &mut Buffer, s: &VqSegment) {
             buf.write_u32be(to_fixed(*still) as u32);
         }
         VqSegment::Delta(delta) => {
-            // `delta.region: Rc<VqRegion>` is shared ownership of the same
-            // allocation `FvarTable.masters` holds (Stage M-28) -- plain
-            // field/method access through `Rc`'s `Deref`, no `unsafe {}`
-            // needed (unlike the raw-pointer form this replaces).
+            // `delta.region` shares the `Rc<VqRegion>` `FvarTable.masters`
+            // holds.
             let region = &delta.region;
             buf.write_u32be(to_fixed(delta.quantity) as u32);
             buf.write_u32be(region.dimensions as u32);
@@ -278,12 +276,6 @@ fn name_glyphs(font: &mut Font, gord: &GlyphOrder) {
 // the product, not just each factor.
 const MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP: usize = 20_000;
 pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
-    // The original C (c/lib/otf-reader/unconsolidate.c) computes a
-    // `total_rules` count in a first pass over the subtables and never uses
-    // it afterward (no capacity-reservation call, no other reference) --
-    // genuinely dead code upstream, not a c2rust artifact. Confirmed by
-    // inspection: the loop body only reads subtable fields into a local
-    // accumulator with no other side effects. Omitted here.
     let mut newsts: SubtableList = Vec::new();
     'subtables: for slot in lookup.subtables.iter_mut() {
         if newsts.len() >= MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP {
@@ -304,16 +296,9 @@ pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
         };
         match sub_chaining {
             ChainingSubtable::Poly(ruleset) => {
-                // `None` would only appear here if the original binary read
-                // failed partway through this same lookup and pushed a
-                // placeholder; provably never the case for any payload this
-                // crate builds successfully, so `.expect` turns that into a
-                // clean panic instead of reproducing the old
-                // null-pointer-deref UB. (Fuzzing did find a `None` here
-                // before `chaining/read.rs`'s per-rule read functions were
-                // changed to never push a failed individual rule into
-                // `ruleset.rules` in the first place -- see that file's own
-                // comment at each push site.)
+                // `chaining/read.rs` never pushes a failed rule into
+                // `ruleset.rules`, so every slot of a successfully read
+                // lookup is `Some`.
                 for rule_slot in ::core::mem::take(&mut ruleset.rules) {
                     if newsts.len() >= MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP {
                         break 'subtables;
@@ -330,11 +315,8 @@ pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
                 // are `None`, so this is a cheap no-op, not a leak.
             }
             ChainingSubtable::Canonical(rule) => {
-                // `ChainingRule` has no custom `Drop`, so swapping its value
-                // out through the `&mut` borrow (leaving a cheap empty
-                // default behind for `sub_box` to drop normally) is a plain
-                // safe move -- no raw-pointer surgery needed, unlike the
-                // pre-enum version.
+                // Swap the rule out through the `&mut` borrow, leaving a
+                // cheap empty default behind for `sub_box` to drop.
                 let taken_rule = ::core::mem::take(rule);
                 newsts.push(Some(Box::new(Subtable::Chaining(
                     ChainingSubtable::Canonical(taken_rule),
@@ -350,12 +332,9 @@ pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
             ChainingSubtable::Classified(_) => {}
         }
     }
-    // Was `otl_subtable_list_dispose_dependent(..); (*lookup).subtables =
-    // newsts;` -- the plain assignment already drops the old
-    // `Vec<Option<Box<Subtable>>>` in place (correctly disposing anything
-    // left as `Some`: entries this loop didn't touch -- e.g. a `Classified`
-    // subtable, or every remaining slot once the budget above cuts the loop
-    // short -- before replacing it, so there is nothing left to do eagerly.
+    // Dropping the old list here disposes anything this loop left as
+    // `Some` (e.g. a `Classified` subtable, or every remaining slot once
+    // the budget above cuts the loop short).
     lookup.subtables = newsts;
 }
 fn expand_chain(lookup: &mut Lookup) {
