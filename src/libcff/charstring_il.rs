@@ -7,7 +7,6 @@ use crate::libcff::{
     OP_HSTEMHM, OP_HVCURVETO, OP_RCURVELINE, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_RRCURVETO,
     OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, OP_VVCURVETO, TYPE2_ARGUMENT_STACK,
 };
-use crate::support::TRUE_0;
 use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
 
 use crate::libcff::opmean::cff_get_standard_arity;
@@ -150,40 +149,34 @@ fn _il_push_maskgroup(
     jm: &mut u16,
     op: CffCharstringOperator,
 ) {
-    let n: ShapeId = masks.len() as ShapeId;
-    while (*jm as i32) < n as i32
-        && ((masks[*jm as usize].contours_before as i32) < position.contours as i32
-            || masks[*jm as usize].contours_before as i32 == position.contours as i32
-                && masks[*jm as usize].points_before as i32 <= position.points as i32)
-    {
-        il_push_op(il, op);
-        let mut mask_byte: u8 = 0_u8;
-        let mut bits: u8 = 0_u8;
-        for j in 0..stems.h {
-            mask_byte = ((mask_byte as i32) << 1_i32
-                | masks[*jm as usize].mask_h.get(j as usize) as i32)
-                as u8;
-            bits = (bits as i32 + 1_i32) as u8;
-            if bits as i32 == 8_i32 {
-                il_push_special(il, mask_byte as i32);
-                bits = 0_u8;
-            }
+    let n = masks.len() as ShapeId;
+    while *jm < n {
+        let mask = &masks[*jm as usize];
+        let reached = mask.contours_before < position.contours
+            || mask.contours_before == position.contours && mask.points_before <= position.points;
+        if !reached {
+            break;
         }
-        for j_0 in 0..stems.v {
-            mask_byte = ((mask_byte as i32) << 1_i32
-                | masks[*jm as usize].mask_v.get(j_0 as usize) as i32)
-                as u8;
-            bits = (bits as i32 + 1_i32) as u8;
-            if bits as i32 == 8_i32 {
+        il_push_op(il, op);
+        // One bit per stem, horizontal stems first, packed most significant
+        // bit first and padded with zeros to a whole byte.
+        let mut mask_byte: u8 = 0;
+        let mut bits: u8 = 0;
+        let h_bits = (0..stems.h).map(|j| mask.mask_h.get(j as usize));
+        let v_bits = (0..stems.v).map(|j| mask.mask_v.get(j as usize));
+        for bit in h_bits.chain(v_bits) {
+            mask_byte = mask_byte << 1 | bit as u8;
+            bits += 1;
+            if bits == 8 {
                 il_push_special(il, mask_byte as i32);
-                bits = 0_u8;
+                bits = 0;
             }
         }
         if bits != 0 {
-            mask_byte = ((mask_byte as i32) << (8_i32 - bits as i32)) as u8;
+            mask_byte <<= 8 - bits;
             il_push_special(il, mask_byte as i32);
         }
-        *jm = (*jm as i32 + 1_i32) as u16;
+        *jm += 1;
     }
 }
 fn il_push_masks(
@@ -220,36 +213,25 @@ fn _il_push_stemgroup(
     if stems.is_empty() {
         return;
     }
-    let mut last_edge: Pos = 0_i32 as Pos;
-    let mut nn: u16 = (if haswidth as i32 != 0 {
-        1_i32
-    } else {
-        0_i32
-    }) as u16;
-    for j in 0..stems.len() as u16 {
-        il_push_operand(
-            il,
-            stems[j as usize].position - last_edge as f64,
-        );
-        il_push_operand(il, stems[j as usize].width);
-        last_edge = stems[j as usize].position + stems[j as usize].width;
-        nn = nn.wrapping_add(1);
+    // Stems are written as (distance from the previous stem's far edge,
+    // width) pairs. A stem operator takes at most a full argument stack, so
+    // a long list is split; the width, when present, counts as the first
+    // argument of the first operator.
+    let mut last_edge: Pos = 0.0;
+    let mut nn = u16::from(haswidth);
+    for stem in stems {
+        il_push_operand(il, stem.position - last_edge);
+        il_push_operand(il, stem.width);
+        last_edge = stem.position + stem.width;
+        nn += 1;
         if nn as u32 >= TYPE2_ARGUMENT_STACK {
-            if hasmask {
-                il_push_op(il, OP_HSTEMHM);
-            } else {
-                il_push_op(il, OP_HSTEM);
-            }
+            il_push_op(il, if hasmask { OP_HSTEMHM } else { OP_HSTEM });
             let last_idx = il.instr.len() - 1;
             il.instr[last_idx].arity = nn as Arity;
-            nn = 0_u16;
+            nn = 0;
         }
     }
-    if hasmask {
-        il_push_op(il, ophm);
-    } else {
-        il_push_op(il, oph);
-    }
+    il_push_op(il, if hasmask { ophm } else { oph });
     let last_idx = il.instr.len() - 1;
     il.instr[last_idx].arity = nn as Arity;
 }
@@ -263,146 +245,97 @@ pub fn cff_compile_glyph_to_il(
     nominal_width: u16,
 ) -> CffCharstringIl {
     let mut il = CffCharstringIl { instr: Vec::new() };
-    // Was a `__caryll_allocate_clean`'d `*mut Contour` scratch array,
-    // freed at the bottom of this function -- each slot is built up in
-    // full before the next is started, so a plain `Vec<Contour>` grown by
-    // `.push()` needs neither the pre-sized calloc (which needed the
-    // `ptr::write` dance below to become a valid `Vec` in place, see
-    // [[otfcc-vec-field-assign-needs-calloc]]) nor the manual
-    // drop-in-place-then-`free` pair this replaces further down.
-    let mut temp_contours: Vec<Contour> = Vec::with_capacity(g.contours.len());
-    let mut x: VQ = (vq_neutral)();
-    let mut y: VQ = (vq_neutral)();
-    for c in 0..g.contours.len() as u16 {
-        let contour: &Contour = &g.contours[c as usize];
-        let mut newcontour: Contour = Vec::new();
-        for j in 0..contour.len() as ShapeId {
-            newcontour.push(glyf_point_dup(contour[j as usize].clone()));
-        }
-        if newcontour.len() > 2_usize && newcontour[newcontour.len() - 1].on_curve == 0 {
-            let first = newcontour[0_usize].clone();
+    // Each contour with every point turned into a delta from the point
+    // before it (the first from the previous contour's last point), closed
+    // by repeating its first point when it ends off the curve.
+    let mut relative_contours: Vec<Contour> = Vec::with_capacity(g.contours.len());
+    let mut x: VQ = vq_neutral();
+    let mut y: VQ = vq_neutral();
+    for contour in &g.contours {
+        let mut newcontour: Contour = contour.iter().map(|p| glyf_point_dup(p.clone())).collect();
+        if newcontour.len() > 2 && newcontour[newcontour.len() - 1].on_curve == 0 {
+            let first = newcontour[0].clone();
             newcontour.push(glyf_point_dup(first));
         }
-        for j_0 in 0..newcontour.len() as ShapeId {
-            let dx: VQ = vq_minus(newcontour[j_0 as usize].x.clone(), x.clone());
-            let dy: VQ = vq_minus(newcontour[j_0 as usize].y.clone(), y.clone());
-            x = newcontour[j_0 as usize].x.clone();
-            y = newcontour[j_0 as usize].y.clone();
-            newcontour[j_0 as usize].x = dx;
-            newcontour[j_0 as usize].y = dy;
+        let n = point_count(&newcontour);
+        for point in newcontour.iter_mut().take(n) {
+            let dx: VQ = vq_minus(point.x.clone(), x.clone());
+            let dy: VQ = vq_minus(point.y.clone(), y.clone());
+            x = std::mem::replace(&mut point.x, dx);
+            y = std::mem::replace(&mut point.y, dy);
         }
-        temp_contours.push(newcontour);
+        relative_contours.push(newcontour);
     }
-    // `x`/`y` are plain owned locals, never moved out, so they auto-drop
-    // when this function returns -- no explicit dispose call is needed.
     let hasmask: bool = !g.hint_masks.is_empty() || !g.contour_masks.is_empty();
-    let glyph_adw_const: Pos = vq_get_still(g.advance_width.clone()) as Pos;
-    let haswidth: bool = glyph_adw_const != default_width as i32 as Pos;
+    let glyph_adw_const: Pos = vq_get_still(g.advance_width.clone());
+    let haswidth: bool = glyph_adw_const != default_width as Pos;
     if haswidth {
-        // `glyph_adw_const` is attacker-controlled JSON (`advanceWidth`),
-        // cast from `f64` -- `as c_int` already saturates a huge magnitude
-        // to `i32::MIN`/`MAX` rather than wrapping, but the *subtraction*
-        // right after was still plain `-`, so a saturated `i32::MIN` minus
-        // a positive `nominal_width` underflowed past `i32::MIN`: a panic
-        // under debug-assertions (found by fuzzing), silent wraparound
-        // producing a nonsensically wrong advance-width delta in an
-        // ordinary release build otherwise. `saturating_sub` makes the
-        // extreme case clamp instead of either.
+        // `advanceWidth` comes from the JSON, so the cast can saturate to
+        // `i32::MIN`/`MAX`; `saturating_sub` keeps the delta from
+        // overflowing then.
         il_push_operand(
             &mut il,
-            (glyph_adw_const as i32)
-                .saturating_sub(nominal_width as i32)
-                as f64,
+            (glyph_adw_const as i32).saturating_sub(nominal_width as i32) as f64,
         );
     }
     il_push_stems(&mut il, g, hasmask, haswidth);
-    let mut contours_sofar: ShapeId = 0 as ShapeId;
-    let mut points_sofar: ShapeId = 0 as ShapeId;
-    let mut jh: ShapeId = 0 as ShapeId;
-    let mut jm: ShapeId = 0 as ShapeId;
+    // How far the outline has got, in the units the hint and counter masks
+    // record their positions in: contours finished, and points into the
+    // current contour.
+    let mut contours_sofar: ShapeId = 0;
+    let mut points_sofar: ShapeId = 0;
+    let mut jh: ShapeId = 0;
+    let mut jm: ShapeId = 0;
     if hasmask {
-        il_push_masks(
-            &mut il,
-            g,
-            contours_sofar as u16,
-            points_sofar as u16,
-            &mut jh,
-            &mut jm,
-        );
+        il_push_masks(&mut il, g, contours_sofar, points_sofar, &mut jh, &mut jm);
     }
-    for c_0 in 0..g.contours.len() as ShapeId {
-        let contour_0: &Contour = &temp_contours[c_0 as usize];
-        let n: ShapeId = contour_0.len() as ShapeId;
-        if !(n as i32 == 0_i32) {
-            il_moveto(
-                &mut il,
-                contour_0[0_usize].x.clone(),
-                contour_0[0_usize].y.clone(),
-            );
-            points_sofar = points_sofar.wrapping_add(1);
-            if hasmask {
-                il_push_masks(
-                    &mut il,
-                    g,
-                    contours_sofar as u16,
-                    points_sofar as u16,
-                    &mut jh,
-                    &mut jm,
-                );
-            }
-            let mut j_1: ShapeId = 1 as ShapeId;
-            while (j_1 as i32) < n as i32 {
-                if contour_0[j_1 as usize].on_curve != 0 {
-                    il_lineto(
-                        &mut il,
-                        contour_0[j_1 as usize].x.clone(),
-                        contour_0[j_1 as usize].y.clone(),
-                    );
-                    points_sofar = (points_sofar as i32 + 1_i32) as ShapeId;
-                } else if (j_1 as i32) < n as i32 - 2_i32
-                    && contour_0[(j_1 as i32 + 1_i32) as usize].on_curve == 0
-                    && contour_0[(j_1 as i32 + 2_i32) as usize].on_curve as i32 != 0
-                {
-                    il_curveto(
-                        &mut il,
-                        contour_0[j_1 as usize].x.clone(),
-                        contour_0[j_1 as usize].y.clone(),
-                        contour_0[(j_1 as i32 + 1_i32) as usize].x.clone(),
-                        contour_0[(j_1 as i32 + 1_i32) as usize].y.clone(),
-                        contour_0[(j_1 as i32 + 2_i32) as usize].x.clone(),
-                        contour_0[(j_1 as i32 + 2_i32) as usize].y.clone(),
-                    );
-                    points_sofar = (points_sofar as i32 + 3_i32) as ShapeId;
-                    j_1 = (j_1 as i32 + 2_i32) as ShapeId;
-                } else {
-                    il_lineto(
-                        &mut il,
-                        contour_0[j_1 as usize].x.clone(),
-                        contour_0[j_1 as usize].y.clone(),
-                    );
-                    points_sofar = points_sofar.wrapping_add(1);
-                }
-                if hasmask {
-                    il_push_masks(
-                        &mut il,
-                        g,
-                        contours_sofar as u16,
-                        points_sofar as u16,
-                        &mut jh,
-                        &mut jm,
-                    );
-                }
-                j_1 = j_1.wrapping_add(1);
-            }
-            contours_sofar = (contours_sofar as i32 + 1_i32) as ShapeId;
-            points_sofar = 0 as ShapeId;
+    for contour in &relative_contours {
+        let n = point_count(contour);
+        if n == 0 {
+            continue;
         }
+        il_moveto(&mut il, contour[0].x.clone(), contour[0].y.clone());
+        points_sofar += 1;
+        if hasmask {
+            il_push_masks(&mut il, g, contours_sofar, points_sofar, &mut jh, &mut jm);
+        }
+        let mut j = 1;
+        while j < n {
+            if contour[j].on_curve != 0 {
+                il_lineto(&mut il, contour[j].x.clone(), contour[j].y.clone());
+                points_sofar += 1;
+            } else if j + 2 < n && contour[j + 1].on_curve == 0 && contour[j + 2].on_curve != 0 {
+                il_curveto(
+                    &mut il,
+                    contour[j].x.clone(),
+                    contour[j].y.clone(),
+                    contour[j + 1].x.clone(),
+                    contour[j + 1].y.clone(),
+                    contour[j + 2].x.clone(),
+                    contour[j + 2].y.clone(),
+                );
+                points_sofar += 3;
+                j += 2;
+            } else {
+                il_lineto(&mut il, contour[j].x.clone(), contour[j].y.clone());
+                points_sofar += 1;
+            }
+            if hasmask {
+                il_push_masks(&mut il, g, contours_sofar, points_sofar, &mut jh, &mut jm);
+            }
+            j += 1;
+        }
+        contours_sofar += 1;
+        points_sofar = 0;
     }
     il_push_op(&mut il, OP_ENDCHAR);
-    // `temp_contours` is a plain owned `Vec<Contour>` now -- it drops
-    // itself (freeing every contour's `Vec<Point>` in turn) when this
-    // function returns, no manual walk-and-free needed.
     il
+}
+/// A contour's point count as the charstring writer counts it, in 16 bits.
+/// A JSON contour has at most 65,535 points, but closing it can add one, and
+/// a contour of 65,536 points then counts as empty, as it always has.
+fn point_count(contour: &Contour) -> usize {
+    contour.len() as ShapeId as usize
 }
 fn il_matchtype(il: &CffCharstringIl, j: u32, k: u32, t: CffInstructionType) -> bool {
     if k >= il.instr.len() as u32 {
@@ -437,241 +370,166 @@ fn zroll(
     zeros: &[bool],
 ) -> u8 {
     let arity: u8 = cff_get_standard_arity(op);
-    if arity as i32 > 16_i32 || j.wrapping_add(arity as u32) >= il.instr.len() as u32 {
-        return 0_u8;
+    let end = j + arity as u32;
+    if arity > 16 || end >= il.instr.len() as u32 {
+        return 0;
     }
-    if (j == 0_u32
-        || !il_matchtype(
-            il,
-            j.wrapping_sub(1_u32),
-            j,
-            CffInstructionType::PhantomOperator,
-        ))
-        && il_matchop(il, j.wrapping_add(arity as u32), op) as i32 != 0
-        && il_matchtype(
-            il,
-            j,
-            j.wrapping_add(arity as u32),
-            CffInstructionType::Operand,
-        ) as i32
-            != 0
+    let follows_phantom = j > 0 && il_matchtype(il, j - 1, j, CffInstructionType::PhantomOperator);
+    if follows_phantom
+        || !il_matchop(il, end, op)
+        || !il_matchtype(il, j, end, CffInstructionType::Operand)
     {
-        let mut check: u8 = TRUE_0 as u8;
-        let mut result_arity: u8 = arity;
-        let mut mask: [bool; 16] = [false; 16];
-        debug_assert_eq!(
-            zeros.len(),
-            arity as usize,
-            "zroll: flag count must match the operator's arity"
-        );
-        for m in 0..arity as u32 {
-            let checkzero: bool = zeros[m as usize];
-            mask[m as usize] = checkzero;
-            if checkzero {
-                result_arity = (result_arity as i32 - 1_i32) as u8;
-                check = (check as i32 != 0
-                    && il.instr[j.wrapping_add(m) as usize].d() == 0_i32 as f64)
-                    as i32 as u8;
-            }
-        }
-        if check != 0 {
-            for m_0 in 0..arity as u32 {
-                if mask[m_0 as usize] {
-                    il.instr[j.wrapping_add(m_0) as usize].kind =
-                        CffInstructionType::PhantomOperand;
-                }
-            }
-            let end_idx = j.wrapping_add(arity as u32) as usize;
-            il.instr[end_idx].set_i(op2.0);
-            il.instr[end_idx].arity = result_arity as Arity;
-            return arity;
-        } else {
-            return 0_u8;
-        }
-    } else {
-        return 0_u8;
-    };
+        return 0;
+    }
+    debug_assert_eq!(
+        zeros.len(),
+        arity as usize,
+        "zroll: flag count must match the operator's arity"
+    );
+    let flagged = || (0..arity as usize).filter(|&m| zeros[m]);
+    if !flagged().all(|m| il.instr[j as usize + m].d() == 0.0) {
+        return 0;
+    }
+    let result_arity = arity as usize - flagged().count();
+    for m in flagged() {
+        il.instr[j as usize + m].kind = CffInstructionType::PhantomOperand;
+    }
+    il.instr[end as usize].set_i(op2.0);
+    il.instr[end as usize].arity = result_arity as Arity;
+    return arity;
 }
 fn opop_roll(
     il: &mut CffCharstringIl,
     j: u32,
     op1: CffCharstringOperator,
-    arity: i32,
+    arity: u32,
     op2: CffCharstringOperator,
     resultop: CffCharstringOperator,
 ) -> u8 {
-    if j.wrapping_add(1_u32).wrapping_add(arity as u32) >= il.instr.len() as u32 {
-        return 0_u8;
+    let next_idx = j + 1 + arity;
+    if next_idx >= il.instr.len() as u32 {
+        return 0;
     }
-    let next_idx = j.wrapping_add(1_u32).wrapping_add(arity as u32);
-    // `current`/`nextop` are copied out (`CffCharstringInstruction` is
-    // `Copy`) rather than held as two simultaneous `&mut` borrows into the
-    // same Vec at different indices -- the writes below only ever touch
-    // fields these two reads already captured (`current.arity`/`nextop.
-    // arity` are read again after `current`'s own `type_0` write, but that
-    // write never touches `arity`), so the copy is behavior-preserving.
-    // Replaces the raw-pointer pair PR #342 kept for exactly this reason.
+    // `CffCharstringInstruction` is `Copy`: reading both instructions out
+    // first avoids holding two borrows into `il.instr` at once.
     let current = il.instr[j as usize];
     let nextop = il.instr[next_idx as usize];
     if il_matchop(il, j, op1)
-        && il_matchtype(
-            il,
-            j.wrapping_add(1_u32),
-            next_idx,
-            CffInstructionType::Operand,
-        )
+        && il_matchtype(il, j + 1, next_idx, CffInstructionType::Operand)
         && il_matchop(il, next_idx, op2)
-        && current.arity.wrapping_add(nextop.arity) <= TYPE2_ARGUMENT_STACK
+        && current.arity + nextop.arity <= TYPE2_ARGUMENT_STACK
     {
         il.instr[j as usize].kind = CffInstructionType::PhantomOperator;
         il.instr[next_idx as usize].set_i(resultop.0);
-        il.instr[next_idx as usize].arity = nextop.arity.wrapping_add(current.arity);
-        return (arity + 1_i32) as u8;
+        il.instr[next_idx as usize].arity = nextop.arity + current.arity;
+        return (arity + 1) as u8;
     } else {
-        return 0_u8;
+        return 0;
     };
 }
 fn hvlineto_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
-    if j.wrapping_add(3_u32) >= il.instr.len() as u32 {
-        return 0_u8;
+    if j + 3 >= il.instr.len() as u32 {
+        return 0;
     }
     if !(il_matchop(il, j, OP_HLINETO) || il_matchop(il, j, OP_VLINETO)) {
-        return 0_u8;
+        return 0;
     }
-    // `current` copied out (see `opop_roll`'s comment) -- `checkdelta`'s
-    // computation reads `current.i()`, which is only valid once `current`'s
-    // `type_0` is confirmed `Operator` by the `il_matchop` check just above.
+    // Read out after the check above: `i()` is only valid on an operator.
     let current = il.instr[j as usize];
-    let checkdelta: u32 =
-        (if (current.arity & 1 as Arity != 0) as i32 ^ (current.i() == OP_VLINETO.0) as i32 != 0 {
-            1_i32
-        } else {
-            2_i32
-        }) as u32;
-    if il_matchop(il, j.wrapping_add(3_u32), OP_RLINETO)
-        && il_matchtype(
-            il,
-            j.wrapping_add(1_u32),
-            j.wrapping_add(3_u32),
-            CffInstructionType::Operand,
-        )
-        && il.instr[j.wrapping_add(checkdelta) as usize].d() == 0_i32 as f64
-        && current.arity.wrapping_add(1 as Arity) <= TYPE2_ARGUMENT_STACK
+    let odd_arity = current.arity & 1 != 0;
+    let checkdelta: u32 = if odd_arity ^ (current.i() == OP_VLINETO.0) { 1 } else { 2 };
+    if il_matchop(il, j + 3, OP_RLINETO)
+        && il_matchtype(il, j + 1, j + 3, CffInstructionType::Operand)
+        && il.instr[(j + checkdelta) as usize].d() == 0.0
+        && current.arity < TYPE2_ARGUMENT_STACK
     {
-        il.instr[j.wrapping_add(checkdelta) as usize].kind = CffInstructionType::PhantomOperand;
+        il.instr[(j + checkdelta) as usize].kind = CffInstructionType::PhantomOperand;
         il.instr[j as usize].kind = CffInstructionType::PhantomOperator;
-        let current_i = current.i();
-        let end_idx = j.wrapping_add(3_u32) as usize;
-        il.instr[end_idx].set_i(current_i);
-        il.instr[end_idx].arity = current.arity.wrapping_add(1 as Arity);
-        return 3_u8;
+        let end_idx = (j + 3) as usize;
+        il.instr[end_idx].set_i(current.i());
+        il.instr[end_idx].arity = current.arity + 1;
+        return 3;
     } else {
-        return 0_u8;
+        return 0;
     };
 }
 fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     if !il_matchop(il, j, OP_HVCURVETO) && !il_matchop(il, j, OP_VHCURVETO) {
-        return 0_u8;
+        return 0;
     }
-    // `current` copied out (see `opop_roll`'s comment).
     let current = il.instr[j as usize];
-    if j.wrapping_add(7_u32) >= il.instr.len() as u32 || current.arity & 1 as Arity != 0 {
-        return 0_u8;
+    if j + 7 >= il.instr.len() as u32 || current.arity & 1 != 0 {
+        return 0;
     }
-    let hvcase: bool =
-        (current.arity >> 2_i32 & 1 as Arity != 0) as i32 ^ (current.i() == OP_HVCURVETO.0) as i32
-            != 0;
-    let checkdelta1: u32 = (if hvcase as i32 != 0 { 2_i32 } else { 1_i32 }) as u32;
-    let checkdelta2: u32 = (if hvcase as i32 != 0 { 5_i32 } else { 6_i32 }) as u32;
-    if il_matchop(il, j.wrapping_add(7_u32), OP_RRCURVETO)
-        && il_matchtype(
-            il,
-            j.wrapping_add(1_u32),
-            j.wrapping_add(7_u32),
-            CffInstructionType::Operand,
-        )
-        && il.instr[j.wrapping_add(checkdelta1) as usize].d() == 0_i32 as f64
+    let hvcase: bool = (current.arity >> 2 & 1 != 0) ^ (current.i() == OP_HVCURVETO.0);
+    let checkdelta1: u32 = if hvcase { 2 } else { 1 };
+    let checkdelta2: u32 = if hvcase { 5 } else { 6 };
+    let end_idx = (j + 7) as usize;
+    if il_matchop(il, j + 7, OP_RRCURVETO)
+        && il_matchtype(il, j + 1, j + 7, CffInstructionType::Operand)
+        && il.instr[(j + checkdelta1) as usize].d() == 0.0
     {
-        if il.instr[j.wrapping_add(checkdelta2) as usize].d() == 0_i32 as f64
-            && current.arity.wrapping_add(4 as Arity) <= TYPE2_ARGUMENT_STACK
+        if il.instr[(j + checkdelta2) as usize].d() == 0.0
+            && current.arity + 4 <= TYPE2_ARGUMENT_STACK
         {
-            il.instr[j.wrapping_add(checkdelta1) as usize].kind =
-                CffInstructionType::PhantomOperand;
-            il.instr[j.wrapping_add(checkdelta2) as usize].kind =
-                CffInstructionType::PhantomOperand;
+            il.instr[(j + checkdelta1) as usize].kind = CffInstructionType::PhantomOperand;
+            il.instr[(j + checkdelta2) as usize].kind = CffInstructionType::PhantomOperand;
             il.instr[j as usize].kind = CffInstructionType::PhantomOperator;
-            let current_i = current.i();
-            let end_idx = j.wrapping_add(7_u32) as usize;
-            il.instr[end_idx].set_i(current_i);
-            il.instr[end_idx].arity = current.arity.wrapping_add(4 as Arity);
-            return 7_u8;
-        } else if current.arity.wrapping_add(5 as Arity) <= TYPE2_ARGUMENT_STACK {
-            il.instr[j.wrapping_add(checkdelta1) as usize].kind =
-                CffInstructionType::PhantomOperand;
+            il.instr[end_idx].set_i(current.i());
+            il.instr[end_idx].arity = current.arity + 4;
+            return 7;
+        } else if current.arity + 5 <= TYPE2_ARGUMENT_STACK {
+            il.instr[(j + checkdelta1) as usize].kind = CffInstructionType::PhantomOperand;
             il.instr[j as usize].kind = CffInstructionType::PhantomOperator;
-            let current_i = current.i();
-            let end_idx = j.wrapping_add(7_u32) as usize;
-            il.instr[end_idx].set_i(current_i);
-            il.instr[end_idx].arity = current.arity.wrapping_add(5 as Arity);
+            il.instr[end_idx].set_i(current.i());
+            il.instr[end_idx].arity = current.arity + 5;
             if hvcase {
-                let idx5 = j.wrapping_add(5_u32) as usize;
-                let idx6 = j.wrapping_add(6_u32) as usize;
-                let t: f64 = il.instr[idx5].d();
-                let swap_val = il.instr[idx6].d();
-                il.instr[idx5].set_d(swap_val);
-                il.instr[idx6].set_d(t);
+                il.instr.swap((j + 5) as usize, (j + 6) as usize);
             }
-            return 7_u8;
+            return 7;
         } else {
-            return 0_u8;
+            return 0;
         }
     } else {
-        return 0_u8;
+        return 0;
     };
 }
 fn hhvvcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     if !il_matchop(il, j, OP_HHCURVETO) && !il_matchop(il, j, OP_VVCURVETO) {
-        return 0_u8;
+        return 0;
     }
-    // `current` copied out (see `opop_roll`'s comment).
     let current = il.instr[j as usize];
-    if j.wrapping_add(7_u32) >= il.instr.len() as u32 {
-        return 0_u8;
+    if j + 7 >= il.instr.len() as u32 {
+        return 0;
     }
     let hh: bool = current.i() == OP_HHCURVETO.0;
-    let checkdelta1: u32 = (if hh as i32 != 0 { 2_i32 } else { 1_i32 }) as u32;
-    let checkdelta2: u32 = (if hh as i32 != 0 { 6_i32 } else { 5_i32 }) as u32;
-    if il_matchop(il, j.wrapping_add(7_u32), OP_RRCURVETO)
-        && il_matchtype(
-            il,
-            j.wrapping_add(1_u32),
-            j.wrapping_add(7_u32),
-            CffInstructionType::Operand,
-        )
-        && il.instr[j.wrapping_add(checkdelta1) as usize].d() == 0_i32 as f64
-        && il.instr[j.wrapping_add(checkdelta2) as usize].d() == 0_i32 as f64
-        && current.arity.wrapping_add(4 as Arity) <= TYPE2_ARGUMENT_STACK
+    let checkdelta1: u32 = if hh { 2 } else { 1 };
+    let checkdelta2: u32 = if hh { 6 } else { 5 };
+    if il_matchop(il, j + 7, OP_RRCURVETO)
+        && il_matchtype(il, j + 1, j + 7, CffInstructionType::Operand)
+        && il.instr[(j + checkdelta1) as usize].d() == 0.0
+        && il.instr[(j + checkdelta2) as usize].d() == 0.0
+        && current.arity + 4 <= TYPE2_ARGUMENT_STACK
     {
-        il.instr[j.wrapping_add(checkdelta1) as usize].kind = CffInstructionType::PhantomOperand;
-        il.instr[j.wrapping_add(checkdelta2) as usize].kind = CffInstructionType::PhantomOperand;
+        il.instr[(j + checkdelta1) as usize].kind = CffInstructionType::PhantomOperand;
+        il.instr[(j + checkdelta2) as usize].kind = CffInstructionType::PhantomOperand;
         il.instr[j as usize].kind = CffInstructionType::PhantomOperator;
-        let current_i = current.i();
-        let end_idx = j.wrapping_add(7_u32) as usize;
-        il.instr[end_idx].set_i(current_i);
-        il.instr[end_idx].arity = current.arity.wrapping_add(4 as Arity);
-        return 7_u8;
+        let end_idx = (j + 7) as usize;
+        il.instr[end_idx].set_i(current.i());
+        il.instr[end_idx].arity = current.arity + 4;
+        return 7;
     } else {
-        return 0_u8;
+        return 0;
     };
 }
 fn nextstop(il: &CffCharstringIl, j: u32) -> u32 {
-    let mut delta: u32 = 0_u32;
-    while j.wrapping_add(delta) < il.instr.len() as u32
-        && il.instr[j.wrapping_add(delta) as usize].kind == CffInstructionType::Operand
-    {
-        delta = delta.wrapping_add(1);
-    }
-    return delta;
+    let operands = il
+        .instr
+        .iter()
+        .skip(j as usize)
+        .take_while(|instr| instr.kind == CffInstructionType::Operand)
+        .count();
+    return operands as u32;
 }
 fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> u8 {
     let mut r: u8;
@@ -731,35 +589,35 @@ fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> 
     if r != 0 {
         return r;
     }
-    r = opop_roll(il, j, OP_RRCURVETO, 6_i32, OP_RRCURVETO, OP_RRCURVETO);
+    r = opop_roll(il, j, OP_RRCURVETO, 6, OP_RRCURVETO, OP_RRCURVETO);
     if r != 0 {
         return r;
     }
-    r = opop_roll(il, j, OP_RRCURVETO, 2_i32, OP_RLINETO, OP_RCURVELINE);
+    r = opop_roll(il, j, OP_RRCURVETO, 2, OP_RLINETO, OP_RCURVELINE);
     if r != 0 {
         return r;
     }
-    r = opop_roll(il, j, OP_RLINETO, 6_i32, OP_RRCURVETO, OP_RLINECURVE);
+    r = opop_roll(il, j, OP_RLINETO, 6, OP_RRCURVETO, OP_RLINECURVE);
     if r != 0 {
         return r;
     }
-    r = opop_roll(il, j, OP_RLINETO, 2_i32, OP_RLINETO, OP_RLINETO);
+    r = opop_roll(il, j, OP_RLINETO, 2, OP_RLINETO, OP_RLINETO);
     if r != 0 {
         return r;
     }
-    r = opop_roll(il, j, OP_HSTEMHM, 0_i32, OP_HINTMASK, OP_HINTMASK);
+    r = opop_roll(il, j, OP_HSTEMHM, 0, OP_HINTMASK, OP_HINTMASK);
     if r != 0 {
         return r;
     }
-    r = opop_roll(il, j, OP_VSTEMHM, 0_i32, OP_HINTMASK, OP_HINTMASK);
+    r = opop_roll(il, j, OP_VSTEMHM, 0, OP_HINTMASK, OP_HINTMASK);
     if r != 0 {
         return r;
     }
-    r = opop_roll(il, j, OP_HSTEMHM, 0_i32, OP_CNTRMASK, OP_CNTRMASK);
+    r = opop_roll(il, j, OP_HSTEMHM, 0, OP_CNTRMASK, OP_CNTRMASK);
     if r != 0 {
         return r;
     }
-    r = opop_roll(il, j, OP_VSTEMHM, 0_i32, OP_CNTRMASK, OP_CNTRMASK);
+    r = opop_roll(il, j, OP_VSTEMHM, 0, OP_CNTRMASK, OP_CNTRMASK);
     if r != 0 {
         return r;
     }
@@ -779,15 +637,15 @@ fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> 
     if r != 0 {
         return r;
     }
-    return 1_u8;
+    return 1;
 }
 pub fn cff_optimize_il(il: &mut CffCharstringIl, options: &Options) {
     if !options.cff_roll_char_string {
         return;
     }
-    let mut j: u32 = 0_u32;
+    let mut j: u32 = 0;
     while j < il.instr.len() as u32 {
-        j = j.wrapping_add(decide_advance(il, j, options.cff_roll_char_string as u8) as u32);
+        j += decide_advance(il, j, options.cff_roll_char_string as u8) as u32;
     }
 }
 #[cfg(test)]
