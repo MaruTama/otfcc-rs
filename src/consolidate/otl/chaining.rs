@@ -52,7 +52,7 @@ pub(crate) fn consolidate_chaining(
     // that, whenever `glyf` is present.
     let mut possible: bool = true;
     let match_count = rule.match_count as usize;
-    for cov in rule.match_0.iter_mut().take(match_count) {
+    for cov in rule.sequence.iter_mut().take(match_count) {
         fontop_consolidate_coverage(glyph_order, cov);
         shrink_coverage(cov, true);
         possible = possible && !cov.is_empty();

@@ -6,10 +6,10 @@ use crate::table::otl::{Feature, Lookup, OtlTable};
 fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
     let mut dump = BuiltValue::new_object(5);
     // A lookup of no known kind dumps as an empty object.
-    let Some(kind) = lookup_kind(lookup.type_0) else {
+    let Some(kind) = lookup_kind(lookup.lookup_type) else {
         return dump;
     };
-    dump.push_field(b"type", BuiltValue::str_truncated_at_nul(lookup.type_0.name().as_bytes()));
+    dump.push_field(b"type", BuiltValue::str_truncated_at_nul(lookup.lookup_type.name().as_bytes()));
     dump.push_field(
         b"flags",
         BuiltValue::dump_flags(lookup.flags as i32, &LOOKUP_FLAGS_LABELS),

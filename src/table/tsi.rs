@@ -21,7 +21,7 @@ pub enum TsiEntryType {
 }
 #[derive(Clone, Debug)]
 pub struct TsiEntry {
-    pub type_0: TsiEntryType,
+    pub kind: TsiEntryType,
     pub glyph: GlyphHandle,
     pub content: Vec<u8>,
 }
@@ -35,7 +35,7 @@ pub type TsiTable = Vec<TsiEntry>;
 // `consolidate/tsi.rs`), not a `Vec::clone()`.
 pub(crate) fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     TsiEntry {
-        type_0: e.type_0,
+        kind: e.kind,
         glyph: e.glyph.clone(),
         content: e.content.clone(),
     }
@@ -133,25 +133,25 @@ pub fn read_tsi(
                 }
             };
             let mut tsi_entry: TsiEntry = TsiEntry {
-                type_0: TsiEntryType::Glyph,
+                kind: TsiEntryType::Glyph,
                 glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
                 content,
             };
             match entry.gid as i32 {
                 65530 => {
-                    tsi_entry.type_0 = TsiEntryType::Prep;
+                    tsi_entry.kind = TsiEntryType::Prep;
                     tsi_entry.glyph = Handle::default();
                 }
                 65531 => {
-                    tsi_entry.type_0 = TsiEntryType::Cvt;
+                    tsi_entry.kind = TsiEntryType::Cvt;
                     tsi_entry.glyph = Handle::default();
                 }
                 65533 => {
-                    tsi_entry.type_0 = TsiEntryType::Fpgm;
+                    tsi_entry.kind = TsiEntryType::Fpgm;
                     tsi_entry.glyph = Handle::default();
                 }
                 _ => {
-                    tsi_entry.type_0 = TsiEntryType::Glyph;
+                    tsi_entry.kind = TsiEntryType::Glyph;
                     tsi_entry.glyph = handle_from_index(entry.gid as GlyphId) as GlyphHandle;
                 }
             }
@@ -172,14 +172,14 @@ pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
         let mut _tsi = BuiltValue::new_object(2);
         let mut _glyphs = BuiltValue::new_object(entries.len());
         for entry in entries.iter() {
-            if entry.type_0 == TsiEntryType::Glyph {
+            if entry.kind == TsiEntryType::Glyph {
                 _glyphs.push_field_bytes_key(&entry.glyph.name, BuiltValue::Str(entry.content.clone()));
             }
         }
         let mut _extra = BuiltValue::new_object(entries.len());
         for entry in entries.iter() {
-            if entry.type_0 != TsiEntryType::Glyph {
-                let extra_key: &[u8] = match entry.type_0 as u32 {
+            if entry.kind != TsiEntryType::Glyph {
+                let extra_key: &[u8] = match entry.kind as u32 {
                     3 => b"cvt",
                     1 => b"fpgm",
                     2 => b"prep",
@@ -207,7 +207,7 @@ pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
                 continue;
             };
             tsi.push(TsiEntry {
-                type_0: TsiEntryType::Glyph,
+                kind: TsiEntryType::Glyph,
                 glyph: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
                 content: bytes.to_vec(),
             });
@@ -221,14 +221,14 @@ pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
             let Some(bytes) = _content_0.as_str_bytes() else {
                 continue;
             };
-            let type_0 = match &key[..key.len() - 1] {
+            let kind = match &key[..key.len() - 1] {
                 b"cvt" => TsiEntryType::Cvt,
                 b"fpgm" => TsiEntryType::Fpgm,
                 b"prep" => TsiEntryType::Prep,
                 _ => continue,
             };
             tsi.push(TsiEntry {
-                type_0,
+                kind,
                 glyph: handle_empty() as GlyphHandle,
                 content: bytes.to_vec(),
             });
@@ -252,8 +252,8 @@ pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
 // TsiEntryType::Glyph` when `min_n` is `0`, which keeps that loop from
 // running at all for `Glyph` (see `build_tsi`'s call sites), so the
 // null never actually reaches this arm.
-fn propergid(entry: Option<&TsiEntry>, type_0: TsiEntryType) -> GlyphId {
-    match type_0 {
+fn propergid(entry: Option<&TsiEntry>, kind: TsiEntryType) -> GlyphId {
+    match kind {
         TsiEntryType::Cvt => 0xfffb as GlyphId,
         TsiEntryType::Fpgm => 0xfffd as GlyphId,
         TsiEntryType::Prep => 0xfffa as GlyphId,
@@ -261,17 +261,17 @@ fn propergid(entry: Option<&TsiEntry>, type_0: TsiEntryType) -> GlyphId {
         TsiEntryType::Glyph => entry.unwrap().glyph.index,
     }
 }
-fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, type_0: TsiEntryType, min_n: GlyphId) {
+fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, kind: TsiEntryType, min_n: GlyphId) {
     let mut items_pushed: GlyphId = 0 as GlyphId;
     for entry in tsi.iter() {
-        if entry.type_0 != type_0 {
+        if entry.kind != kind {
             continue;
         }
         let length_sofar = target.text_part.as_ref().unwrap().pos();
         target.text_part.as_mut().unwrap().write_bytes(&entry.content);
         let length_after = target.text_part.as_ref().unwrap().pos();
         let index_part = target.index_part.as_mut().unwrap();
-        index_part.write_u16be(propergid(Some(entry), type_0) as u16);
+        index_part.write_u16be(propergid(Some(entry), kind) as u16);
         if length_after.wrapping_sub(length_sofar) < 0x8000_usize {
             index_part.write_u16be(length_after.wrapping_sub(length_sofar) as u16);
         } else {
@@ -283,7 +283,7 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, type_0: TsiEntr
     for _ in items_pushed..min_n {
         let text_pos = target.text_part.as_ref().unwrap().pos();
         let index_part = target.index_part.as_mut().unwrap();
-        index_part.write_u16be(propergid(None, type_0) as u16);
+        index_part.write_u16be(propergid(None, kind) as u16);
         index_part.write_u16be(0_u16);
         index_part.write_u32be(text_pos as u32);
     }
@@ -365,7 +365,7 @@ mod read_tsi_tests {
         let index = index_record(9, 3, 0);
         let tsi = read(index, b"ABC".to_vec());
         assert_eq!(tsi.len(), 1);
-        assert_eq!(tsi[0].type_0, TsiEntryType::Glyph);
+        assert_eq!(tsi[0].kind, TsiEntryType::Glyph);
         assert_eq!(tsi[0].glyph.index, 9);
         assert_eq!(tsi[0].content, b"ABC");
     }
@@ -440,7 +440,7 @@ mod read_tsi_tests {
         ] {
             let index = index_record(gid, 1, 0);
             let tsi = read(index, b"X".to_vec());
-            assert_eq!(tsi[0].type_0, expected, "gid {gid}");
+            assert_eq!(tsi[0].kind, expected, "gid {gid}");
         }
     }
 

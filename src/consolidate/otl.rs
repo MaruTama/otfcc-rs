@@ -32,7 +32,7 @@ pub fn consolidate_lookup(
     if lookup.subtables.is_empty() {
         return;
     }
-    let Some(kind) = lookup_kind(lookup.type_0) else {
+    let Some(kind) = lookup_kind(lookup.lookup_type) else {
         return;
     };
     let ctx = LookupConsolidateCtx { glyph_order, lookups, self_index, self_name, options };
@@ -304,13 +304,13 @@ mod consolidate_otl_table_tests {
     fn self_referencing_chaining_lookup(lookup_type: LookupType, app_lookup: LookupHandle) -> Box<Lookup> {
         let mut lookup = new_lookup();
         lookup.name = b"self_ref_lookup".to_vec();
-        lookup.type_0 = lookup_type;
+        lookup.lookup_type = lookup_type;
         lookup.subtables.push(Some(Box::new(Subtable::Chaining(
             ChainingSubtable::Canonical(ChainingRule {
                 match_count: 0,
                 input_begins: 0,
                 input_ends: 0,
-                match_0: Vec::new(),
+                sequence: Vec::new(),
                 apply: vec![ChainLookupApplication {
                     index: 0,
                     lookup: app_lookup,

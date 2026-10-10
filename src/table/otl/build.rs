@@ -122,7 +122,7 @@ pub fn write_each_subtable_split(
 }
 fn get_lookup_heuristics(table: &OtlTable, lut_idx: LookupIdx, lut: &Lookup) -> BuildHeuristics {
     let mut heu: BuildHeuristics = BuildHeuristics::empty();
-    if lut.type_0 == OTL_TYPE_GSUB_SINGLE {
+    if lut.lookup_type == OTL_TYPE_GSUB_SINGLE {
         // `fea.lookups[k]`/`lut_idx` are both storage-space `LookupIdx`
         // values -- comparing them directly is exactly what the old
         // pointer-identity comparison did, just spelled as an index
@@ -167,7 +167,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         let (lookup_idx, lookup) = live[j];
         let heu: BuildHeuristics = get_lookup_heuristics(table, lookup_idx, lookup);
         tracing::debug!("Building lookup {} ({}/{})\n", ByteStr(&lookup.name), j as i32, live.len() as u32);
-        let Some(kind) = lookup_kind(lookup.type_0) else {
+        let Some(kind) = lookup_kind(lookup.lookup_type) else {
             continue;
         };
         subtable_quantity[j] = kind.build_lookup(
@@ -204,16 +204,16 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         // table's base taken back off -- `LookupType::file_format`, the
         // same nested comparison C spelled out here and again below.
         let lookup_type: u16 = (if use_extended_for_it {
-            if lookup_0.type_0 > OTL_TYPE_GPOS_UNKNOWN {
+            if lookup_0.lookup_type > OTL_TYPE_GPOS_UNKNOWN {
                 OTL_TYPE_GPOS_EXTEND.file_format()
-            } else if lookup_0.type_0 > OTL_TYPE_GSUB_UNKNOWN {
+            } else if lookup_0.lookup_type > OTL_TYPE_GSUB_UNKNOWN {
                 OTL_TYPE_GSUB_EXTEND.file_format()
             } else {
                 0
             }
         } else {
             lookup_0
-                .type_0
+                .lookup_type
                 .file_format()
                 .wrapping_sub(can_be_contextual as u32)
         }) as u16;
@@ -234,7 +234,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         for buf in subtables[j_1].iter_mut().take(quantity) {
             if use_extended_for_it {
                 let extension_lookup_type: u16 = lookup_0
-                    .type_0
+                    .lookup_type
                     .file_format()
                     .wrapping_sub(can_be_contextual as u32)
                     as u16;

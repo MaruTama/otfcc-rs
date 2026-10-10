@@ -233,27 +233,27 @@ pub fn get_point_coordinates(
     }
     for rr in &g.references {
         consolidate_anchor_ref(table, gr, rr, options, depth + 1);
-        let mut ref_0: ComponentReference = (glyf_component_reference_empty)();
-        ref_0.glyph = handle_from_index(rr.glyph.index) as GlyphHandle;
-        ref_0.a = gr.a * rr.a + rr.b * gr.c;
-        ref_0.b = rr.a * gr.b + rr.b * gr.d;
-        ref_0.c = gr.a * rr.c + gr.c * rr.d;
-        ref_0.d = gr.b * rr.c + rr.d * gr.d;
-        ref_0.x = std::cell::RefCell::new(vq_point_linear_tfm(
+        let mut glyph_ref: ComponentReference = (glyf_component_reference_empty)();
+        glyph_ref.glyph = handle_from_index(rr.glyph.index) as GlyphHandle;
+        glyph_ref.a = gr.a * rr.a + rr.b * gr.c;
+        glyph_ref.b = rr.a * gr.b + rr.b * gr.d;
+        glyph_ref.c = gr.a * rr.c + gr.c * rr.d;
+        glyph_ref.d = gr.b * rr.c + rr.d * gr.d;
+        glyph_ref.x = std::cell::RefCell::new(vq_point_linear_tfm(
             rr.x.borrow().clone(),
             rr.a as Pos,
             gr.x.borrow().clone(),
             rr.b as Pos,
             gr.y.borrow().clone(),
         ));
-        ref_0.y = std::cell::RefCell::new(vq_point_linear_tfm(
+        glyph_ref.y = std::cell::RefCell::new(vq_point_linear_tfm(
             rr.y.borrow().clone(),
             rr.c as Pos,
             gr.x.borrow().clone(),
             rr.d as Pos,
             gr.y.borrow().clone(),
         ));
-        let success: bool = get_point_coordinates(table, &ref_0, n, search, options, depth + 1);
+        let success: bool = get_point_coordinates(table, &glyph_ref, n, search, options, depth + 1);
         // `ref_0` is a plain owned local; every field auto-drops when it
         // goes out of scope here (or at the `return true` below), so no
         // explicit dispose call is needed.

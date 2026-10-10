@@ -385,7 +385,7 @@ pub fn general_read_contextual_rule(
         match_count: match_count as TableId,
         input_begins: 0 as TableId,
         input_ends: match_count as TableId,
-        match_0: Vec::new(),
+        sequence: Vec::new(),
         apply: Vec::new(),
     });
     // Filled in order below (the `minus_one` slot first, then the rest
@@ -394,9 +394,9 @@ pub fn general_read_contextual_rule(
     // replacement for the old `jj`-indexed writes into
     // `__caryll_allocate_clean`'d memory (`jj` itself is gone: it was only
     // ever used as that index).
-    rule.match_0 = Vec::with_capacity(rule.match_count as usize);
+    rule.sequence = Vec::with_capacity(rule.match_count as usize);
     if minus_one {
-        rule.match_0
+        rule.sequence
             .push(fn_0(
                 slice,
                 start_gid,
@@ -412,7 +412,7 @@ pub fn general_read_contextual_rule(
             .unwrap()
             .u16()
             .unwrap();
-        rule.match_0
+        rule.sequence
             .push(fn_0(
                 slice,
                 gid,
@@ -785,7 +785,7 @@ pub fn general_read_chaining_rule(
         match_count: match_count as TableId,
         input_begins,
         input_ends: input_ends as TableId,
-        match_0: Vec::new(),
+        sequence: Vec::new(),
         apply: Vec::new(),
     });
     // Filled in order below (backtrack, then the `minus_one` slot, then
@@ -793,14 +793,14 @@ pub fn general_read_chaining_rule(
     // written exactly once, in increasing index order, so `.push()` is the
     // direct replacement for the old `jj`-indexed writes (`jj` itself is
     // gone: it was only ever used as that index).
-    rule.match_0 = Vec::with_capacity(match_count as usize);
+    rule.sequence = Vec::with_capacity(match_count as usize);
     for j in 0..n_back_built {
         let gid = FontReader::new(slice)
             .at(offset as usize + 2 + 2 * j as usize)
             .unwrap()
             .u16()
             .unwrap();
-        rule.match_0
+        rule.sequence
             .push(fn_0(
                 slice,
                 gid,
@@ -811,7 +811,7 @@ pub fn general_read_chaining_rule(
             ));
     }
     if minus_one {
-        rule.match_0
+        rule.sequence
             .push(fn_0(
                 slice,
                 start_gid,
@@ -835,7 +835,7 @@ pub fn general_read_chaining_rule(
             .unwrap()
             .u16()
             .unwrap();
-        rule.match_0
+        rule.sequence
             .push(fn_0(
                 slice,
                 gid,
@@ -852,7 +852,7 @@ pub fn general_read_chaining_rule(
             .unwrap()
             .u16()
             .unwrap();
-        rule.match_0
+        rule.sequence
             .push(fn_0(
                 slice,
                 gid,
@@ -1163,7 +1163,7 @@ pub fn otl_read_chaining(
 // == 0` (nothing to reverse) falls out of slicing an empty range.
 fn reverse_backtracks(rule: &mut ChainingRule) {
     let input_begins = rule.input_begins as usize;
-    rule.match_0[..input_begins].reverse();
+    rule.sequence[..input_begins].reverse();
 }
 
 #[cfg(test)]
@@ -1239,8 +1239,8 @@ mod chaining_read_tests {
         };
         assert_eq!(ruleset.rules.len(), 1);
         let rule = ruleset.rules[0].as_ref().unwrap();
-        assert_eq!(rule.match_0.len(), 1);
-        assert_eq!(glyphs_of(&rule.match_0[0]), vec![42]);
+        assert_eq!(rule.sequence.len(), 1);
+        assert_eq!(glyphs_of(&rule.sequence[0]), vec![42]);
         assert!(rule.apply.is_empty());
     }
 
@@ -1273,7 +1273,7 @@ mod chaining_read_tests {
         assert_eq!(ruleset.rules.len(), 1);
         let rule = ruleset.rules[0].as_ref().unwrap();
         assert_eq!(rule.match_count, 1);
-        assert_eq!(glyphs_of(&rule.match_0[0]), vec![5]);
+        assert_eq!(glyphs_of(&rule.sequence[0]), vec![5]);
     }
 
     #[test]
@@ -1365,7 +1365,7 @@ mod chaining_read_tests {
         // backtrack is stored reversed; here there's only one entry so
         // the order is unaffected.
         assert_eq!(
-            rule.match_0
+            rule.sequence
                 .iter()
                 .map(glyphs_of)
                 .collect::<Vec<_>>(),
@@ -1395,8 +1395,8 @@ mod chaining_read_tests {
         let rule = rule.unwrap();
         // Only the `minus_one` slot (glyph 7, from `start_gid`) is
         // filled; the (empty) input array contributes nothing.
-        assert_eq!(rule.match_0.len(), 1);
-        assert_eq!(glyphs_of(&rule.match_0[0]), vec![7]);
+        assert_eq!(rule.sequence.len(), 1);
+        assert_eq!(glyphs_of(&rule.sequence[0]), vec![7]);
     }
 
     #[test]

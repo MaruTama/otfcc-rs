@@ -19,7 +19,7 @@ pub struct CpalColor {
 #[derive(Clone, Debug)]
 pub struct CpalPalette {
     pub colorset: Vec<CpalColor>,
-    pub type_0: u32,
+    pub palette_type: u32,
     pub label: u32,
 }
 // Stage 6-4 "Box化": every field this struct owns is already a
@@ -124,7 +124,7 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
         }
         palettes.push(CpalPalette {
             colorset,
-            type_0: 0,
+            palette_type: 0,
             label: 0xffff,
         });
     }
@@ -138,7 +138,7 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
                 && let Ok(mut tr) = FontReader::new(data).at(offset_palette_type_array)
                     && tr.require_room(num_palettes, 4).is_ok() {
                         for p in palettes.iter_mut() {
-                            p.type_0 = tr.u32().unwrap();
+                            p.palette_type = tr.u32().unwrap();
                         }
                     }
         }
@@ -195,8 +195,8 @@ fn dump_color(color: &CpalColor) -> BuiltValue {
 #[inline]
 fn dump_palette(palette: &CpalPalette) -> BuiltValue {
     let mut _palette = BuiltValue::new_object(3);
-    if palette.type_0 != 0 {
-        _palette.push_field(b"type", BuiltValue::Int(palette.type_0 as i64));
+    if palette.palette_type != 0 {
+        _palette.push_field(b"type", BuiltValue::Int(palette.palette_type as i64));
     }
     if palette.label != 0xffff_u32 {
         _palette.push_field(b"label", BuiltValue::Int(palette.label as i64));
@@ -267,7 +267,7 @@ pub fn parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
         };
         let mut palette: CpalPalette = CpalPalette {
             colorset: Vec::new(),
-            type_0: _palette.get_int(b"type") as u32,
+            palette_type: _palette.get_int(b"type") as u32,
             label: _palette.get_int_or(b"type", 0xffff) as u32,
         };
         for _color in color_items {
@@ -281,12 +281,12 @@ pub fn parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
 #[inline]
 fn build_palette_type(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
-    if !palettes.iter().any(|p| p.type_0 != 0) {
+    if !palettes.iter().any(|p| p.palette_type != 0) {
         return None;
     }
     let mut block: BkBlock = bk_new_block(Vec::new());
     for p in palettes.iter() {
-        bk_push(&mut block, vec![bk_int(BkCellType::B32, p.type_0)]);
+        bk_push(&mut block, vec![bk_int(BkCellType::B32, p.palette_type)]);
     }
     return Some(block);
 }
@@ -478,7 +478,7 @@ mod parse_cpal_tests {
         let data = well_formed_v1_table_with_palette_type();
         let (version, palettes) = decode_cpal(&data).unwrap();
         assert_eq!(version, 1);
-        assert_eq!(palettes[0].type_0, 0xCAFEBABE);
+        assert_eq!(palettes[0].palette_type, 0xCAFEBABE);
     }
 
     #[test]
@@ -488,6 +488,6 @@ mod parse_cpal_tests {
         let (_, palettes) = decode_cpal(&data).unwrap();
         // The optional array is simply left unpopulated on rejection --
         // the whole table isn't corrupted by one bad optional offset.
-        assert_eq!(palettes[0].type_0, 0);
+        assert_eq!(palettes[0].palette_type, 0);
     }
 }

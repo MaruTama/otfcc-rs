@@ -239,41 +239,41 @@ fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
     loop {
         let flags = ComponentFlags::from_bits_retain(r.u16().ok()?);
         let index: GlyphId = r.u16().ok()? as GlyphId;
-        let mut ref_0: ComponentReference = (glyf_component_reference_empty)();
-        ref_0.glyph = handle_from_index(index) as GlyphHandle;
+        let mut glyph_ref: ComponentReference = (glyf_component_reference_empty)();
+        glyph_ref.glyph = handle_from_index(index) as GlyphHandle;
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
-            ref_0.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
+            glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                ref_0.x = std::cell::RefCell::new(vq_create_still(r.i16().ok()? as Pos));
-                ref_0.y = std::cell::RefCell::new(vq_create_still(r.i16().ok()? as Pos));
+                glyph_ref.x = std::cell::RefCell::new(vq_create_still(r.i16().ok()? as Pos));
+                glyph_ref.y = std::cell::RefCell::new(vq_create_still(r.i16().ok()? as Pos));
             } else {
-                ref_0.x = std::cell::RefCell::new(vq_create_still(r.i8().ok()? as Pos));
-                ref_0.y = std::cell::RefCell::new(vq_create_still(r.i8().ok()? as Pos));
+                glyph_ref.x = std::cell::RefCell::new(vq_create_still(r.i8().ok()? as Pos));
+                glyph_ref.y = std::cell::RefCell::new(vq_create_still(r.i8().ok()? as Pos));
             }
         } else {
-            ref_0.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorAnchor);
+            glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorAnchor);
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                ref_0.outer = r.u16().ok()? as ShapeId;
-                ref_0.inner = r.u16().ok()? as ShapeId;
+                glyph_ref.outer = r.u16().ok()? as ShapeId;
+                glyph_ref.inner = r.u16().ok()? as ShapeId;
             } else {
-                ref_0.outer = r.u8().ok()? as ShapeId;
-                ref_0.inner = r.u8().ok()? as ShapeId;
+                glyph_ref.outer = r.u8().ok()? as ShapeId;
+                glyph_ref.inner = r.u8().ok()? as ShapeId;
             }
         }
         if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
-            ref_0.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.a = ref_0.d;
+            glyph_ref.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            glyph_ref.a = glyph_ref.d;
         } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
-            ref_0.a = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            glyph_ref.a = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            glyph_ref.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
         } else if flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
-            ref_0.a = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.b = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.c = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
-            ref_0.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            glyph_ref.a = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            glyph_ref.b = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            glyph_ref.c = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            glyph_ref.d = from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
         }
-        ref_0.round_to_grid = flags.contains(ComponentFlags::ROUND_XY_TO_GRID);
-        ref_0.use_my_metrics = flags.contains(ComponentFlags::USE_MY_METRICS);
+        glyph_ref.round_to_grid = flags.contains(ComponentFlags::ROUND_XY_TO_GRID);
+        glyph_ref.use_my_metrics = flags.contains(ComponentFlags::USE_MY_METRICS);
         if flags.contains(ComponentFlags::SCALED_COMPONENT_OFFSET)
             && (flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
                 || flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
@@ -283,7 +283,7 @@ fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
         if flags.contains(ComponentFlags::WE_HAVE_INSTRUCTIONS) {
             glyph_has_instruction = true;
         }
-        g.references.push(ref_0);
+        g.references.push(glyph_ref);
         if !(flags.contains(ComponentFlags::MORE_COMPONENTS)) {
             break;
         }

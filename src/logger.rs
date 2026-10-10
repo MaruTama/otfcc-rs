@@ -418,7 +418,7 @@ mod tests {
             self.log(v, LoggerType::Progress, b"Finish");
             self.dedent();
         }
-        fn log(&mut self, verbosity: u8, type_0: LoggerType, data: &[u8]) {
+        fn log(&mut self, verbosity: u8, kind: LoggerType, data: &[u8]) {
             let mut demand: Vec<u8> = Vec::new();
             for (level, indent) in self.indents.iter().enumerate() {
                 if (level as i32) < self.last_logged_level as i32 - 1_i32 {
@@ -433,8 +433,8 @@ mod tests {
                     demand.extend_from_slice(b" : ");
                 }
             }
-            if (type_0 as u32) < 3 {
-                demand.extend_from_slice(OTFCC_LOGGER_TYPE_NAMES[type_0 as usize].as_bytes());
+            if (kind as u32) < 3 {
+                demand.extend_from_slice(OTFCC_LOGGER_TYPE_NAMES[kind as usize].as_bytes());
                 demand.extend_from_slice(b" ");
             }
             demand.extend_from_slice(data);

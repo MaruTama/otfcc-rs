@@ -91,7 +91,7 @@ fn build_rule(
         match_count: rule.match_count,
         input_begins: rule.input_begins,
         input_ends: rule.input_ends,
-        match_0: Vec::with_capacity(rule.match_count as usize),
+        sequence: Vec::with_capacity(rule.match_count as usize),
         apply: Vec::new(),
     });
     // Bounded by `rule.match_count`, not assumed equal to
@@ -100,7 +100,7 @@ fn build_rule(
     // two agreeing) -- `.take(rule.match_count as usize)` preserves the
     // original's own bound exactly.
     for (m, match_entry) in rule
-        .match_0
+        .sequence
         .iter()
         .enumerate()
         .take(rule.match_count as usize)
@@ -138,7 +138,7 @@ fn build_rule(
         } else {
             push_to_coverage(&mut cov, handle_from_index(0 as GlyphId) as GlyphHandle);
         }
-        new_rule.match_0.push(cov);
+        new_rule.sequence.push(cov);
     }
     // Plain assignment is fine here (unlike the calloc'd-memory case
     // elsewhere in this crate): `Box::new` above already gave `.apply` a
@@ -224,7 +224,7 @@ pub fn try_classify_around(
     // one of `rule0`'s own matches is class-compatible) or stops early on
     // the first incompatible one -- `rule0_is_compatible` records which.
     let mut rule0_is_compatible = true;
-    for (m, cov) in rule0.match_0.iter().enumerate().take(rule0.match_count as usize) {
+    for (m, cov) in rule0.sequence.iter().enumerate().take(rule0.match_count as usize) {
         let (h, classno) = if m < rule0.input_begins as usize {
             (&mut hb, &mut classno_b)
         } else if m < rule0.input_ends as usize {
@@ -252,7 +252,7 @@ pub fn try_classify_around(
     let mut compatible_count: usize = 0;
     'run: for slot in subtables.iter().skip(j + 1) {
         let rule = chaining_rule_const(chaining_subtable_ref(slot));
-        for (m, cov) in rule.match_0.iter().enumerate().take(rule.match_count as usize) {
+        for (m, cov) in rule.sequence.iter().enumerate().take(rule.match_count as usize) {
             let (h, classno) = if m < rule.input_begins as usize {
                 (&mut hb, &mut classno_b)
             } else if m < rule.input_ends as usize {

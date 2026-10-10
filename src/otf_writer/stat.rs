@@ -104,7 +104,7 @@ pub fn stat_single_glyph(
     n_composite_points = n_points;
     n_composite_contours = g.contours.len() as u16;
     for rr in &g.references {
-        let mut ref_0: ComponentReference = ComponentReference {
+        let mut glyph_ref: ComponentReference = ComponentReference {
             x: std::cell::RefCell::new(VQ {
                 kernel: 0.,
                 shift: Vec::new(),
@@ -124,25 +124,25 @@ pub fn stat_single_glyph(
             inner: 0,
             outer: 0,
         };
-        glyf_component_reference_init(&mut ref_0);
-        ref_0.glyph = handle_from_index(rr.glyph.index);
-        ref_0.a = gr.a * rr.a + rr.b * gr.c;
-        ref_0.b = rr.a * gr.b + rr.b * gr.d;
-        ref_0.c = gr.a * rr.c + gr.c * rr.d;
-        ref_0.d = gr.b * rr.c + rr.d * gr.d;
-        ref_0.x = std::cell::RefCell::new(vq_create_still(
+        glyf_component_reference_init(&mut glyph_ref);
+        glyph_ref.glyph = handle_from_index(rr.glyph.index);
+        glyph_ref.a = gr.a * rr.a + rr.b * gr.c;
+        glyph_ref.b = rr.a * gr.b + rr.b * gr.d;
+        glyph_ref.c = gr.a * rr.c + gr.c * rr.d;
+        glyph_ref.d = gr.b * rr.c + rr.d * gr.d;
+        glyph_ref.x = std::cell::RefCell::new(vq_create_still(
             vq_get_still(rr.x.borrow().clone())
                 + rr.a as Pos * vq_get_still(gr.x.borrow().clone())
                 + rr.b as Pos * vq_get_still(gr.y.borrow().clone()),
         ));
-        ref_0.y = std::cell::RefCell::new(vq_create_still(
+        glyph_ref.y = std::cell::RefCell::new(vq_create_still(
             vq_get_still(rr.y.borrow().clone())
                 + rr.c as Pos * vq_get_still(gr.x.borrow().clone())
                 + rr.d as Pos * vq_get_still(gr.y.borrow().clone()),
         ));
         let thatstat: GlyphStat = stat_single_glyph(
             table,
-            &mut ref_0,
+            &mut glyph_ref,
             stated,
             (depth as i32 + 1_i32) as u8,
             topj,
@@ -670,7 +670,7 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
     // consolidation punched, not a bug -- skip it, same as everywhere else
     // that reads `OtlTable.lookups` post-consolidation.
     for lookup in table.lookups.iter().flatten() {
-        if let Some(kind) = lookup_kind(lookup.type_0) {
+        if let Some(kind) = lookup_kind(lookup.lookup_type) {
             kind.raise_max_context(lookup, &mut maxc);
         }
     }

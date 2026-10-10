@@ -15,7 +15,7 @@ pub fn otl_dump_chaining(_subtable: &Subtable) -> BuiltValue {
     let mut _match = BuiltValue::new_array(rule.match_count as usize);
     // Bounded by `rule.match_count`, not assumed equal to `match_0.len()`
     // (same count-vs-length caution established in PR #422/#423/#426-428).
-    for cov in rule.match_0.iter().take(rule.match_count as usize) {
+    for cov in rule.sequence.iter().take(rule.match_count as usize) {
         _match.push_item(dump_coverage(cov));
     }
     _st.push_field(b"match", _match);
