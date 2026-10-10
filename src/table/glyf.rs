@@ -780,7 +780,6 @@ fn glyf_parse_glyph(
 // version already executed by hand, just expressed as an ordinary
 // sequential reborrow instead of a pointer standing in for it. No raw
 // pointer or `unsafe` remains in this function.
-#[allow(improper_ctypes_definitions)]
 pub fn parse_glyf(
     root: &mut ParsedValue,
     glyph_order: Option<&GlyphOrder>,

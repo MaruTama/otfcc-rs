@@ -1,12 +1,3 @@
-// Stage 6 removes this; see RUST_MIGRATION.md
-// `GlyphOrderEntry.name` and every string-carrying `GlyphOrderPackage`
-// vtable slot (`set_by_gid`/`set_by_name`/`lookup_name`/
-// `name_a_field_shared`) now carry `Vec<u8>` across an `extern "C" fn`
-// boundary -- none of these are `#[no_mangle]` (this crate's only real FFI
-// surface is the 4 symbols in `ffi/dll.rs`), so `extern "C"` here is
-// c2rust's calling-convention residue, not real FFI. Same rationale as
-// `support/handle.rs`.
-#![allow(improper_ctypes_definitions)]
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
 use crate::support::primitives::GlyphId;

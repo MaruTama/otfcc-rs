@@ -401,7 +401,6 @@ pub static UNICODE_RANGE_LABELS4: [&str; 27] = [
     "Carian_and_Lycian",
     "Domino_and_Mahjong_Tiles",
 ];
-#[allow(improper_ctypes_definitions)]
 pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -674,7 +673,6 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     }
     Some(Box::new(os_2))
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
     let os_2 = os_2?;
     let mut buf = Buffer::new();

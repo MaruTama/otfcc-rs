@@ -134,7 +134,6 @@ pub fn parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     }
     Some(Box::new(hhea))
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_hhea(hhea: Option<&HheaTable>) -> Option<Buffer> {
     let hhea = hhea?;
     let mut buf = Buffer::new();

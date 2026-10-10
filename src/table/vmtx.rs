@@ -63,7 +63,6 @@ pub fn read_vmtx(
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_vmtx(vmtx: Option<&VmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
     let mut buf = Buffer::new();
     let vmtx = match vmtx {

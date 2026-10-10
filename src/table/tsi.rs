@@ -80,7 +80,6 @@ fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, Re
     })
 }
 
-#[allow(improper_ctypes_definitions)]
 pub fn read_tsi(
     packet: &Packet,
     tag_index: u32,
@@ -162,7 +161,6 @@ pub fn read_tsi(
     }
     return Some(tsi);
 }
-#[allow(improper_ctypes_definitions)]
 pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
     let tsi = match tsi {
         Some(t) => t,
@@ -196,7 +194,6 @@ pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
         stage.finish();
     }
 }
-#[allow(improper_ctypes_definitions)]
 pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
     let _tsi = root.get_typed(tag, JsonType::Object)?;
     let mut tsi: TsiTable = Vec::new();
@@ -291,7 +288,6 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, type_0: TsiEntr
         index_part.write_u32be(text_pos as u32);
     }
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
     let Some(tsi) = tsi else {
         return TsiBuildTarget {

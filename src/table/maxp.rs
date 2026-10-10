@@ -187,7 +187,6 @@ pub fn parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     }
     Some(Box::new(maxp))
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_maxp(maxp: Option<&MaxpTable>) -> Option<Buffer> {
     let maxp = maxp?;
     let mut buf = Buffer::new();

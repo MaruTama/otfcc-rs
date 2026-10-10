@@ -1,11 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)]
-// Stage 6 removes this; see RUST_MIGRATION.md
-// `get_cff_sid` (renamed from `sdsget_cff_sid` once `vendor/sds.rs` was
-// removed -- it never built an `sds`, just returned `Option<Vec<u8>>`, so
-// the name was a pure holdover) has its only callers as direct Rust call
-// sites (never a real FFI boundary) -- goes away with the vtable/
-// extern "C" cleanup, same as every other instance of this allow.
-#![allow(improper_ctypes_definitions)]
 use crate::libcff::index::CffIndex;
 use crate::support::primitives::Arity;
 

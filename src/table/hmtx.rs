@@ -64,7 +64,6 @@ pub fn read_hmtx(
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_hmtx(hmtx: Option<&HmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
     let mut buf = Buffer::new();
     let hmtx = match hmtx {

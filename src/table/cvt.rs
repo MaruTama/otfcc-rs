@@ -37,7 +37,6 @@ pub fn read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
     }
     Some(Box::new(CvtTable { words }))
 }
-#[allow(improper_ctypes_definitions)]
 pub fn dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, tag: &[u8]) {
     let table = match table {
         Some(t) => t,

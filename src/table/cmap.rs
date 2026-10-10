@@ -606,7 +606,6 @@ pub fn read_cmap(packet: &Packet) -> Option<Box<CmapTable>> {
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
 /// Writes `cmap` and `cmap_uvs` into `sink` one mapping at a time, so a
 /// sink that writes straight out never holds the whole table's JSON. Keys
 /// and glyph names are cut at the first NUL, as `push_field_bytes_key` does.
@@ -1077,7 +1076,6 @@ fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
     buf.write_u32be(buf.len() as u32);
     buf
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
     let cmap = match cmap {
         Some(c) if !c.unicodes.is_empty() => c,
