@@ -345,8 +345,7 @@ fn decode_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
     r.require_room(number_glyphs as usize, 2)?;
     let mut offset = 34usize.wrapping_add(2 * number_glyphs as usize);
     // Pascal-string name heap: a 1-byte length prefix, then that many
-    // bytes, repeated until the table ends. Bounded purely by `offset <
-    // data.len()`, same as the original C -- each entry consumes at least
+    // bytes, repeated until the table ends. Each entry consumes at least
     // 1 byte, so this always terminates.
     let mut pending_names: Vec<Vec<u8>> = Vec::new();
     while offset < data.len() {
@@ -368,13 +367,8 @@ fn decode_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
             match pending_names.get(name_map as usize - 258) {
                 Some(n) => n.clone(),
                 // A `glyphNameIndex` entry pointing past the actual name
-                // heap: the original C read whatever `pending_names[...]`
-                // happened to occupy past the end of the allocation. There
-                // is no well-formed name to recover here, so this glyph
-                // gets an empty one instead of that garbage -- the same
-                // "corrupted input loses this one piece of data instead of
-                // reading past a buffer" trade the rest of this migration
-                // makes.
+                // heap: there is no well-formed name to recover, so this
+                // glyph gets an empty one.
                 None => Vec::new(),
             }
         } else {
@@ -471,8 +465,7 @@ pub fn dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
 pub fn parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
     // is absent (never overwritten below in that case, unlike every other
-    // field); `post_name_map` is never touched here regardless, so it stays
-    // `None`, matching the old `init_post`'s zeroed default.
+    // field); `post_name_map` is never touched here, so it stays `None`.
     let mut post = PostTable {
         version: 0x30000_i32 as F16Dot16,
         italic_angle: 0,
@@ -518,16 +511,11 @@ pub fn build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> 
     buf.write_u32be(post.max_mem_type1);
     if post.version == 0x20000 as F16Dot16 {
         // A version-2.0 post table always has a glyph order to draw names
-        // from (this crate's own consolidation guarantees it) -- matches
-        // the original's unconditional deref.
+        // from (consolidation guarantees it).
         let glyphorder = glyphorder.expect("post version 2.0 requires a glyph order");
-        // Walks `by_gid` (ascending gid order), not `by_name`: by the time
-        // this runs, `by_name`'s uthash chain had already been sorted by
-        // `order_glyphs` (json_reader.rs) into exactly this order and
-        // `by_gid` built by walking it -- so this reproduces the original's
-        // effective iteration order without depending on `HashMap`'s
-        // (unspecified) iteration order the way a literal `by_name` walk
-        // would have to.
+        // Walks `by_gid` (ascending gid order): `order_glyphs`
+        // (json_reader.rs) has already settled the glyph order, and gid
+        // order is that order without depending on `HashMap` iteration.
         buf.write_u16be(glyphorder.by_gid.len() as u16);
         for &idx in glyphorder.by_gid.values() {
             let entry = &glyphorder.entries[idx];
@@ -578,9 +566,8 @@ mod parse_post_tests {
 
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
-        // Only 10 of the required 32 header bytes -- this table used to be
-        // read unconditionally (read_post had no length check at
-        // all), overreading up to 22 bytes past a table this short.
+        // Only 10 of the required 32 header bytes: must be rejected rather
+        // than overread by up to 22 bytes.
         let data = header(0x00010000, 0, 0);
         assert!(decode_post(&data[..10]).is_err());
     }

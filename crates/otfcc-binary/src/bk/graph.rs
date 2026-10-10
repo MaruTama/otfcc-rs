@@ -1,35 +1,16 @@
 use crate::bk::block::{BkBlock, BkCellType, BkCellValue};
 use crate::Buffer;
 
-// `BkGraph`/`BkGraphNode` used to hold `block: *mut BkBlock` -- a raw
-// pointer into `block.rs`'s construction API, alongside the
-// (defensible-sounding, but ultimately wrong -- see `block.rs`'s own
-// comment) claim that every `BkBlock` has exactly one owner. The truth,
-// once `bk_minimize_graph`/`replaceptr` are read closely: after
-// minimization, many `Ptr` cells across the structure deliberately alias
-// the same `BkBlock` (that's the entire point of minimizing), while
-// `entries: Vec<BkGraphNode>` was *already* the graph's one true owner of
-// every surviving block -- a flat arena wearing raw pointers as if they
-// were indices.
+// `BkGraph` is an arena: `dfs_convert` consumes the owned `BkBlock` tree
+// and assigns each block a stable `BlockId`, in post-order. After
+// minimization many `Ptr` cells deliberately point at the same `BlockId`
+// (that is the point of minimizing).
 //
-// This file makes that arena explicit. `BlockId` is a stable identity
-// assigned once, in post-order, by `dfs_convert` -- as of Stage D
-// (2026-09), `block.rs`'s construction API is *itself* an owned `Box`
-// tree now (see that file's module comment for why that's sound), so
-// `dfs_convert` receives and consumes an owned `BkBlock` by value rather
-// than an unsafely-walked raw pointer, and needs no `unsafe` at all: a
-// `Box` tree cannot alias or cycle, so the old Gray/Black
-// revisit-in-progress guard (dead code even before Stage D -- see the
-// removed comment on it) simply isn't needed here either. `blocks:
-// Vec<ArenaBlock>` is the identity space `dfs_convert` populates:
-// push-only, insertion-order-stable, indexed directly by `BlockId.0`, and
-// NEVER physically reordered -- unlike `entries`, which this file's own
-// algorithms sort (by height, then repeatedly by traversal order inside
-// `bk_untangle_graph`'s retry loop). Splitting "stable identity" (`blocks`)
-// from "current traversal position" (`entries`, `ArenaBlock.index`)
-// preserves the same separation the raw-pointer design already had
-// implicitly (pointer = stable identity; the old `_index` field = current
-// position, rewritten after every sort).
+// `blocks: Vec<ArenaBlock>` is the identity space: push-only, indexed
+// directly by `BlockId.0`, and never reordered. `entries` is the current
+// traversal order, which this file's algorithms sort (by height, then
+// repeatedly by traversal order inside `bk_untangle_graph`'s retry loop);
+// `ArenaBlock.index` is a block's current position in it.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct BlockId(u32);
 
@@ -95,10 +76,6 @@ pub struct BkGraph {
     blocks: Vec<ArenaBlock>,
     entries: Vec<BkGraphNode>,
 }
-// `blocks`/`entries` are plain `Vec`s of `Copy`/owned data -- no cell holds
-// a raw pointer needing a manual walk-and-free, so the derived `Drop` (just
-// dropping both `Vec`s) is the whole teardown. `bk_delete_graph` is gone;
-// callers just let a `BkGraph` go out of scope.
 
 /// Consumes `b`, converting it (and everything it owns) into `blocks`/
 /// `entries`, post-order. Fully safe: `b` is an owned `Box` tree (see
@@ -185,11 +162,9 @@ fn gethash(blocks: &[ArenaBlock], block: &ArenaBlock) -> u32 {
             }
             BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32 => {
                 if let Some(p) = cell.as_ptr() {
-                    // The original hashed the *target's current entries
-                    // position* (`(*p)._index`), not any identity of the
-                    // target itself -- preserved verbatim via the same
-                    // `ArenaBlock.index` field `getoffset`/`replaceptr`
-                    // already use for that meaning.
+                    // Hashes the target's current position in the block
+                    // order (`ArenaBlock.index`, the same field
+                    // `getoffset`/`replaceptr` use), not its identity.
                     h = h.wrapping_add(blocks[p.0 as usize].index);
                 }
             }
@@ -430,20 +405,11 @@ fn try_untabgle_block(
                 if let Some(p) = cell.as_ptr() {
                     let offset: i64 = getoffset_untangle(offsets, blocks, id, p);
                     if !(0..=0xffff).contains(&offset) {
-                        // `BkCellType::Copy`'s only remaining use: append
-                        // a "twin" of `p` (a fresh block whose cells are
-                        // a shallow copy of `p`'s), placed right after
-                        // every block seen so far in `entries`, so
+                        // Append a "twin" of `p` (a fresh block whose
+                        // cells are a shallow copy of `p`'s), placed right
+                        // after every block seen so far in `entries`, so
                         // pointing at the twin instead of `p` fits in 16
-                        // bits even when `p` itself doesn't -- the same
-                        // trick the raw-pointer version implemented by
-                        // pushing a `BkCellType::Copy` cell through the
-                        // general construction API and letting
-                        // `bkpushitems` splice `p`'s cells in; expressed
-                        // directly here instead, since a `Copy` cell's
-                        // only remaining job (per `block.rs`'s own
-                        // comment on it) is this exact arena-internal
-                        // splice.
+                        // bits even when `p` itself doesn't.
                         let twin_cells = blocks[p.0 as usize].cells.clone();
                         let twin_id = BlockId(blocks.len() as u32);
                         blocks.push(ArenaBlock {

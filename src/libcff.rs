@@ -301,15 +301,7 @@ pub struct CffEncodingSupplement {
     pub glyph: u16,
 }
 
-/// Was a `t: CffEncodingType` discriminant plus a `c2rust_unnamed:
-/// CffEncodingBody` union (`f0`/`f1`/`ns`, one raw-pointer array each) --
-/// same shape `Subtable` had, and the same fix: a single Rust enum,
-/// discriminant and payload together, so the compiler enforces that only
-/// the payload matching the current variant is ever read. `format`/
-/// `ncodes`/`nranges`/`nsup` are gone too -- each was write-only (set
-/// once while parsing, never read again anywhere in the crate) and
-/// exactly duplicated its `Vec`'s own `.len()`; `format` doubly so,
-/// since it just repeated the variant tag itself as a number.
+/// A CFF encoding in one of its formats, with its supplements.
 #[derive(Clone, Debug)]
 pub enum CffEncoding {
     Standard,
@@ -320,14 +312,9 @@ pub enum CffEncoding {
     Unspecified,
 }
 
-// `Copy`/`Clone` dropped: `stack` now owns a `Vec` (the Type 2 CharString
-// interpreter's operand stack, fixed at `0x10000` entries -- the same
-// generous capacity `__caryll_allocate_clean` used to allocate up front,
-// matching the spec's operand stack never actually approaching that size).
-// Confirmed by grep: `CffStack` is only ever reached through `*mut
-// CffStack`, constructed once in `table/cff.rs`'s `build_outline`, never
-// copied. `max` is gone -- write-only (set once at construction, never read
-// anywhere in the interpreter), and exactly duplicated `stack.capacity()`.
+// The Type 2 CharString interpreter's operand stack, allocated once per font
+// at `0x10000` entries (far more than any real CharString uses). Not
+// `Clone`: it is built once in `table/cff.rs`'s `build_outline`.
 #[derive(Debug)]
 pub struct CffStack {
     pub stack: Vec<CffValue>,
@@ -342,17 +329,7 @@ pub struct CffStack {
     pub stem: u32,
 }
 
-// `Copy`/`Clone` dropped: `encodings: CffEncoding` now owns `Vec`s on
-// three of its variants. Confirmed by grep before removing the derive --
-// `CffFile` is never used by value anywhere in the crate, always through
-// `*mut CffFile`/`*const CffFile`, so the derive was vestigial.
-// `raw_data`/`raw_length` (a `*mut u8` + `u32` pair) become a single
-// `Vec<u8>` -- the Stage L-3 treatment. Every consumer immediately did
-// `slice::from_raw_parts(raw_data, raw_length)` and never wrote through
-// the pointer after `cff_open_stream` built it, so the two fields were
-// exactly a `Vec`'s own `(ptr, len)` pulled apart into a raw pointer and a
-// manually-tracked count. `cff_close`'s matching `free(raw_data)` is gone
-// too -- see `parser.rs`.
+// `raw_data` is the whole CFF table's bytes.
 #[derive(Debug)]
 pub struct CffFile {
     pub raw_data: Vec<u8>,

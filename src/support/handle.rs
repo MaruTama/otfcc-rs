@@ -4,11 +4,7 @@ use ::core::marker::PhantomData;
 
 /// Which of `Handle`'s fields is meaningful.
 ///
-/// A real `enum` rather than c2rust's `pub type HandleState = c_uint` plus
-/// four `pub const`s, so `state` cannot hold a value that is none of these and
-/// a `match` on it is exhaustive. Every one of the ~50 assignments in the crate
-/// is a struct literal naming one of these four, and none of them comes from a
-/// font file, so there is nothing here that needs a fallible conversion --
+/// No state comes from a font file, so there is no fallible conversion --
 /// unlike, say, a lookup type read off the wire.
 ///
 /// `#[repr(u32)]` keeps `Handle`'s layout exactly as the C struct's, and
@@ -22,14 +18,8 @@ pub enum HandleState {
     Name = 2,
     Consolidated = 3,
 }
-/// `name` was a raw `sds` (`SdsRaw`) since the `Handle` pilot (PR #68) gave
-/// it real `Drop`/`Clone` wrapped around `sdsfree`/`sdsdup` -- this PR
-/// replaces the storage itself with `Vec<u8>` (not `String`: glyph/lookup
-/// names come from font data and are not guaranteed valid UTF-8). `state`/
-/// `index` are already `Copy`, so `#[derive(Clone)]` now composes
-/// correctly on its own -- the manual `Clone`/`Drop` impls this struct
-/// used to need (wrapping `sdsdup`/`sdsfree`) are gone; `Vec<u8>` already
-/// has both.
+/// `name` is `Vec<u8>`, not `String`: glyph/lookup names come from font
+/// data and are not guaranteed valid UTF-8.
 pub struct Handle<K = GlyphKind> {
     pub state: HandleState,
     pub index: GlyphId,
@@ -108,14 +98,9 @@ pub(crate) fn handle_name_eq_bytes(a: &[u8], b: &[u8]) -> bool {
     };
     a_trunc == b_trunc
 }
-// `s` is `Option<Vec<u8>>`, not a bare `Vec<u8>`, to preserve the exact
-// null-vs-non-null distinction the old `SdsRaw` signature had: `None`
-// (was: a null pointer) leaves the handle in `HandleState::Empty`, while
-// `Some(v)` (was: any non-null `sds`, including a valid empty one) always
-// becomes `HandleState::Name` even when `v` is empty -- an empty-but-
-// present name is a different state from no name at all, and collapsing
-// the two by testing `v.is_empty()` instead would be an observable (if
-// exotic -- an empty-string glyph name) behavior change.
+// `None` leaves the handle in `HandleState::Empty`, while `Some(v)` always
+// becomes `HandleState::Name` even when `v` is empty -- an empty-but-present
+// name is a different state from no name at all.
 pub(crate) fn handle_from_name<K>(s: Option<Vec<u8>>) -> Handle<K> {
     let mut h = Handle::new(HandleState::Empty, 0, Vec::new());
     if let Some(name) = s {

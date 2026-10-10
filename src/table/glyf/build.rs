@@ -125,13 +125,9 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
             ComponentFlags::empty()
         };
         let output_anchor: bool = r.is_anchored.get() == RefAnchorStatus::AnchorConsolidated;
-        // Was a `union { pointid: u16, coord: i16 }` -- `arg1`/`arg2` are
-        // written as whichever type this glyph's arguments actually are,
-        // then always read back as `u16` further down (`bufwrite16b`/
-        // `bufwrite8`), relying on the union's same-size storage to
-        // reinterpret an `i16` coordinate's bits as `u16` for writing.
-        // Plain `as u16` casts on the same-width integers do the identical
-        // bit-preserving reinterpretation without a union.
+        // `arg1`/`arg2` are point ids or signed offsets; either way they
+        // are written as raw 16-bit patterns (`as u16` keeps an `i16`'s
+        // bits).
         let (arg1, arg2): (u16, u16) = if output_anchor {
             let a1 = r.outer;
             let a2 = r.inner;

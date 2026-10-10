@@ -73,11 +73,7 @@ pub fn stat_single_glyph(
     let mut n_composite_contours: u16;
     for contour in &g.contours {
         for p in contour {
-            // `f64::round` rounds half away from zero, the exact contract
-            // C99's `round` specifies (and propagates NaN/preserves
-            // +/-infinity/+/-0.0 identically) -- a direct replacement for
-            // this file's `unsafe extern "C" { fn round(...) }` import
-            // (removed in Stage M-45; see RUST_MIGRATION.md).
+            // `f64::round` rounds half away from zero, like C99's `round`.
             let x: Pos = (vq_get_still(gr.x.borrow().clone()) as f64
                 + gr.a * vq_get_still(p.x.clone()) as f64
                 + gr.b * vq_get_still(p.y.clone()) as f64)
@@ -330,9 +326,7 @@ fn stat_hmtx(font: &mut Font) {
         count_k = count_u16(glyf.len().wrapping_sub(count_a as usize));
     }
     // Both arrays fill sequentially within the one loop below (`j < count_a`
-    // covers `metrics`, the rest covers `left_side_bearing` in order), so a
-    // `Vec` + `.push()` per branch reproduces the same content in the same
-    // order as the old pre-sized, index-written arrays.
+    // covers `metrics`, the rest covers `left_side_bearing` in order).
     let mut metrics: Vec<HorizontalMetric> = Vec::with_capacity(count_a as usize);
     let mut left_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
     let mut min_lsb: Pos = 0x7fff_i32 as Pos;
@@ -703,8 +697,6 @@ fn stat_cff_widths(font: &mut Font) {
         return;
     }
     let glyf = font.glyf.as_ref().unwrap();
-    // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
-    // `free`.
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for g in iter_glyphs(glyf) {
         let int_width: u16 = vq_get_still(g.advance_width.clone()) as u16;
@@ -755,8 +747,6 @@ fn stat_vorg(font: &mut Font) {
         return;
     }
     let glyf = font.glyf.as_ref().unwrap();
-    // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
-    // `free`.
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for g in iter_glyphs(glyf) {
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
@@ -814,28 +804,12 @@ fn stat_ltsh(font: &mut Font) {
         y_pels,
     }));
 }
-// This function's own comment used to justify deriving `*mut HeadTable`/
-// `*mut MaxpTable`/`*mut GlyfTable` aliases once up front and reusing them
-// through ~35 `.is_null()`-guarded call/field sites, specifically to avoid
-// "needing `Option`-aware rewriting". Converting to safe references means
-// doing exactly that rewriting -- each `!x.is_null()` becomes `x.is_some()`,
-// and each block that both reads a scalar `HeadTable` field *and* mutably
-// borrows a different `Font` field first copies that field out (all the
-// `HeadTable` fields read here are plain `Copy` integers) rather than
-// holding a `&HeadTable` alongside the `&mut CffTable`/`&mut MaxpTable`
-// borrow -- the same technique this migration used for `charstring_il.rs`'s
-// `*_roll` functions.
 pub fn stat_font(font: &mut Font, options: &Options) {
     if font.glyf.is_some() && font.head.is_some() {
         stat_glyf(font);
         if !options.keep_modified_time {
-            // `std::time::SystemTime` measured against `UNIX_EPOCH` gives the
-            // same "whole seconds since 1970-01-01 UTC" value `libc::time`'s
-            // C99 contract does; `unwrap_or(0)` only matters if the system
-            // clock is set before the epoch, which no real caller of this
-            // font-build path can hit -- a direct replacement for this
-            // file's `unsafe extern "C" { fn time(...) }`/`libc::time_t`
-            // import (removed in Stage M-45; see RUST_MIGRATION.md).
+            // Whole seconds since 1970-01-01 UTC; `unwrap_or(0)` only
+            // matters for a system clock set before the epoch.
             let now = ::std::time::SystemTime::now()
                 .duration_since(::std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
@@ -868,11 +842,6 @@ pub fn stat_font(font: &mut Font, options: &Options) {
                 cff.cid_count = len;
             }
         if cff.is_cid {
-            // `font_matrix` is `Option<Box<CffFontMatrix>>` now: dropping
-            // the old value (reassignment to `None`) recurses through its
-            // own field-drop glue for free -- no manual `vq_dispose`
-            // calls needed anymore (`VQ`'s `Vec<VqSegment>` shift field
-            // already self-drops).
             cff.font_matrix = None;
             for fd in cff.fd_array.iter_mut() {
                 fd.font_matrix = None;
@@ -1021,13 +990,10 @@ mod stat_os_2_average_width_tests {
     }
 }
 
-// `stat_glyf`'s `unsafe extern "C" { fn round(...) }` import was dropped in
-// Stage M-45 in favor of `f64::round`. C99's `round` is specified as
-// "round half away from zero, propagate NaN, preserve +/-infinity and
-// +/-0.0" -- `f64::round`'s own documented contract is the identical
-// "round half away from zero", pinned here against that documented
-// contract rather than a live libc comparison, the same choice
-// `libcff/writer.rs`'s own `modf_tests` module already made.
+// `stat_glyf` relies on `f64::round` rounding half away from zero (C99
+// `round`'s contract, which upstream otfcc used), pinned here against that
+// documented contract rather than a live libc comparison, the same choice
+// `libcff/writer.rs`'s own `modf_tests` module makes.
 #[cfg(test)]
 mod round_tests {
     #[test]

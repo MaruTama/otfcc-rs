@@ -16,37 +16,12 @@ use otfcc_rust::support::EXIT_FAILURE;
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
-// `fprintf(stdout, ...)` -> `print!` -- both of these were pure fixed
-// text (the only variadic args are plain integers substituted by
-// value, not by reference or pointer), so there was never a genuine
-// unsafe operation here, just the c2rust libc-call idiom. `stdout` is
-// no longer needed by this file's `printInfo`/`print_help`.
 pub fn print_help() {
     print!(
         "\nUsage : otfccbuild [OPTIONS] [input.json] -o output.[ttf|otf]\n\n input.json                : Path to input file. When absent the input will be\n                             read from the STDIN.\n\n -h, --help                : Display this help message and exit.\n -v, --version             : Display version information and exit.\n -o <file>                 : Set output file path to <file>.\n -s, --dummy-dsig          : Include an empty DSIG table in the font. For some\n                             Microsoft applications, DSIG is required to enable\n                             OpenType features.\n -O<n>                     : Specify the level for optimization.\n     -O0                     Turn off any optimization.\n     -O1                     Default optimization.\n     -O2                     More aggressive optimizations for web font. In this\n                             level, the following options will be set:\n                               --merge-features\n                               --short-post\n                               --subroutinize\n     -O3                     Most aggressive opptimization strategy will be\n                             used. In this level, these options will be set:\n                               --force-cid\n                               --ignore-glyph-order\n --verbose                 : Show more information when building.\n -q, --quiet               : Be silent when building.\n\n --ignore-hints            : Ignore the hinting information in the input.\n --keep-average-char-width : Keep the OS/2.xAvgCharWidth value from the input\n                             instead of stating the average width of glyphs.\n                             Useful when creating a monospaced font.\n --keep-unicode-ranges     : Keep the OS/2.ulUnicodeRange[1-4] as-is.\n --keep-modified-time      : Keep the head.modified time in the json, instead of\n                             using current time.\n\n --short-post              : Don't export glyph names in the result font.\n --ignore-glyph-order, -i  : Ignore the glyph order information in the input.\n --keep-glyph-order, -k    : Keep the glyph order information in the input.\n                             Use to preserve glyph order under -O2 and -O3.\n --dont-ignore-glyph-order : Same as --keep-glyph-order.\n --merge-features          : Merge duplicate OpenType feature definitions.\n --dont-merge-features     : Keep duplicate OpenType feature definitions.\n --merge-lookups           : Merge duplicate OpenType lookups.\n --dont-merge-lookups      : Keep duplicate OpenType lookups.\n --force-cid               : Convert name-keyed CFF OTF into CID-keyed.\n --subroutinize            : Subroutinize CFF table.\n --stub-cmap4              : Create a stub `cmap` format 4 subtable if format\n                             12 subtable is present.\n\n"
     );
 }
-// `false` means the file couldn't be opened or read -- the caller
-// (`run`) returns `EXIT_FAILURE` itself instead of this function
-// calling `exit()` deep inside a helper, the same "propagate a failure
-// signal up to the one place that already owns process-exit semantics"
-// shape `font/sfnt.rs`'s `get16u`/`get32u` -> `Option`
-// conversion used.
-//
-// The bug this fixes: the old `fseek`/`ftell`/`fread` version discarded
-// `fread`'s return value, so a read that returned fewer bytes than
-// `length` (a race with concurrent truncation, or any other short read)
-// left the malloc'd buffer's tail as uninitialized memory that still got
-// treated as `length` valid bytes and fed to `json_parse`. `std::fs::read`
-// reads to actual EOF into a `Vec<u8>` whose length is exactly what was
-// read, so there is no way for a short read to go unnoticed.
-//
-// `_buffer`/`_length` out-params and the `malloc`'d backing storage are
-// gone entirely -- the single caller (`run`) now just owns the
-// returned `Vec<u8>` directly and hands it to `parse_json` (since Stage
-// M-7 as a plain `&[u8]`; it used to be `.as_ptr()`/`.len()` into the
-// raw-pointer `json_parse` wrapper). `read_entire_file` itself has no
-// remaining unsafe operation other than the `fprintf` error-path call.
+// Reads the whole input file; `None` if it cannot be opened or read.
 pub fn read_entire_file(in_path: &::core::ffi::CStr) -> Option<Vec<u8>> {
     let os_path = std::ffi::OsStr::from_bytes(in_path.to_bytes());
     let Ok(bytes) = std::fs::read(std::path::Path::new(os_path)) else {
@@ -62,15 +37,7 @@ pub fn read_entire_file(in_path: &::core::ffi::CStr) -> Option<Vec<u8>> {
     };
     Some(bytes)
 }
-// The old `fgets`/`strlen` loop measured each chunk it read with `strlen`,
-// which stops at the first embedded NUL byte -- any stdin content after an
-// embedded NUL silently vanished from `length` (and thus from the JSON
-// text handed to `json_parse`) instead of erroring or being kept.
-// `Read::read_to_end` copies exactly the bytes it receives with no such
-// assumption, closing that class of bug structurally, the same way
-// `read_entire_file`'s `std::fs::read` closed the short-read class of bug.
-// Same out-param/`malloc` removal as `read_entire_file` above -- this
-// function has no unsafe operation left at all.
+// Reads all of stdin, embedded NUL bytes included.
 pub fn read_entire_stdin() -> Vec<u8> {
     let mut bytes = Vec::new();
     let _ = std::io::stdin().lock().read_to_end(&mut bytes);
@@ -86,15 +53,8 @@ fn run(args: Vec<String>) -> i32 {
     options_optimize_to(&mut options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
-    // `--keep-glyph-order` and `--dont-ignore-glyph-order` are documented as
-    // synonyms (see `print_help` above) and always had identical intended
-    // effect. The old c2rust match block checked the long option's name via
-    // `strcmp(..., "dont-keep-glyph-order")` -- a string that was never
-    // actually registered in `longopts` (which spelled it
-    // `dont-ignore-glyph-order`) -- so `--dont-ignore-glyph-order` silently
-    // no-op'd instead of clearing `ignore_glyph_order`. Giving both entries
-    // the same dispatch value fixes that bug structurally: there is no
-    // string to typo anymore.
+    // `--keep-glyph-order` and `--dont-ignore-glyph-order` are synonyms, so
+    // both long options share this value.
     const OPT_KEEP_GLYPH_ORDER: i32 = 'k' as i32;
     const OPT_IGNORE_GLYPH_ORDER: i32 = 'i' as i32;
     const OPT_OUTPUT: i32 = 'o' as i32;
@@ -229,14 +189,6 @@ fn run(args: Vec<String>) -> i32 {
                     return EXIT_FAILURE;
                 };
                 buffer = b;
-                // No longer freed here (was: `sdsfree(in_path)`) -- doing
-                // so used to leave a dangling pointer that the two later
-                // "Cannot parse JSON file" error messages below still
-                // read from (`bytesbuild!(..., in_path, ...)`), a genuine
-                // pre-existing use-after-free. `in_path` now just lives
-                // for the rest of the function and drops naturally at
-                // the end, which is exactly what those later reads
-                // needed all along.
                 substage.finish();
             }
         } else {
@@ -263,8 +215,6 @@ fn run(args: Vec<String>) -> i32 {
     let mut font: Option<Box<Font>>;
     let stage = otfcc_rust::logger::stage("Parse");
     {
-        // `read_json` is a plain safe `pub fn` as of Stage M-34 -- see its
-        // own doc comment for why it now takes `&mut ParsedValue`.
         font = read_json(json_root.as_mut().unwrap(), &options);
         if font.is_none() {
             tracing::error!("Cannot parse JSON file \"{}\" as a font. Exit.\n", ByteStr(in_path.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
@@ -282,9 +232,6 @@ fn run(args: Vec<String>) -> i32 {
     }
     let stage = otfcc_rust::logger::stage("Build");
     {
-        // Owned now that `serialize_to_otf` returns the `Buffer` itself;
-        // it drops at the end of this block, where an explicit
-        // `Buffer::from_raw` used to be needed.
         let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &options);
         let substage = otfcc_rust::logger::stage("Write to file");
         {

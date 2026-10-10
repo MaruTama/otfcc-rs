@@ -22,18 +22,8 @@ use crate::vf::vq::{
 };
 use std::rc::Rc;
 
-// `GlyphVariationData`/`TupleVariationHeader`/`GVARHeader` (`#[repr(C,
-// packed)]` structs cast directly onto raw `gvar` bytes) are gone: every
-// field they described is now read by byte offset through `FontReader`
-// instead (`polymorphize`/`polymorphize_glyph`/`next_tvh_offset`), which
-// needed the real buffer length these pointer casts never carried. `be16`/
-// `be32` (the manual byte-swaps those native-endian pointer reads needed)
-// are gone with them -- `FontReader`'s reads are big-endian by
-// construction.
-// No longer `Copy`/`Clone`, same reason as `GlyfIOContext` (Stage M-12):
-// `fvar` is a real `Option<&'a mut FvarTable>` now, reborrowed fresh from
-// `GlyfIOContext::fvar` once per glyph in `polymorphize`'s loop, so nothing
-// here ever needed a second aliasing copy of the field.
+// `gvar` is read field by field at byte offsets through `FontReader`, so
+// every read is checked against the table's length.
 #[derive(Debug)]
 pub struct TuplePolymorphizerCtx<'a> {
     pub fvar: Option<&'a mut FvarTable>,
@@ -73,10 +63,6 @@ pub struct PackedPointRun {
     pub length: ShapeId,
     pub wide: bool,
 }
-// No longer `extern "C"`: called directly by name at every site in this
-// file (confirmed by grep) -- two call sites even cast it to its own exact
-// function-pointer type immediately before calling it inline, a c2rust
-// artifact with no actual indirection behind it, simplified below.
 fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut ShapeId) -> &'a mut Point {
     // A contour can be zero-length: `read_simple_glyph`'s endpoint
     // arithmetic allows `n == 0` (a contour whose endpoint equals the
@@ -95,21 +81,11 @@ fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut Shap
     *cp = (*cp).wrapping_add(1);
     point
 }
-// `read_simple_glyph`/`read_composite_glyph`/`read_glyph`
-// used to take no length at all -- just a raw `start: FontFilePointer` --
-// and walk forward on nothing but the shapes the wire format implies
-// (`endPtsOfContours[numberOfContours-1]+1` points, a run-length-coded flag
-// stream terminated only by having read that many flags, a component chain
-// terminated only by the `MORE_COMPONENTS` bit). Every one of those is
-// attacker-controlled: a malformed `endPtsOfContours` never reaching the
-// declared point count, or a composite glyph that never clears
-// `MORE_COMPONENTS`, read straight past this glyph's own bytes with no
-// guard at all (the plan's own writeup flags this file by name for exactly
-// this). `read_glyf` below now derives this glyph's exact byte range
-// from its own (already-validated, monotonic) `loca` entries and passes it
-// down as a `&[u8]`; every read here goes through `FontReader`, so running
-// past that range now fails cleanly (`None`, the glyph becomes empty)
-// instead of reading adjacent memory.
+// Each glyph's bytes come from its own `loca` range. The outline format only
+// describes itself (point counts from `endPtsOfContours`, a run-length flag
+// stream, a component chain ended by a flag bit), so every read goes
+// through `FontReader`: running past the glyph's range fails and the glyph
+// is left empty.
 fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = new_glyf_glyph();
     let mut r = FontReader::new(body);
@@ -123,14 +99,8 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
     let mut points_in_glyph: u32 = 0;
     for _ in 0..number_of_contours {
         let last_point_in_current_contour: ShapeId = r.u16().unwrap(); // room already validated above
-        // The original computed this length in `c_int` (so a non-monotonic
-        // `endPtsOfContours` -- a later entry smaller than the previous
-        // one plus one -- went negative) and then cast straight to
-        // `usize` for the fill count below; that cast turns a negative
-        // `c_int` into a number near `usize::MAX`, and `glyf_contour_fill`
-        // would then try to push that many points -- an unbounded-
-        // allocation DoS on a malformed but otherwise tiny font. Reject
-        // instead.
+        // A non-monotonic `endPtsOfContours` gives a negative length; reject
+        // it rather than turn it into a huge point count.
         let n = last_point_in_current_contour as i64 - points_in_glyph as i64 + 1;
         if n < 0 {
             return None;
@@ -143,8 +113,6 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
     let instruction_length: u16 = r.u16().ok()?;
     let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
     g.instructions = instruction_bytes.to_vec();
-    // A local `Vec<u8>` now, not a `__caryll_allocate_clean`'d/`free`'d
-    // buffer -- dropped automatically at the end of this function.
     let mut flags: Vec<u8> = vec![0u8; points_in_glyph as usize];
     let mut flags_read_sofar: usize = 0;
     let mut current_contour: ShapeId = 0 as ShapeId;
@@ -156,12 +124,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
         if flag.contains(PointFlags::REPEAT) {
             let repeat: u8 = r.u8().ok()?;
-            // The original indexed `flags[flags_read_sofar + j_0]` (a
-            // fixed-size `Vec` now, pre-sized to exactly
-            // `points_in_glyph`) with no check that a malformed repeat
-            // run doesn't overrun the declared point count -- in C this
-            // silently wrote past the buffer; in Rust it would panic.
-            // Reject instead of either.
+            // A repeat run must not go past the declared point count.
             if flags_read_sofar + repeat as usize > points_in_glyph as usize {
                 return None;
             }
@@ -230,12 +193,8 @@ fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = new_glyf_glyph();
     let mut r = FontReader::new(body);
     let mut glyph_has_instruction: bool = false;
-    // The original's only loop terminator was the `MORE_COMPONENTS` bit --
-    // a malformed composite glyph that never clears it read components
-    // forever, straight past this glyph's own data (the plan's own
-    // writeup calls this out by name). Every field read below now goes
-    // through `FontReader`, so running out of bytes fails the `?` and
-    // rejects the glyph instead of reading on.
+    // A component chain that never clears `MORE_COMPONENTS` runs out of
+    // bytes, which fails a read and rejects the glyph.
     loop {
         let flags = ComponentFlags::from_bits_retain(r.u16().ok()?);
         let index: GlyphId = r.u16().ok()? as GlyphId;
@@ -347,12 +306,8 @@ pub const POINT_COUNT_IS_WORD: i32 = 0x80_i32;
 pub const POINT_COUNT_LONG_MASK: i32 = 0x7fff_i32;
 pub const POINT_RUN_COUNT_MASK: i32 = 0x7f_i32;
 pub const POINTS_ARE_WORDS: i32 = 0x80_i32;
-/// Returns `(new absolute offset into `gvar`, point indices)` instead of
-/// writing through two out-params -- `pc` (the count) is just
-/// `point_indeces.len()` once the array is a `Vec`, so it disappears
-/// entirely rather than needing to stay in sync with a separately-tracked
-/// length. `None` on any read running past `gvar`'s own length -- this
-/// used to walk a bare `FontFilePointer` with no length at all.
+/// Reads a packed point-number list at `offset`. Returns the offset just
+/// past it and the point indices, or `None` if it runs past `gvar`.
 #[inline]
 fn parse_point_numbers(
     gvar: &[u8],
@@ -386,16 +341,10 @@ fn parse_point_numbers(
             }
             let mut point_number: i16 = j_point as i16;
             if run.wide {
-                // Deliberately native-endian, not big-endian, to match a
-                // pre-existing bug in the original: `read_packed_delta`'s
-                // own wide-run case calls `be16()` before use, but this
-                // one read `*(data as *mut u16)` directly with no swap at
-                // all. That's out of this PR's scope (parse-boundary
-                // safety, not general correctness) to fix -- it would
-                // change output for any well-formed font whose gvar data
-                // actually uses a wide point-number run, which the golden
-                // fixtures don't currently exercise either way. Preserved
-                // as-is; see RUST_MIGRATION.md.
+                // Native-endian, unlike the big-endian wide runs elsewhere:
+                // a long-standing bug kept so output does not change for
+                // fonts that use a wide point-number run here. See
+                // RUST_MIGRATION.md.
                 let b = r.bytes(2).ok()?;
                 let raw = u16::from_ne_bytes([b[0], b[1]]);
                 point_number =
@@ -518,13 +467,10 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
         }
     }
 }
-// Computes one axis' nudges (`VqSegment`s to be written back into that
-// axis' `.shift` by `apply_polymorphism`) and returns them as an owned
-// `Vec` instead of writing through a `CoordRef`/`Point`/`ComponentReference`
-// pointer itself -- this function now touches no raw pointer, and no
-// `Glyph` at all: `contour_lens` (each contour's point count, in the same
-// order `apply_polymorphism` flattened them) is all it needs to replicate
-// the original's per-contour gap-filling boundaries.
+// Computes one axis' nudges (`VqSegment`s that `apply_polymorphism` adds to
+// that axis' `.shift`). `contour_lens` gives each contour's point count, in
+// the order `apply_polymorphism` flattened them, because gap filling never
+// crosses a contour.
 fn apply_coords(
     total_points: ShapeId,
     contour_lens: &[usize],
@@ -542,9 +488,7 @@ fn apply_coords(
             region: Rc::clone(r),
         }));
     }
-    // Bounded by `n_touched_points`, not assumed equal to `points`/
-    // `tuple_delta`'s own length (same count-vs-length caution
-    // established since PR #422) -- `.take()` on the zip.
+    // `n_touched_points` may be smaller than the arrays it counts.
     for (&idx, &delta) in points
         .iter()
         .zip(tuple_delta.iter())
@@ -578,12 +522,9 @@ fn apply_polymorphism(
     delta_y: &[Pos],
     r: &Rc<VqRegion>,
 ) {
-    // One immutable flattening pass over `contours` then `references` --
-    // exactly the order `apply_polymorphism` used to build `glyph_refs`
-    // in, and the order the write-back pass below re-walks -- collecting
-    // each point's per-axis `.kernel` scalar and each contour's length
-    // (`fill_the_gaps`'s gap-search never crosses a contour boundary, so
-    // `apply_coords` needs these lengths to reproduce that).
+    // Flatten the contours, then the references, in the order the write-back
+    // pass below walks them: each point's per-axis `.kernel`, and each
+    // contour's length (gap filling stays within a contour).
     let mut contour_lens: Vec<usize> = Vec::with_capacity(glyph.contours.len());
     let mut kernel_x: Vec<Pos> = Vec::with_capacity(total_points as usize);
     let mut kernel_y: Vec<Pos> = Vec::with_capacity(total_points as usize);
@@ -680,21 +621,9 @@ fn apply_polymorphism(
         );
     }
 }
-// `peak_offset`/`range_offset` are absolute byte offsets into `gvar`
-// instead of `*mut F2Dot14` -- the original read these with no bounds
-// checking at all (a peak or intermediate-region array embedded in a
-// `TupleVariationHeader`, itself found by nothing but the wire format's
-// own self-description, per `next_tvh_offset`'s comment). `spans` is built
-// as a plain local `Vec` and only boxed into a `Box<VqRegion>` once, right
-// before the final `Some(...)` -- unlike the old `vq_create_region`-first
-// shape, nothing is ever allocated on a path that can still fail, so
-// there's nothing to free on the two early-return failure paths below.
-// Returns an owned `Box<VqRegion>`, not a raw pointer: this function's one
-// production caller (below) immediately hands it to
-// `fvar_register_region`, which now takes the same owned `Box` (see
-// `table/fvar.rs`'s `FvarMaster.region` doc comment) -- there was never a
-// point in this call chain where the value needed to be anything but
-// uniquely owned.
+// `peak_offset`/`range_offset` are byte offsets into `gvar` of a tuple's peak
+// and intermediate coordinates. The region is built in a local `Vec` and
+// boxed only once nothing can fail any more.
 fn create_region_from_tuples(
     gvar: &[u8],
     dimensions: u16,
@@ -748,18 +677,10 @@ fn create_region_from_tuples(
         spans,
     }))
 }
-// `gvd_offset` is an absolute byte offset into `gvar` instead of a `*mut
-// GlyphVariationData` -- every read below goes through `FontReader`,
-// checked against `gvar`'s real length, instead of walking off a pointer
-// with no length of its own at all (this glyph's entire tuple-variation
-// record, and each tuple header inside it, used to be found purely by
-// self-description: `next_tvh`'s "bump" logic and `tsd_start`'s
-// accumulation of each tuple's own declared `variationDataSize`). `None`
-// on any read failing stops processing this glyph's remaining tuples
-// (whatever deltas were already applied by earlier tuples in the loop
-// stay applied) rather than reading adjacent bytes -- the caller doesn't
-// need to do anything with the result, matching the original always
-// "succeeding" (it never checked anything to fail on).
+// Applies the tuple variations of one glyph, found at `gvd_offset` in `gvar`.
+// The record and its tuple headers describe their own sizes, so every read is
+// checked; a failed read stops at that tuple and keeps the deltas already
+// applied.
 #[inline]
 fn polymorphize_glyph(
     glyph: &mut Glyph,
@@ -783,11 +704,7 @@ fn polymorphize_glyph(
     let has_shared_point_numbers: bool = raw_tuple_variation_count & 0x8000_u16 != 0;
     let mut tvh_offset: usize = gvd_offset + 4;
 
-    // `shared_point_indeces` is a local `Vec<ShapeId>` now: empty means
-    // "not present" (the old null pointer), matching every check below
-    // that used to be `.is_null()`. `parse_point_numbers` no longer
-    // writes through a separate count out-param either -- `.len()` is
-    // always in sync with the data by construction.
+    // Empty means the glyph has no shared point numbers.
     let mut shared_point_indeces: Vec<ShapeId> = Vec::new();
     let mut data_offset: usize = gvd_offset + data_offset_field as usize;
     if has_shared_point_numbers {
@@ -828,13 +745,9 @@ fn polymorphize_glyph(
             fvar_register_region(ctx.fvar.as_deref_mut().expect("fvar checked non-null by polymorphize"), region);
 
         let tsd = data_offset + tsd_start;
-        // `point_indeces` borrows `shared_point_indeces` by default (freed
-        // once, after this whole loop, same as before) and only owns a
-        // private `Vec` -- built fresh by `parse_point_numbers` -- when
-        // `PRIVATE_POINT_NUMBERS` is set for this tuple, matching the
-        // original's "usually an alias, occasionally a fresh allocation
-        // freed within this same iteration" shape exactly, but as a
-        // `Cow` instead of a raw pointer that is only sometimes owned.
+        // `point_indeces` borrows `shared_point_indeces` by default and
+        // only owns a private `Vec` -- built fresh by `parse_point_numbers`
+        // -- when `PRIVATE_POINT_NUMBERS` is set for this tuple.
         let n_points: ShapeId;
         let point_indeces: ::std::borrow::Cow<[ShapeId]>;
         let after_points: usize;
@@ -850,8 +763,6 @@ fn polymorphize_glyph(
             point_indeces = ::std::borrow::Cow::Borrowed(&shared_point_indeces);
         }
         if !point_indeces.is_empty() {
-            // Local `Vec<Pos>`s, not `__caryll_allocate_clean`'d/`free`'d
-            // buffers -- dropped automatically at the end of this `if`.
             let mut delta_x: Vec<Pos> = vec![0 as Pos; n_points as usize];
             let mut delta_y: Vec<Pos> = vec![0 as Pos; n_points as usize];
             let after_x = read_packed_delta(gvar, after_points, n_points, &mut delta_x)?;
@@ -865,24 +776,12 @@ fn polymorphize_glyph(
     }
     Some(())
 }
-// The `GVARHeader`/`glyphVariationDataOffsets` array reads below used to
-// run straight off `data.offset(...)` with no bounds checking at all --
-// the per-glyph offset array in particular (`glyphVariationDataOffsets[j]`
-// for every `j` up to `num_glyphs`) had no guard whatsoever against a
-// `gvar` table too short to actually hold that many entries, and the
-// `glyphVariationDataArrayOffset + glyphVariationDataOffset` sum that
-// follows it was never checked against the table's own length either --
-// both real, previously-undocumented "zero guard" bugs, the same class
-// `read_contextual_format2`'s `ChainSubClassSet` array had
-// (`otl/subtables/chaining/read.rs`). `__fortable_*` (goto emulation) ->
-// the same `.iter().find()` idiom every other migrated table reader uses.
+// Every `GVARHeader`/`glyphVariationDataOffsets` read below is checked: the
+// per-glyph offset array (`glyphVariationDataOffsets[j]` for every `j` up
+// to `num_glyphs`) must fit the `gvar` table, and so must each
+// `glyphVariationDataArrayOffset + glyphVariationDataOffset` sum.
 #[inline]
 fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'_>) {
-    // `ctx.fvar` is a real `Option<&mut FvarTable>` (Stage M-12): reading
-    // its length here only needs `.as_deref()`, a shared reborrow, even
-    // though `ctx` itself is `&mut` (the mutable access, for
-    // `fvar_register_region` below, is reborrowed fresh once per tuple
-    // inside `polymorphize_glyph`).
     let Some(axes_len) = ctx.fvar.as_deref().map(|f| f.axes.len()) else {
         return;
     };
@@ -902,7 +801,7 @@ fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'
     };
     if header.skip(4).is_err() {
         return;
-    } // majorVersion/minorVersion: never read by the original either
+    } // majorVersion/minorVersion: not read
     let Ok(axis_count) = header.u16() else { return };
     if axis_count as usize != axes_len {
         tracing::warn!("Axes number in GVAR and FVAR are inequal");
@@ -965,11 +864,6 @@ fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'
 }
 pub fn read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTable> {
     let num_glyphs = ctx.num_glyphs;
-    // A local `Vec<u32>` now, not a `__caryll_allocate_clean`'d/`free`'d
-    // buffer -- `Vec`'s own allocator aborts rather than returning null on
-    // failure, so the `!offsets.is_null()` guard this used to need at
-    // every entry/exit point is gone; the `Vec` drops itself wherever
-    // this function returns.
     let mut offsets: Vec<u32> = vec![0u32; num_glyphs as usize + 1];
 
     // `__fortable_*`/`current_block` (goto emulation) -> the same
@@ -982,14 +876,8 @@ pub fn read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTab
         loca_corrupted();
         return None;
     };
-    // The original's own guard here (`length < 2*num_glyphs+2`) used the
-    // *short*-format byte count unconditionally, even when `loca_is_long`
-    // -- a long-format `loca` table needs twice that (4 bytes/entry, not
-    // 2), so this let a table too short for the format it actually claims
-    // pass the guard and read past its own end in the `read_32u` calls
-    // below. `FontReader` needs no separate upfront guard at all: each
-    // `u16()`/`u32()` read below is checked against the real remaining
-    // length, for whichever format this table actually is.
+    // Each `loca` read is checked, for whichever format (short or long)
+    // the table uses.
     let mut loca_r = FontReader::new(&loca.data);
     let mut found_loca = true;
     for j in 0..=(num_glyphs as u32) {
@@ -1194,11 +1082,10 @@ mod glyf_read_tests {
 
     #[test]
     fn composite_glyph_more_components_never_cleared_terminates_and_is_rejected() {
-        // The original's only loop terminator was the MORE_COMPONENTS
-        // bit -- a component chain that always sets it and then runs out
-        // of data used to read straight past the glyph's own bytes with
-        // no bound at all. One full component record with
-        // MORE_COMPONENTS set, then nothing: must terminate (not hang)
+        // The only loop terminator is the MORE_COMPONENTS bit, so a
+        // component chain that always sets it and then runs out of data
+        // must stop at the glyph's own bytes. One full component record
+        // with MORE_COMPONENTS set, then nothing: must terminate (not hang)
         // and reject.
         let mut data = [0u8; 18];
         data[0..2].copy_from_slice(&(-1i16).to_be_bytes());
@@ -1219,11 +1106,10 @@ mod glyf_read_tests {
     #[test]
     fn non_monotonic_end_points_of_contours_is_rejected_not_a_huge_allocation() {
         // contour 0 ends at point 5 (6 points); contour 1 ends at point 2
-        // -- fewer than contour 0 already claimed. The original computed
-        // this contour's point count in signed arithmetic then cast
-        // straight to `usize`, so a negative result became a number near
-        // `usize::MAX` and `glyf_contour_fill` tried to allocate that
-        // many points. Must reject instead.
+        // -- fewer than contour 0 already claimed. Computing this contour's
+        // point count in signed arithmetic and casting to `usize` would turn
+        // the negative result into a number near `usize::MAX`. Must reject
+        // instead.
         let mut data = [0u8; 14];
         data[0..2].copy_from_slice(&2i16.to_be_bytes());
         data[10..12].copy_from_slice(&5u16.to_be_bytes());
@@ -1242,11 +1128,8 @@ mod glyf_read_tests {
     fn repeat_run_overrunning_the_declared_point_count_is_rejected_not_a_panic() {
         // endPtsOfContours[0]=1 declares exactly 2 points. The first flag
         // sets REPEAT with a run of 5 -- 1 + 5 = 6 total flags, four more
-        // than declared. The original indexed a now-`Vec`-backed,
-        // fixed-size `flags` array with no check that a repeat run stays
-        // within the declared point count, which would panic in Rust
-        // (a silent overflow write in the original C). Must reject
-        // instead of either.
+        // than declared. A repeat run must stay within the declared point
+        // count; must reject.
         let mut data = [0u8; 16];
         data[0..2].copy_from_slice(&1i16.to_be_bytes());
         data[10..12].copy_from_slice(&1u16.to_be_bytes());
@@ -1284,8 +1167,7 @@ mod gvar_polymorphize_tests {
 
     #[test]
     fn next_tvh_offset_truncated_header_is_rejected_instead_of_reading_oob() {
-        // The original walked this array with nothing but pointer
-        // arithmetic and no length at all.
+        // The axis-coordinate array must fit the gvar bytes.
         let gvar: [u8; 0] = [];
         {
             assert!(next_tvh_offset(&gvar, 0, 1).is_none());
@@ -1305,12 +1187,9 @@ mod gvar_polymorphize_tests {
 
     #[test]
     fn create_region_from_tuples_truncated_peak_is_rejected_not_leaked() {
-        // The original had no bounds checking here at all -- reading a
-        // peak/start/end F2Dot14 ran straight off whatever `gvar` bytes
-        // happened to exist. This also exercises the new cleanup path:
-        // `vq_create_region`'s allocation must be freed on this failure,
-        // not leaked (verified by `cargo miri test`, which would flag an
-        // unreachable allocation).
+        // A peak/start/end F2Dot14 must fit the gvar bytes. Also exercises
+        // the failure path's cleanup: `vq_create_region`'s allocation must
+        // not leak (`cargo miri test` would flag it).
         let gvar: [u8; 0] = [];
         {
             assert!(create_region_from_tuples(&gvar, 1, 0, None).is_none());
@@ -1368,22 +1247,12 @@ mod gvar_polymorphize_tests {
     }
 
     #[test]
-    // No longer `#[cfg_attr(miri, ignore)]`d: `to_fixed` used to reach
-    // libm's `round` through an `extern "C"` block, which Miri cannot execute
-    // on macOS. It uses `f64::round` now (bit-identical, see
-    // `support/primitives.rs`), so this test -- the regression guard for the
-    // IUP X/Y axis mix-up traced back to the original C's 2017 commit
-    // 2ddee94f -- runs under Miri again.
+    // Regression guard for the IUP X/Y axis mix-up; see the comment below.
     fn fill_the_gaps_interpolates_an_untouched_points_delta_using_its_own_axis_kernel() {
-        // Regression test for a bug traced back to the original C source,
-        // commit 2ddee94f "do some more abstraction" (2017-11-13): that
-        // commit merged applyPolymorphism's separate X and Y blocks into
-        // one applyCoords(..., getter) helper called once per axis, but
-        // left its *inner* fillTheGaps call hardcoded to getX -- so the
-        // Y-axis pass filled in untouched points' deltas by interpolating
-        // against neighbors' X coordinates instead of their Y coordinates.
-        // Ported faithfully (bug included) through every refactor since,
-        // C and Rust alike, until now.
+        // Regression test for a bug inherited from upstream otfcc (commit
+        // 2ddee94f, 2017-11-13): the Y-axis pass filled in untouched
+        // points' deltas by interpolating against neighbors' X coordinates
+        // instead of their Y coordinates.
         //
         // Three points in one contour: P0/P2 touched, P1 untouched. P1's
         // X and Y original coordinates sit at different fractional

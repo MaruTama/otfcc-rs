@@ -22,14 +22,6 @@ pub struct CpalPalette {
     pub palette_type: u32,
     pub label: u32,
 }
-// Stage 6-4 "Box化": every field this struct owns is already a
-// `Vec`/scalar, so no `Drop` impl is needed -- `Box::new` construction
-// plus the standard drop glue is sufficient. `init_cpal`/`dispose_cpal`/
-// `table_cpal_{init,dispose,create,copy,free}` all deleted: grepping
-// confirmed `table_cpal_copy` was never called anywhere (not even
-// self-referentially), and `table_cpal_free` was the only one of these
-// ever called from outside this file (from `model.rs`'s table
-// disposal).
 #[derive(Clone, Debug)]
 pub struct CpalTable {
     pub version: u16,
@@ -46,24 +38,13 @@ pub static WHITE: CpalColor = CpalColor {
 /// `...EntryLabelArray`) are read at absolute offsets `16`/`20`/`24 + 2 *
 /// num_palettes` -- 4 bytes further into the table than the OpenType 'CPAL'
 /// spec places them (`12`/`16`/`20 + 2 * num_palettes`, immediately after
-/// `colorRecordIndices`). Preserved exactly as the original C read them:
-/// this migration's job is bounds-checking the existing byte offsets, not
-/// re-deriving what they "should" be.
+/// `colorRecordIndices`). Kept as upstream otfcc reads them, for
+/// byte-identical output.
 ///
-/// `offset_first_color_record`, `offset_palette_type_array`,
-/// `offset_palette_label_array` and `offset_palette_entry_label_array` are
-/// each a raw `u32` read straight from the file (full attacker control, up
-/// to `u32::MAX`) that the original guarded with `x.wrapping_add(count *
-/// stride)`. A value close enough to `u32::MAX` wraps that addition back
-/// down to something small, so `length < wrapped_small_value` could pass
-/// even though `x` itself points nowhere near the table -- the same
-/// overflow-defeats-guard shape `otl/coverage.rs`'s `read_coverage` and
-/// `table/cmap.rs`'s plan writeup describe, and (unlike `table/gdef.rs`'s
-/// or `table/svg.rs`'s offsets, which are sums of a few `u16` fields and so
-/// can never reach anywhere near `u32::MAX`) a *directly attacker-supplied*
-/// `u32`, so this one is really reachable. `FontReader::at`/`require_room`
-/// use `checked_add`/`checked_mul` throughout, closing all four instances
-/// of it in this table at once.
+/// `offset_first_color_record` and the three v1 array offsets are raw `u32`s
+/// straight from the file (up to `u32::MAX`), so every position is computed
+/// through `FontReader::at`/`require_room` (`checked_add`/`checked_mul`)
+/// rather than by plain addition that could wrap past a length check.
 fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
     if data.len() < 2 {
         return Err(ReadError { needed: 2, available: data.len() });
@@ -108,11 +89,8 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
     let mut idx = FontReader::new(data).at(12)?;
     let mut palettes: Vec<CpalPalette> = Vec::with_capacity(num_palettes);
     for _ in 0..num_palettes {
-        // `label: 0xffff`, not `0` -- matches what the deleted
-        // `CPAL_I_PALETTE.init` call used to leave here (nothing
-        // overwrites `.label` afterward in this function, unlike
-        // `.type_0`/`.colorset`, which init also touched but every caller
-        // re-sets).
+        // `label: 0xffff` ("no label"); nothing in this function
+        // overwrites it.
         let palette_start_index = idx.u16()? as usize;
         let mut colorset = Vec::with_capacity(num_palettes_entries);
         for j in 0..num_palettes_entries {
@@ -436,12 +414,9 @@ mod parse_cpal_tests {
 
     #[test]
     fn color_record_offset_near_u32_max_is_rejected_not_wrapped() {
-        // The original guarded `offset_first_color_record` (a raw,
-        // fully attacker-controlled u32 read straight from the file)
-        // with `x.wrapping_add(4 * num_color_records)`: a value this
-        // close to u32::MAX wraps that addition back down to something
-        // small, which could pass `length < wrapped_small_value` even
-        // though the real offset points nowhere near this small table.
+        // `offset_first_color_record` is a raw u32 from the file: a value
+        // this close to u32::MAX must not wrap `x + 4 * num_color_records`
+        // back down to something small that passes the length check.
         let mut data = well_formed_v0_table();
         data[8..12].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes());
         assert!(decode_cpal(&data).is_err());
@@ -452,9 +427,8 @@ mod parse_cpal_tests {
     // is 26 for v1, and the colorRecordIndices-region guard conservatively
     // demands `table_header_length + 2 * num_palettes` (28 bytes here) of
     // total table length even though colorRecordIndices itself only needs
-    // 14 -- inherited from the original C, not something this migration
-    // tightens -- so the table must reach at least 28 bytes before the v1
-    // arrays are even considered.
+    // 14 (as upstream otfcc does), so the table must reach at least 28
+    // bytes before the v1 arrays are even considered.
     fn well_formed_v1_table_with_palette_type() -> Vec<u8> {
         let mut b = Vec::new();
         b.extend_from_slice(&1u16.to_be_bytes()); // version

@@ -27,7 +27,7 @@ use tracing::{Event, Level, Metadata};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
 
-/// The four kinds of line the original logger printed, in prefix order.
+/// The four kinds of log line, in prefix order.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 enum LoggerType {
@@ -48,11 +48,11 @@ const LOG_VL_PROGRESS: u8 = 10;
 
 static OTFCC_LOGGER_TYPE_NAMES: [&str; 3] = ["[ERROR]", "[WARNING]", "[NOTE]"];
 
-/// Displays one piece of a log message exactly as the old byte-based
-/// `bytesbuild!` messages rendered it (via `BytePart`): a `&Vec<u8>` (a
-/// glyph name) is cut at its first NUL, a `&[u8]`/`&[u8; N]` is written
-/// whole, and integers print in decimal. Bytes that are not valid UTF-8
-/// show as U+FFFD. Rendered only when the message is actually printed.
+/// Displays one piece of a log message the way `bytesbuild!` renders it
+/// (via `BytePart`): a `&Vec<u8>` (a glyph name) is cut at its first NUL,
+/// a `&[u8]`/`&[u8; N]` is written whole, and integers print in decimal.
+/// Bytes that are not valid UTF-8 show as U+FFFD. Rendered only when the
+/// message is actually printed.
 pub struct ByteStr<T>(pub T);
 
 impl<T: BytePart + Copy> fmt::Display for ByteStr<T> {
@@ -76,7 +76,7 @@ pub struct StageGuard(tracing::span::EnteredSpan);
 impl StageGuard {
     /// Closes a stage that completed, printing its `Finish` line in verbose
     /// mode. (A stage that is just dropped, e.g. by an early return on an
-    /// error path, prints no `Finish` -- as the original logger did.)
+    /// error path, prints no `Finish`.)
     pub fn finish(self) {
         self.0.record("finished", true);
     }
@@ -103,10 +103,10 @@ pub fn indent(segment: impl fmt::Display) -> StageGuard {
     StageGuard(tracing::info_span!(INDENT_SPAN, segment = %segment).entered())
 }
 
-/// The indentation state machine of the original C logger, unchanged: one
-/// segment per open scope, and `last_logged_level` (the depth of the last
-/// line actually printed) deciding which segments are written out in full
-/// and which are abbreviated to ` |-` / ` | ` guides.
+/// The indentation state machine: one segment per open scope, and
+/// `last_logged_level` (the depth of the last line actually printed)
+/// deciding which segments are written out in full and which are
+/// abbreviated to ` |-` / ` | ` guides.
 struct TreeFormatter {
     level: u16,
     last_logged_level: u16,
@@ -521,8 +521,8 @@ mod tests {
 
     /// A run shaped like `otfccdump`'s: a root indent, nested stages with
     /// progress, warnings and errors at several depths, a stage closed
-    /// without `Finish` (the old `logger_dedent`; now a plain drop), and
-    /// messages with and without a trailing `\n`.
+    /// without `Finish` (a plain drop), and messages with and without a
+    /// trailing `\n`.
     fn script() -> Vec<Op> {
         use LoggerType::*;
         vec![

@@ -1,33 +1,11 @@
-// Stage 7-2-e "Buffer to Vec": `data` was `*mut u8`, manually grown via
-// `__caryll_reallocate`/freed via `libc::free`, with `size`/`free` as
-// separate hand-tracked bookkeeping fields (`size` = written length,
-// `free` = spare allocated-but-unwritten capacity, capped at growing by at
-// most 16 MiB per reallocation). `Vec<u8>` now owns the allocation and
-// tracks its own length/capacity, so `size`/`free` are gone -- every former
-// read of `.size` is `.data.len()`; there is no external equivalent of
-// `.free` any more (nothing outside this file ever read it, confirmed by
-// grep before this conversion; `Vec`'s own growth strategy replaces the
-// hand-rolled one, including the 16 MiB growth cap, which only existed to
-// bound a single `realloc` call's size and has no externally observable
-// effect on buffer *contents*).
-//
-// `Copy` dropped (a `Vec` can't be): the one place that relied on it,
-// `libcff/subr.rs`'s `vec![zero_buffer; n]` scratch arrays, keeps working
-// unchanged under `Clone` instead -- `vec![x; n]` only ever required
-// `Clone`, and cloning an empty `Vec::new()` is cheap.
+/// Bytes being written, with a cursor: writes go at the cursor, which can be
+/// moved back to patch earlier bytes.
 #[derive(Clone, Debug)]
 pub struct Buffer {
     pub cursor: usize,
     pub data: Vec<u8>,
 }
 
-// Stage 9: `Buffer`'s data (`{cursor, data: Vec<u8>}`) has been fully safe
-// since 7-2-e -- the unsafety crate-wide was entirely in a free-function
-// shell (`bufnew`/`bufwrite*(buf, ...)`/etc.), kept raw-pointer-shaped on
-// purpose so `table/*/build.rs` call sites could stay textually identical
-// to the old C idiom during the mechanical c2rust port. Every one of the
-// ~775 original call sites has since migrated to this safe `impl` directly
-// and the free-function shell itself has been deleted (Stage 9, Phase 16).
 impl Default for Buffer {
     fn default() -> Self {
         Self::new()
@@ -41,7 +19,7 @@ impl Buffer {
         }
     }
 
-    /// A fresh buffer holding `bytes`. Replaces the old `bufninit`'s body.
+    /// A fresh buffer holding `bytes`.
     pub fn from_bytes(bytes: &[u8]) -> Buffer {
         let mut b = Buffer::new();
         b.write_bytes(bytes);
@@ -62,27 +40,14 @@ impl Buffer {
     }
     pub fn clear(&mut self) {
         self.cursor = 0;
-        // `.clear()`, not `= Vec::new()`: drops every element but keeps the
-        // backing allocation, the same "reset length, keep the allocation"
-        // contract `size = 0` + `free = size + free` used to give by hand.
+        // `.clear()` keeps the allocation.
         self.data.clear();
     }
 
-    // Pushes `bytes` at the cursor, growing the buffer first if needed, and
-    // advances the cursor. Every fixed-width `write_*` method below is
-    // exactly this plus an endian-ordered byte array (to_le_bytes/
-    // to_be_bytes), which replaces c2rust's manual per-byte shift-mask-store
-    // expansion.
-    //
-    // A write can seek backward and overwrite already-written bytes in
-    // place (the hand-rolled offset-backpatching idiom real call sites use,
-    // e.g. `table/cmap.rs`'s format4 segment-count backpatch) -- so this is
-    // not a plain `Vec::extend`. If the write fits entirely within the
-    // already-written region (`cursor + bytes.len() <= data.len()`), it's a
-    // pure in-place overwrite; otherwise `resize` grows the `Vec` first
-    // (zero-filling any gap between the old length and `cursor`, matching
-    // what a fresh `realloc` over calloc'd memory used to leave there)
-    // before the same slice-copy runs either way.
+    // Writes `bytes` at the cursor and advances it. A write may overwrite
+    // bytes already written after a backward seek (offsets are often patched
+    // in later); past the end, the buffer grows first, zero-filling any gap
+    // between its old length and the cursor.
     fn push_bytes(&mut self, bytes: &[u8]) {
         let cursor = self.cursor;
         let end = cursor.wrapping_add(bytes.len());
@@ -113,8 +78,7 @@ impl Buffer {
         self.push_bytes(&x.to_be_bytes());
     }
     pub fn write_u24le(&mut self, x: u32) {
-        // Low 3 bytes only, matching the original's shift-mask expansion,
-        // which never touched bits 24-31 either.
+        // Only the low 3 bytes are written.
         self.push_bytes(&x.to_le_bytes()[..3]);
     }
     pub fn write_u24be(&mut self, x: u32) {
@@ -139,14 +103,6 @@ impl Buffer {
     }
 
     /// Appends `that`'s contents, without consuming it.
-    ///
-    /// Takes `&that.data` directly rather than cloning it: `self` and
-    /// `that` can no longer alias now that every call site goes through
-    /// this safe `&mut self`/`&Buffer` signature -- the borrow checker
-    /// itself guarantees they're distinct objects, the same guarantee the
-    /// old raw-pointer free-function shell (`bufwrite_buf`, deleted once
-    /// this method's last raw-pointer bridge went away in Stage 9) could
-    /// only get from a by-hand audit of its ~55 call sites.
     pub fn write_buffer(&mut self, that: &Buffer) {
         self.push_bytes(&that.data);
     }
@@ -214,8 +170,7 @@ mod tests {
 
     #[test]
     fn write24_keeps_only_the_low_three_bytes() {
-        // The high byte of the u32 argument is dropped, matching the original
-        // shift-mask expansion which never touched bits 24-31.
+        // The high byte of the u32 argument is dropped.
         let mut buf = Buffer::new();
         buf.write_u24be(0xaabbccdd);
         buf.write_u24le(0xaabbccdd);

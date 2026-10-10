@@ -22,12 +22,7 @@ pub struct CffCharsetRangeFormat2 {
     pub first: u16,
     pub nleft: u16,
 }
-/// Was a `t: CffCharsetType` discriminant plus a `c2rust_unnamed:
-/// CffCharsetBody` union (`f0`/`f1`/`f2`, one raw-pointer array each) -- the
-/// same shape `CffEncoding` had, and the same fix: a single enum,
-/// discriminant and payload together. `s` (the entry count) is gone too --
-/// it was write-only (set once while parsing or building, never read again
-/// anywhere in the crate) and exactly duplicated each `Vec`'s own `.len()`.
+/// A CFF charset in one of its three formats.
 #[derive(Clone, Debug)]
 pub enum CffCharset {
     IsoAdobe,
@@ -37,26 +32,11 @@ pub enum CffCharset {
     Format1(Vec<CffCharsetRangeFormat1>),
     Format2(Vec<CffCharsetRangeFormat2>),
 }
-// `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
-// see `libcff/index.rs`'s own conversion for the same move.
-//
-// Returns `CffCharset` by value instead of writing through a `*mut
-// CffCharset` out-param -- the same "unwrap_X_table" shape used throughout
-// this migration.
-//
-// The original had no bounds checking anywhere in this function -- not on
-// `offset` itself (a negative value, reachable from a malformed DICT key,
-// moved the read pointer *before* the buffer via `.offset()`), not on any
-// of the three formats' arrays. Format0's `count` computation had the
-// same wraparound-to-huge-allocation shape `index.rs`'s 4GB `memcpy`
-// bug had: `nchars as c_int - 1` for `nchars == 0` went negative in `c_int`
-// arithmetic and was then cast straight to `u32`, producing `0xFFFFFFFF`
-// and an immediate `Vec::with_capacity` abort. `.saturating_sub(1)` closes
-// that; every other read goes through `FontReader`, checked against
-// `table_length`. On any bounds failure, or a negative `offset`, this
-// falls back to `IsoAdobe` -- the same fallback the original already used
-// for an unrecognized format byte, just extended to cover "malformed"
-// too, since the original drew no distinction between the two.
+// Every read goes through `FontReader`, checked against the slice; on any
+// bounds failure, a negative `offset` (reachable from a malformed DICT
+// key), or an unrecognized format byte, this falls back to `IsoAdobe`.
+// Format 0's entry count is `nchars - 1`, saturating so `nchars == 0`
+// cannot wrap to a huge allocation.
 pub fn cff_extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset {
     if offset == CFF_CHARSET_OFFSET_ISO_ADOBE {
         return CffCharset::IsoAdobe;
@@ -207,9 +187,8 @@ mod cff_extract_charset_tests {
 
     #[test]
     fn format0_nchars_zero_does_not_attempt_a_huge_allocation() {
-        // The original computed `count` as `nchars as c_int - 1` then cast
-        // straight to `u32`; for `nchars == 0` that wrapped to
-        // `0xFFFFFFFF` and `Vec::with_capacity` aborted immediately.
+        // `nchars - 1` for `nchars == 0` must not wrap to `0xFFFFFFFF` and
+        // abort in `Vec::with_capacity`.
         let data = [0u8, 0, 0, 0x00];
         let CffCharset::Format0(glyph) = cff_extract_charset(&data, 3, 0) else {
             panic!("expected Format0");

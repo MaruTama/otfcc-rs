@@ -21,29 +21,16 @@ pub struct VdmxRatioRange {
     pub y_end_ratio: u8,
     pub records: Vec<VdmxRecord>,
 }
-// Stage 6-4 "Box化": every field `VdmxTable` (transitively) owns is already
-// a `Vec`/scalar, so no `Drop` impl is needed at all -- `Box::new`
-// construction plus the standard drop glue is sufficient. The entire
-// `VdmxTableElementInterface` vtable is deleted: grepping confirmed only
-// `.create`/`.free` were ever called from outside this file (from
-// `vdmx/funcs.rs`), and `.free`'s job (`table_vdmx_free`/`_dispose`) reduces
-// to nothing once there's no raw pointer left to release -- `Box`'s own
-// drop already runs `Vec`'s drop glue.
 #[derive(Clone, Debug)]
 pub struct VdmxTable {
     pub version: u16,
     pub ratios: Vec<VdmxRatioRange>,
 }
 
-// `group_offset` (read from the per-ratio offset table) used to be handed
-// straight to `data.offset()` with no check against the table's actual
-// length at all -- not even the wrapping-arithmetic-defeated kind of guard
-// `table/meta/read.rs` had, just no guard whatsoever. A crafted
-// `group_offset` pointing anywhere past the table (or a `recs` count
-// implying entries past it) read arbitrarily far out of bounds. Every
-// offset below -- the ratio range, the offset table, and the group itself
-// -- now goes through `FontReader::at`, so an out-of-range offset fails the
-// read instead of dereferencing it.
+// `group_offset` (read from the per-ratio offset table) and the `recs`
+// count come from the file. Every offset below -- the ratio range, the
+// offset table, and the group itself -- goes through `FontReader::at`, so
+// an out-of-range offset fails the read.
 fn decode_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.u16()?;
@@ -266,9 +253,7 @@ mod parse_vdmx_tests {
 
     #[test]
     fn group_offset_past_the_table_end_errs_instead_of_reading_oob() {
-        // The original had no bounds check on `group_offset` at all -- it
-        // was handed straight to pointer arithmetic. This is the case that
-        // used to read arbitrarily far past the table.
+        // A `group_offset` pointing far past the table must fail the read.
         let mut data = well_formed_one_ratio_vdmx();
         let bogus_offset = (data.len() as u16) + 1000;
         data[10..12].copy_from_slice(&bogus_offset.to_be_bytes());

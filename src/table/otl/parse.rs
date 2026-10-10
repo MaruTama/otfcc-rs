@@ -55,31 +55,22 @@ struct PendingLanguage {
     required_feature: Option<PendingFeatureId>,
     features: Vec<PendingFeatureId>,
 }
-/// Replaces the uthash-based `FeatureHash`. Same shape as `LookupEntry`
-/// (see its doc comment) and for the same reason: a real feature
-/// declaration is rejected if its name already exists, but an alias
-/// entry (a JSON string value under `"features"`) only checks that its
-/// *target* name exists, never its own -- so this stays a plain `Vec`
-/// with reverse (most-recent-wins) search rather than a dedup map,
-/// even though the eventual sort key (`by_feature_name`, byte-wise on
-/// `name`) happens to equal the would-be dedup key.
+/// A feature declared in JSON. A real feature declaration is rejected if
+/// its name already exists, but an alias entry (a JSON string value under
+/// `"features"`) only checks that its *target* name exists, never its own
+/// -- so this is a plain `Vec` searched most-recent-first, not a dedup map.
 #[derive(Debug)]
 pub struct FeatureEntry {
     pub name: Vec<u8>,
     pub alias: bool,
     feature_id: PendingFeatureId,
 }
-/// Replaces the uthash-based `LookupHash`. Not a dedup map: `name` is not
-/// unique -- real (non-alias) entries are rejected up front by
-/// `_declare_lookup_parser`'s own "already exists" check before ever
-/// reaching insertion, but an *alias* entry's own name is never checked
-/// against existing entries (only its alias *target*'s name is looked
-/// up), so two entries can legitimately share a `name`. uthash's
-/// bucket-prepend insertion means `HASH_FIND` on a duplicated key always
-/// returns the most-recently-inserted match; `.iter().rev().find(...)`
-/// reproduces that "most recent wins" lookup exactly, which is why this
-/// stays a plain `Vec` (preserving insertion order for that purpose)
-/// rather than a `HashMap`/`BTreeMap` keyed by name.
+/// A lookup declared in JSON. `name` is not unique -- real (non-alias)
+/// entries are rejected up front by `_declare_lookup_parser`'s own "already
+/// exists" check, but an *alias* entry's own name is never checked against
+/// existing entries (only its alias *target*'s name is looked up), so two
+/// entries can share a `name`. Lookups by name search most-recent-first
+/// (`.iter().rev().find(...)`), so the latest match wins.
 #[derive(Debug)]
 pub struct LookupEntry {
     pub name: Vec<u8>,
@@ -105,11 +96,9 @@ pub enum LookupOrderType {
     Force = 0,
     File = 1,
 }
-/// Bundles the not-yet-collected `Lookup`s together with the metadata
-/// (`name`/`alias`/order) used to resolve, sort, and finally collect them
-/// into `OtlTable.lookups` -- see `PendingLookupId`'s own doc comment for
-/// why the two can no longer be the single `Vec<LookupEntry>` that
-/// `LookupEntry.lookup: *mut Lookup` let them be before.
+/// The lookups read from the JSON, not yet in `OtlTable.lookups`, with the
+/// name, alias and order used to resolve, sort and collect them (see
+/// `PendingLookupId`).
 #[derive(Debug)]
 struct PendingLookups {
     entries: Vec<LookupEntry>,
@@ -260,23 +249,12 @@ fn tag4_matches(a: &[u8], b: &[u8]) -> bool {
     }
     true
 }
-/// The one place in this module that mutates a parsed JSON object in
-/// place mid-walk (see the plan doc's Stage 11 investigation): every
-/// duplicate `d[k]` whose value equals an earlier `d[j]` (and, when
-/// `sametag`, whose key shares `d[j]`'s first 4 bytes) is rewritten in
-/// place to alias `d[j]`'s own key, so a later pass over `d` only ever
-/// sees one real definition per distinct value.
-///
-/// `j` and `k` are always different indices (`k` ranges over `j+1..`),
-/// so despite mutating `d[k]` while still comparing against `d[j]`, this
-/// is a plain sequential read-then-index-write, never two overlapping
-/// borrows of the same slot -- confirmed by the investigation before
-/// converting this off the old free-function shell, and pinned by
-/// `feature_merger_tests` below. Each iteration re-reads `d.as_object()`
-/// fresh rather than holding a borrow across the `set_field` call, the
-/// same "resolve at the point of use" pattern `libcff/subr.rs`'s
-/// `resolve_subr_ref` established for a comparable aliasing shape in
-/// Stage 9.
+/// Rewrites, in place, every later `d[k]` whose value equals an earlier
+/// `d[j]` (and, when `sametag`, whose key shares `d[j]`'s first 4 bytes)
+/// into an alias of `d[j]`'s key, so a later pass sees one definition per
+/// distinct value. `k > j` always, and each step re-reads `d` before
+/// writing, so no two borrows overlap (`feature_merger_tests` runs this
+/// under Miri).
 fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8]) {
     let n = match d.as_object() {
         Some(fields) => fields.len(),
@@ -461,41 +439,13 @@ fn figure_out_languages_from_json(
     }
     return sh;
 }
-/// Resolves `table` (the `tag` child, e.g. `"GSUB"`/`"GPOS"`) via
-/// `get_typed_mut` and, from it, `lookups`/`lookupOrder`/`features`/
-/// `languages` as ordinary sequential reborrows instead of the raw
-/// pointers re-derived fresh at each point of use this function used to
-/// need (see RUST_MIGRATION.md's "Stage 7-4 plan", Bucket B, for the
-/// access-order trace this rewrite follows). `lookups` (shared) and
-/// `lookupOrder` (shared) are fully consumed -- into `lh`, a local,
-/// owned `PendingLookups` -- before `features` is ever touched; `features`
-/// is then mutated in place (`figure_out_features_from_json` ->
-/// `feature_merger_activate`, which needs `&mut ParsedValue`); `languages`
-/// (shared) is resolved only after that mutation has finished. Each
-/// `get_typed`/`get_typed_mut` call below is its own single-expression
-/// reborrow of `table` that retires at the end of its own statement, long
-/// before the next one begins -- the same discipline Stage M-32 used for
-/// `parse_glyf`'s single `"glyf"` child, sequenced here across four
-/// sibling children of one `table` instead of one child alone. The
-/// presence check just below (`lookups_present`/`features_present`/
-/// `languages_present`) is a separate, side-effect-free set of `get_typed`
-/// calls made *before* any of the four real accesses, to preserve the
-/// original code's own all-or-nothing gating: skip all real parsing
-/// (including `lookups`'s own "invalid lookup" warning logging) unless
-/// all three are present, exactly as the raw-pointer version's `if
-/// !(languages.is_null() || features.is_null() || lookups.is_null())`
-/// checked before doing any work -- even though the "real" pass below
-/// re-resolves each of the three again from scratch.
+/// Reads the `tag` table (`"GSUB"`/`"GPOS"`) from `root`. `lookups` and
+/// `lookupOrder` are read first, into a `PendingLookups`; then `features`
+/// is rewritten in place (`feature_merger_activate`); then `languages` is
+/// read. Nothing is parsed, and no lookup is warned about, unless all three
+/// of `lookups`, `features` and `languages` are present.
 pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
     let table = root.get_typed_mut(tag, JsonType::Object)?;
-    // `table` existing (the `?` above already returned `None` otherwise) is
-    // the same "this font has a `tag` table at all" gate the raw-pointer
-    // version's own `otl_box = Some(...)`/`if otl_box.is_some()` pairing
-    // used: once we're here, either the table below builds successfully
-    // (returned early, `Some(otl_box)`) or it's logged as invalid/
-    // incomplete at the tail -- there is no third outcome once `table`
-    // itself is known to exist, so `otl_box` no longer needs to be an
-    // `Option` of its own the way the old raw-pointer local did.
     let mut otl_box: Box<OtlTable> = Box::new(OtlTable {
         lookups: Vec::new(),
         features: Vec::new(),
@@ -506,14 +456,6 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
     let lookups_present = table.get_typed(b"lookups", JsonType::Object).is_some();
     if languages_present && features_present && lookups_present {
         let stage = crate::logger::stage(ByteStr(tag));
-        // No longer a `___loggedstep_v`/`current_block`-flagged `loop`
-        // simulating "run this block once, then jump past the
-        // `logger_finish`+early-return on failure" -- the block below
-        // always runs exactly once; the only branch is whether the
-        // parsed table came out non-empty. On success, `logger_finish`
-        // + `return Some(otl_box)` immediately; on failure, `logger_dedent`
-        // and fall through to the shared "log a warning, return None"
-        // tail below instead.
         let mut lh: PendingLookups = figure_out_lookups_from_json(
             table.get_typed(b"lookups", JsonType::Object),
         );
@@ -551,33 +493,17 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
             // Nothing usable: close the stage without a `Finish` line.
             drop(stage);
         } else {
-            // `lh.entries` is an owned `Vec` now, not a chain of
-            // uthash nodes reached via a raw pointer, so there is no
-            // manual HASH_ITER+HASH_DEL+free walk here -- sorting
-            // by (order_type, order_val) (what `HASH_SORT` with
-            // `by_lookup_order` did, deferred from where that call
-            // used to sit, right after the lookupOrder loop above,
-            // since nothing in between needed `lh.entries` in sorted
-            // order, only by-name lookup) and then draining it are
-            // both just `Vec` operations, and the `Vec` itself drops
-            // for free once this scope ends.
+            // Sort by (order_type, order_val), then take the lookups out in
+            // that order.
             lh.entries.sort_by(|a, b| {
                 a.order_type
                     .cmp(&b.order_type)
                     .then(a.order_val.cmp(&b.order_val))
             });
-            // Every `PendingLookupId` a `Feature`/`LanguageSystem`
-            // holds was minted *before* this sort, so it no longer
-            // matches the position its owning `Lookup` will actually
-            // land at in `OtlTable.lookups` -- this remap is exactly
-            // what the old pointer-identity design got for free (a
-            // `Box`'s heap address doesn't move when the `Box` itself
-            // is later moved into a `Vec`), spelled out explicitly
-            // for indices. `entry.alias`'s doc comment's double-free
-            // history is why only a non-alias entry ever takes its
-            // `PendingLookupId`'s slot: two entries sharing an id and
-            // both trying to `.take()` it would make the second
-            // `.take()` see `None` and panic, not double-free.
+            // The `PendingLookupId`s held by features and language systems
+            // were given out before this sort; map each to the lookup's final
+            // index. Only a non-alias entry takes its id's slot, so no slot is
+            // taken twice.
             let mut lookup_remap: Vec<Option<LookupIdx>> = vec![None; lh.lookups.len()];
             for entry in lh.entries.into_iter() {
                 if !entry.alias {
@@ -670,10 +596,7 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
 mod feature_merger_tests {
     use super::*;
 
-    /// Direct coverage for `feature_merger_activate`'s in-place mutation
-    /// -- the Stage 11 investigation's "hard case" -- run under Miri to
-    /// confirm the re-resolve-fresh design has no aliasing UB, not just
-    /// that it produces the right answer natively.
+    /// Runs `feature_merger_activate`'s in-place rewrite (under Miri too).
     #[test]
     fn merges_a_later_duplicate_into_the_first_occurrence_when_tags_match() {
         let arr = ParsedValue::Array(vec![ParsedValue::Str(b"a\0".to_vec())]);

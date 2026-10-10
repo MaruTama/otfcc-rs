@@ -3,17 +3,6 @@ use std::rc::Rc;
 
 use crate::vf::region::VqRegion;
 use crate::vf::region::vq_compare_region;
-// Was a C-shaped `struct { type_0: VQSegType, val: union { still: Pos,
-// delta: VqSegmentDelta } }` -- the same "tag fully determines the live
-// union arm" shape already converted elsewhere in the crate (`CffEncoding`,
-// `ChainingSubtable`, etc.). Every field used to be `Copy` (no owned heap
-// data -- `region: *const VqRegion` was a borrowed, non-owning pointer), so
-// the enum stayed `Copy` too. Stage M-28 makes `region` an `Rc<VqRegion>`
-// (shared ownership of the same `FvarTable.masters`-owned allocation this
-// pointer used to alias, see `VqSegmentDelta`'s own doc comment below), and
-// `Rc` is `Clone` but not `Copy`, so this enum drops `Copy` here -- every
-// call site that used to rely on an implicit copy now calls `.clone()`
-// explicitly (a refcount bump, not a content copy).
 #[derive(Clone, Debug)]
 pub enum VqSegment {
     Still(Pos),
@@ -21,23 +10,16 @@ pub enum VqSegment {
 }
 impl VqSegment {
     // The byte `hash_vqs` (`otf_reader/unconsolidate.rs`) writes into the
-    // glyph hash, byte-for-byte -- 0 for `Still`, 1 for `Delta`, matching
-    // the old `VQSegType` discriminant values exactly. Renumbering would
-    // silently change which glyphs get treated as duplicates. A plain `as`
-    // cast can't do this any more now that the variants carry data, so
-    // this stays an explicit, exhaustively-matched method instead.
+    // glyph hash: 0 for `Still`, 1 for `Delta`. Renumbering would change
+    // which glyphs are treated as duplicates.
     pub fn discriminant_byte(&self) -> u8 {
         match self {
             VqSegment::Still(_) => 0,
             VqSegment::Delta(_) => 1,
         }
     }
-    // `table/glyf/read.rs`'s IUP-style gap-filling (`fill_the_gaps`)
-    // constructs every element of its `nudges` array as `Delta` up front
-    // (see `apply_coords`) and only ever reads/writes it as such -- these
-    // three accessors replace the old unconditional `.val.delta.*` field
-    // access, panicking instead of reading union garbage if that invariant
-    // is ever violated.
+    // For `fill_the_gaps` (`table/glyf/read.rs`), whose `nudges` are all
+    // `Delta`s; these panic on a `Still`.
     pub fn is_touched(&self) -> bool {
         matches!(self, VqSegment::Delta(VqSegmentDelta { touched: true, .. }))
     }
@@ -54,32 +36,11 @@ impl VqSegment {
         }
     }
 }
-// Stage 7-2-f closed out with `region` staying a raw, non-owning pointer
-// into `table/fvar.rs`'s `fvar_register_region`-returned canonical
-// `VqRegion` (individually `Box`-owned inside `FvarTable.masters`,
-// disposed once by `FvarTable`'s own `Drop` at final `Font` teardown). That
-// pointer's read-back site (OTF-write time, well after the borrow that
-// registered it ended) was the last genuine raw-pointer wall in this
-// crate -- Stage M-28 retires it by making `region` an `Rc<VqRegion>`
-// instead: `FvarMaster.region` became `Rc<VqRegion>` in Stage M-27, and
-// every `VqSegmentDelta` now holds its own `Rc::clone` of that same
-// allocation (a refcount bump, not a copy) rather than a raw alias into
-// it. A `RegionKey`-owned-value field was considered and rejected: it
-// risked silently changing sort order, since `vqs_compare`/
-// `vqs_compatible` below sort by true `f64` numeric value via
-// `vq_compare_region`, while `RegionKey` compares IEEE-754 bit patterns
-// (built for `Eq`/`Hash`, not order) -- this project treats output byte
-// order as sacred. An index-into-`masters` approach was also rejected:
-// sorting needs real region content, not just an index, which would have
-// needed `&FvarTable` threaded through `consolidate.rs`/`table/cff.rs`/
-// `libcff/charstring_il.rs`, well beyond this pointer's actual reach.
-// `Rc::clone` sidesteps both problems (still compares the same `VqRegion`
-// content through the same `vq_compare_region`, no lifetime threading
-// needed) -- this crate has zero threading (no `Send`/`Sync` bounds
-// anywhere), so `Rc`, not `Arc`, is the right tool. A region that turns
-// out to be a content-duplicate during registration is freed immediately,
-// before any `Rc::clone` of it is ever handed to a `VqSegmentDelta` -- see
-// `fvar_register_region`'s own comment.
+// `region` is shared with the `FvarTable.masters` entry it was registered
+// as (`fvar_register_region`). It is an `Rc` rather than an index because
+// sorting segments compares region contents numerically
+// (`vq_compare_region`); a region found to duplicate an existing one is
+// dropped before any segment gets it.
 #[derive(Clone, Debug)]
 pub struct VqSegmentDelta {
     pub quantity: Pos,
@@ -91,11 +52,6 @@ pub struct VQ {
     pub kernel: Pos,
     pub shift: Vec<VqSegment>,
 }
-// `VV` は `Vec<Pos>`（`vf/vv.rs`）。要素(`Pos`)は所有物なしのプリミティブなので
-// 専用のvtable/dup関数は不要——生存していた `.init`/`.push`/`.shrink_to_fit`/
-// `.dispose` は呼び出し側(`table/fvar.rs`)で直接 `Vec` のメソッドに置き換えた。
-// `.copy`/`.create`/`.free`/`.init_n`/`.neutral`（`create_neutral_vv`)は
-// crate全体で一度も呼ばれておらず削除。
 #[inline]
 fn init_vq_segment(vqs: &mut VqSegment) {
     *vqs = VqSegment::Still(0_i32 as Pos);
@@ -107,13 +63,8 @@ fn copy_vq_segment(dst: &mut VqSegment, src: &VqSegment) {
             *dst = VqSegment::Still(*v);
         }
         VqSegment::Delta(sd) => {
-            // The original only copied `.quantity`/`.region`, leaving
-            // `.touched` at whatever bits already sat in `dst`'s memory --
-            // meaningful when `dst` was already a `Delta` (preserved here
-            // the same way), undefined when it wasn't (every call site in
-            // this crate passes a freshly-`Still`-initialized `dst`, so
-            // this is the only case that actually occurs; `false` replaces
-            // the old uninitialized read with a defined, safe value).
+            // `touched` is kept when `dst` is already a `Delta`, and
+            // `false` otherwise.
             let touched = match *dst {
                 VqSegment::Delta(ref dd) => dd.touched,
                 VqSegment::Still(_) => false,
@@ -138,14 +89,8 @@ fn vq_segment_copy(dst: &mut VqSegment, src: &VqSegment) {
 fn vq_segment_dispose(x: &mut VqSegment) {
     dispose_vq_segment(x);
 }
-// Both take `&VqSegment` now, not `VqSegment` by value: `VqSegment` lost
-// `Copy` in this stage (its `Delta` variant now holds an `Rc<VqRegion>`),
-// and every call site here only ever reads its argument, so borrowing
-// avoids an `Rc::clone` purely to satisfy a by-value parameter.
-// `ad.region`/`bd.region` are plain `&Rc<VqRegion>` here, dereferenced
-// through `Rc`'s own `Deref` (`&**` -- or just `&ad.region`/`vq_compare_region`
-// taking `&VqRegion` and `Rc<T>: Deref<Target = T>` coercing) -- no
-// `unsafe {}` needed, unlike the raw-pointer form this replaces.
+// Both take `&VqSegment`: a `Delta` segment holds an `Rc<VqRegion>`, and
+// every call site here only reads its argument.
 fn vqs_compare(a: &VqSegment, b: &VqSegment) -> i32 {
     match (a, b) {
         (VqSegment::Still(_), VqSegment::Delta(_)) => -1_i32,
@@ -309,11 +254,7 @@ pub(crate) fn vq_is_still(v: VQ) -> bool {
     v.shift.iter().all(|s| matches!(s, VqSegment::Still(_)))
 }
 pub(crate) fn vq_is_zero(v: VQ, err: Pos) -> bool {
-    // `f64::abs` is IEEE-754 `fabs` (a sign-bit clear, no rounding involved),
-    // bit-for-bit identical to libm's `fabs` on every input class including
-    // NaN, +/-0.0 and +/-infinity -- so this is a direct replacement for the
-    // `unsafe extern "C" { fn fabs(...) }` import this file used to carry
-    // (removed in Stage M-45; see RUST_MIGRATION.md).
+    // `f64::abs` gives the same result as C's `fabs` for every input.
     return vq_is_still(v.clone()) as i32 != 0
         && (vq_get_still(v) as f64).abs() < err;
 }
@@ -344,15 +285,8 @@ pub(crate) fn vq_point_linear_tfm(ax: VQ, a: Pos, x: VQ, b: Pos, y: VQ) -> VQ {
 mod tests {
     use super::*;
 
-    // `vq_is_zero`'s `unsafe extern "C" { fn fabs(...) }` import was dropped
-    // in Stage M-45 in favor of `f64::abs`. C99's `fabs` is specified to
-    // return `|x|` for every input class with no rounding involved (a
-    // sign-bit clear implemented directly in hardware on every platform
-    // this crate targets), which is exactly `f64::abs`'s own documented
-    // contract -- pinned here against the documented contract, the same
-    // "no live libc call needed to prove a hardware-identical operation"
-    // choice `libcff/writer.rs`'s own `modf_tests` module already made
-    // for `floor`/`trunc`/`fract`.
+    // `f64::abs` matches C99's `fabs` (`|x|`, no rounding) for every
+    // input class.
     #[test]
     fn f64_abs_matches_fabs_contract_on_every_input_class() {
         assert_eq!(1.5_f64.abs(), 1.5);

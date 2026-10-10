@@ -27,18 +27,8 @@ pub struct CaretValueRecord {
     pub glyph: GlyphHandle,
     pub carets: CaretValueList,
 }
-// `CaretValueRecord` embeds `GlyphHandle`, which now owns its `sds` name for
-// real (`Handle`'s `Drop`/`Clone`, Stage 6-4's `Handle` pilot), so a derived
-// `Clone` would compose correctly here -- but no dup is written because
-// nothing in this file or `consolidate/otl/gdef.rs` ever duplicates a
-// `CaretValueRecord` (verified: every touch is either a move via
-// `mem::take`/`Vec::push` of a freshly-built value, or a dispose), so there
-// is nothing for a `Clone` impl to be used for.
 pub type LigCaretTable = Vec<CaretValueRecord>;
-// Shared by `dispose_gdef` (whole-table teardown) and `consolidate_gdef`
-// (rebuild-in-place, formerly `OTL_I_LIG_CARET_TABLE.clear`). `Vec::clear`
-// alone is enough: each record's compiler-generated drop glue frees its
-// `Handle`'s name and its `Vec<CaretValue>` backing array.
+// Shared by `dispose_gdef` and `consolidate_gdef`.
 pub(crate) fn clear_lig_carets(lc: &mut LigCaretTable) {
     lc.clear();
 }
@@ -48,24 +38,6 @@ pub struct GdefTable {
     pub mark_attach_class_def: Option<Box<ClassDef>>,
     pub lig_carets: LigCaretTable,
 }
-// Stage 6-4 "Box化" Box-ified the outer `GdefTable` itself (replacing the
-// entire `table_gdef_init`/`_dispose`/`_create`/`_free` quartet). Stage
-// 7-2-c "inner Box化" finishes the job here: `glyph_class_def`/
-// `mark_attach_class_def` become `Option<Box<ClassDef>>`, the exact same
-// shape `table/otl.rs`'s `ChainingRuleSet.bc`/`.ic`/`.fc` and
-// `GposPairSubtable.first`/`.second` already use for this same `ClassDef`
-// type. `ClassDef` itself has no manual `Drop` impl -- it is a plain
-// `Vec`-holding struct (`glyphs: Vec<GlyphHandle>`, `classes:
-// Vec<GlyphClass>`) that already self-drops correctly, and
-// `otl_class_def_free` (the function this used to call) is itself just
-// `drop(Box::from_raw(x))`, i.e. exactly what `Option<Box<ClassDef>>`'s own
-// drop glue now does directly. No manual `Drop` impl remains: both class-def
-// fields and `lig_carets` (a plain `Vec`) all self-drop now.
-// `table_gdef_copy`'s old `memcpy`-based body is gone outright, not
-// `.clone()`-ported: it was unreachable even before this conversion (only
-// ever assigned into `GdefTableElementInterface.copy`, never called through
-// that field or by name -- confirmed by grep across the crate), and a bitwise
-// memcpy would double-free `lig_carets` now that it owns a `Vec`.
 fn read_caret_value(data: &[u8], offset: usize) -> CaretValue {
     let mut v: CaretValue = CaretValue {
         format: 0,
@@ -102,15 +74,9 @@ fn read_lig_caret_record(data: &[u8], offset: usize) -> CaretValueRecord {
     }
     g
 }
-/// The LigCaretList (`CoverageOffset`/`LigGlyphCount`/`LigGlyphOffset[]`),
-/// isolated out of `read_gdef` because its three failure conditions
-/// each abort the *whole* GDEF table (matching the original's `current_
-/// block` goto-emulation, which skipped straight past `mark_attach_class_
-/// def` and returned `None` on any of them) rather than just leaving
-/// `lig_carets` empty -- `?` on this function's `None` reproduces that
-/// exactly. `lig_caret_offset == 0` (no LigCaretList at all) returns
-/// `Some(Vec::new())`, matching the original's `current_block` value for
-/// "nothing to do, continue on to mark_attach_class_def".
+/// The LigCaretList (`CoverageOffset`/`LigGlyphCount`/`LigGlyphOffset[]`).
+/// Any of its three checks failing fails the whole GDEF table (`None`);
+/// `lig_caret_offset == 0` means there is no list, `Some(Vec::new())`.
 fn read_lig_carets(
     data: &[u8],
     lig_caret_offset: usize,
@@ -259,10 +225,6 @@ pub fn parse_gdef(root: &ParsedValue) -> Option<Box<GdefTable>> {
     stage.finish();
     Some(gdef)
 }
-// `bk_new_block`/`bk_push`/`bk_new_block_from_buffer`/`bk_build_block`
-// are all safe fn as of Stage D (2026-09) -- this function and the two
-// below no longer have any unsafe operation left at all, now that the
-// `BkBlock` graph API itself has been safened.
 fn write_lig_caret_rec(cr: &CaretValueRecord) -> BkBlock {
     let carets = &cr.carets;
     let mut bcr: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (carets.len()) as u32)]);
@@ -288,11 +250,6 @@ fn write_lig_caret_rec(cr: &CaretValueRecord) -> BkBlock {
     bcr
 }
 fn write_lig_carets(records: &LigCaretTable) -> BkBlock {
-    // `otl_coverage_create()`/`otl_coverage_free` were only ever a
-    // `Box::into_raw`/`Box::from_raw` shell around a plain `Coverage`
-    // (`Vec<GlyphHandle>`) -- building it as a local owned value instead
-    // sidesteps that raw-pointer round trip entirely, leaving only the
-    // genuine `bk_*` calls below as this function's unsafe surface.
     let mut cov: Coverage = Vec::new();
     for record in records {
         push_to_coverage(&mut cov, record.glyph.clone());

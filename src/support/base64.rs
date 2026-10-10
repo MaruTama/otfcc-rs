@@ -16,32 +16,20 @@ pub fn base64_encode(src: &[u8]) -> Vec<u8> {
 }
 
 /// `None` on malformed input (a count of base64 alphabet characters not a
-/// multiple of 4) -- the original signaled this the same way malloc
-/// failure was signaled, by returning a null pointer with the out-param
-/// length left unset; every call site already treated that null return as
-/// "no decoded value" (either substituting an empty buffer or, in
-/// `table/meta/parse.rs`, skipping the JSON entry), so this is the same
-/// outcome through a real `Option` instead of a null/uninitialized-length
-/// pair. Bytes outside the base64 alphabet (and not `=`) are silently
-/// skipped rather than rejected, matching the original.
+/// multiple of 4). Bytes outside the base64 alphabet (and not `=`) are
+/// silently skipped rather than rejected.
 ///
-/// Deliberately left hand-rolled rather than swapped to the `base64` crate
-/// (unlike `base64_encode` above), because it has a second, more subtle
-/// non-standard behavior the crate's `STANDARD` engine does not reproduce:
-/// a `=` that appears anywhere other than in the final 4-character group is
-/// *not* treated as padding here -- it looks up as data value `0` (the same
-/// table slot as `'A'`) and is decoded into the output like any other
-/// alphabet character, with truncation only checked against the very last
-/// processed 4-byte group. E.g. `base64_decode(b"Z=g=")` returns
-/// `Some(vec![100, 8])`, not `None` and not a 1-byte result. The `base64`
+/// Hand-rolled rather than using the `base64` crate (unlike `base64_encode`
+/// above) because of a second non-standard behavior the crate does not
+/// reproduce: a `=` anywhere other than in the final 4-character group is
+/// *not* padding here -- it decodes as data value `0` (the same table slot
+/// as `'A'`), with truncation only checked against the very last 4-byte
+/// group. E.g. `base64_decode(b"Z=g=")` returns `Some(vec![100, 8])`. The
 /// crate's decoders, including its most permissive `GeneralPurposeConfig`,
-/// validate `=` position and reject a misplaced one instead. Since this
-/// divergence only shows up on malformed/non-conformant input (this
-/// encoder, and any RFC 4648-conformant one, never emits a `=` anywhere but
-/// the final group), and this codebase treats byte-exact output as sacred,
-/// this function stays hand-rolled rather than risk a silent behavior
-/// change here; see `decode_treats_a_non_trailing_equals_sign_as_data_not_
-/// padding` below, which pins the exact quirk.
+/// reject a misplaced `=` instead. This only shows up on non-conformant
+/// input, but output must stay byte-identical; see
+/// `decode_treats_a_non_trailing_equals_sign_as_data_not_padding` below,
+/// which pins the exact quirk.
 pub fn base64_decode(src: &[u8]) -> Option<Vec<u8>> {
     let mut dtable = [0x80_u8; 256];
     for (i, &c) in BASE64_TABLE.iter().enumerate() {
@@ -119,24 +107,22 @@ mod base64_tests {
 
     #[test]
     fn decode_rejects_a_length_not_a_multiple_of_four() {
-        // "Zg=" has 3 base64-alphabet characters (Z, g, and '=' both count,
-        // per the original's dtable), not a multiple of 4.
+        // "Zg=" has 3 base64-alphabet characters (Z, g, and '=' all count),
+        // not a multiple of 4.
         assert_eq!(base64_decode(b"Zg="), None);
     }
 
     #[test]
     fn decode_silently_skips_characters_outside_the_alphabet() {
         // A newline in the middle of an otherwise-valid encoding of "foo"
-        // is dropped rather than rejected, matching the original's dtable
-        // lookup (any byte that isn't a table entry or '=' reads as the
-        // 0x80 sentinel and is excluded from both the count and the output).
+        // is dropped rather than rejected (any byte that isn't a table
+        // entry or '=' reads as the 0x80 sentinel and is excluded from both
+        // the count and the output).
         assert_eq!(base64_decode(b"Zm\n9v"), Some(b"foo".to_vec()));
     }
 
-    // Adversarial cases added for Stage M-18 (the `base64` crate swap),
-    // pinning old-vs-new equivalence on malformed/embedded-junk inputs now
-    // that `base64_encode` goes through the crate and `base64_decode`
-    // stays hand-rolled.
+    // Malformed and embedded-junk inputs, pinning that `base64_encode` (the
+    // crate) and `base64_decode` (hand-rolled) still round-trip as before.
 
     #[test]
     fn decode_empty_input_is_empty_output() {
@@ -166,10 +152,8 @@ mod base64_tests {
         // Pins the exact quirk documented on `base64_decode`: a `=` that
         // isn't in the final processed 4-byte group decodes as data value
         // 0 (same table slot as 'A'), not as padding, and truncation is
-        // only checked against the *last* group's `=` positions. This is
-        // why `base64_decode` was kept hand-rolled instead of routed
-        // through the `base64` crate for Stage M-18 -- the crate's
-        // decoders reject a misplaced '=' instead.
+        // only checked against the *last* group's `=` positions. The
+        // `base64` crate's decoders reject a misplaced '=' instead.
         assert_eq!(base64_decode(b"Z=g="), Some(vec![100, 8]));
         assert_eq!(base64_decode(b"===="), Some(vec![0]));
         assert_eq!(base64_decode(b"AA=A"), Some(vec![0]));

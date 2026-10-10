@@ -22,11 +22,7 @@ pub fn consolidate_gsub_single(
     };
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
-    // not `IndexMap`: the original also did a HASH_SORT by that same id
-    // right before reading entries back out. Same shape as
-    // `consolidate_gpos_single`'s uthash -> `BTreeMap` rewrite
-    // (RUST_MIGRATION.md), with `to`'s `(id, name)` in place of a single
-    // `PositionValue`.
+    // so the result is ascending by glyph id, not insertion order.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
     for entry in subtable.iter_mut() {

@@ -17,11 +17,6 @@ pub struct MetaEntry {
     pub tag: u32,
     pub data: Vec<u8>,
 }
-// Stage 6-4 "Box化": every field this struct (transitively) owns is
-// already a `Vec`/scalar, so no `Drop` impl is needed -- `Box::new`
-// construction plus the standard drop glue is sufficient. The entire
-// `MetaTableElementInterface` vtable is deleted: grepping confirmed only
-// `.create`/`.free` were ever called from outside this file.
 #[derive(Debug)]
 pub struct MetaTable {
     pub version: u32,
@@ -29,22 +24,14 @@ pub struct MetaTable {
     pub entries: Vec<MetaEntry>,
 }
 
-// The original guarded the entry array with `table.length <
-// 16.wrapping_add(12.wrapping_mul(data_maps_count))` -- a `data_maps_count`
-// large enough to overflow `12 * count` (e.g. 0x1555_5556) wraps the sum
-// back down to something small, so the guard passes even though the real
-// entry array is nowhere near that short; the loop then read each entry's
-// `tag`/`offset`/`length` straight past the table's actual end.
-// `require_room` closes this the same way it does everywhere else in this
-// stage: `checked_mul`/`checked_add`, so an overflowing count fails the
-// guard instead of wrapping through it.
+// `data_maps_count` comes from the file, so `require_room` checks the
+// entry array with `checked_mul`/`checked_add`: a count large enough to
+// overflow `12 * count` fails the check instead of wrapping past it.
 //
-// Each entry's own data span (`offset..offset+length`) had the same
-// wrapping-arithmetic gap (`table.length < offset.wrapping_add(length)`);
-// `FontReader::sub`'s `checked_add` replaces it. Unlike the header guard,
-// a single entry failing this check does not drop the whole table --
-// matching the original, which silently skipped just that one entry and
-// kept going.
+// Each entry's own data span (`offset..offset+length`) is checked the same
+// way by `FontReader::sub`. Unlike the header check, a single entry
+// failing it does not drop the whole table -- just that one entry is
+// skipped.
 fn decode_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.u32()?;

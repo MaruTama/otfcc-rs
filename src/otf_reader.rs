@@ -9,11 +9,7 @@ use crate::font::sfnt::{Packet, PacketPiece, SplineFontContainer};
 use crate::otf_reader::unconsolidate::unconsolidate_font;
 
 fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtype {
-    // c2rust's translation of a FOREACH_TABLE-style macro: the
-    // __fortable_keep/__notfound/__fortable_k2 flags simulate a
-    // single-iteration inner scope purely to give the original C a labeled
-    // break/continue target. Traced by hand: the whole thing reduces to
-    // "return FontSubtype::Cff at the first 'cff ' tag, else FontSubtype::Ttf".
+    // The first 'cff ' tag makes it a CFF font; otherwise it is TrueType.
     let sfnt_packets = &sfnt.packets;
     let packet: &Packet = &sfnt_packets[index as usize];
     for i in 0..packet.num_tables as i32 {
@@ -26,27 +22,7 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
 }
 /// Reads one subfont out of an already-parsed sfnt container.
 ///
-/// This used to be split across a `FontBuilder` trait, a zero-sized
-/// `OtfReader` marker struct implementing it, and a thin wrapper that cast
-/// everything to and from `*mut c_void` -- the trait existed only so the
-/// same signature could be shared with `json_reader.rs`, whose reader takes
-/// completely different inputs (a `ParsedValue` tree, and no subfont index
-/// at all). It had no `&self`, no `dyn` use, no generic code parameterized
-/// over it and exactly one call site per implementor, so the erasure bought
-/// nothing and cost every caller a pair of casts. Both inputs are plain
-/// references now and the cast pairs are gone.
-///
-/// `sfnt` and `options` are plain shared references, `index` is
-/// bounds-checked against `sfnt.count` before use, and every table reader
-/// this calls (including the CFF/glyf builder core, made a safe `pub fn`
-/// back in Stage M-14) takes and returns owned or safely-referenced values.
-/// This used to stay `unsafe fn` as a holdover from when it drove
-/// raw-pointer table builders directly, with a `# Safety` doc comment
-/// noting there was no actual caller-side contract left to uphold; once
-/// that was double-checked against every callee's own signature (all
-/// plain `pub fn`s, none `unsafe fn`) and the body itself (no `unsafe`
-/// block, no raw pointer deref anywhere in it), the leftover `unsafe`
-/// keyword was dropped along with the doc comment that only justified it.
+/// `index` is bounds-checked against `sfnt.count` before use.
 pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Option<Box<Font>> {
     if sfnt.count.wrapping_sub(1_u32) < index {
         return None;

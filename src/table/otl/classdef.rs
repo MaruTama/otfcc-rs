@@ -7,14 +7,9 @@ use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
 use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
-/// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel
-/// arrays (grown, pushed to, and truncated only ever together -- confirmed
-/// by survey before this conversion), now `Vec<GlyphHandle>`/
-/// `Vec<GlyphClass>`. `maxclass` is a running maximum scalar, not part of
-/// either array, so `ClassDef` stays a real (if now `Vec`-holding) struct
-/// rather than collapsing to a bare `pub type` the way `Coverage` did.
-// `Default` is exactly the value the deleted `otl_class_def_create()`
-// used to `Box::into_raw`: class 0, both arrays empty.
+/// A class definition: `glyphs[i]` is in class `classes[i]` (the two are
+/// always grown and truncated together), and `maxclass` is the largest
+/// class seen. `Default` is class 0 with both arrays empty.
 #[derive(Clone, Debug, Default)]
 pub struct ClassDef {
     pub maxclass: GlyphClass,
@@ -26,9 +21,6 @@ pub struct ClassDefSortRecord {
     pub gid: GlyphId,
     pub cid: GlyphClass,
 }
-// `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
-// by value trips `improper_ctypes_definitions`; this is never called across
-// a real FFI boundary (c2rust artifact, not `#[no_mangle]`).
 pub(crate) fn push_class_def(cd: &mut ClassDef, h: GlyphHandle, cls: GlyphClass) {
     cd.glyphs.push(h);
     cd.classes.push(cls);
@@ -71,12 +63,11 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> ClassDef {
         if r.require_room(range_count as usize, 6).is_err() {
             return cd;
         }
-        // `covIndex` is repurposed here to carry the class value, not a
-        // coverage position -- `HASH_SORT`-by-it therefore orders the
-        // final `ClassDef` by ascending *class value*, not by gid. That is
-        // observable (it's the order `dump_class_def` walks), so it must
-        // be reproduced exactly: dedup-by-gid (first occurrence wins) via
-        // `IndexMap`, then a stable sort by the stored class value.
+        // `covIndex` carries the class value here, not a coverage position,
+        // so the final `ClassDef` is ordered by ascending *class value*, not
+        // by gid. That is observable (it's the order `dump_class_def`
+        // walks): dedup-by-gid (first occurrence wins) via `IndexMap`, then
+        // a stable sort by the stored class value.
         let mut h: indexmap::IndexMap<GlyphId, GlyphClass> = indexmap::IndexMap::new();
         for _ in 0..range_count {
             let start = r.u16().unwrap();
@@ -98,13 +89,9 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> ClassDef {
 // so taking it by value lets the compiler's own drop glue replace the old
 // explicit `otl_class_def_free(ocd)` call at the end.
 pub(crate) fn expand_class_def(cov: &Coverage, ocd: ClassDef) -> ClassDef {
-    // No `HASH_SORT` call anywhere in the original -- the final walk is
-    // plain insertion order (uthash's natural `.next` list), which
-    // `IndexMap` reproduces directly with no separate sort step. `ocd`'s
-    // entries (deduped by gid, first occurrence wins) are inserted first,
-    // in `ocd`'s own order; then every glyph in `cov` not already present
-    // is added with class 0, in `cov`'s order -- exactly the two phases
-    // below, sharing one map the way the original shares one hash table.
+    // Insertion order, deduped by gid (first occurrence wins): `ocd`'s
+    // entries first, in `ocd`'s own order; then every glyph in `cov` not
+    // already present, with class 0, in `cov`'s order.
     let mut h: indexmap::IndexMap<GlyphId, GlyphClass> = indexmap::IndexMap::new();
     for j in 0..ocd.glyphs.len() {
         h.entry(ocd.glyphs[j].index).or_insert(ocd.classes[j]);
@@ -156,9 +143,7 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
         buf.write_u16be(0_u16);
         return buf;
     }
-    // A local `Vec` scratch buffer, not a `__caryll_allocate_clean`/`qsort`/
-    // `free` trio -- same simplification as `Coverage`'s `build_coverage_
-    // format`, `sort_by_key` (stable) reproducing `by_gid`'s ordering.
+    // `sort_by_key` (stable), same as `Coverage`'s `build_coverage_format`.
     let mut r: Vec<ClassDefSortRecord> = Vec::new();
     for j in 0..cd.glyphs.len() {
         if cd.classes[j] != 0 {

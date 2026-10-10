@@ -13,64 +13,21 @@ use crate::table::otl::subtables::chaining::common::chaining_ruleset_mut;
 use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Subtable,
 };
-// Was `CoverageReaderHandler`, a `*mut c_void` userdata pointer threaded
-// alongside a fn-pointer typedef shared by all three concrete readers
-// below (`single_coverage`/`class_coverage`/`format3_coverage`) -- the
-// `*mut c_void` existed purely so `class_coverage`'s `ClassDefs` borrow
-// could travel through a shape the other two readers (which never needed
-// any userdata at all) were also forced to accept. `general_read_
-// contextual_rule`/`general_read_chaining_rule` (the only two callers)
-// now take the reader as a generic `impl FnMut(&[u8], u16, u32,
-// ContextKind, GlyphId) -> Coverage` instead: `single_coverage`/
-// `format3_coverage` (already plain safe `fn`s with this exact signature)
-// are passed directly as function items, and `class_coverage`'s call sites capture
-// `&ClassDefs` in a closure instead of casting a raw pointer to it --
-// which in turn lets `class_coverage` itself take `&ClassDefs` and drop
-// `unsafe fn` too (its only unsafe operations were the userdata cast and
-// the raw-pointer derefs of `defs`/`cov` that cast enabled).
-// Stage 7-2-c "inner Box化": `bc`/`ic`/`fc` become `Option<Box<ClassDef>>`,
-// the same shape `table/otl.rs`'s `ChainingRuleSet.bc`/`.ic`/`.fc` (a
-// *different* struct, despite the identical field shape -- that one is the
-// long-lived, publicly stored classification result; this one is a
-// transient scratch struct used only as `class_coverage`'s `void*`
-// userdata for the duration of a single `read_contextual_format2`/
-// `read_chaining_format2` call) already use for this same `ClassDef` type.
-// `Copy`/`Clone` dropped: `Box` isn't `Copy`, and a grep of every `.bc`/
-// `.ic`/`.fc`/`ClassDefs` touch site in this file (the only file that
-// mentions this type) confirmed none of them ever copied the struct by
-// value in the first place -- every access already went through a raw
-// pointer (`cds: *mut ClassDefs` / `defs: *mut ClassDefs`), so dropping the
-// derive changes no call site's shape, only what `bc`/`ic`/`fc` own.
+// The class definitions of a format 2 subtable, which `class_coverage`
+// turns into coverages. The readers take the coverage reader as a closure,
+// so this one can capture them.
 #[derive(Debug)]
 pub struct ClassDefs {
     pub bc: Option<Box<ClassDef>>,
     pub ic: Option<Box<ClassDef>>,
     pub fc: Option<Box<ClassDef>>,
 }
-/// The `class_zero_glyphs` limit of `OtlReadBudget`. See also
-/// `MAX_TOTAL_CLASS_COVERAGE_CALLS` below for what this bounds and why: a single `class_coverage` call
-/// can scan up to `max_glyphs` (the font's own declared glyph count, up
-/// to 65535) or `cd.glyphs.len()` candidates, and it is called once per
-/// input/backtrack/lookahead position in a rule (see
-/// `general_read_contextual_rule`'s own loop) -- a subtable holding many
-/// rules, each with several positions, against a font declaring many
-/// glyphs, multiplies into gigabytes from a subtable of only a few
-/// hundred KB (ASan-confirmed: a fuzz-found font OOM'd at ~1.8GB this
-/// way). Sized around real usage, not just adversarial safety: this
-/// budget is global across a whole table now (see the scope note after
-/// `MAX_TOTAL_CLASS_COVERAGE_CALLS`), and `tests/payload/NotoNastaliqUrdu-Regular.ttf` -- a
-/// real, legitimately complex Nastaliq-script font already in this
-/// repo's golden corpus -- genuinely uses ~10.7 million of these units in
-/// its own GSUB table alone (confirmed by instrumenting a debug build).
-/// 20 million leaves that font ~1.87x of headroom while still only
-/// costing well under a second even if a whole table's worth of
-/// subtables all hit it (the original 10 million figure came from timing
-/// a single call in isolation, before this budget's scope changed from
-/// per-subtable to per-table; a later, separate fix -- `otl/read.rs`'s
-/// `MAX_TOTAL_LOOKUPS_PER_TABLE`/`MAX_TOTAL_FEATURE_REFS_PER_TABLE` --
-/// turned out to matter far more for peak memory than this budget's exact
-/// size did, so this stays modestly above real usage rather than as
-/// generous as an earlier, since-retightened 200-million figure).
+/// The `class_zero_glyphs` limit of `OtlReadBudget`, shared by a whole
+/// GSUB or GPOS table. Each `class_coverage` call can scan every glyph of
+/// the font, once per rule position, so a subtable of a few hundred KB can
+/// otherwise cost gigabytes (a fuzzed font reached 1.8 GB). NotoNastaliqUrdu,
+/// a real and complex font, uses about 10.7 million units in its GSUB, so
+/// 20 million leaves it room while keeping a whole table to under a second.
 pub(crate) const MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS: u32 = 20_000_000;
 /// The `class_coverage_calls` limit of `OtlReadBudget`: bounds the number of
 /// `class_coverage` *calls* themselves, independent of how much work (if
@@ -79,41 +36,14 @@ pub(crate) const MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS: u32 = 20_000_000;
 /// limit above never triggers at all, from taking 20-30s on sheer call volume
 /// (well past a million calls/second's worth of fixed per-call overhead).
 pub(crate) const MAX_TOTAL_CLASS_COVERAGE_CALLS: u32 = 70_000;
-// Scope of the two limits above: they used to live as fields on
-// `ClassDefs`, reset fresh for every subtable (one `ClassDefs` per
-// `read_contextual_format2`/`read_chaining_format2` call). That bounded
-// each *subtable's* cost, but not a *lookup's* or a *table's*:
-// `otl/read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP` caps subtable count at
-// 1,000 per lookup precisely because it was previously unbounded, and
-// 1,000 subtables each getting their own fresh allowance multiplies right
-// back into the same class of hang these limits exist to prevent (fuzzing
-// confirmed it: capping rules-per-subtable and subtables-per-lookup
-// individually still left a lookup with ~700 subtables taking 20+ seconds
-// in `class_coverage` alone). They are now `OtlReadBudget`'s
-// `class_zero_glyphs`/`class_coverage_calls`, created once per
-// `read_otl` call (once per GSUB or GPOS table), which bounds the
-// whole table's total `class_coverage` cost.
-/// Bounds the number of contextual/chaining rules actually built across a
-/// *whole table* (every subtable of every lookup combined -- see
-/// `OtlReadBudget::rules`, one budget per `read_otl` call).
-/// Each `chainSubClassSet`/`subRuleSet` entry's own rule count is
-/// individually bounds-checked against the table (its rule-offset array
-/// must fit), but nothing stopped an attacker from declaring dozens of such
-/// entries that each carry a legitimately-shaped but enormous count:
-/// fuzzing found a single format2 subtable with `chainSubClassSetCount =
-/// 44`, whose per-entry rule counts summed past 500,000 rules, each paying
-/// for its own heap allocation plus a `class_coverage`/`single_coverage`
-/// call. An earlier version of this fix capped the count *per subtable*
-/// instead of per table, which bounded one subtable's cost but not a
-/// lookup's or a table's: `otl/read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP`
-/// caps subtable count at 1,000 per lookup precisely because it was
-/// previously unbounded too, and up to 1,000 subtables each getting their
-/// own fresh per-subtable rule allowance multiplies right back into the
-/// same hang (fuzzing confirmed a lookup with ~700 subtables still took
-/// 20+ seconds after the per-subtable cap alone). Real fonts have at most
-/// a few hundred contextual rules per subtable and nowhere near this many
-/// subtables per table, so this cap is far above any legitimate usage
-/// while keeping worst-case adversarial cost to well under a second.
+// Both limits above are per table, not per subtable: a lookup may have up
+// to 1,000 subtables, and a fresh allowance for each multiplied back into
+// the same hang (a fuzzed lookup with ~700 subtables took 20+ seconds).
+/// Bounds the number of contextual/chaining rules built across a whole table
+/// (`OtlReadBudget::rules`). Each rule set's count fits the table, but many
+/// sets can each carry a huge count: a fuzzed format 2 subtable summed past
+/// 500,000 rules. Real fonts have at most a few hundred rules per subtable,
+/// so this is far above legitimate use.
 pub(crate) const MAX_TOTAL_RULES_PER_TABLE: u32 = 15_000;
 /// Bounds how many `ChainLookupApplication` entries a single contextual/
 /// chaining rule builds. `n_apply` is a raw `u16` read straight from the
@@ -156,15 +86,9 @@ const MAX_APPLY_PER_RULE: usize = 50;
 const MAX_POSITIONS_PER_RULE: u16 = 50;
 /// Which side of a chaining/contextual rule a coverage lookup is for:
 /// backtrack (glyphs before the input sequence), input (the sequence
-/// itself), or lookahead (glyphs after it) -- the OpenType spec's own
-/// 1/2/3 numbering for the three `ClassDef` slots a format-2 rule can
-/// draw from. Replaces the `1_u16`/`2_u16`/`3_u16` magic numbers
-/// `class_coverage` used to compare its own `kind` parameter against.
-/// `single_coverage`/`format3_coverage` ignore this value entirely
-/// (their own coverage doesn't depend on which side of the rule it's
-/// for), but still take a real `ContextKind` rather than `Option<_>` or a
-/// leftover `u16`, so every implementer of the shared `coverage_of` callback
-/// shape agrees on one type for this parameter.
+/// itself), or lookahead (glyphs after it) -- the OpenType spec's 1/2/3
+/// numbering of a format 2 rule's three `ClassDef`s. Only `class_coverage`
+/// uses it.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum ContextKind {
     Backtrack = 1,
@@ -221,36 +145,11 @@ pub fn class_coverage(
         return Coverage::new();
     }
     let mut cov = Coverage::new();
-    // `general_read_contextual_rule`/`general_read_chaining_rule` call
-    // this once per input/backtrack/lookahead position in a rule, and a
-    // subtable can hold a huge number of tiny rules -- so *every* loop
-    // below (not just the ones that end up pushing a glyph) is charged
-    // against `(*defs).class_zero_budget`, one unit per iteration,
-    // shared across every call this `ClassDefs` sees while reading the
-    // whole subtable. That bounds TOTAL scanning work across the whole
-    // subtable to a fixed budget regardless of `cls`, `max_glyphs`, this
-    // classdef's own size, or how many times this gets called -- a
-    // per-push-only budget (an earlier version of this fix) still let a
-    // "dense" classdef (few glyphs actually pushed, but every one of
-    // `max_glyphs` still has to be checked) or the plain `cls != 0`
-    // linear scan (already O(cd.glyphs.len()), no quadratic factor to
-    // fix, but still uncapped per call) hang on the same fuzz-found
-    // font this was found on, by racking up iterations that never
-    // decremented anything.
-    //
-    // `cls == 0` ("every glyph not otherwise classified") used to also
-    // be a *quadratic* linear scan over `(*cd).glyphs` for every one of
-    // up to `max_glyphs` candidates -- O(max_glyphs * cd.glyphs.len())
-    // just to find which glyphs are classified, on top of the memory
-    // amplification this same budget also guards against (ASan-
-    // confirmed OOM: ~1.8GB from a fuzz-found font). A bitmap over
-    // `0..max_glyphs` (at most 65535 bits, built once in
-    // O(cd.glyphs.len())) turns the lookup into O(1), making that part
-    // O(max_glyphs + cd.glyphs.len()) -- also drops the original's
-    // separate, identical count-then-populate double scan: counting
-    // ahead only ever fed a since-removed `Vec::with_capacity`-style
-    // early return, so folding it into one pass changes nothing
-    // observable for any input this budget doesn't itself cut off.
+    // Called once per position of every rule, so every loop iteration below,
+    // whether or not it pushes a glyph, is charged to the table's
+    // `class_zero_glyphs` budget. Class 0 (every glyph not otherwise
+    // classified) is found with a bitmap of the classified glyphs, built
+    // once, instead of a scan per candidate.
     if cls as i32 == 0_i32 {
         let mut classified = vec![false; max_glyphs as usize];
         // `0..cd.glyphs.len()`: the bound is `cd.glyphs`'s own length,
@@ -287,26 +186,10 @@ pub fn class_coverage(
             budget.charge_class_zero();
         }
     } else {
-        // Left as a `while`, not converted: `j_2` is a `GlyphId` (`u16`),
-        // but the bound it is compared against is `cd.glyphs.len()`
-        // (`usize`), which -- unlike `max_glyphs` above -- is not itself
-        // capped to fit in a `u16` by this function's own signature. A
-        // `format 2` `ClassDef` can legitimately hold exactly 65536
-        // distinct glyphs (`table/otl/classdef.rs::read_class_def`'s
-        // format-2 branch dedups by `GlyphId` into an `IndexMap`, whose
-        // key space is the full `u16` range), so `cd.glyphs.len() ==
-        // 65536` is reachable, not merely theoretical. In that exact case
-        // the original's `j_2 = j_2.wrapping_add(1)` wraps `0xffff` back
-        // to `0` *before* `(j_2 as usize) < cd.glyphs.len()` ever goes
-        // false, so the `while` keeps re-scanning the same 65536 entries
-        // (each full pass re-charging and, on a matching `cls`, re-pushing
-        // every match) until `budget.class_zero_left()` alone ends it -- a
-        // materially different outcome (many repeated passes, and
-        // correspondingly many duplicate pushes) than a single `for j_2
-        // in 0..cd.glyphs.len()` pass would produce. Converting this one
-        // would silently change what a maximal-`ClassDef` input does, so
-        // per the task's own "leave it alone rather than guess" rule, it
-        // stays a `while`.
+        // Kept as a `u16` `while` on purpose: a format 2 `ClassDef` can hold
+        // all 65,536 glyphs, and then `j_2` wraps to 0 before reaching the
+        // length, so the loop rescans until the budget runs out. A `for`
+        // over the length would change what such an input produces.
         let mut j_2: GlyphId = 0 as GlyphId;
         while (j_2 as usize) < cd.glyphs.len() && budget.class_zero_left() {
             if cd.classes[j_2 as usize] as i32 == cls as i32 {
@@ -331,18 +214,8 @@ pub fn format3_coverage(
 ) -> Coverage {
     return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32), budget);
 }
-// Every guard below is expressed as a `FontReader` read or `require_room`
-// call in the exact sequence the original's hand-written `table_length <
-// ...` checks ran in, so the set of inputs accepted/rejected is unchanged
-// (`require_room`'s `checked_mul` cannot itself matter here: every count
-// this file reads is a `u16`, so `count * stride` can never overflow
-// `usize`). The one behavior change is fidelity, not scope: a `FontReader`
-// read only ever demands exactly the bytes the value it is producing
-// needs, where a few of the original's guards reserved a handful of extra
-// bytes beyond what the following reads actually touched (see
-// `read_contextual_format2`'s and `read_chaining_format2`'s "no slop"
-// note below) -- always in the safe direction (rejecting strictly less
-// than before), documented per-function where it applies.
+// The `FontReader` reads and `require_room` checks below never reserve
+// bytes the following reads do not use.
 pub fn general_read_contextual_rule(
     slice: &[u8],
     offset: u32,
@@ -357,30 +230,19 @@ pub fn general_read_contextual_rule(
     let mut header = FontReader::new(slice).at(offset as usize).ok()?;
     let n_input = header.u16().ok()?;
     let n_apply = header.u16().ok()?;
-    // Matches the original's own guard exactly: it reserves `2*n_input`
-    // bytes for the input-glyph array even on the `minus_one` path, where
-    // only `n_input - minus_one_q` entries are actually read below (one
-    // slot more than strictly needed -- preserved as-is, not tightened).
+    // Reserves `2 * n_input` bytes even on the `minus_one` path, which reads
+    // one entry fewer; kept so the same inputs are accepted.
     let needed = (n_input as usize) * 2 + (n_apply as usize) * 4;
     header.require_room(needed, 1).ok()?;
 
-    // `n_input - minus_one_q` in the original ran in signed `c_int`
-    // arithmetic, so a malformed `n_input < minus_one_q` (possible: the
-    // `minus_one` slot above is unconditional, independent of `n_input`'s
-    // own value) gave a negative loop bound and simply ran zero
-    // iterations. `saturating_sub` reproduces that same "zero iterations"
-    // outcome without the panic a plain `u16` subtraction would give here.
+    // A malformed `n_input < minus_one_q` reads nothing, rather than
+    // underflowing.
     let n_input_read = n_input.saturating_sub(minus_one_q);
-    // See `MAX_POSITIONS_PER_RULE`'s own doc comment: only the *build*
-    // loop below is capped, not `n_input_read` itself (still used
-    // uncapped for `lookup_base` below, matching the original's byte
-    // layout).
+    // Only the build loop below is capped (see `MAX_POSITIONS_PER_RULE`);
+    // `n_input_read` still sets `lookup_base`.
     let n_input_built = n_input_read.min(MAX_POSITIONS_PER_RULE);
     let match_count = minus_one_q.wrapping_add(n_input_built);
 
-    // `Box` is the allocation, the struct literal is the zero-init the old
-    // `__caryll_allocate_clean` provided -- same shape as `new_lookup`/
-    // `new_glyf_glyph`.
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
         match_count: match_count as TableId,
         input_begins: 0 as TableId,
@@ -388,12 +250,7 @@ pub fn general_read_contextual_rule(
         sequence: Vec::new(),
         apply: Vec::new(),
     });
-    // Filled in order below (the `minus_one` slot first, then the rest
-    // sequentially) -- every one of the `match_count` slots is written
-    // exactly once, in increasing index order, so `.push()` is the direct
-    // replacement for the old `jj`-indexed writes into
-    // `__caryll_allocate_clean`'d memory (`jj` itself is gone: it was only
-    // ever used as that index).
+    // Filled in order: the `minus_one` slot first, then the rest.
     rule.sequence = Vec::with_capacity(rule.match_count as usize);
     if minus_one {
         rule.sequence
@@ -488,13 +345,7 @@ fn read_contextual_format1(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        // Second pass: build, re-deriving each offset exactly as the first
-        // pass did (nothing here is retained across passes, matching the
-        // original's own two-pass structure). `ruleset` is a real `&mut
-        // ChainingRuleSet` borrowed from the owned `subtable` (Stage L-5) --
-        // held across the whole loop below the same way the old raw pointer
-        // was, but now the borrow checker (not just convention) guarantees
-        // `subtable` can't be freed out from under it.
+        // Second pass: build, re-deriving each offset as the first pass did.
         let ruleset = chaining_ruleset_mut(&mut subtable);
         ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
@@ -566,10 +417,6 @@ fn read_contextual_format2(
         let Ok(chain_sub_class_set_cnt) = header.u16() else {
             break 'parse None;
         };
-        // The original reserved 4 extra bytes here (`offset+12+2*count`)
-        // beyond what the `classSetOffset` array at `offset+8` actually
-        // needs (`offset+8+2*count`) -- always-safe over-conservative slop,
-        // now exactly the array's real requirement.
         if header
             .require_room(chain_sub_class_set_cnt as usize, 2)
             .is_err()
@@ -579,20 +426,12 @@ fn read_contextual_format2(
 
         cds = Some(ClassDefs {
             bc: None,
-            // `classdef_from_raw`/`read_class_def` are the still-raw-pointer-
-            // shaped c2rust residue `classdef.rs` itself hasn't converted yet
-            // (out of this stage's scope) -- same one-line `unsafe` wrapping
-            // `table/gdef.rs`'s callers already use for this exact pattern.
             ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(ic_rel as u32)))),
             fc: None,
         });
 
-        // First pass: validate every non-empty ClassSet's own header +
-        // rule-offset array. The original had NO guard at all here -- every
-        // read below (`srs_count` itself, and its rule-offset array) ran
-        // straight off `offset + src_offset` with no bounds check, a real
-        // out-of-bounds read on a malformed `ChainSubClassSet` offset. Now
-        // guarded like every sibling array in this file.
+        // First pass: check every non-empty class set's header and rule
+        // offsets.
         let mut total_rules: usize = 0;
         for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
@@ -672,11 +511,6 @@ fn read_contextual_format2(
         break 'parse Some(());
     };
 
-    // `cds` (now a plain `Option<ClassDefs>` local) auto-drops when this
-    // function returns -- `class_coverage` only ever borrowed it via
-    // `&ClassDefs` during the loop above, never took ownership, so no
-    // manual cleanup is needed the way the old `Box<ClassDefs>` round trip
-    // required.
     if result.is_some() { Some(subtable) } else { None }
 }
 pub fn otl_read_contextual(
@@ -685,11 +519,6 @@ pub fn otl_read_contextual(
     max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
-    // Built directly as an owned `Box`, a valid empty `Poly` ruleset from
-    // the start -- Stage L-5 dropped the two-step `subtable_chaining_
-    // create()` (a fresh `Canonical`)-then-overwrite dance this used to do,
-    // since there is no longer a raw-pointer "shell" that has to exist
-    // before its contents are known.
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
     let mut format: u16 = 0_u16;
     if let Ok(mut r) = FontReader::new(data).at(offset as usize)
@@ -740,15 +569,9 @@ pub fn general_read_chaining_rule(
 ) -> Option<Box<ChainingRule>> {
     let minus_one_q: u16 = minus_one as u16;
 
-    // Four counts read back-to-back, each immediately followed by a skip
-    // over the array it introduces -- `n_back`/`backtrackArray`,
-    // `n_input`/`inputArray` (minus the `minus_one` slot), `n_lookaround`/
-    // `lookaheadArray`, then `n_apply` itself. This sequence of
-    // read-then-`require_room`-then-skip steps enforces exactly the same
-    // cumulative byte requirement the original's four incremental
-    // `table_length < ...` guards did (each of those checked the running
-    // total so far plus room for the next 2-byte count field; here each
-    // step's own `u16()`/`require_room` call demands precisely that).
+    // Four counts, each followed by the array it introduces: backtrack,
+    // input (without the `minus_one` slot), lookahead, then the lookup
+    // records. Each read checks the bytes it needs.
     let mut header = FontReader::new(slice).at(offset as usize).ok()?;
     let n_back = header.u16().ok()?;
     header.require_room(n_back as usize, 2).ok()?;
@@ -763,24 +586,16 @@ pub fn general_read_chaining_rule(
     let n_apply = header.u16().ok()?;
     header.require_room(n_apply as usize, 4).ok()?;
 
-    // See `MAX_POSITIONS_PER_RULE`'s own doc comment: only the *build*
-    // loops below are capped, not `n_back`/`n_input_read`/`n_lookaround`
-    // themselves (still used uncapped for `input_base`/`lookaround_base`/
-    // `apply_base` below, matching the original's byte layout).
-    // `match_count`/`input_begins`/`input_ends` are computed purely from
-    // these *built* (capped) counts, so they always agree with
-    // `match_0`'s actual length by construction -- including the
-    // `n_input < minus_one_q` edge case the pre-existing comment below
-    // already had to reason about, which this sidesteps rather than
-    // duplicates.
+    // Only the build loops below are capped (see `MAX_POSITIONS_PER_RULE`);
+    // the uncapped counts still locate the arrays. `match_count`,
+    // `input_begins` and `input_ends` come from the capped counts, so they
+    // always agree with `sequence`'s length.
     let n_back_built = n_back.min(MAX_POSITIONS_PER_RULE);
     let n_input_built = n_input_read.min(MAX_POSITIONS_PER_RULE);
     let n_lookaround_built = n_lookaround.min(MAX_POSITIONS_PER_RULE);
     let input_begins = n_back_built;
     let input_ends = n_back_built.wrapping_add(minus_one_q).wrapping_add(n_input_built);
     let match_count = input_ends.wrapping_add(n_lookaround_built);
-    // `Box` is the allocation, the struct literal is the zero-init the old
-    // `__caryll_allocate_clean` provided -- see `general_read_contextual_rule`.
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
         match_count: match_count as TableId,
         input_begins,
@@ -788,11 +603,7 @@ pub fn general_read_chaining_rule(
         sequence: Vec::new(),
         apply: Vec::new(),
     });
-    // Filled in order below (backtrack, then the `minus_one` slot, then
-    // input, then lookaround) -- every one of the `match_count` slots is
-    // written exactly once, in increasing index order, so `.push()` is the
-    // direct replacement for the old `jj`-indexed writes (`jj` itself is
-    // gone: it was only ever used as that index).
+    // Filled in order: backtrack, the `minus_one` slot, input, lookahead.
     rule.sequence = Vec::with_capacity(match_count as usize);
     for j in 0..n_back_built {
         let gid = FontReader::new(slice)
@@ -821,13 +632,8 @@ pub fn general_read_chaining_rule(
                 budget,
             ));
     }
-    // Array positions derived the same way `header`'s cursor validated
-    // them above (cumulative `usize` addition on the *reduced* counts),
-    // rather than by re-subtracting `minus_one_q` from `input_ends`/
-    // `match_count` the way the original's pointer arithmetic did --
-    // avoids a `u16` underflow when a malformed `n_input < minus_one_q`
-    // makes those two disagree (see `n_input_read` above), and always
-    // agrees with them when they don't.
+    // Array positions from the counts as read, by addition, so a malformed
+    // `n_input < minus_one_q` cannot underflow.
     let input_base = offset as usize + 4 + 2 * n_back as usize;
     for j0 in 0..n_input_built {
         let gid = FontReader::new(slice)
@@ -1011,21 +817,14 @@ fn read_chaining_format2(
             break 'parse None;
         }
 
-        // `classdef_from_raw`/`read_class_def` are the still-raw-pointer-
-        // shaped c2rust residue `classdef.rs` itself hasn't converted yet
-        // (out of this stage's scope) -- same one-line `unsafe` wrapping
-        // `table/gdef.rs`'s callers already use for this exact pattern.
         cds = Some(ClassDefs {
             bc: Some(Box::new(read_class_def(slice, offset.wrapping_add(bc_rel as u32)))),
             ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(ic_rel as u32)))),
             fc: Some(Box::new(read_class_def(slice, offset.wrapping_add(fc_rel as u32)))),
         });
 
-        // First pass: validate every non-empty ClassSet's own header +
-        // rule-offset array. The original had NO guard at all here (same
-        // missing-guard shape as `read_contextual_format2`'s ClassSet
-        // loop) -- every read below ran straight off `offset + src_offset`
-        // with no bounds check. Now guarded like every sibling array.
+        // First pass: check every non-empty class set's header and rule
+        // offsets.
         let mut total_rules: usize = 0;
         for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
@@ -1157,10 +956,8 @@ pub fn otl_read_chaining(
     None
 }
 #[inline]
-// Was a manual meet-in-the-middle index-swapping loop over
-// `*mut *mut Coverage` -- exactly `[T]::reverse` on the backtrack
-// sub-slice, now that `match_0` is a real `Vec<Coverage>`. `input_begins
-// == 0` (nothing to reverse) falls out of slicing an empty range.
+// The font stores the backtrack sequence nearest glyph first; put it in
+// reading order.
 fn reverse_backtracks(rule: &mut ChainingRule) {
     let input_begins = rule.input_begins as usize;
     rule.sequence[..input_begins].reverse();
@@ -1279,7 +1076,7 @@ mod chaining_read_tests {
     #[test]
     fn context_format1_rule_set_count_mismatched_with_coverage_is_rejected() {
         // chainSubRuleSetCount (2) doesn't match the coverage's glyph
-        // count (1) -- the original's own consistency check, preserved.
+        // count (1) -- a consistency check upstream otfcc also makes.
         let mut data = [0u8; 12];
         data[0..2].copy_from_slice(&1u16.to_be_bytes());
         data[2..4].copy_from_slice(&6u16.to_be_bytes()); // coverageOffset -> 6
@@ -1292,11 +1089,9 @@ mod chaining_read_tests {
 
     #[test]
     fn context_format2_class_set_offset_past_the_table_end_is_rejected_instead_of_reading_oob() {
-        // The original read `srs_count` (and its rule-offset array)
-        // straight off `offset + classSetOffset[j]` with no guard at all --
-        // a `classSetOffset` pointing past `table_length` read out of
-        // bounds. `classSetOffset[0]` here (5000) is far past this
-        // 10-byte table.
+        // `srs_count` (and its rule-offset array) is read at
+        // `offset + classSetOffset[j]`, which must be inside the table.
+        // `classSetOffset[0]` here (5000) is far past this 10-byte table.
         let mut data = [0u8; 10];
         data[0..2].copy_from_slice(&2u16.to_be_bytes()); // format
         data[2..4].copy_from_slice(&0u16.to_be_bytes()); // unused field
@@ -1378,14 +1173,12 @@ mod chaining_read_tests {
     #[test]
     fn chaining_rule_with_input_count_below_the_minus_one_slot_does_not_panic() {
         // A malformed `nInput` of 0 while this call site always wants the
-        // `minus_one` (coverage-implied) slot filled -- the original
-        // computed `nInput - minus_one_q` in signed `c_int` arithmetic and
-        // simply ran zero array-read iterations; a naive `u16` port of
-        // that subtraction would panic on overflow instead. Reached via
-        // `general_read_chaining_rule` directly since `read_chaining_format1`
-        // (the real caller of this path) also requires a fully valid,
-        // consistent outer coverage/ruleset structure this test isn't
-        // trying to build.
+        // `minus_one` (coverage-implied) slot filled: `nInput - minus_one`
+        // must give zero array reads rather than panic on `u16` underflow.
+        // Reached via `general_read_chaining_rule` directly since
+        // `read_chaining_format1` (the real caller of this path) also
+        // requires a fully valid, consistent outer coverage/ruleset
+        // structure this test isn't trying to build.
         let mut data = [0u8; 10];
         data[0..2].copy_from_slice(&0u16.to_be_bytes()); // nBack
         data[2..4].copy_from_slice(&0u16.to_be_bytes()); // nInput (malformed: 0)

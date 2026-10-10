@@ -11,31 +11,18 @@ use crate::libcff::{
     OP_CALLGSUBR, OP_CALLSUBR, OP_ENDCHAR, OP_RETURN, TYPE2_MAX_SUBRS, TYPE2_SUBR_NESTING,
 };
 
-/// Index into `CffSubrGraph.nodes`. This (and `RuleId`) replaces the
-/// intrusive `*mut CffSubrNode`/`*mut CffSubrRule` doubly-linked-list
-/// pointers this file used to be built from -- the plan's own writeup
-/// flags this as the hardest remaining piece in the whole migration, and
-/// prescribes exactly this shape ("アリーナ(Vec) + インデックス").
+/// Index into `CffSubrGraph.nodes`; `RuleId` indexes `rules`. The graph is an
+/// arena of doubly linked nodes.
 ///
-/// A "deleted" node's slot is never reused -- see
-/// `CffSubrGraph::delete_node` -- it's left as a permanent tombstone
-/// instead. That is the one property that makes this conversion actually
-/// safe rather than just differently unsafe: a naive arena that *does*
-/// recycle freed slots would let a stale `NodeId` silently start
-/// resolving to a totally unrelated later node the moment that slot gets
-/// reused, which is worse than the raw-pointer use-after-free it would
-/// replace (a dangling pointer at least tends to crash; a reused index
-/// just corrupts the graph quietly). The cost is that dead node slots
-/// stay allocated for the rest of the graph's lifetime -- exactly one
-/// CFF table's subroutinize build pass, not something long-lived.
+/// A deleted node's slot is never reused (see `CffSubrGraph::delete_node`):
+/// reusing it would let a stale `NodeId` silently resolve to an unrelated
+/// node. Dead slots stay allocated until the graph is dropped, after one
+/// CFF table's subroutinization.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct NodeId(usize);
 /// Rules are never individually removed mid-algorithm (only accumulated,
 /// via `CffSubrGraph::alloc_rule`, and torn down all at once in
-/// `CffSubrGraph::dispose`), so plain indices need no tombstone scheme
-/// here at all -- `Vec::push`'s possible reallocation never invalidates
-/// an already-issued index the way it would a raw pointer into the same
-/// backing storage.
+/// `CffSubrGraph::dispose`), so plain indices need no tombstone scheme.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct RuleId(usize);
 
@@ -50,11 +37,8 @@ struct CffSubrNode {
     last: bool,
     /// Set once by `CffSubrGraph::delete_node`; see `NodeId`'s own
     /// comment for why a dead slot is never reused. `node`/`node_mut`
-    /// assert against touching a tombstoned slot again, the same
-    /// "provably safe, but assert the invariant instead of trusting it
-    /// silently" posture this migration has used since `otfcc-vec-
-    /// field-assign-needs-calloc` -- a live bug in this graph would now
-    /// panic loudly here instead of silently reading a dead node's
+    /// assert against touching a tombstoned slot again, so a bug in this
+    /// graph panics loudly instead of silently reading a dead node's
     /// already-cleared fields.
     dead: bool,
 }
@@ -71,12 +55,7 @@ pub struct CffSubrRule {
     guard: NodeId,
     next: Option<RuleId>,
 }
-/// Replaces the uthash-based `CffSubrDiagramIndex` (which also carried
-/// `key: *mut u8` and `hh: UtHashHandle`, both now subsumed by
-/// `HashMap`'s own key/bucket machinery). `key` was write-only outside
-/// insertion/disposal (grepped: never read for anything but the hash
-/// itself), so it needs no home in the value at all -- the two fields
-/// that were actually read back (`arity`, `start`) are all that remain.
+/// A diagram's arity and the node it starts at.
 #[derive(Copy, Clone, Debug)]
 struct CffSubrDiagramIndexEntry {
     arity: u8,
@@ -85,9 +64,8 @@ struct CffSubrDiagramIndexEntry {
 /// `diagram_index` holds both "singlet" (arity 1) and "doublet" (arity 2)
 /// entries in one table, keyed by a variable-length byte fingerprint
 /// (`get_singlet_hash_key`/`get_doublet_hash_key`) whose first byte
-/// ('1' vs '2') keeps the two arities from ever colliding -- order never
-/// matters (no `HASH_SORT`, and the only whole-table walk is disposal),
-/// so `HashMap` applies directly.
+/// ('1' vs '2') keeps the two arities from ever colliding. Its order never
+/// matters, so it is a `HashMap`.
 #[derive(Debug)]
 pub struct CffSubrGraph {
     nodes: Vec<CffSubrNode>,
@@ -185,13 +163,7 @@ impl CffSubrGraph {
         // Tombstone, not a reused slot -- see `NodeId`'s own comment.
         self.nodes[x.0].dead = true;
     }
-    // Used to walk every node in the rule and `buffree` its raw `terminal`
-    // pointer. Now that `terminal` is `Option<Buffer>`, there is nothing
-    // left to do explicitly here -- `self.nodes`'s own `Drop` glue reaches
-    // every node's owned `Buffer` when the graph itself drops, which
-    // `dispose`'s own comment already establishes happens immediately
-    // after every call site. Kept as a (now-empty) function rather than
-    // removed, to avoid touching `dispose`'s call site.
+    // Nothing to do: every node's `terminal` is dropped with the graph.
     fn delete_full_rule(&mut self, _r: RuleId) {}
     fn init(&mut self) {
         let root = self.alloc_rule();
@@ -209,17 +181,8 @@ impl CffSubrGraph {
             self.delete_full_rule(rid);
             r = next;
         }
-        // The map's values own nothing (both fields are `Copy`), so
-        // dropping it is the whole disposal -- no manual `HASH_ITER`+
-        // `HASH_DEL`+`free` walk needed.
+        // The map's values own nothing (both fields are `Copy`).
         self.diagram_index = std::collections::HashMap::new();
-        // `self.nodes`/`self.rules` are deliberately left as-is (not
-        // cleared) -- nothing reads them again after `dispose` (matches
-        // every call site: the graph itself goes out of scope right
-        // after), and leaving them populated means even a *mistaken*
-        // future touch would resolve to a real, still-in-bounds slot
-        // instead of a dangling pointer the way the original's `free`d
-        // `CffSubrRule`/`CffSubrNode` structs would have.
     }
 }
 #[inline]
@@ -230,10 +193,9 @@ pub fn cff_subr_graph_init(x: &mut CffSubrGraph) {
 pub fn cff_subr_graph_dispose(x: &mut CffSubrGraph) {
     x.dispose();
 }
-/// The byte layout (header bytes, payload, trailing NUL) matches the
-/// original `malloc`+`memcpy` construction exactly, so keys built here
-/// compare equal to keys built there -- the leading `'1'`/`'2'` (singlet
-/// vs doublet) keeps the two arities from ever colliding in one table.
+/// The key is header bytes, payload, then a trailing NUL; the leading
+/// `'1'`/`'2'` (singlet vs doublet) keeps the two arities from ever
+/// colliding in one table.
 fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     let mut key: Vec<u8> = Vec::new();
     key.push(b'1');
@@ -345,19 +307,9 @@ fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
     } else {
         let m_terminal = mn.terminal.as_ref().unwrap();
         let n_terminal = nn.terminal.as_ref().unwrap();
-        // `strncmp_eq` here (rather than a plain `Vec<u8>` `==`) preserves
-        // the original's exact semantics: it stops comparing at an embedded
-        // NUL byte within the first `n` bytes of either side, even though
-        // this `data` is arbitrary charstring bytecode, not a C string. That
-        // is almost certainly a preexisting quirk inherited from the C
-        // source (two byte sequences that share a NUL-terminated prefix but
-        // differ after it would compare "equal" here), not something
-        // introduced by this conversion -- deliberately preserved, not
-        // fixed, matching this crate's rule of not changing behavior in a
-        // safety-only pass. See `table/otl/parse.rs`'s `tag4_matches` for
-        // the same `strncmp`-replicating idiom already established
-        // elsewhere in this crate, generalized here to an arbitrary `n`
-        // instead of a fixed 4.
+        // Compares as C's `strncmp` would, stopping at a NUL in either side
+        // even though this is charstring bytecode: two sequences equal up to
+        // a NUL compare equal. Kept so output does not change.
         return m_terminal.data.len() == n_terminal.data.len()
             && strncmp_eq(&m_terminal.data, &n_terminal.data, m_terminal.data.len());
     };
@@ -550,10 +502,7 @@ fn process_match_singlet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     };
 }
 fn check_doublet_match(g: &mut CffSubrGraph, n: NodeId) -> bool {
-    // `n.next` is trusted unchecked here, matching the original exactly
-    // (it dereferenced `(*n).next` with no null check at all) -- every
-    // call site reaches this only with an already-linked node, so the
-    // invariant always holds in practice.
+    // Every caller passes a linked node, so `next` is set.
     let next = g.node(n).next.unwrap();
     if g.node(n).guard || g.node(next).guard || g.node(n).hard || g.node(next).hard {
         return false;
@@ -654,13 +603,6 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
         g.node_mut(tail).terminal = Some(blob);
         append_node_to_graph(g, tail);
     }
-    // A pre-existing leak used to live here: a leftover empty `blob`
-    // (only reachable for an IL with zero instructions -- e.g. a
-    // genuinely blank glyph) was never freed before being reassigned.
-    // Now that `blob` is an owned `Buffer`, that leak is structurally
-    // impossible -- there is nothing left to free explicitly, so this
-    // reassignment site doesn't need to exist at all.
-    // An empty hard terminal marks the end of this charstring.
     let end = g.alloc_node();
     g.node_mut(end).rule = None;
     g.node_mut(end).terminal = Some(Buffer::new());
@@ -748,15 +690,9 @@ fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
         return ends_with_end_char(g, n.rule.unwrap());
     };
 }
-// A selector for which buffer a `serialize_node_to_buffer` call should
-// write to, resolved to an actual `&mut Buffer` fresh at each use point
-// via `resolve_subr_ref` instead of being held as a borrow across the
-// recursive call below. Holding a real `&mut Buffer` into `lsubrs`/
-// `gsubrs` (the original's `target: *mut Buffer = &raw mut lsubrs[number]`)
-// across a call that *also* takes `lsubrs`/`gsubrs` themselves is exactly
-// the aliasing the borrow checker rejects; a `Copy` selector plus deferred
-// resolution sidesteps it -- each `resolve_subr_ref(...)` call's borrow
-// ends at the end of its own statement, so nothing overlaps the recursion.
+// Which buffer `serialize_node_to_buffer` writes to. It is resolved to a
+// `&mut Buffer` only where it is used (`resolve_subr_ref`), because the
+// recursive call also takes `lsubrs`/`gsubrs`.
 #[derive(Clone, Copy, Debug)]
 enum SubrRef {
     Top,
@@ -869,17 +805,6 @@ pub fn cff_il_graph_to_buffers(
     let total: u32 = max_l_subrs + max_g_subrs;
     max_l_subrs = total / 2;
     max_g_subrs = total - max_l_subrs;
-    // Was three `__caryll_allocate_clean`'d `*mut Buffer` arrays, each freed
-    // field-by-field (every `.data`) and then as a whole -- the same
-    // "malloc'd scratch array of plain structs" shape already converted to
-    // `Vec` for `table/glyf/read.rs`'s six scratch buffers. `Buffer` is
-    // `Clone` (not `Copy` any more, since Stage 7-2-e made `data` a real
-    // `Vec<u8>`); `vec![x; n]` only needs `Clone`, but reusing the same `x`
-    // across more than one `vec![x; n]` call still needs an explicit
-    // `.clone()` at every use but the last, since the macro moves its
-    // argument -- cloning an empty `Vec::new()` is cheap regardless, so
-    // this still starts every slot in the same empty state a freshly-
-    // `bufnew()`'d buffer would.
     let zero_buffer = Buffer {
         cursor: 0,
         data: Vec::new(),
@@ -937,15 +862,11 @@ pub fn cff_il_graph_to_buffers(
     (s, gs, ls)
 }
 
-// Safety-net coverage for the intrusive doubly-linked-list subroutinizer
-// above, added *before* any structural change to it (per the plan's own
-// note that this file -- the CFF subroutinize build path -- needs tests
-// in place first: `-O2` subroutinize is otherwise covered only by
-// `KRName-Regular-O2.otf`'s golden checksum, one payload, exercised only
-// end-to-end). These pin the current (still raw-pointer/intrusive-list)
-// behavior at the two public entry points `table/cff.rs` actually calls
-// (`cff_insert_il_to_graph`, `cff_il_graph_to_buffers`), independent of
-// how the graph ends up represented internally.
+// Coverage for the subroutinizer at the two entry points `table/cff.rs`
+// calls (`cff_insert_il_to_graph`, `cff_il_graph_to_buffers`), independent
+// of how the graph is represented internally. Otherwise `-O2`
+// subroutinization is covered only end-to-end, by
+// `KRName-Regular-O2.otf`'s golden checksum.
 #[cfg(test)]
 mod subr_graph_tests {
     use super::*;
@@ -963,12 +884,6 @@ mod subr_graph_tests {
         il
     }
 
-    // Was a `cff_index_create()` (`Box::into_raw`) / `cff_index_free`
-    // (`Box::from_raw`) round trip around a plain stack value, which is the
-    // only reason this helper -- and the four test bodies calling it -- had
-    // to be `unsafe`. `CffIndex` owns nothing but two `Vec`s, and
-    // `cff_index_dispose` only clears them, so letting the local drop does
-    // exactly what the manual free did.
     fn index_count(buf: &Buffer) -> u32 {
         let mut idx = new_empty_cff_index();
         extract_index(&buf.data, 0, &mut idx);

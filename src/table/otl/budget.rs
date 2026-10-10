@@ -1,10 +1,8 @@
 //! Table-wide work budgets for reading one GSUB, GPOS or GDEF table.
 //!
-//! These used to be five process-wide `static AtomicU32`s, reset by hand at
-//! the start of each table read. That made every reader share one set of
-//! counters, so two reads running at the same time (for example two unit
-//! tests on different threads) drained each other's budgets. Each table read
-//! now creates its own `OtlReadBudget` and passes it down by `&mut`.
+//! Each table read creates its own `OtlReadBudget` and passes it down by
+//! `&mut`, so concurrent reads (for example two unit tests on different
+//! threads) never drain each other's budgets.
 //!
 //! Every limit keeps its value, and its doc comment explaining why, next to
 //! the code that spends it:

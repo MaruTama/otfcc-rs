@@ -4,12 +4,11 @@
 //! with them depends on the lookup's [`LookupType`], and several types share
 //! a variant (multiple and alternate substitution both hold `GsubMulti`, the
 //! two chaining types both hold `Chaining`, mark-to-base and mark-to-mark both
-//! hold `GposMarkToSingle`). The stages used to dispatch on the type
-//! separately -- binary read, JSON parse, JSON dump, binary build,
-//! consolidation, unconsolidation and the `usMaxContext` statistic each had
-//! their own chain of comparisons. Each kind now implements [`LookupKind`]
-//! once, and [`LOOKUP_KINDS`] lists them; adding a kind means implementing
-//! the trait and adding it to the list.
+//! hold `GposMarkToSingle`). Each kind implements [`LookupKind`] once --
+//! binary read, JSON parse, JSON dump, binary build, consolidation,
+//! unconsolidation and the `usMaxContext` statistic -- and [`LOOKUP_KINDS`]
+//! lists them; adding a kind means implementing the trait and adding it to
+//! the list.
 //!
 //! The context and extension types are not here. Both only exist while a
 //! binary table is being read: a context subtable is read straight into the

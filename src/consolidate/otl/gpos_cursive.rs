@@ -19,13 +19,7 @@ pub fn consolidate_gpos_cursive(
     };
     // Deduplicates by `target`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
-    // not `IndexMap`: the original also did a HASH_SORT by that same id
-    // right before reading entries back out, so the final order is
-    // ascending by glyph id, not insertion order -- a `BTreeMap`'s
-    // iteration order already is that, for free. Same shape as
-    // `consolidate_gpos_single`'s uthash -> `BTreeMap` rewrite
-    // (RUST_MIGRATION.md), with `(enter, exit): (Anchor, Anchor)` in place of
-    // that one's single `PositionValue`.
+    // so the result is ascending by glyph id, not insertion order.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, Anchor, Anchor)> =
         std::collections::BTreeMap::new();
     for entry in subtable.iter_mut() {

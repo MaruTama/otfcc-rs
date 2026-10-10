@@ -49,12 +49,10 @@ pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let n_backtrack: TableId = rule.input_begins;
     let n_input: TableId = (rule.input_ends as i32 - rule.input_begins as i32) as TableId;
     let n_lookahead: TableId = (rule.match_count as i32 - rule.input_ends as i32) as TableId;
-    // The backtrack portion (indices [0, input_begins)) needs to be read in
-    // wire order, the reverse of `match_0`'s storage order. Clone just that
-    // slice and reverse the clone rather than sorting `match_0` in place
-    // (which used to need a const-to-mut cast, unsound now that this
-    // function takes a genuine shared `&ChainingSubtable`) -- every read
-    // below of a backtrack-region index goes through `backtrack` instead.
+    // The backtrack portion (indices [0, input_begins)) is written in wire
+    // order, the reverse of `sequence`'s storage order. Clone just that
+    // slice and reverse the clone; every read below of a backtrack-region
+    // index goes through `backtrack` instead.
     let mut backtrack: Vec<Coverage> = rule.sequence[..rule.input_begins as usize].to_vec();
     backtrack.reverse();
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3_u32)]);
@@ -329,8 +327,7 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
                     // Same "no observable effect" reasoning as
                     // `build_contextual_coverage` -- the loop below
                     // starts at `input_begins + 1`, never reading a
-                    // backtrack-region index, so the reversal this rule
-                    // used to get is dropped rather than reproduced.
+                    // backtrack-region index, so no reversal is needed.
                     let n_input: TableId = (rule.input_ends as i32
                         - rule.input_begins as i32)
                         as TableId;

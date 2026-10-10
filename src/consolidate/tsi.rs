@@ -23,12 +23,8 @@ pub(crate) fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &
         return;
     }
     let mut consolidated: TsiTable = Vec::new();
-    // `Option<Vec<u8>>` per slot preserves the old null/non-null
-    // distinction (`None` = "no entry yet for this GID", `Some` = has
-    // content, even if empty) that the raw `*mut SdsRaw` array's
-    // `is_null()` checks relied on -- a plain assignment below correctly
-    // drops whatever was there before, so the old explicit
-    // free-before-overwrite is now implicit.
+    // `None` = "no entry yet for this GID", `Some` = has content, even if
+    // empty.
     let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; glyf.len()];
     let entries: &mut Vec<TsiEntry> = tsi.as_mut().unwrap();
     for entry in entries.iter_mut() {

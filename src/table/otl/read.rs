@@ -154,16 +154,9 @@ pub fn read_otl_subtable(
             .map(Box::new),
     }
 }
-// The original's own guard covered only the 6-byte header
-// (`lookupOrder`/`requiredFeatureIndex`/`featureCount`); the
-// `featureIndex[]` array that follows had no length check at all before
-// the loop that reads `feature_count` (attacker-controlled, up to 65535)
-// entries of it -- a real, previously-undocumented unchecked-array read,
-// same class as the `langSysRecords` bug in `otfcc_read_otl_common`
-// below. `require_room` closes both. A failure at either point falls
-// back to the original's own recovery: clear this one language's
-// `required_feature`/`features` rather than aborting the whole table
-// (`otl_feature_ref_list_dispose` matches the original's cleanup call).
+// Reads a LangSys. Its `featureIndex` array is checked against the table
+// along with the header; on failure, this one language system is left with
+// no features rather than failing the whole table.
 fn parse_language(
     data: &[u8],
     base: u32,
@@ -214,22 +207,9 @@ fn parse_language(
         }
     }
 }
-// Every guard failure in the original, at any nesting depth, falls
-// through to the same `return None;` at the very bottom -- discarding
-// `table_box` (lookups/features/languages already pushed included, all
-// the way). That single-outcome-on-any-failure shape is exactly what `?`
-// propagation on a `Result` gives for free, which is what lets this
-// rewrite flatten five levels of nested `if`/`current_block` goto-
-// emulation into one function with early returns.
-//
-// Two real, previously-undocumented bugs fixed along the way (beyond the
-// `wrapping_add` overflow-defeats-guard class already fixed in
-// `cmap.rs`/`coverage.rs`/`classdef.rs`): the `langSysRecords` array
-// (read via `lang_tag`/`lang_sys` below) had *no* length guard at all
-// before this rewrite -- `lang_sys_count` is attacker-controlled and
-// unbounded, so a script with a large `lang_sys_count` read straight past
-// the table. `require_room` before that loop closes it. The other is in
-// `parse_language`, see its own comment.
+// Reads the script, feature and lookup lists. Any failed check, at any
+// depth, discards the whole table. Every array is checked against the table
+// before it is read, `langSysRecords` included.
 fn parse_otl_common(
     data: &[u8],
     lookup_type_base: LookupType,
@@ -500,11 +480,8 @@ fn read_otl_lookup(
         }
         if lookup.lookup_type != OTL_TYPE_UNKNOWN {
             for slot in lookup.subtables.iter_mut() {
-                // `.take()` both reads this slot's element (if any) and
-                // leaves `None` behind -- the direct replacement for the old
-                // "copy the raw pointer out, then separately null the slot"
-                // two-step, and the only correct one: a `Box` can't be
-                // copied, only moved.
+                // `.take()` moves this slot's element (if any) out and
+                // leaves `None` behind.
                 if let Some(mut elem) = slot.take() {
                     // Every element in this list is known to be an `Extend`
                     // placeholder -- that is what `OTL_TYPE_GSUB_EXTEND`/
@@ -526,10 +503,8 @@ fn read_otl_lookup(
                     if ext_type == lookup.lookup_type {
                         *slot = nested;
                     } else {
-                        // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
-                        // type-dispatched subtable teardown on this one subtable --
-                        // never pushed anywhere, so it's just let go out of scope
-                        // instead of the old explicit `otfcc_delete_lookup` call.
+                        // A scratch `Lookup` holding the mismatched subtable,
+                        // dropped at the end of this block.
                         let mut temp: Box<Lookup> = new_lookup();
                         temp.lookup_type = ext_type;
                         temp.subtables.push(nested);
@@ -539,15 +514,8 @@ fn read_otl_lookup(
                 }
             }
         } else {
-            // Was `otl_subtable_list_dispose_dependent(..); return;` -- with
-            // `SubtableList` now `Vec<Option<Box<Subtable>>>`, there is
-            // nothing left to eagerly dispose: whatever remains in
-            // `lookup.subtables` (still holding valid, un-expanded `Extend`
-            // placeholders) tears down correctly whenever `lookup` itself
-            // eventually drops, since `Subtable::drop` dispatches off each
-            // element's own enum tag, not `lookup.type_0` -- which this
-            // function already overwrote to `OTL_TYPE_UNKNOWN` above, before
-            // B-1 this would have been the wrong type to free by.
+            // The `Extend` placeholders still in `lookup.subtables` drop with
+            // the lookup.
             return;
         }
     }
@@ -572,8 +540,7 @@ pub fn read_otl(
     } else {
         OTL_TYPE_UNKNOWN
     };
-    // No "corrupted" log on failure here, matching the original: OTL
-    // parse failures are silent (unlike most other table readers).
+    // OTL read failures are not logged, unlike most table readers.
     let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options).ok()?;
     // One budget for the whole table (GSUB or GPOS), shared by every lookup
     // and subtable read below, so it bounds this table's total cost rather
@@ -654,14 +621,11 @@ mod parse_otl_common_tests {
 
     #[test]
     fn lang_sys_records_array_larger_than_declared_is_rejected_instead_of_reading_oob() {
-        // The original had *no* length check on `langSysRecords[]` at
-        // all -- `lang_sys_count` is a full attacker-controlled u16, and
-        // the original read that many 6-byte records unconditionally.
+        // `lang_sys_count` is a full u16 from the file, so the
+        // `langSysRecords[]` array must be checked against the table.
         // `langSysCount` here claims 2 records (12 bytes needed from the
         // array's start), but the table is truncated right after the one
-        // real record's 6 bytes -- confirming the new `require_room`
-        // guard catches the shortfall rather than reading into whatever
-        // (if anything) follows in memory.
+        // real record's 6 bytes; `require_room` must catch the shortfall.
         let mut data = well_formed_gsub();
         data[44..46].copy_from_slice(&2u16.to_be_bytes()); // langSysCount: claims 2, only 1 present
         data.truncate(52); // cuts off right after the one real langSysRecord

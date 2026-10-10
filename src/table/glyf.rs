@@ -42,9 +42,8 @@ pub struct PostscriptStemDef {
 }
 pub type StemDefList = Vec<PostscriptStemDef>;
 /// One axis of a hint mask: an on/off flag per stem hint, for up to 256
-/// stems, packed into bits (it used to be a `[bool; 256]`, 256 bytes per
-/// axis per mask -- a CID font with tens of thousands of hinted glyphs held
-/// over 100 MB of them).
+/// stems, packed into bits (a CID font can have tens of thousands of hinted
+/// glyphs, each with several masks).
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct StemMask([u64; 4]);
 impl StemMask {
@@ -164,34 +163,9 @@ pub struct Glyph {
     pub cid: GlyphId,
     pub stat: GlyphStat,
 }
-/// `instructions` is now a plain `Vec<u8>` (Stage 7-2-c), same as `name` (a
-/// `Vec<u8>` since the `sds` sweep reached that field) -- both tear down
-/// for free, and everything else either has no allocation of its own
-/// (`stat`, `cid`, ...) or is already a real Rust owner that auto-drops
-/// correctly on its own: `horizontal_origin`/`advance_width`/
-/// `vertical_origin`/`advance_height` (`VQ`, a plain `struct { kernel: Pos,
-/// shift: Vec<VqSegment> }` with no `Drop` impl of its own -- resetting one
-/// to `VQ::default()` is exactly what happens for free when a `VQ` field is
-/// dropped), `contours`/`references`/`stem_h`/`stem_v`/`hint_masks`/
-/// `contour_masks` (plain `Vec`s per the comments on [`Contour`]/
-/// [`ReferenceList`] above), and `fd_select` (a `Handle`, which has owned
-/// its `name` and had a real `Drop` impl since the crate-wide `Handle`
-/// conversion -- resetting it to `Handle::default()` here too, the way the
-/// old manual `otfcc_delete_glyf_glyph` did, would be redundant with that,
-/// not wrong). No field needs manual teardown any more, so the `Drop` impl
-/// that used to free `instructions` by hand is
-/// gone -- `#[derive(Clone)]` above is also sound now: every field
-/// (`instructions` included) is a real deep-copying Rust owner, so cloning
-/// a `Glyph` wholesale no longer aliases a raw pointer between the
-/// original and the copy the way the old `*mut u8` did.
-/// The font's glyph table: an array of owned glyphs, indexed by GID. Unlike
-/// the other three containers in this "owned pointer array" group
-/// (`LangSystemList`/`FeatureList`/`LookupList`, all `Vec<Box<T>>`), a slot
-/// here can be legitimately unset -- `table_glyf_create_n` pre-sizes the
-/// table to the glyph count before parsing/extracting fills each GID in,
-/// and `consolidate_glyf` patches any GID that never got filled with a
-/// fresh empty glyph. `Box<Glyph>` cannot represent "no glyph here" (a
-/// `Box` is never null), so the element type stays `Option<Box<Glyph>>`.
+/// The font's glyph table, indexed by GID. A slot is `None` until it is
+/// filled: `table_glyf_create_n` sizes the table to the glyph count before
+/// reading, and `consolidate_glyf` fills any slot left empty.
 pub type GlyfTable = Vec<Option<Box<Glyph>>>;
 /// Iterate a fully populated `GlyfTable` as `&Glyph`s in GID order,
 /// panicking on the first unset slot reached (lazily, like the indexed
@@ -201,28 +175,13 @@ pub type GlyfTable = Vec<Option<Box<Glyph>>>;
 pub(crate) fn iter_glyphs(glyf: &GlyfTable) -> impl Iterator<Item = &Glyph> {
     glyf.iter().map(|slot| slot.as_deref().unwrap())
 }
-// No longer `Copy`/`Clone`: `fvar` is a real `&'a mut FvarTable` now (see
-// below), and `&mut` is neither. Every construction site builds exactly one
-// `GlyfIOContext` and either shares it by `&` (the whole dump side, which
-// never mutates `fvar`) or threads it by `&mut` through the one read-side
-// call chain that does (`read_glyf` -> `polymorphize` ->
-// `TuplePolymorphizerCtx`, in `glyf/read.rs`) -- nothing ever needed a
-// second, aliasing copy of the struct itself.
 #[derive(Debug)]
 pub struct GlyfIOContext<'a> {
     pub loca_is_long: bool,
     pub num_glyphs: GlyphId,
     pub n_phantom_points: ShapeId,
-    // Was `*mut FvarTable`, doubling as both "the fvar table" and "is
-    // there one at all" via null. `fvar_register_region` (the one thing
-    // that genuinely mutates through this, deep in `glyf/read.rs`'s
-    // `polymorphize`/`polymorphize_glyph`) already takes a `&mut
-    // FvarTable` argument that coerces to the raw pointer at its own call
-    // site -- so a real borrow slots in with no signature change to
-    // `fvar.rs` at all. `Option`, not a bare `&'a mut FvarTable`, because
-    // a font with no variable-font data (no `fvar` table) legitimately
-    // constructs this with nothing to borrow, the same case the null
-    // pointer used to encode.
+    // `None` when the font has no `fvar` table. Only reading mutates it,
+    // to register regions.
     pub fvar: Option<&'a mut FvarTable>,
     pub has_vertical_metrics: bool,
     pub export_fd_select: bool,
@@ -268,11 +227,8 @@ pub fn glyf_point_dup(src: Point) -> Point {
 fn glyf_point_copy(dst: &mut Point, src: &Point) {
     copy_point(dst, src);
 }
-/// Grows `arr` to `n` points, default-constructing each new one via
-/// [`glyf_point_init`] -- also called directly from `table/cff.rs`, since the
-/// `PointElementInterface` vtable this used to dispatch through is gone
-/// (single static, no real polymorphism). (`libcff/charstring_il.rs` calls
-/// the by-value [`glyf_point_dup`] instead, not this one.)
+/// Grows `arr` to `n` points, each a default point from
+/// [`glyf_point_init`].
 #[inline]
 fn glyf_contour_fill(arr: &mut Contour, n: usize) {
     for _ in arr.len()..n {
@@ -335,11 +291,7 @@ pub fn glyf_component_reference_empty() -> ComponentReference {
 pub fn glyf_component_reference_init(x: &mut ComponentReference) {
     init_glyf_reference(x);
 }
-/// `Box::new` is the allocation and the struct literal is the zero-init
-/// `__caryll_allocate_clean` (calloc) used to provide -- same shape as
-/// `new_lookup`/`new_feature`/`new_language`. Kept the `otfcc_`-prefixed C
-/// name (unlike those three) since this one is still called from outside
-/// this file (`consolidate.rs`, `table/cff.rs`, `table/glyf/read.rs`).
+/// An empty glyph.
 pub fn new_glyf_glyph() -> Box<Glyph> {
     Box::new(Glyph {
         name: Vec::new(),
@@ -382,15 +334,6 @@ pub fn new_glyf_glyph() -> Box<Glyph> {
         },
     })
 }
-// Stage 6-4 "Box化": `Font.glyf` becomes `Option<Vec<Option<Box<Glyph>>>>`
-// (not `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
-// `table_glyf_create_n` stays: `table/cff.rs`'s CFF glyph extraction still
-// builds its `GlyfTable` through it. Stage M-10 drops the raw-pointer
-// round trip this used to go through on the way there -- `GlyfTable` is
-// itself just a `Vec`, so there is nothing to `Box`/adopt at all; the old
-// `unwrap_glyf_table` (a `*mut GlyfTable` -> `Option<GlyfTable>` bridge,
-// `table/cff.rs`'s `unwrap_cff_table` sibling) is gone along with its one
-// call site.
 pub(crate) fn table_glyf_create_n(n: usize) -> GlyfTable {
     let mut v: GlyfTable = Vec::with_capacity(n);
     v.resize_with(n, || None);
@@ -489,10 +432,6 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
         b"advanceWidth",
         json_new_vq(g.advance_width.clone(), ctx.fvar.as_deref()),
     );
-    // `f64::abs` is IEEE-754 `fabs` bit for bit (see `vf/vq.rs`'s own note);
-    // this file's `unsafe extern "C" { fn fabs(...) }` import (removed in
-    // Stage M-45; see RUST_MIGRATION.md) is gone along with the last
-    // `unsafe` in this file.
     if vq_is_still(g.horizontal_origin.clone())
         && (vq_get_still(g.horizontal_origin.clone()) as f64).abs()
             > 1.0f64 / 1000.0f64
@@ -760,26 +699,8 @@ fn glyf_parse_glyph(
     }
     return g;
 }
-// `glyph_order` was `*mut GlyphOrder`; `GlyphOrder` itself has been fully
-// safe since the `support/glyph_order.rs` shell PR, so the only reason this
-// stayed a raw pointer was passing it through -- `Option<&GlyphOrder>`
-// carries the same "may legitimately be absent" meaning `glyph_order.
-// is_null()` used to check.
-//
-// `table` used to be a genuine `*mut ParsedValue`, derived from `root:
-// &ParsedValue` (a shared reference) via an explicit `as *mut` cast: this
-// loop reads glyph `j` fully into an owned `Box<Glyph>` and then nulls that
-// same slot out via `take_field`, which needs a `&mut ParsedValue` this
-// function was never handed. Stage M-32 (see RUST_MIGRATION.md's "Stage 7-4
-// plan", Bucket B) closes that gap the way the plan's own trace of this
-// loop found: `root` is now `&mut ParsedValue`, so `root.get_typed_mut(b
-// "glyf", Object)` resolves `table: &mut ParsedValue` directly, and each
-// iteration's immutable read of slot `j` (`table.as_object()`, scoped to
-// that iteration) finishes before the mutable `table.take_field(j)` that
-// follows it -- the exact same non-overlapping order the raw-pointer
-// version already executed by hand, just expressed as an ordinary
-// sequential reborrow instead of a pointer standing in for it. No raw
-// pointer or `unsafe` remains in this function.
+// Reads `glyf` from the JSON, taking each glyph's value out of `root` as it
+// goes. `glyph_order` is `None` when the JSON has none.
 pub fn parse_glyf(
     root: &mut ParsedValue,
     glyph_order: Option<&GlyphOrder>,

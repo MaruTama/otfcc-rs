@@ -1,11 +1,9 @@
 #![forbid(unsafe_code)]
 /// Decodes big-endian UTF-16 (`name` table string data, per its own
 /// on-the-wire encoding) to UTF-8. An unpaired trailing byte is dropped
-/// silently (matches the original's `inlenb -= 1` truncation); a high
-/// surrogate not followed by a matching low surrogate is encoded as-is (a
-/// 3-byte UTF-8 sequence for the raw, technically-invalid surrogate
-/// value) rather than rejected -- preserved verbatim from the C-derived
-/// original, not a deliberate design choice being made here.
+/// silently; a high surrogate not followed by a matching low surrogate is
+/// encoded as-is (a 3-byte UTF-8 sequence for the raw, technically-invalid
+/// surrogate value) rather than rejected, as upstream otfcc does.
 pub fn utf16be_to_utf8(inb: &[u8]) -> Vec<u8> {
     let inlen = inb.len() & !1;
     let inb = &inb[..inlen];
@@ -196,8 +194,7 @@ mod tests {
         // A 2-byte lead (0xc3) followed by plain ASCII instead of a
         // continuation byte: the bad byte is still consumed, the partial
         // (garbage) code point accumulated so far is still emitted, and
-        // nothing further is read -- matches the original's fallthrough
-        // exactly, not a deliberate validation choice made here.
+        // nothing further is read, as upstream otfcc does.
         assert_eq!(utf8toutf16be(&[0xc3, 0x41]), [0x00, 0x03]);
     }
 

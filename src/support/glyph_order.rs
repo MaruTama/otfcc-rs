@@ -9,17 +9,13 @@ use crate::support::primitives::GlyphId;
 /// declared in ascending discriminant order and
 /// `glyphorderpass_order_is_its_encoding` pins that the two agree.
 ///
-/// `GlyphOrderPass::Unset` is a name this port adds; C had none. Its `enum` lives inside
-/// `json-reader.c` while this struct's field is a plain `uint8_t` in the shared
-/// header, so the OTF path could leave the field at whatever `calloc` gave it --
-/// and it does: `set_glyph_order_by_gid` and `set_glyph_order_by_name`
-/// allocate an entry and set only `gid` and `name`. An enum without a zero
-/// variant would make both of them UB. The state is meaningful, not padding:
-/// zero outranks every named pass, so an entry placed by GID can never be
-/// escalated by one.
+/// `GlyphOrderPass::Unset` is the zero value: entries placed by
+/// `set_glyph_order_by_gid` and `set_glyph_order_by_name` (the OTF path)
+/// keep it. The state is meaningful, not padding: zero outranks every named
+/// pass, so an entry placed by GID can never be escalated by one.
 ///
-/// The type lives here rather than in `json_reader` -- where C keeps it, and
-/// where the values are still produced -- because this is the field it types.
+/// The type lives here rather than in `json_reader` -- where the values are
+/// produced -- because this is the field it types.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[repr(u8)]
 pub enum GlyphOrderPass {
@@ -37,65 +33,24 @@ pub struct GlyphOrderEntry {
     pub order_type: GlyphOrderPass,
     pub order_entry: u32,
 }
-/// Replaces the uthash-based dual index (`GlyphOrderEntry` used to carry
-/// two independent `UtHashHandle`s, `hh_id`/`hh_name`, threading the same
-/// heap-allocated entry into two separate uthash tables at once). The
-/// individually-heap-allocated-and-aliased-by-raw-pointer shape those two
-/// hash tables had doesn't map onto ownership Rust can check: `json_reader.
-/// rs`'s `set_order_by_name`/`order_glyphs` pair shows an entry can
-/// legitimately exist in `by_name` alone for a while (a JSON-driven
-/// glyph-order entry starts with a placeholder `gid` and is only inserted
-/// into `by_gid` once `order_glyphs` assigns it a real one), so `by_gid`
-/// cannot simply be "the owner" the way the old disposal code (which only
-/// ever walked `by_gid`) implicitly assumed. `entries` is the actual owner
-/// now -- a single growing arena nothing is ever removed from -- and
-/// `by_gid`/`by_name` hold plain `usize` indices into it, valid for as
-/// long as `GlyphOrder` lives (an index survives handles from either map
-/// referring to the same entry, since it's Copy and has no dangling-
-/// pointer failure mode the way the old aliased raw pointers did).
+/// `entries` owns every entry -- an arena nothing is ever removed from --
+/// and `by_gid`/`by_name` hold indices into it. An entry can exist in
+/// `by_name` alone for a while: a JSON-driven glyph-order entry starts with
+/// a placeholder `gid` and is only inserted into `by_gid` once
+/// `order_glyphs` (json_reader.rs) assigns it a real one.
 ///
-/// `by_gid: BTreeMap`, not `HashMap`: no `HASH_SORT` ever existed on it,
-/// but `order_glyphs` (json_reader.rs) rebuilds it from scratch by
-/// inserting gids 0, 1, 2, ... in ascending order after sorting `by_name`,
-/// and the OTF-read path (`set_glyph_order_by_gid`) inserts in the
-/// gid order its callers already iterate in -- so a `BTreeMap` reproduces
-/// the original's effective iteration order exactly, without leaning on
-/// incidental insertion order the way the uthash version implicitly did.
-///
-/// `by_name: HashMap`, not `BTreeMap`: it is only ever point-looked-up by
-/// name day to day. The one place that needs a different order --
-/// `order_glyphs`, sorting by `(order_type, order_entry)`, not
-/// alphabetically -- already does its own explicit sort at the point of
-/// use, the same "sort key != dedup key, defer the sort to drain time"
-/// shape as `LookupHash`/`FeatureHash` earlier in this migration.
+/// `by_gid` is a `BTreeMap` so it iterates in gid order. `by_name` is a
+/// `HashMap` because it is only point-looked-up; `order_glyphs`, which
+/// needs entries in `(order_type, order_entry)` order, sorts explicitly.
 #[derive(Debug)]
 pub struct GlyphOrder {
     pub entries: Vec<GlyphOrderEntry>,
     pub by_gid: std::collections::BTreeMap<GlyphId, usize>,
     pub by_name: std::collections::HashMap<Vec<u8>, usize>,
 }
-// No `Drop` impl needed: `entries: Vec<GlyphOrderEntry>` is the sole owner
-// now (see the comment on the struct above), and a plain `Vec`'s own drop
-// glue already frees every entry's `name: Vec<u8>` on the way down --
-// `by_gid`/`by_name` hold non-owning `usize` indices, nothing for them to
-// free. This is what let the old per-entry `__caryll_allocate_clean` +
-// manual walk-and-free disposal go away entirely.
-//
-// `otfcc_glyph_order_create`/`otfcc_glyph_order_free` (the `Box::into_raw`/
-// `Box::from_raw` pair this used to need for `*mut GlyphOrder` locals
-// outside `Font.glyph_order`) were deleted once their last callers -- the
-// `aglfn`/`gord` locals in `otf_reader/unconsolidate.rs` -- were converted
-// to plain owned `GlyphOrder` values (drop them, don't free them). Every
-// remaining `GlyphOrder` in the crate is either `Font.glyph_order:
-// Option<Box<GlyphOrder>>` or `PostTable.post_name_map:
-// Option<Box<GlyphOrder>>`, both built via a plain `Box::new` at their
-// call site rather than through a helper here.
-// Returns an owned copy of the canonical name -- callers that discard the
-// return value (the ~590 fire-and-forget `set_by_gid` calls in
-// `support/aglfn.rs`/`table/post.rs`) simply drop it immediately, no leak,
-// no code change needed there. `name` is `Vec<u8>` now instead of `SdsRaw`,
-// so it drops on its own wherever this returns -- no explicit free needed
-// in any branch.
+// Returns an owned copy of the canonical name; most callers (the
+// fire-and-forget `set_by_gid` calls in `support/aglfn.rs`/`table/post.rs`)
+// just drop it.
 pub(crate) fn set_glyph_order_by_gid(
     go: &mut GlyphOrder,
     gid: GlyphId,
@@ -120,11 +75,7 @@ pub(crate) fn set_glyph_order_by_gid(
     go.by_name.insert(final_bytes.clone(), idx);
     return final_bytes;
 }
-// `name` is a caller-owned clone now (see the two `.clone()` call sites in
-// `consolidate.rs`): on the "already taken" path it simply drops here,
-// matching the original's "deliberately left un-freed" contract without
-// needing a comment to explain why -- the caller's own copy was never
-// touched, so there is nothing for it to double-free or leak.
+// On the "already taken" path the caller's `name` is simply dropped.
 pub(crate) fn set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, gid: GlyphId) -> bool {
     if go.by_name.contains_key(&name) {
         return false;
@@ -169,15 +120,10 @@ pub(crate) fn gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle) -> b
             *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone()) as GlyphHandle;
             return true;
         }
-        // Original C (glyph-order.c:83) passed the wrong hash-handle
-        // selector here -- `HASH_FIND(hhName, go->byGID, &(h->index), ...)`
-        // compared a gid against by_name's name-keyed entries, so this
-        // fallback could never find anything (a name is essentially never
-        // exactly sizeof(glyphid_t) bytes, and even then the compared
-        // bytes are unrelated). The mirrored HANDLE_STATE_INDEX branch
-        // below shows what this was clearly meant to do: fall back to a
-        // by_gid lookup, exactly like gord_name_a_field_shared's
-        // already-correct search. Fixed here.
+        // Fall back to a by_gid lookup, like the HANDLE_STATE_INDEX branch
+        // below and `gord_name_a_field_shared`'s search. (Upstream otfcc
+        // passed the wrong hash-handle selector here, so its fallback could
+        // never find anything.)
         if let Some(&entry_idx) = go.by_gid.get(&h.index) {
             let entry = &go.entries[entry_idx];
             *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone()) as GlyphHandle;
@@ -211,9 +157,8 @@ mod tests {
     // The passes are a priority, so `Ord` is the whole point of the type -- but
     // derived `Ord` compares by declaration order, which is only the encoding
     // because the declarations happen to be in ascending order. Pin that, and
-    // pin the zero: `set_glyph_order_by_gid` calloc's an entry and never
-    // assigns this field, so `GlyphOrderPass::Unset` has to be the all-zero value for the
-    // field to be a valid `GlyphOrderPass` at all.
+    // pin the zero: `GlyphOrderPass::Unset` is the zero value, the pass an
+    // entry placed by GID keeps.
     #[test]
     fn glyphorderpass_order_is_its_encoding() {
         let all = [

@@ -18,12 +18,6 @@ use otfcc_rust::support::cli::stopwatch::log_step_time;
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
-// `fprintf(stdout, ...)` -> `print!` -- both of these were pure fixed
-// text (the only variadic args are plain integers substituted by
-// value, not by reference or pointer), so there was never a genuine
-// unsafe operation here, just the c2rust libc-call idiom. `stdout`
-// itself stays imported -- it's still needed by the `isatty(fileno(
-// stdout))` check elsewhere in this file.
 pub fn print_help() {
     print!(
         "\nUsage : otfccdump [OPTIONS] input.[otf|ttf|ttc]\n\n -h, --help              : Display this help message and exit.\n -v, --version           : Display version information and exit.\n -o <file>               : Set output file path to <file>. When absent the dump\n                           will be written to STDOUT.\n -n <n>, --ttc-index <n> : Use the <n>th subfont within the input font.\n --pretty                : Prettify the output JSON.\n --ugly                  : Force uglify the output JSON.\n --verbose               : Show more information when building.\n -q, --quiet             : Be silent when building.\n\n --ignore-glyph-order    : Do not export glyph order information.\n --glyph-name-prefix pfx : Add a prefix to the glyph names.\n --ignore-hints          : Do not export hinting information.\n --decimal-cmap          : Export 'cmap' keys as decimal number.\n --hex-cmap              : Export 'cmap' keys as hex number (U+FFFF).\n --name-by-hash          : Name glyphs using its hash value.\n --name-by-gid           : Name glyphs using its glyph id.\n --add-bom               : Add BOM mark in the output. (It is default on Windows\n                           when redirecting to another program. Use --no-bom to\n                           turn it off.)\n\n"
@@ -135,9 +129,8 @@ fn run(args: Vec<String>) -> i32 {
     }
     if options.debug_wait_on_start {
         // `--debug-wait-on-start` blocks until the user presses a key, so a
-        // debugger can attach. Was a `getchar()` shim kept for the C name's
-        // sake; the return value was already discarded, and so is a read
-        // error (EOF under a pipe means "do not wait", same as before).
+        // debugger can attach. A read error (EOF under a pipe) means "do
+        // not wait".
         let _ = std::io::stdin().read(&mut [0u8; 1]);
     }
     // Logging starts only now that `--quiet`/`--verbose` are known; nothing

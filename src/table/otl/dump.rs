@@ -47,14 +47,11 @@ pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
             let mut languages = BuiltValue::new_object(table.languages.len());
             for lang in table.languages.iter() {
                 let mut _lang = BuiltValue::new_object(5);
-                // `required_feature`/`features` are `Option<FeatureIdx>`/
-                // `FeatureRefList` (`Vec<FeatureIdx>`) -- indices into this
-                // same `OtlTable`'s own `features` list. `feature_at`
-                // resolving to `None` (an index a later consolidation pass
-                // punched into a hole, or -- not expected in practice --
-                // an out-of-range one) is treated as "no reference", the
-                // same as the old `is_null()` check treated a null
-                // pointer.
+                // `required_feature`/`features` are indices into this same
+                // `OtlTable`'s own `features` list. `feature_at` resolving
+                // to `None` (an index a later consolidation pass punched
+                // into a hole, or -- not expected in practice -- an
+                // out-of-range one) is treated as "no reference".
                 if let Some(rf) =
                     lang.required_feature.and_then(|idx| crate::table::otl::feature_at(&table.features, idx))
                 {

@@ -6,25 +6,12 @@ use otfcc_binary::FontReader;
 use otfcc_json::ParsedValue;
 use otfcc_json::JsonType;
 
-// Stage 7-2-c "inner Vec化": `words` was the only allocation this struct
-// owned (Stage 6-4 already Box-ified the outer `CvtTable` itself), so
-// `Vec<u16>` plus its own drop glue replaces the manual `free`-based `impl
-// Drop` that used to live here. `length` is gone too -- it always equaled
-// `words.len()` at every construction site (the allocation size and the
-// read/write loop bound were always derived from the same count), so every
-// former read of `(*table).length` below now reads `.words.len()` instead.
 #[derive(Debug)]
 pub struct CvtTable {
     pub words: Vec<u16>,
 }
-// Unlike every other table in this batch, the original C (and the first
-// Rust translation) here was already memory-safe without a separate length
-// guard: `table_length` is derived directly from the table's own declared
-// length (`length >> 1`, i.e. `length / 2`), and the read loop is bounded
-// by that exact same `table_length` -- so `2 * table_length <= length`
-// always holds and no read can go past the end. Migrated anyway for
-// consistency with the rest of this batch (dropping `__fortable_*`/
-// `.offset()`), not because it fixes a bug.
+// The word count is `length / 2` and the read loop is bounded by it, so no
+// read can go past the end.
 pub fn read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
     let table_length = (table.data.len() / 2) as u32;

@@ -23,18 +23,6 @@ pub struct NameRecord {
 }
 pub type NameTable = Vec<NameRecord>;
 pub const COPYRIGHT_LEN: i32 = 32_i32;
-// Stage 6-4 "Box化": `Font.name` becomes `Option<Vec<NameRecord>>` (not
-// `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
-// `NameRecord` has no raw pointers (`name_string: Vec<u8>` only), so a plain
-// `Vec<NameRecord>`'s own `Drop` already frees everything -- no per-element
-// dispose helper needed, unlike `SvgAssignment`/`table/svg.rs`.
-//
-// `table_name_create` (this file's only other `malloc` site) is deleted,
-// not converted: its sole caller was `create_font_table`'s `create_table`
-// vtable slot, and grepping every `FontElementInterface` field found
-// `.create_table` itself is never read anywhere in the crate --
-// `create_font_table` and its other callee `table_otl_create` are dead
-// for the same reason, deleted alongside it.
 fn should_decode_as_utf16(record: &NameRecord) -> bool {
     record.platform_id == 0
         || record.platform_id == 2 && record.encoding_id == 1
@@ -61,10 +49,9 @@ fn decode_name(data: &[u8]) -> Result<NameTable, ReadError> {
     header.skip(2)?; // format, unused
     let count = header.u16()? as u32;
     let string_offset = header.u16()? as u32;
-    // The record array itself must fit -- corresponds to the original's
-    // `length < 6 + 12 * count` guard, now via `checked_mul`/`checked_add`
-    // rather than `wrapping_add`/`wrapping_mul` (so an overflowing `count`
-    // fails the check instead of wrapping past it).
+    // The record array itself must fit (`6 + 12 * count`, via
+    // `checked_mul`/`checked_add`, so an overflowing `count` fails the
+    // check instead of wrapping past it).
     FontReader::new(data)
         .at(6)?
         .require_room(count as usize, 12)?;
@@ -217,10 +204,7 @@ pub fn build_name(name: Option<&NameTable>) -> Option<Buffer> {
         PATCH_VER,
         b" --",
     );
-    // The C original's `sdsgrowzero` re-grow-in-place had a use-after-free
-    // latent in it (`name.c:188` drops the reallocated result -- see the
-    // history of this comment in git blame if curious); `Vec::resize`
-    // has no such hazard to begin with, so there is nothing to preserve.
+    // Truncated or NUL-padded to exactly COPYRIGHT_LEN bytes.
     copyright.resize(COPYRIGHT_LEN as usize, 0);
     strings.write_bytes(&copyright);
     let strings_offset = buf.pos();
@@ -307,10 +291,10 @@ mod parse_name_tests {
 
     #[test]
     fn string_span_past_the_table_end_keeps_the_record_with_an_empty_name() {
-        // This is the actual overread read_name used to have: the
-        // record array bound was checked, but a record's *string* span
-        // (string_offset + offset, for `length` bytes) never was. Declares
-        // a 100-byte Mac-Roman string where only 5 bytes of table remain.
+        // The record array bound is fine, but a record's *string* span
+        // (string_offset + offset, for `length` bytes) must also fit.
+        // Declares a 100-byte Mac-Roman string where only 5 bytes of table
+        // remain.
         let mut data = header(1, 6 + 12);
         data.extend(record(1, 0, 0, 7, 100, 0));
         data.extend_from_slice(b"Hello"); // only 5 bytes actually present

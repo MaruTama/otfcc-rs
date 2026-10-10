@@ -13,21 +13,12 @@ pub struct BaseValue {
     pub tag: u32,
     pub coordinate: Pos,
 }
-/// `base_values_count` is gone -- `base_values.len()` is always the same
-/// number now that the array is a `Vec` instead of a `__caryll_allocate_
-/// clean`'d buffer sized separately from what actually got filled.
 #[derive(Debug)]
 pub struct BaseScriptEntry {
     pub tag: u32,
     pub default_baseline_tag: u32,
     pub base_values: Vec<BaseValue>,
 }
-/// `script_count` is gone the same way `base_values_count` is: `entries.
-/// len()`. `axis_from_json` used to allocate at the JSON object's full
-/// length, fill only the entries that passed a type check, then shrink
-/// `script_count` down to how many actually landed -- a `Vec` built with
-/// `.push()` only for entries that pass the check arrives at the same
-/// final content directly, with no separate count to keep in sync.
 #[derive(Debug)]
 pub struct BaseAxis {
     pub entries: Vec<BaseScriptEntry>,
@@ -37,27 +28,6 @@ pub struct BaseTable {
     pub horizontal: Option<Box<BaseAxis>>,
     pub vertical: Option<Box<BaseAxis>>,
 }
-// Stage 6-4 "Box化" finished: `horizontal`/`vertical` are `Option<Box<
-// BaseAxis>>`, and `BaseAxis`'s own `entries: Vec<BaseScriptEntry>` (each
-// entry's `base_values: Vec<BaseValue>`) means the whole tree is now
-// ordinary owned Rust data -- no manual dispose function, no `Drop` impl
-// on `BaseTable` at all, `Option`/`Box`/`Vec`'s own drop glue reaches
-// every allocation on their own.
-//
-// This closes a documented pre-existing leak by construction, not by an
-// explicit fix: the previous Box化 pass on this file (converting only
-// `horizontal`/`vertical` themselves) left a comment recording that
-// `delete_base_axis` never freed `axis` itself, only its `entries` --
-// true in the original C too. A raw `*mut BaseAxis` freed via a hand-
-// written dispose function can leak that way; a `Box<BaseAxis>` cannot
-// -- there is no code path left where a `BaseAxis` allocation exists
-// without something owning it. Same shape as the `otfccbuild.rs` binary
-// entry point's use-after-free earlier in this migration: converting the
-// ownership model made a bug stop being expressible, without this PR
-// needing to hunt it down and patch it as a separate step.
-// `items` was `__caryll_reallocate`'d one tag at a time by a hand-written
-// "search, then grow-by-one-and-append" loop in `axis_to_bk` -- exactly
-// `Vec::contains`/`Vec::push`. `size` duplicated `.len()` and is dropped.
 #[derive(Debug)]
 pub struct BaseTagList {
     pub items: Vec<u32>,
@@ -71,28 +41,12 @@ fn read_base_value(data: &[u8], offset: usize) -> i16 {
         })
         .unwrap_or(0)
 }
-/// Returns `(default_baseline_tag, base_values)` instead of writing
-/// through a `*mut BaseScriptEntry` out-param: every failure branch in
-/// the original reset the entry's fields back to `(0, empty)` regardless
-/// of what had been partially written along the way (`default_baseline_
-/// tag`/`base_values_count` could be set non-zero by an intermediate
-/// step before a later check failed and reset them), so the two
-/// representations agree on every observable outcome -- this version
-/// just never writes the intermediate values that were always going to
-/// be thrown away.
+/// Reads a BaseScript at `offset` into `(default_baseline_tag,
+/// base_values)`; `(0, empty)` if any check fails.
 ///
-/// `offset` is a plain `usize` (not the `u16` the on-disk `BaseValuesOffset`
-/// field is), and every offset this function derives from it stays `usize`
-/// too: the original computed `(base_values_offset as c_int + offset as
-/// c_int) as u16`, adding in 32-bit `c_int` (safe -- both operands are
-/// ≤ 65535) but then *truncating the sum back down to `u16`*, silently
-/// wrapping whenever the real combined offset exceeded 65535. That's the
-/// same "offset arithmetic wraps and defeats the length guard that follows
-/// it" bug shape `otl/coverage.rs`'s `read_coverage` docs and
-/// `table/cmap.rs`'s plan writeup both describe, just reached through a
-/// narrowing cast instead of `wrapping_add`. Keeping every derived offset
-/// as `usize` (max here: two `u16`s summed, nowhere near `usize::MAX`)
-/// removes the wraparound outright instead of just moving where it hides.
+/// `offset`, and every offset derived from it, is a `usize`: two `u16`
+/// offsets added together can pass 65535, and narrowing the sum back to
+/// `u16` would wrap it to the wrong place.
 fn read_base_script(
     data: &[u8],
     offset: usize,
@@ -139,18 +93,8 @@ fn read_base_script(
     }
     (default_baseline_tag, base_values)
 }
-/// Returns `None` on any of the format checks failing, `Some` otherwise
-/// -- the original's fallthrough cleanup (`free(base_tag_list)` then
-/// `delete_base_axis(axis)`) only ever ran with `axis` still null: every
-/// path that allocates `axis` also fills it completely and returns
-/// immediately, so `delete_base_axis(axis)` at the bottom was always a
-/// no-op by the time it could run. `base_tag_list` is a local `Vec<u32>`
-/// now, so it needs no explicit free on any exit path either.
-///
-/// `offset` and every offset derived from it stay `usize` for the same
-/// reason `read_base_script` does -- the original's `(x as c_int + offset
-/// as c_int) as u16` truncation could wrap a real out-of-range offset back
-/// into range.
+/// Reads a BaseAxis; `None` if any of the format checks fail. Offsets stay
+/// `usize` for the same reason as in `read_base_script`.
 fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
     let mut r = FontReader::new(data).at(offset).ok()?;
     let base_tag_list_rel = r.u16().ok()?;
@@ -289,12 +233,8 @@ fn base_script_from_json(sr: Option<&ParsedValue>) -> (u32, Vec<BaseValue>) {
     }
     (default_baseline_tag, base_values)
 }
-/// `axis_from_json` builds `entries` with `.push()` only for the object-
-/// typed values (matching the original's allocate-then-shrink-count
-/// dance, but arriving at the same final content directly), then sorts
-/// by tag -- stable, not `sort_unstable_by_key`, the same deliberately
-/// conservative choice made for `Coverage`/`ClassDef`/`gpos_pair.rs`
-/// since `qsort` itself gives no stability guarantee.
+/// `entries` gets only the object-typed values, then is sorted by tag
+/// (stably).
 fn axis_from_json(axis: Option<&ParsedValue>) -> Option<Box<BaseAxis>> {
     let axis = axis?;
     let mut entries: Vec<BaseScriptEntry> = Vec::new();
@@ -357,11 +297,8 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
     )]);
     for entry_0 in axis.entries.iter() {
         let mut base_values: BkBlock = bk_new_block(Vec::new());
-        // A `taglist.items` entry the default baseline tag never matches
-        // (not expected in practice, since every default tag was itself
-        // inserted into `taglist` above) falls back to index 0, matching
-        // the original: `default_index` stayed at its initial `0` whenever
-        // the search loop ran to completion without ever breaking.
+        // A default baseline tag missing from `taglist` (not expected, since
+        // every default tag was added above) falls back to index 0.
         let default_index = taglist
             .items
             .iter()
@@ -542,10 +479,9 @@ mod parse_base_tests {
 
     #[test]
     fn base_script_offset_sum_near_u16_boundary_does_not_wrap() {
-        // The original computed `(base_values_offset as c_int + offset as
-        // c_int) as u16` -- truncating the sum back into u16 range. With
+        // `base_values_offset + offset` must not be truncated to u16. With
         // `offset` = 60000 and a BaseValuesOffset field of 10000, the true
-        // combined offset is 70000, but the old cast wrapped it down to
+        // combined offset is 70000, which a u16 would wrap down to
         // 70000 - 65536 = 4464. A well-formed BaseValues structure placed
         // only at the true offset (70000, left as zeros at the wrapped
         // address) must be read from there, not from the wrapped address.

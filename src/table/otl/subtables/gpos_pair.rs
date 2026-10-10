@@ -38,51 +38,16 @@ pub struct IndividualGposPair {
     pub fv: PositionValue,
     pub sv: PositionValue,
 }
-// Two real bugs fixed, one per format:
+// Format 1 is read field by field with `FontReader`, so a table too short
+// for its header is rejected. Format 2's class grid needs `class1_count *
+// class2_count` cells of `len1 + len2` bytes; the byte check uses checked
+// arithmetic, since two `u16` counts can reach ~68.7 billion bytes.
 //
-// Format 1's initial `coverageOffset` (and everything after it) used to be
-// read with *no* guard beyond the very first `table_length < offset + 2`
-// (just the 2-byte format field itself) -- a 3-or-more-byte-short table
-// claiming format 1 read straight past its own end before any of the
-// per-field guards further down ever ran. `FontReader`'s sequential reads
-// close this by construction: every field, not just the ones the original
-// happened to guard explicitly, is checked.
-//
-// Format 2's final byte-length guard -- `class1_count * class2_count *
-// (len1+len2)` -- is the same overflow-defeats-guard shape as
-// `gpos_mark_to_ligature.rs`'s `component_count * class_count`:
-// `class1_count`/`class2_count` are independently unbounded `u16` fields,
-// so the product can reach 65535*65535*16 (~68.7 billion), far past
-// `i32::MAX`. Fixed with two chained `checked_mul`s on `usize` (count*count,
-// then that product against the per-cell stride via `require_room`).
-//
-// That byte-length guard has its own loophole, found by `cargo fuzz run
-// otf_dump` (a real, previously-undocumented OOM): `require_room(total_
-// cells, stride)` needs `total_cells * stride` bytes, but `stride` --
-// `position_format_length(format1) + position_format_length(format2)` --
-// is 0 whenever *both* value formats are 0 (a legal PairPos with no value
-// records at all, e.g. `valueFormat1 = valueFormat2 = 0`). `total_cells *
-// 0` is always `0`, so `require_room` passes no matter how large `total_
-// cells` is -- `class1_count`/`class2_count` up to `u16::MAX` each give a
-// `total_cells` of ~4.29 billion, and the two `Vec::with_capacity(class2_
-// count)` allocations below run once per row regardless of `stride`
-// (`read_gpos_value` returns a zeroed `PositionValue` without touching
-// `data` at all when `format == 0`, so the cells are cheap to build --
-// the *allocations* are what cost real memory, not the reads). A tiny
-// hand-crafted PairPos subtable (a 6-byte Coverage, one shared 10-byte
-// ClassDef, `class1Count = class2Count = 6000`) reproducibly OOMed
-// `otf_dump` at ~2.24GB RSS (`-rss_limit_mb=2048`), allocating almost 1GB
-// in exactly 5093 same-sized `Vec<PositionValue>` chunks at `gpos_pair.
-// rs:285` alone -- the same "individually bounds-checked, unbounded in
-// aggregate" shape this migration keeps finding, just on the *cell count*
-// itself rather than on the byte length the existing guard already
-// covers. `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS` (2,000,000) closes it: the
-// largest legitimate `class1_count * class2_count` product across this
-// repo's own font corpus is `Cormorant-Medium.otf`'s 384*1560 = 599,040
-// (`WorkSans-Regular.otf` uses at most 42,720), so 2,000,000 leaves more
-// than 3x headroom over that, still keeping the worst case (a `u16::MAX`-
-// square grid otherwise reaching 4.29 billion cells) firmly out of reach
-// regardless of `stride`.
+// The cell count is also capped on its own: with both value formats 0 the
+// grid takes no bytes, so the byte check passes for any count, yet the two
+// grids are still allocated (a fuzzed 6000x6000 subtable reached 2.24 GB).
+// The largest real product in this repo's fonts is Cormorant-Medium's
+// 384 * 1560 = 599,040, so 2,000,000 leaves more than 3x headroom.
 const MAX_TOTAL_GPOS_PAIR_CLASS_CELLS: usize = 2_000_000;
 pub fn otl_read_gpos_pair(
     data: &[u8],
@@ -113,14 +78,8 @@ pub fn otl_read_gpos_pair(
                 break 'parse;
             };
 
-            // Built and used as a plain local, then moved into `subtable`
-            // once the whole branch has succeeded. The old code assigned it
-            // to `subtable.first` up front and then re-borrowed it as a
-            // `*mut ClassDef` to keep reading it while `subtable`'s other
-            // fields were written -- a raw pointer that existed only to
-            // dodge the borrow checker. Every `break 'parse` below returns
-            // `None` and drops `subtable`, so moving the assignment to the
-            // end changes nothing observable.
+            // Built as a local and moved into `subtable` once the branch has
+            // succeeded; every `break 'parse` drops `subtable`.
             let cov: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
             let first_cd = ClassDef {
                 maxclass: (cov.len() as i32 - 1) as GlyphClass,
@@ -150,8 +109,7 @@ pub fn otl_read_gpos_pair(
                 pair_set_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
             }
 
-            // Validate every PairSet's own header + record array up front,
-            // matching the original's separate validation pass.
+            // Check every PairSet's header and record array first.
             let stride = 2usize + len1 as usize + len2 as usize;
             let mut pair_counts = Vec::with_capacity(pair_set_count as usize);
             for &pso in &pair_set_offsets {
@@ -165,25 +123,12 @@ pub fn otl_read_gpos_pair(
                 pair_counts.push(pc);
             }
 
-            // Deduplicates the "second" glyph of every pair by gid,
-            // assigning each distinct one the next sequential class id
-            // (1-based -- class 0 is reserved for "not covered" per the
-            // OpenType format) -- synthesizing a class def for `second`
-            // that Format 1 (individual pairs) doesn't carry on the wire,
-            // the same way Format 2 already does explicitly. No
-            // `HASH_SORT` is used before the original's `HASH_ITER` here,
-            // so output order is insertion order; since cid is assigned as
-            // `num_items + 1` at insert time, insertion order and
-            // cid-ascending order are the same order by construction,
-            // matching the `IndexSet`-not-a-map shape of
-            // `LigatureAggregator` (see RUST_MIGRATION.md) but with cid
-            // derived from position instead of tracked separately. This
-            // one set is used across two phases within this branch: built
-            // while first reading every pair (below), then looked up (not
-            // rebuilt) while re-reading the same pairs a second time to
-            // place position values into the `first_values`/
-            // `second_values` grid, then walked once more at the end to
-            // populate `subtable.second`'s `glyphs`/`classes`.
+            // Format 1 lists pairs individually, so a class def for the second
+            // glyphs is synthesized: each distinct second glyph, in order of
+            // first appearance, gets the next class from 1 (class 0 means "not
+            // covered"). The set is built while first reading the pairs,
+            // looked up while placing the values, and walked at the end to
+            // fill `subtable.second`.
             let mut h: indexmap::IndexSet<i32> = indexmap::IndexSet::new();
             for (i, &pso) in pair_set_offsets.iter().enumerate() {
                 for k in 0..pair_counts[i] {
@@ -206,11 +151,6 @@ pub fn otl_read_gpos_pair(
             };
             let class2_count = second_cd.maxclass as usize + 1;
 
-            // Was a manual `__caryll_allocate_clean` + nested-loop-of-
-            // `position_zero()` writes over `*mut *mut PositionValue` --
-            // `PositionValue` is `Copy`, so pre-sizing the whole grid
-            // collapses to one `vec![vec![..]; ..]` expression; the real
-            // values below are then index-assigned directly.
             let first_class_count = first_cd.maxclass as usize + 1;
             let mut first_values: Vec<Vec<PositionValue>> =
                 vec![vec![position_zero(); class2_count]; first_class_count];
@@ -275,12 +215,8 @@ pub fn otl_read_gpos_pair(
             let len2_0 = position_format_length(format2_0);
 
             let cov_0: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
-            // `expand_class_def` consumes the `ocd` it is handed and
-            // returns a fresh one; both are plain values now, so the
-            // `Box::from_raw`/`classdef_from_raw` pair that used to bridge
-            // that call is gone -- and with it the
-            // `subtable.first.is_none() || subtable.second.is_none()` guard,
-            // which could never fire (neither producer ever returned null).
+            // `expand_class_def` takes the class def it is given and returns a
+            // new one.
             let first_cd = expand_class_def(
                 &cov_0,
                 read_class_def(data, offset.wrapping_add(cd1_rel as u32)),
@@ -483,10 +419,6 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
                     as i32) as u16;
         }
     }
-    // A local `Vec`, not a `__caryll_allocate_clean`/`free` pair -- the
-    // zero-fill this function relied on from `__caryll_allocate_clean` is
-    // just `vec![0; ...]`, and the `Vec` drops itself at the end instead of
-    // needing an explicit `free` to match.
     let mut pair_counts: Vec<GlyphId> = vec![0 as GlyphId; first_cd.glyphs.len()];
     for (count, &c1) in pair_counts.iter_mut().zip(first_cd.classes.iter()) {
         for &c2 in second_cd.classes.iter() {
@@ -528,14 +460,8 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
             BkCellType::B16,
             (current_pair_count as i32) as u32,
         )]);
-        // A local `Vec`, not a `__caryll_allocate_clean`/`qsort`/`free`
-        // trio: built with exactly `current_pair_count` entries by
-        // construction (this loop applies the same predicate the earlier
-        // counting pass used), sorted with `sort_by_key` (stable, same
-        // conservative choice as the `Coverage`/`ClassDef` PR since `qsort`
-        // itself gives no stability guarantee), and dropped automatically
-        // at the end of this loop iteration instead of needing an explicit
-        // `free` to match the explicit allocation.
+        // Exactly `current_pair_count` entries (the counting pass used the
+        // same test), sorted stably.
         let mut pairs: Vec<IndividualGposPair> = Vec::with_capacity(current_pair_count as usize);
         for k_2 in 0..second_cd.glyphs.len() {
             let c2_0: GlyphClass = second_cd.classes[k_2];
@@ -692,10 +618,8 @@ mod otl_read_gpos_pair_tests {
 
     #[test]
     fn format1_table_too_short_for_the_header_is_rejected_instead_of_reading_oob() {
-        // The original read `coverageOffset` (and every header field after
-        // it) with no guard beyond the very first `table_length < offset +
-        // 2` -- just the 2-byte format field itself -- so a table this
-        // short claiming format 1 read straight past its own end.
+        // `coverageOffset` and every header field after it must fit; a
+        // table this short claiming format 1 must not be read past its end.
         let data = [0u8, 1]; // format = 1, nothing else
         let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
         assert!(result.is_none());
@@ -738,14 +662,12 @@ mod otl_read_gpos_pair_tests {
 
     #[test]
     fn format2_max_class_counts_are_rejected_not_read_oob() {
-        // The original's final guard -- `class1_count * class2_count *
-        // (len1+len2)` -- is computed as unchecked `i32` arithmetic;
-        // `class1_count`/`class2_count` are independently unbounded u16
-        // fields, so the product can reach ~68.7 billion, far past
-        // `i32::MAX`. A single-range ClassDef format 2 entry cheaply
-        // claims a `maxclass` of `u16::MAX - 1` without needing anywhere
-        // near that many real entries, so this reaches the guard with a
-        // tiny buffer.
+        // `class1_count * class2_count * (len1+len2)` can reach ~68.7
+        // billion (`class1_count`/`class2_count` are independently
+        // unbounded u16 fields), far past `i32::MAX`. A single-range
+        // ClassDef format 2 entry cheaply claims a `maxclass` of
+        // `u16::MAX - 1` without needing anywhere near that many real
+        // entries, so this reaches the guard with a tiny buffer.
         let mut data = [0u8; 42];
         data[0..2].copy_from_slice(&2u16.to_be_bytes()); // format
         data[2..4].copy_from_slice(&16u16.to_be_bytes()); // coverageOffset -> 16

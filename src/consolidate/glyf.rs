@@ -137,8 +137,7 @@ fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, gname: &[u8])
     } else if !h.name.is_empty() {
         // Unreachable: the preceding `else if !h.name.is_empty()` already
         // covers this same condition with nothing mutating `h.name` in
-        // between -- kept verbatim from the original c2rust translation
-        // rather than pruned as drive-by cleanup outside this PR's scope.
+        // between.
         *h = Handle::default();
     }
 }
@@ -169,27 +168,15 @@ pub fn consolidate_glyph(
 // running out of budget only means "point not found" (mirrors the
 // existing cycle-detection return), never a wrong-but-silent answer.
 pub const MAX_COMPONENT_REFERENCE_DEPTH: u32 = 10;
-// Stage M-43 (see RUST_MIGRATION.md): both functions took raw pointers
-// because `is_anchored`/`x`/`y` -- the only three `ComponentReference`
-// fields either one ever mutates -- lived as plain fields, so mutating one
-// while the walk holds a *shared* view of the rest of `table` needed
-// `unsafe`. Those three fields are now `Cell<RefAnchorStatus>`/
-// `RefCell<VQ>`/`RefCell<VQ>` (see the doc comment on `ComponentReference`
-// itself in `table/glyf.rs`), which gives interior mutability through a
-// plain shared `&ComponentReference` -- so both functions now take
-// `table: &GlyfTable` and `gr`/`rr`: `&ComponentReference`, drop
-// `unsafe fn`, and are otherwise byte-for-byte the same walk: the read/
-// recurse/mutate order below is unchanged from the raw-pointer version
-// this replaced, field for field and branch for branch, since that order
-// (not just the final values) is what the existing cycle-detection
-// guards' own semantics depend on.
+// The walk mutates only `is_anchored`/`x`/`y` of a `ComponentReference`,
+// which are `Cell`/`RefCell`s (see `ComponentReference` in `table/glyf.rs`)
+// so it can run over a shared `&GlyfTable`. The read/recurse/mutate order
+// below matters: the cycle-detection guards depend on it, not just on the
+// final values.
 /// `get_point_coordinates`'s three in/out parameters: how far the walk has
 /// counted so far (`stated`) and the coordinates it writes once `stated`
 /// reaches the target `n` (`x`/`y`). All three are always read and written
-/// together at every one of this function's own call sites (never one
-/// without the other two), which is exactly what bundling into one `&mut`
-/// out-parameter is for -- `clippy::too_many_arguments` flagged the
-/// unbundled 8-parameter form this replaces.
+/// together, so they travel as one `&mut`.
 pub struct PointSearch {
     pub stated: ShapeId,
     pub x: VQ,
@@ -263,21 +250,12 @@ pub fn get_point_coordinates(
     }
     return false;
 }
-// See the doc comment on `get_point_coordinates` just above for why this
-// function no longer needs `unsafe fn` or raw pointers either.
-//
-// The one subtlety worth spelling out explicitly (see `RUST_MIGRATION.md`'s
-// Stage M-43 entry for the full trace): the two branches below re-read
-// `rr.is_anchored.get()` *after* both recursive `get_point_coordinates`
-// calls (`s1`/`s2`) have returned, exactly as the raw-pointer version
-// re-dereferenced `(*rr).is_anchored` fresh at that point rather than
-// reusing a value cached before the recursion -- because a re-entrant call
-// that reaches this exact `rr` again during `s1`/`s2` (a real, reachable
-// cycle) overwrites `is_anchored` to `Xy` before returning, and this
-// function's own final branch has to observe that overwrite the same way
-// the original single-address raw pointer did. Caching the pre-recursion
-// value in a local here would be a real behavior change, not just a
-// cosmetic one.
+// The two branches below re-read `rr.is_anchored.get()` *after* both
+// recursive `get_point_coordinates` calls (`s1`/`s2`) have returned, rather
+// than reusing a value cached before the recursion: a re-entrant call that
+// reaches this exact `rr` again during `s1`/`s2` (a real, reachable cycle)
+// overwrites `is_anchored` to `Xy` before returning, and the final branch
+// has to observe that. Caching it in a local would change behavior.
 pub fn consolidate_anchor_ref(
     table: &GlyfTable,
     gr: &ComponentReference,
@@ -345,9 +323,6 @@ pub fn consolidate_anchor_ref(
         rr.y.replace(rry);
         rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     } else {
-        // `f64::abs` is IEEE-754 `fabs` bit for bit (see `vf/vq.rs`'s own
-        // note); this file's `unsafe extern "C" { fn fabs(...) }` import
-        // (removed in Stage M-45; see RUST_MIGRATION.md) is gone.
         if (vq_get_still(rr.x.borrow().clone()) as f64
             - vq_get_still(rrx.clone()) as f64)
             .abs()
@@ -382,12 +357,9 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     }
     // `consolidate_anchor_ref` recurses over the reference graph and can
     // revisit *any* glyph in the table (not just the one being processed)
-    // while resolving anchor points -- but it mutates only
-    // `ComponentReference.is_anchored`/`x`/`y`, now `Cell`/`RefCell` (see
-    // that struct's own doc comment and `get_point_coordinates`'s/
-    // `consolidate_anchor_ref`'s in this file), so a single shared `&
-    // GlyfTable` reference for the whole walk below is all either function
-    // needs: no raw pointer, and no `unsafe`.
+    // while resolving anchor points, but it mutates only
+    // `ComponentReference.is_anchored`/`x`/`y` (`Cell`/`RefCell`), so a
+    // single shared `&GlyfTable` serves the whole walk below.
     let table: &GlyfTable = glyf;
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < table.len() {

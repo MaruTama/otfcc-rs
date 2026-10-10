@@ -8,31 +8,17 @@ use crate::table::otl::{
     ExtendSubtable, LookupType, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_UNKNOWN, Subtable,
 };
 
-// Was: allocate a whole `Subtable`-sized block directly, then take
-// `&raw mut (*_subtable).extend` and fill the field in place -- sound only
-// because `Subtable` was a union (every field starts at offset 0). Once it
-// is an enum with its own discriminant, there is no "the block" to allocate
-// ahead of knowing which variant it will hold; build the `ExtendSubtable`
-// value locally instead and hand it to `Box::new(Subtable::Extend(..))` the
-// same way every other subtable's read function builds its own `Subtable`
-// value directly now (the shared `subtable_from_raw` adapter this comment
-// used to name was deleted in Stage L-5, once the last of its callers --
-// `chaining/read.rs`'s own readers -- stopped needing it). `type_0` is
-// still computed before `subtable` (the recursive read needs it as the
-// nested lookup's type), so the dependency order is unchanged.
+// `lookup_type` is computed before `subtable`, because the recursive read
+// needs it as the nested lookup's type.
 ///
 /// `extensionOffset` (the field this reads at `subtable_offset + 4`) is the
 /// whole reason the Extension mechanism exists: it lets GSUB/GPOS carry a
 /// real 32-bit subtable offset where every other lookup type is limited to
-/// Offset16. That makes it a fully attacker-controlled `u32` (unlike
+/// Offset16. That makes it a raw `u32` from the file (unlike
 /// `subtable_offset` itself, which arrives here already bounded to a few
-/// `u16` offsets summed together by the caller) -- the original combined
-/// the two with `subtable_offset.wrapping_add(extensionOffset)`, which for
-/// an `extensionOffset` near `u32::MAX` wraps the sum back down to a small,
-/// wrong-but-in-bounds value instead of the real (out-of-range) one, so a
-/// downstream `read_otl_subtable` call would silently read whatever
-/// happens to live at that wrong small offset. `checked_add` rejects it
-/// outright instead.
+/// `u16` offsets summed together by the caller), so the two are combined
+/// with `checked_add`: an `extensionOffset` near `u32::MAX` is rejected
+/// rather than wrapped down to a small, wrong-but-in-bounds offset.
 fn read_otl_extend(
     data: &[u8],
     subtable_offset: u32,
@@ -81,13 +67,10 @@ mod caryll_read_otl_extend_tests {
     #[test]
     fn extension_offset_overflowing_u32_is_rejected_not_wrapped() {
         // subtable_offset (16, bounded -- summed from a couple of u16
-        // lookup-table offsets by the caller) + extensionOffset (a raw,
-        // fully attacker-controlled u32 read straight from the file) must
-        // not be combined with `wrapping_add`: an extensionOffset this
-        // close to u32::MAX makes the true sum overflow u32 entirely, and
-        // the original's wraparound would silently hand a small,
-        // wrong-but-in-bounds offset to `read_otl_subtable` instead
-        // of rejecting the request.
+        // lookup-table offsets by the caller) + extensionOffset (a raw u32
+        // from the file): an extensionOffset this close to u32::MAX makes
+        // the true sum overflow u32 entirely, and must be rejected rather
+        // than wrapped to a small, wrong-but-in-bounds offset.
         let mut data = [0u8; 24];
         data[16..18].copy_from_slice(&1u16.to_be_bytes()); // substFormat
         data[18..20].copy_from_slice(&1u16.to_be_bytes()); // extensionLookupType

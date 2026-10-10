@@ -22,29 +22,12 @@ pub struct ColrMapping {
     pub layers: Vec<ColrLayer>,
 }
 pub type ColrTable = Vec<ColrMapping>;
-// Stage 6-4 "Box化": `Font.colr` becomes `Option<Vec<ColrMapping>>` (not
-// `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
-// `ColrMapping`/`ColrLayer` own only a `GlyphHandle`, which already has a
-// real `Drop` (Stage 6-4's `Handle` pilot), so a plain `Vec<ColrMapping>`'s
-// own `Drop` already frees everything recursively.
 
-// `ColrLayer`/`ColrMapping` embed `GlyphHandle`, which owns its `sds` name
-// for real (`Handle`'s `Drop`/`Clone`, Stage 6-4's `Handle` pilot) -- a
-// `#[derive(Clone)]` on both structs above already deep-copies that name
-// correctly, field by field, the same way the two manual dup functions this
-// comment used to describe did (each was exactly a `.clone()`, sometimes
-// wrapped through a now-removed `otfcc_handle_dup` that also just cloned).
 static BASE_GLYPH_REC_LENGTH: usize = 6_usize;
 static LAYER_REC_LENGTH: usize = 4_usize;
-/// `offset_base_glyph_record`/`offset_layer_record` are each a raw `u32`
-/// read straight from the file (full attacker control); unlike
-/// `table/cpal.rs`'s equivalent fields, the original's own guards here
-/// already cast to `usize` *before* `wrapping_add`, so on this crate's
-/// actual 64-bit CI targets neither guard can wrap the way `cpal.rs`'s
-/// 32-bit `u32::wrapping_add` did -- `FontReader`'s `checked_add`/
-/// `checked_mul` still replace them, for the same "true on every pointer
-/// width, not just the ones this crate happens to test on" reason
-/// `require_room` exists at all.
+/// `offset_base_glyph_record`/`offset_layer_record` are raw `u32`s straight
+/// from the file, so every position is computed through `FontReader`'s
+/// `checked_add`/`checked_mul` rather than by plain addition.
 fn decode_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     if data.len() < 14 {
         return Err(ReadError { needed: 14, available: data.len() });
@@ -270,10 +253,9 @@ mod parse_colr_tests {
     #[test]
     fn layer_index_past_num_layer_records_is_skipped_not_read_oob() {
         // numLayers/firstLayerIndex say this base glyph covers layer index
-        // 5, but only one layer record actually exists -- the original
-        // silently dropped layers that failed this bound, and this
-        // preserves that (the base glyph still appears, just with no
-        // layers), rather than reading past `gids`/`colors`.
+        // 5, but only one layer record actually exists -- layers that fail
+        // this bound are dropped (the base glyph still appears, just with
+        // no layers) rather than read past `gids`/`colors`.
         let mut data = well_formed_colr_table();
         data[16..18].copy_from_slice(&5u16.to_be_bytes()); // firstLayerIndex = 5
         let colr = decode_colr(&data).unwrap();

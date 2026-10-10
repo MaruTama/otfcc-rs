@@ -26,17 +26,11 @@ pub fn vq_create_region(dimensions: ShapeId) -> Box<VqRegion> {
         spans: Vec::with_capacity(dimensions as usize),
     })
 }
-// Was `strncmp` over the whole header+spans byte range (after a
-// `dimensions` shortcut) -- a byte-identity check that made sense when
-// `spans` was contiguous with the header in one allocation. Now compares
-// `dimensions` then `spans` structurally (`VqAxisSpan` derives
-// `PartialOrd`, lexicographic over `start`/`peak`/`end`, matching the
-// field order the old byte comparison walked in practice). Only consumed
-// as an ordering key (`vqs_compare`, for sorting) or an equality check
-// (`vqs_compatible`, via `== 0`), never for anything relying on
-// byte-for-byte identity -- that stricter semantics is preserved instead
-// in `RegionKey` (`table/fvar.rs`), which still needs it for `IndexMap`
-// dedup.
+// Orders regions by `dimensions`, then `spans` (`VqAxisSpan` derives
+// `PartialOrd`, lexicographic over `start`/`peak`/`end`). Used as an
+// ordering key (`vqs_compare`, for sorting) and an equality check
+// (`vqs_compatible`, via `== 0`). `RegionKey` (`table/fvar.rs`) is the
+// byte-for-byte identity used for `IndexMap` dedup.
 pub fn vq_compare_region(a: &VqRegion, b: &VqRegion) -> i32 {
     if a.dimensions < b.dimensions {
         return -1;

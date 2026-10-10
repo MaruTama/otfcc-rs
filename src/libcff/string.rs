@@ -400,9 +400,7 @@ static STRING_STANDARD: [&str; 391] = [
 /// `locate_subr`'s own defense-in-depth comment) and the explicit
 /// `checked_add`/bounds check below are kept anyway, at negligible cost,
 /// so this function stays safe on its own if a `CffIndex` is ever built
-/// any other way in the future. Plain slice indexing (`str.data[start..
-/// end]`) replaces the original's raw `.offset()`/`from_raw_parts` walk --
-/// no unsafe pointer arithmetic left to get wrong here at all.
+/// any other way in the future.
 pub fn get_cff_sid(idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
     if idx as i32 <= 390_i32 {
         return Some(STRING_STANDARD[idx as usize].as_bytes().to_vec());

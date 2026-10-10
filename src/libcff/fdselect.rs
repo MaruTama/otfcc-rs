@@ -7,15 +7,8 @@ pub struct CffFdSelectRangeFormat3 {
     pub first: u16,
     pub fd: u8,
 }
-/// Was a `t: CffFdSelectType` discriminant plus a `c2rust_unnamed:
-/// CffFdSelectBody` union (`f0`/`f3`, one raw-pointer array each) -- the
-/// same shape `CffEncoding`/`CffCharset` had, and the same fix: a single
-/// enum, discriminant and payload together. `s`/`nranges` are gone too --
-/// both were write-only (set once while parsing or building, never read
-/// again anywhere in the crate) and exactly duplicated `range3`'s own
-/// `.len()`. `sentinel` is kept: unlike the counts, it is a genuine data
-/// value (the one-past-the-last glyph index Format3's final range extends
-/// to), not derivable from the `Vec` itself.
+/// A CFF FDSelect in format 0 or 3. `sentinel` is Format3's one-past-the-
+/// last glyph index, which the final range extends to.
 #[derive(Clone, Debug)]
 pub enum CffFdSelect {
     Unspecified,
@@ -57,22 +50,12 @@ pub fn cff_build_fd_select(fd: &CffFdSelect) -> Buffer {
         }
     }
 }
-// Returns `CffFdSelect` by value instead of writing through a `*mut
-// CffFdSelect` out-param -- the same "unwrap_X_table" shape used throughout
-// this migration.
-//
-// The original had no bounds checking anywhere here either: not on
-// `offset` (a negative value, reachable from a malformed DICT key, moved
-// the read pointer *before* the buffer), not on `nranges` (an attacker-
-// controlled `u16` up to 65535, driving both a `Vec::with_capacity` and a
-// read loop with no check that the table actually holds that many 3-byte
-// range entries). Every read now goes through one sequential `FontReader`
-// -- format0's array and format3's range array plus the sentinel that
-// immediately follows it are laid out with no gaps, so a single reader
-// walking forward covers the whole record. On any bounds failure, or a
-// negative `offset`, this falls back to `Unspecified` -- the same
-// fallback the original already used for an unrecognized format byte,
-// just extended to cover "malformed" too.
+// Every read goes through one sequential `FontReader` -- format0's array
+// and format3's range array plus the sentinel that immediately follows it
+// are laid out with no gaps, so a single reader walking forward covers the
+// whole record. On any bounds failure, a negative `offset` (reachable from
+// a malformed DICT key), or an unrecognized format byte, this falls back to
+// `Unspecified`.
 pub fn cff_extract_fd_select(slice: &[u8], offset: i32, nchars: u16) -> CffFdSelect {
     if offset < 0 {
         return CffFdSelect::Unspecified;
@@ -151,8 +134,7 @@ mod cff_extract_fd_select_tests {
     #[test]
     fn format3_huge_nranges_against_a_tiny_table_falls_back_to_unspecified_instead_of_reading_oob()
     {
-        // The original had no check at all that the table actually held
-        // `nranges` 3-byte entries.
+        // The table must actually hold `nranges` 3-byte entries.
         let data = [0x03u8, 0xFF, 0xFF]; // format=3, nranges=65535, nothing else
         let result = cff_extract_fd_select(&data, 0, 0);
         assert!(matches!(result, CffFdSelect::Unspecified));

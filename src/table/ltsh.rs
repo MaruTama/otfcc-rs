@@ -5,16 +5,9 @@ use crate::font::sfnt::Packet;
 use otfcc_binary::Buffer;
 use crate::support::primitives::GlyphId;
 
-// Stage 6-4 pilot for `Font`'s `*mut X`-typed table fields Box-ified the
-// outer `LtshTable` itself; Stage 7-2-c "inner Vec化" finishes the job here:
-// `y_pels` was the only allocation this struct owned, so `Vec<u8>` plus its
-// own drop glue replaces the manual `free`-based `impl Drop` that used to
-// live here (which itself had replaced the entire
-// `LtshTableElementInterface` vtable). `num_glyphs` is kept as a real field
-// (not collapsed into `y_pels.len()`, unlike `CvtTable.length`): besides
-// sizing `y_pels`, it is independently compared against `Glyf`'s glyph
-// count at `otf_reader/unconsolidate.rs`'s `merge_ltsh` (a `.min()` clamp),
-// so it carries information beyond a plain redundant length.
+// `num_glyphs` is kept as a field (rather than `y_pels.len()`): it is
+// compared against `glyf`'s glyph count in
+// `otf_reader/unconsolidate.rs`'s `merge_ltsh` (a `.min()` clamp).
 #[derive(Debug)]
 pub struct LtshTable {
     pub version: u16,
@@ -83,15 +76,14 @@ mod parse_ltsh_tests {
     fn truncated_header_errs() {
         // No committed payload has an LTSH table (checked by hand via
         // otfccdump on every tests/payload/*.ttf), so this direct test is
-        // this table's only coverage. read_ltsh used to read this
-        // unconditionally regardless of the table's real length.
+        // this table's only coverage. The header must fit the table.
         assert!(parse_ltsh(&[0x00, 0x01]).is_err());
     }
 
     #[test]
     fn pel_array_shorter_than_num_glyphs_errs() {
         // num_glyphs says 5 but only 1 pel byte actually follows the
-        // 4-byte header -- this used to memcpy 5 bytes regardless.
+        // 4-byte header; must not read 5.
         let data: &[u8] = &[0x00, 0x01, 0x00, 0x05, 10];
         assert!(parse_ltsh(data).is_err());
     }

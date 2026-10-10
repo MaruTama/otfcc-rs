@@ -6,27 +6,14 @@ use crate::support::base64::{base64_decode, base64_encode};
 use otfcc_json::BuiltValue;
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
-/// instructions. `u8`, since that is what `InstrData.instrs` holds.
-///
-/// c2rust emitted all 123 of `ttf_instructions`' names, of which these were the
-/// only ones any code referenced. The rest restated `FF_TTF_INSTRNAMES` below,
-/// which the dumper and parser actually use and which covers all 256 opcodes --
-/// checked name by name against it before removing them (121 matched exactly;
-/// `TTF_PUSHB`/`TTF_PUSHW` name the base of the eight `PUSHB_1`..`PUSHB_8`
-/// variants the table spells out).
+/// instructions. `u8`, since that is what `InstrData.instrs` holds. Every
+/// other opcode is looked up by name in `FF_TTF_INSTRNAMES` below.
 pub const TTF_NPUSHB: u8 = 64;
 pub const TTF_NPUSHW: u8 = 65;
 pub const TTF_PUSHB: u8 = 176;
 pub const TTF_PUSHW: u8 = 184;
-// Stage L-8: `instrs` is a real borrowed slice now, not a raw pointer --
-// every `InstrData` value only ever lives for the duration of one
-// `dump_ttinstr` call (never stored, never outlives its caller's own
-// buffer), so a lifetime parameter costs nothing at either of its two
-// call sites (both already hold a `&[u8]` for exactly as long as this
-// struct needs to borrow it). `bts`, in contrast, is allocated, filled,
-// and freed entirely within this file (`instr_typify` builds it,
-// `dump_ttinstr` reads it and drops it), so it converts cleanly to `Vec`
-// with no boundary to preserve.
+// `instrs` borrows the instruction bytes for one `dump_ttinstr` call; `bts`
+// (built by `instr_typify`) records each byte's role.
 #[derive(Debug)]
 pub struct InstrData<'a> {
     pub instrs: &'a [u8],
@@ -38,10 +25,8 @@ pub struct InstrData<'a> {
 }
 
 /// The role of one byte in a TrueType instruction stream: the opcode itself, or
-/// one of the operand bytes that follow a push.
-///
-/// `#[repr(u8)]` deliberately -- the array is `calloc`ed one byte per
-/// instruction byte, and `ByteType::Instr` being 0 is what makes that zeroing valid.
+/// one of the operand bytes that follow a push. `Instr` is 0, the role every
+/// byte starts with.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum ByteType {
@@ -380,40 +365,22 @@ fn strtol_base2(s: &[u8]) -> (i64, usize) {
     }
     (if neg { -val } else { val }, j)
 }
-/// Case-insensitive *exact-length* comparison, replacing `strnmatch(pt,
-/// name, end-pt) == 0 && (end-pt) == name.len()`'s combined condition.
-/// The original's own `strnmatch` call read up to `end-pt` bytes from
-/// `name` regardless of `name`'s own length -- reading past a shorter
-/// `FF_TTF_INSTRNAMES` entry's static array bounds whenever `end-pt`
-/// exceeded it, before the separate length check downstream ever ran.
-/// Comparing real slices (with the length check moved *first*) makes
-/// that read structurally impossible instead of merely detecting the
-/// mismatch afterward.
+/// Case-insensitive *exact-length* comparison. The length check runs first,
+/// so a token longer than `name` is rejected without reading past either
+/// slice.
 fn instr_name_matches(token: &[u8], name: &[u8]) -> bool {
     token.eq_ignore_ascii_case(name)
 }
 /// Case-insensitive *prefix* comparison -- `token` may be shorter than
-/// `name`, used only for the bracketed-family fallback scan
-/// (`MDRP[...]`/`MIRP[...]`-style names). The original's own second
-/// `strnmatch` call had no length-equality check at all, only the
-/// shared-prefix comparison through the bracket character; the
-/// `token.len() <= name.len()` guard here is the same "never read past
-/// either slice" fix `instr_name_matches` makes above.
+/// `name`. Used only for the bracketed-family fallback scan
+/// (`MDRP[...]`/`MIRP[...]`-style names); the `token.len() <= name.len()`
+/// guard keeps the comparison inside both slices.
 fn instr_name_has_prefix(token: &[u8], name: &[u8]) -> bool {
     token.len() <= name.len() && token.eq_ignore_ascii_case(&name[..token.len()])
 }
-// Was a `*mut c_void` context pointer + `Option<unsafe fn(*mut c_void,
-// ...)>` callback, type-erasing this function's two callers' distinct
-// concrete error handlers (`table/fpgm_prep.rs`'s `wrong_fpgm_prep_instr`,
-// `table/glyf.rs`'s `wrong_instrs_for_glyph`) behind a shared shape purely
-// so one function pointer type could stand in for both -- the same "type
-// erasure that was never actually needed" pattern already resolved for
-// `libcff/index.rs`'s `new_index_by_callback`, `libcff/dict.rs`'s
-// `parse_to_callback`, and `table/otl.rs`'s `otl_*_filter_env` family.
-// `context` is never dereferenced here, only threaded through to
-// `iv_error` -- a generic `impl FnMut` closure carries the same
-// information with no context pointer to thread at all, since each
-// concrete error handler can just capture what it needs directly.
+// `iv_error` is called with the offending token and its position for every
+// word that is neither a known instruction nor a number in range; each
+// caller (`table/fpgm_prep.rs`, `table/glyf.rs`) supplies its own warning.
 fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec<u8>> {
     let mut numberstack: [i16; 256] = [0; 256];
     let mut npos: i32;
@@ -787,20 +754,13 @@ pub fn parse_ttinstr(col: Option<&ParsedValue>, mut make: impl FnMut(Vec<u8>), m
         make(Vec::new());
         return;
     };
-    // No pre-computed total length needed any more (that was only ever in
-    // service of a single `sdsnewlen`/zero-filled-`Vec` allocation sized
-    // up front) -- `Vec::extend_from_slice`/`push` grow the buffer as they
-    // go, and there's no `strlen`-terminator byte to leave room for either
-    // (`parse_instrs` takes a real `&[u8]` now, with its own length).
     let mut instr_string: Vec<u8> = Vec::new();
     for record in items {
         if let Some(bytes) = record.as_str_bytes() {
             instr_string.extend_from_slice(bytes);
         } else if let Some(n) = record.as_int() {
-            // Matches the original's `snprintf(head, 20, "%d", n as i32)`
-            // exactly: plain decimal, no padding, and the same `as i32`
-            // truncation for a value that doesn't fit ("%d" reads a C
-            // `int`).
+            // Plain decimal of `n as i32`, matching the `%d` this output
+            // has always used.
             instr_string.extend(crate::bytesbuild!(n as i32));
         } else {
             make(Vec::new());
@@ -823,10 +783,9 @@ pub fn parse_ttinstr(col: Option<&ParsedValue>, mut make: impl FnMut(Vec<u8>), m
 mod tests {
     use super::*;
 
-    // `instr_typify` allocates the `bts` array with `__caryll_allocate_clean`,
-    // one byte per instruction byte, and then fills it in -- so `ByteType::Instr` has
-    // to be the zero variant (a calloc'ed enum with no zero variant is instantly
-    // invalid) and the type has to stay one byte wide or the allocation is short.
+    // `instr_typify` starts from a zero-filled array, one byte per
+    // instruction byte, so `ByteType::Instr` has to be the zero variant and
+    // the type has to stay one byte wide.
     #[test]
     fn byte_types_is_a_calloc_safe_byte() {
         assert_eq!(::core::mem::size_of::<ByteType>(), 1);
@@ -919,22 +878,14 @@ mod tests {
         assert_eq!(id.bts[1], ByteType::Byte);
     }
 
-    // Stage L-8: `instr_name_matches`'s `token.len() == name.len()` guard
-    // replaces the original's separate `(end-pt) == name.len()` check
-    // that ran *alongside* `strnmatch`'s own comparison -- both are
-    // required for a match, exact length included. "MDRP" (no bracket)
-    // is a genuine 4-character *prefix* of "MDRP[grey]" but is not
-    // itself a complete entry in `FF_TTF_INSTRNAMES` (every MDRP variant
-    // needs a bracketed or numeric-suffixed qualifier) -- a prefix-only
-    // comparison would wrongly resolve it to that opcode instead of
-    // falling through to "not recognized", exactly the same outcome an
-    // unrecognized name with no bracket at all gets (opcode 0, via the
-    // `i == 256 as u8` wraparound). This test failed when
-    // `instr_name_matches` was temporarily changed to `token.len() <=
-    // name.len()` (a prefix comparison) during development, confirming
-    // it actually exercises the guard -- `golden.rs`'s real-font fixtures
-    // did not catch that same change, since none of them happen to feed
-    // a bracket-family base name through without its bracket.
+    // `instr_name_matches` requires an exact length match. "MDRP" (no
+    // bracket) is a 4-character *prefix* of "MDRP[grey]" but is not itself
+    // an entry in `FF_TTF_INSTRNAMES` (every MDRP variant needs a bracketed
+    // or numeric-suffixed qualifier), so it must fall through to "not
+    // recognized" (opcode 0) rather than resolve to that opcode. This test
+    // fails if the guard is loosened to `token.len() <= name.len()`; none of
+    // `golden.rs`'s real-font fixtures feed a bracket-family base name
+    // through without its bracket.
     #[test]
     fn a_bracket_family_base_name_without_its_bracket_is_not_treated_as_a_prefix_match() {
         let mdrp_grey = FF_TTF_INSTRNAMES
@@ -962,16 +913,12 @@ mod tests {
         assert_eq!(strtol_base0(b"0x"), (0, 1));
     }
 
-    // Fuzz-found, pre-existing crash (see RUST_MIGRATION.md Stage M-14 and
-    // M-15): a decimal/hex/octal digit run long enough to overflow `i64`
-    // during accumulation used to panic with "attempt to multiply with
-    // overflow" (plain `val * 10 + digit` arithmetic). `strtol_base0` now
-    // saturates instead, mirroring libc `strtol`'s own overflow behavior
-    // (clamp to `LONG_MAX`/`LONG_MIN` and keep scanning digits), so a
-    // value this large -- however it's spelled -- can never be anything
-    // but `i64::MAX` here, which is guaranteed to fail `parse_instrs`'s
-    // `[-32768, 32767]` range check the same way libc's clamped
-    // `LONG_MAX` would.
+    // Fuzz-found: a digit run long enough to overflow `i64` during
+    // accumulation used to panic with "attempt to multiply with overflow".
+    // `strtol_base0` saturates instead, like libc `strtol` (clamp to
+    // `LONG_MAX`/`LONG_MIN` and keep scanning digits), so such a value is
+    // always `i64::MAX` here and always fails `parse_instrs`'s
+    // `[-32768, 32767]` range check.
     #[test]
     fn strtol_base0_saturates_on_overflow_instead_of_panicking() {
         assert_eq!(strtol_base0(b"99999999999999999999999"), (i64::MAX, 23));
