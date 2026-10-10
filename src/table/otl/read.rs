@@ -17,7 +17,7 @@ use crate::support::fmt::{Byte, Dec5, Hex2};
 // found a mutated GSUB table (real tag/count fields, `parse_language`'s
 // own `feature_count` loop dominating a `sample` profile of the hang)
 // that took 30+ minutes in CI. `MAX_TOTAL_LANGUAGES` caps the total
-// number of (script, langSys) pairs `parse_otl_common` will actually
+// number of (script, langSys) pairs `read_script_list` will actually
 // process, independent of how many any individual `require_room` check
 // would otherwise allow -- generous past what any real script/language
 // coverage table needs (a script with dozens of language systems is
@@ -38,7 +38,7 @@ const MAX_TOTAL_LANGUAGES: u32 = 10_000;
 // subtables even in large fonts, so this cap is far above legitimate
 // usage.
 const MAX_TOTAL_SUBTABLES_PER_LOOKUP: u16 = 1_000;
-// One level up from `MAX_TOTAL_SUBTABLES_PER_LOOKUP`: `parse_otl_common`'s
+// One level up from `MAX_TOTAL_SUBTABLES_PER_LOOKUP`: `read_lookup_list`'s
 // own `LookupList` loop reads `lookup_count` (raw `u16`, up to 65535) with
 // only `require_room` guarding that its own offset array fits -- true for
 // any large enough table. Every per-lookup cap below this one only bounds
@@ -79,7 +79,7 @@ pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 300;
 // culprit -- several caps across `otl/read.rs` and `chaining/read.rs`
 // were tightened together in that round.
 pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
-// A fourth amplification axis, in `parse_otl_common`'s own Feature List
+// A fourth amplification axis, in `read_feature_list`'s Feature List
 // loop (not `parse_language`'s -- a different function, despite the
 // similar-sounding name): `feature_count` (raw `u16`, up to 65535) had no
 // cap at all, unlike `lookup_count` a few lines above it, and each
@@ -225,7 +225,20 @@ fn parse_otl_common(
     let feature_list_offset = FontReader::new(data).at(6)?.u16()? as u32;
     let lookup_list_offset = FontReader::new(data).at(8)?.u16()? as u32;
 
-    // -- Lookup list --
+    read_lookup_list(data, lookup_list_offset, lookup_type_base, &mut table_box)?;
+    read_feature_list(data, feature_list_offset, &mut table_box, options)?;
+    read_script_list(data, script_list_offset, &mut table_box)?;
+    name_unnamed_lookups(&mut table_box, options);
+    Ok(table_box)
+}
+/// Reads the LookupList: each lookup's offset and type. The subtables are
+/// read later, by `read_otl_lookup`.
+fn read_lookup_list(
+    data: &[u8],
+    lookup_list_offset: u32,
+    lookup_type_base: LookupType,
+    table: &mut OtlTable,
+) -> Result<(), ReadError> {
     let mut lr = FontReader::new(data).at(lookup_list_offset as usize)?;
     let lookup_count = lr.u16()?;
     lr.require_room(lookup_count as usize, 2)?;
@@ -240,10 +253,18 @@ fn parse_otl_common(
         hr.require_room(6, 1)?;
         lookup._offset = lookup_offset;
         lookup.lookup_type = LookupType::from_file(lookup_type_base, hr.u16()?);
-        table_box.lookups.push(Some(lookup));
+        table.lookups.push(Some(lookup));
     }
-
-    // -- Feature list --
+    Ok(())
+}
+/// Reads the FeatureList, naming each feature after its tag and index, and
+/// naming each lookup after the first feature that references it.
+fn read_feature_list(
+    data: &[u8],
+    feature_list_offset: u32,
+    table: &mut OtlTable,
+    options: &Options,
+) -> Result<(), ReadError> {
     let mut fr = FontReader::new(data).at(feature_list_offset as usize)?;
     let feature_count = fr.u16()?;
     fr.require_room(feature_count as usize, 6)?;
@@ -279,10 +300,10 @@ fn parse_otl_common(
         fer.require_room(lookup_count_0 as usize, 2)?;
         for _ in 0..lookup_count_0.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
             let lookupid = fer.u16()?;
-            if (lookupid as usize) < table_box.lookups.len() {
+            if (lookupid as usize) < table.lookups.len() {
                 // Every slot is `Some` at this point in construction --
                 // holes only ever appear later, via consolidation.
-                let lookup_0 = table_box.lookups[lookupid as usize]
+                let lookup_0 = table.lookups[lookupid as usize]
                     .as_mut()
                     .expect("freshly read lookup slot should not be empty");
                 if lookup_0.name.is_empty() {
@@ -312,8 +333,8 @@ fn parse_otl_common(
                         lnk = lnk.wrapping_add(1);
                     }
                 }
-                // A borrowed cross-reference into `table_box.lookups`, not
-                // an owned value -- `table_box.lookups` is already fully
+                // A borrowed cross-reference into `table.lookups`, not
+                // an owned value -- `table.lookups` is already fully
                 // built, in final order, before any feature is parsed, so
                 // `lookupid` already *is* the final `LookupIdx`, no remap
                 // needed (unlike the JSON-parse path, see
@@ -321,10 +342,17 @@ fn parse_otl_common(
                 feature.lookups.push(LookupIdx(lookupid as u32));
             }
         }
-        table_box.features.push(Some(feature));
+        table.features.push(Some(feature));
     }
-
-    // -- Script list --
+    Ok(())
+}
+/// Reads the ScriptList: one `LanguageSystem` per script's default language
+/// and per `LangSysRecord`, up to `MAX_TOTAL_LANGUAGES` in total.
+fn read_script_list(
+    data: &[u8],
+    script_list_offset: u32,
+    table: &mut OtlTable,
+) -> Result<(), ReadError> {
     let mut sr = FontReader::new(data).at(script_list_offset as usize)?;
     let script_count = sr.u16()?;
     sr.require_room(script_count as usize, 6)?;
@@ -354,14 +382,13 @@ fn parse_otl_common(
                 data,
                 script_offset_0.wrapping_add(default_lang_system_0 as u32),
                 &mut lang,
-                &table_box.features,
+                &table.features,
                 &mut total_feature_refs,
             );
-            table_box.languages.push(lang);
+            table.languages.push(lang);
         }
-        // `langSysRecords[]` -- see this function's top comment: the
-        // original read `lang_sys_count` (attacker-controlled) entries of
-        // this array with no length check at all.
+        // `lang_sys_count` comes from the file: check the whole
+        // `langSysRecords[]` array fits before reading it.
         so.require_room(lang_sys_count as usize, 6)?;
         for _ in 0..lang_sys_count {
             let lang_tag = so.u32()?;
@@ -386,19 +413,22 @@ fn parse_otl_common(
                 data,
                 script_offset_0.wrapping_add(lang_sys as u32),
                 &mut lang_0,
-                &table_box.features,
+                &table.features,
                 &mut total_feature_refs,
             );
-            table_box.languages.push(lang_0);
+            table.languages.push(lang_0);
         }
     }
     if total_languages >= MAX_TOTAL_LANGUAGES {
         tracing::warn!("[otl] Total script/language count exceeded {}; the rest of this table's scripts are ignored.\n", MAX_TOTAL_LANGUAGES as i32);
     }
-
+    Ok(())
+}
+/// Names every lookup no feature referenced, after its type and index.
+fn name_unnamed_lookups(table: &mut OtlTable, options: &Options) {
     // Every slot is still `Some` here -- holes only ever appear later, via
     // consolidation, well after this function returns.
-    for (j_3, lookup) in table_box.lookups.iter_mut().flatten().enumerate() {
+    for (j_3, lookup) in table.lookups.iter_mut().flatten().enumerate() {
         if lookup.name.is_empty() {
             if let Some(prefix) = &options.glyph_name_prefix {
                 lookup.name = crate::bytesbuild!(
@@ -419,7 +449,6 @@ fn parse_otl_common(
             }
         }
     }
-    Ok(table_box)
 }
 fn read_otl_lookup(
     data: &[u8],
