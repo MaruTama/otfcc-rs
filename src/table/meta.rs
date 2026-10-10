@@ -87,11 +87,6 @@ pub fn read_meta(packet: &Packet) -> Option<Box<MetaTable>> {
     }
 }
 
-// `extern "C"` is a c2rust artifact -- this is only ever called from
-// `parse_meta` in this same file, never across a real FFI boundary,
-// same reasoning as every other `#[allow(improper_ctypes_definitions)]`
-// in this migration.
-#[allow(improper_ctypes_definitions)]
 pub fn parse_meta_data(v: Option<&ParsedValue>) -> Option<Vec<u8>> {
     let v = v?;
     if let Some(bytes) = v.as_str_bytes() {
@@ -192,7 +187,6 @@ pub fn dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue) {
     stage.finish();
 }
 
-#[allow(improper_ctypes_definitions)]
 pub fn build_meta(meta: Option<&MetaTable>) -> Option<Buffer> {
     let meta = match meta {
         Some(m) if !m.entries.is_empty() => m,

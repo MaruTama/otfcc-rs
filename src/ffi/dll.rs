@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 
 use otfcc_binary::Buffer;
 use crate::support::options::Options;
@@ -32,7 +31,9 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     }
     // The one place the raw `(pointer, length)` pair from the C caller is
     // turned into a slice; everything from here on is safe.
-    let Some(mut json_root) = parse_json(::core::slice::from_raw_parts(injson as *const u8, inlen as usize))
+    // SAFETY: the caller guarantees `injson` points to `inlen` readable bytes.
+    let input = unsafe { ::core::slice::from_raw_parts(injson as *const u8, inlen as usize) };
+    let Some(mut json_root) = parse_json(input)
     else {
         return ::core::ptr::null_mut::<Buffer>();
     };
@@ -53,7 +54,8 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
 /// [`otfccbuild_json_otf`] and not yet freed.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_len(buf: *mut Buffer) -> usize {
-    return (*buf).data.len();
+    // SAFETY: the caller guarantees `buf` is a live `Buffer` from this library.
+    return unsafe { (*buf).data.len() };
 }
 /// # Safety
 /// Same contract as [`otfcc_get_buf_len`]: `buf` must be non-null and
@@ -63,7 +65,8 @@ pub unsafe extern "C" fn otfcc_get_buf_len(buf: *mut Buffer) -> usize {
 /// not be used after `buf` is freed via [`otfccbuild_free_otfbuf`].
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
-    return (*buf).data.as_mut_ptr();
+    // SAFETY: as for `otfcc_get_buf_len`.
+    return unsafe { (*buf).data.as_mut_ptr() };
 }
 /// # Safety
 /// `buf` must either be null or point to a live `Buffer` obtained from
@@ -74,7 +77,9 @@ pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_free_otfbuf(buf: *mut Buffer) {
     if !buf.is_null() {
-        drop(Box::from_raw(buf));
+        // SAFETY: a non-null `buf` came from `Box::into_raw` in
+        // `otfccbuild_json_otf` and has not been freed.
+        drop(unsafe { Box::from_raw(buf) });
     }
 }
 
@@ -103,12 +108,15 @@ mod tests {
     // not just untested; the fix still needed to cover it; a future
     // change that makes `read_json` fail for real should add a case here.
     unsafe fn build(json: &[u8]) -> *mut Buffer {
-        otfccbuild_json_otf(
-            json.len() as u32,
-            json.as_ptr() as *const ::core::ffi::c_char,
-            0,
-            false,
-        )
+        // SAFETY: `json` is a live slice of `json.len()` bytes.
+        unsafe {
+            otfccbuild_json_otf(
+                json.len() as u32,
+                json.as_ptr() as *const ::core::ffi::c_char,
+                0,
+                false,
+            )
+        }
     }
 
     #[test]

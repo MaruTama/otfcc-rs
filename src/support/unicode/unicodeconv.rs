@@ -1,9 +1,4 @@
 #![forbid(unsafe_code)]
-// `utf16be_to_utf8`/`utf8toutf16be` return `Vec<u8>` now instead of
-// `SdsRaw`, each with its only caller (`table/name.rs`) a direct Rust
-// call site (never a real FFI boundary) -- same rationale as every other
-// instance of `#[allow(improper_ctypes_definitions)]` in this crate.
-
 /// Decodes big-endian UTF-16 (`name` table string data, per its own
 /// on-the-wire encoding) to UTF-8. An unpaired trailing byte is dropped
 /// silently (matches the original's `inlenb -= 1` truncation); a high
@@ -11,7 +6,6 @@
 /// 3-byte UTF-8 sequence for the raw, technically-invalid surrogate
 /// value) rather than rejected -- preserved verbatim from the C-derived
 /// original, not a deliberate design choice being made here.
-#[allow(improper_ctypes_definitions)]
 pub fn utf16be_to_utf8(inb: &[u8]) -> Vec<u8> {
     let inlen = inb.len() & !1;
     let inb = &inb[..inlen];
@@ -62,7 +56,6 @@ pub fn utf16be_to_utf8(inb: &[u8]) -> Vec<u8> {
 /// C-derived original, not a deliberate design choice being made here.
 /// Code points at or above `0x110000` (out of Unicode's range) are
 /// silently dropped, contributing zero bytes to the output.
-#[allow(improper_ctypes_definitions)]
 pub fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
     let inlen = _in.len();
     let mut out: Vec<u8> = Vec::with_capacity(inlen * 2);

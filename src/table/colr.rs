@@ -89,7 +89,6 @@ fn decode_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     }
     Ok(colr)
 }
-#[allow(improper_ctypes_definitions)]
 pub fn read_colr(packet: &Packet) -> Option<ColrTable> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_COLR)?;
     match decode_colr(&table.data) {
@@ -162,7 +161,6 @@ pub fn parse_colr(root: &ParsedValue) -> Option<ColrTable> {
     stage.finish();
     Some(colr)
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
     let src = match _colr {
         Some(c) if !c.is_empty() => c,

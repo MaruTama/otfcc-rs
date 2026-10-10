@@ -172,7 +172,6 @@ pub fn parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
     stage.finish();
     Some(vdmx)
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
     let vdmx = vdmx?;
     let ratios: &Vec<VdmxRatioRange> = &vdmx.ratios;

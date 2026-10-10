@@ -93,7 +93,6 @@ static MAC_STYLE_LABELS: [&str; 7] = [
     "condensed",
     "extended",
 ];
-#[allow(improper_ctypes_definitions)]
 pub fn dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -193,7 +192,6 @@ pub fn parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
     stage.finish();
     Some(Box::new(head))
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_head(head: Option<&HeadTable>) -> Option<Buffer> {
     let head = head?;
     let mut buf = Buffer::new();

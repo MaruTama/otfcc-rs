@@ -142,7 +142,6 @@ pub fn parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
     stage.finish();
     Some(Box::new(vhea))
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_vhea(vhea: Option<&VheaTable>) -> Option<Buffer> {
     let vhea = vhea?;
     let mut buf = Buffer::new();

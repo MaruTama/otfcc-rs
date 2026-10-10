@@ -79,7 +79,6 @@ fn decode_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
     }
     Ok(svg)
 }
-#[allow(improper_ctypes_definitions)]
 pub fn read_svg(packet: &Packet) -> Option<SvgTable> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_SVG)?;
     decode_svg(&table.data).ok()
@@ -152,7 +151,6 @@ pub fn parse_svg(root: &ParsedValue) -> Option<SvgTable> {
     }
     return Some(svg);
 }
-#[allow(improper_ctypes_definitions)]
 pub fn build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     let _svg = match _svg {
         Some(s) if !s.is_empty() => s,

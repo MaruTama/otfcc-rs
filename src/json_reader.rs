@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 
 use crate::logger::ByteStr;
 use crate::support::json_limits::{MAX_ENTRIES, find_oversized_collection};
