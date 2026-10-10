@@ -64,13 +64,14 @@ pub(crate) fn new_empty_cff_index() -> CffIndex {
     }
 }
 pub(crate) fn get_index_length(i: &CffIndex) -> u32 {
-    if i.count != 0 as Arity {
-        let offset = &i.offset;
-        return 3_u32
-            .wrapping_add((offset[i.count as usize]).wrapping_sub(1_u32))
-            .wrapping_add(i.count.wrapping_add(1_u32).wrapping_mul(i.off_size as u32));
+    if i.count != 0 {
+        // Read from the font, so the arithmetic wraps rather than panics on
+        // a corrupt offset.
+        let data_len = i.offset[i.count as usize].wrapping_sub(1);
+        let offsets_len = i.count.wrapping_add(1).wrapping_mul(i.off_size as u32);
+        return 3u32.wrapping_add(data_len).wrapping_add(offsets_len);
     } else {
-        return 3_u32;
+        return 3;
     };
 }
 pub(crate) fn empty_index(i: &mut CffIndex) {
@@ -188,32 +189,18 @@ pub(crate) fn new_index_by_callback(
     mut items: impl Iterator<Item = Buffer>,
 ) -> CffIndex {
     let count = length as Arity;
-    let mut offset: Vec<u32> = vec![0_u32; count.wrapping_add(1 as Arity) as usize];
-    offset[0_usize] = 1_u32;
+    let mut offset: Vec<u32> = Vec::with_capacity(count as usize + 1);
+    offset.push(1);
     let mut data: Vec<u8> = Vec::new();
-    let mut used: usize = 0_usize;
-    let mut blank: usize = 0_usize;
-    for i in 0..length {
+    for _ in 0..length {
         let blob: Buffer = items.next().expect("iterator shorter than length");
-        let blob_size: usize = blob.data.len();
-        if blank < blob_size {
-            used = used.wrapping_add(blob_size);
-            blank = used >> 1_i32 & 0xffffff_i32 as usize;
-            data.resize(used.wrapping_add(blank), 0_u8);
-        } else {
-            used = used.wrapping_add(blob_size);
-            blank = blank.wrapping_sub(blob_size);
-        }
-        let write_at: usize = (offset[i as usize] as usize).wrapping_sub(1_usize);
-        offset[i.wrapping_add(1 as Arity) as usize] =
-            blob_size.wrapping_add(offset[i as usize] as usize) as u32;
-        data[write_at..write_at.wrapping_add(blob_size)].copy_from_slice(&blob.data);
+        data.extend_from_slice(&blob.data);
+        offset.push(data.len() as u32 + 1);
     }
-    data.truncate(used);
     CffIndex {
         count_type: CffIndexCountType::U16,
         count,
-        off_size: 4_u8,
+        off_size: 4,
         offset,
         data,
     }
@@ -221,55 +208,29 @@ pub(crate) fn new_index_by_callback(
 pub(crate) fn build_index(index: &CffIndex) -> Buffer {
     let mut blob = Buffer::new();
     if index.count == 0 {
-        blob.write_u8(0_u8);
-        blob.write_u8(0_u8);
-        blob.write_u8(0_u8);
+        blob.write_bytes(&[0, 0, 0]);
         return blob;
     }
     let offset = &index.offset;
     let last_offset: u32 = offset[index.count as usize];
-    let off_size: u8;
-    if last_offset < 0x100_u32 {
-        off_size = 1_u8;
-    } else if last_offset < 0x10000_u32 {
-        off_size = 2_u8;
-    } else if last_offset < 0x1000000_u32 {
-        off_size = 3_u8;
+    let off_size: usize = if last_offset < 0x100 {
+        1
+    } else if last_offset < 0x10000 {
+        2
+    } else if last_offset < 0x1000000 {
+        3
     } else {
-        off_size = 4_u8;
+        4
+    };
+    blob.write_u16be(index.count as u16);
+    blob.write_u8(off_size as u8);
+    for &offset_i in &offset[..=index.count as usize] {
+        // Each offset big-endian, in its last `off_size` bytes.
+        blob.write_bytes(&offset_i.to_be_bytes()[4 - off_size..]);
     }
-    blob.write_u8(index.count.wrapping_div(256 as Arity) as u8);
-    blob.write_u8(index.count.wrapping_rem(256 as Arity) as u8);
-    blob.write_u8(off_size);
-    if index.count > 0 as Arity {
-        for i in 0..=index.count {
-            let offset_i: u32 = offset[i as usize];
-            match off_size as i32 {
-                1 => {
-                    blob.write_u8(offset_i as u8);
-                }
-                2 => {
-                    blob.write_u8(offset_i.wrapping_div(256_u32) as u8);
-                    blob.write_u8(offset_i.wrapping_rem(256_u32) as u8);
-                }
-                3 => {
-                    blob.write_u8(offset_i.wrapping_div(65536_u32) as u8);
-                    blob.write_u8(offset_i.wrapping_rem(65536_u32).wrapping_div(256_u32) as u8);
-                    blob.write_u8(offset_i.wrapping_rem(65536_u32).wrapping_rem(256_u32) as u8);
-                }
-                4 => {
-                    blob.write_u8(offset_i.wrapping_div(65536_u32).wrapping_div(256_u32) as u8);
-                    blob.write_u8(offset_i.wrapping_div(65536_u32).wrapping_rem(256_u32) as u8);
-                    blob.write_u8(offset_i.wrapping_rem(65536_u32).wrapping_div(256_u32) as u8);
-                    blob.write_u8(offset_i.wrapping_rem(65536_u32).wrapping_rem(256_u32) as u8);
-                }
-                _ => {}
-            }
-        }
-        if !index.data.is_empty() {
-            let n = (offset[index.count as usize]).wrapping_sub(1_u32) as usize;
-            blob.write_bytes(&index.data[..n]);
-        }
+    if !index.data.is_empty() {
+        let n = offset[index.count as usize].wrapping_sub(1) as usize;
+        blob.write_bytes(&index.data[..n]);
     }
     return blob;
 }

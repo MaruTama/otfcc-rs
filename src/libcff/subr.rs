@@ -500,7 +500,7 @@ fn process_match_doublet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     } else {
         rule = g.alloc_rule();
         g.rule_mut(rule).unique_index = g.total_rules;
-        g.total_rules = g.total_rules.wrapping_add(1);
+        g.total_rules += 1;
         g.rule_mut(g.last).next = Some(rule);
         g.last = rule;
         let last_of_rule = last_node_of(g, rule);
@@ -536,7 +536,7 @@ fn process_match_singlet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     } else {
         rule = g.alloc_rule();
         g.rule_mut(rule).unique_index = g.total_rules;
-        g.total_rules = g.total_rules.wrapping_add(1);
+        g.total_rules += 1;
         g.rule_mut(g.last).next = Some(rule);
         g.last = rule;
         let last_of_rule = last_node_of(g, rule);
@@ -648,11 +648,11 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
         }
     }
     if !blob.data.is_empty() {
-        let n_0 = g.alloc_node();
-        g.node_mut(n_0).rule = None;
-        g.node_mut(n_0).last = last;
-        g.node_mut(n_0).terminal = Some(blob);
-        append_node_to_graph(g, n_0);
+        let tail = g.alloc_node();
+        g.node_mut(tail).rule = None;
+        g.node_mut(tail).last = last;
+        g.node_mut(tail).terminal = Some(blob);
+        append_node_to_graph(g, tail);
     }
     // A pre-existing leak used to live here: a leftover empty `blob`
     // (only reachable for an IL with zero instructions -- e.g. a
@@ -660,28 +660,29 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
     // Now that `blob` is an owned `Buffer`, that leak is structurally
     // impossible -- there is nothing left to free explicitly, so this
     // reassignment site doesn't need to exist at all.
-    let n_1 = g.alloc_node();
-    g.node_mut(n_1).rule = None;
-    g.node_mut(n_1).terminal = Some(Buffer::new());
-    g.node_mut(n_1).hard = true;
-    append_node_to_graph(g, n_1);
-    g.total_char_strings = g.total_char_strings.wrapping_add(1_u32);
+    // An empty hard terminal marks the end of this charstring.
+    let end = g.alloc_node();
+    g.node_mut(end).rule = None;
+    g.node_mut(end).terminal = Some(Buffer::new());
+    g.node_mut(end).hard = true;
+    append_node_to_graph(g, end);
+    g.total_char_strings += 1;
 }
 fn cff_stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
     if height > g.rule(r).height {
         g.rule_mut(r).height = height;
     }
-    let mut effective_length: u32 = 0_u32;
+    let mut effective_length: u32 = 0;
     let guard = g.rule(r).guard;
     let mut e = g.node(guard).next.unwrap();
     while e != guard {
         let rule = g.node(e).rule;
         if let Some(er) = rule {
-            cff_stat_height(g, er, height.wrapping_add(1_u32));
-            effective_length = effective_length.wrapping_add(4_u32);
+            cff_stat_height(g, er, height + 1);
+            effective_length += 4;
         } else {
             let terminal_len = g.node(e).terminal.as_ref().unwrap().data.len();
-            effective_length = (effective_length as usize).wrapping_add(terminal_len) as u32;
+            effective_length += terminal_len as u32;
         }
         e = g.node(e).next.unwrap();
     }
@@ -696,15 +697,15 @@ fn number_a_subroutine(g: &mut CffSubrGraph, r: RuleId, current: &mut u32) {
     }
     if g.rule(r)
         .effective_length
-        .wrapping_sub(4_u32)
-        .wrapping_mul(g.rule(r).refcount.wrapping_sub(1_u32))
-        .wrapping_sub(4_u32)
-        == 0_u32
+        .wrapping_sub(4)
+        .wrapping_mul(g.rule(r).refcount.wrapping_sub(1))
+        .wrapping_sub(4)
+        == 0
     {
         return;
     }
     g.rule_mut(r).number = *current;
-    *current = (*current).wrapping_add(1);
+    *current += 1;
     g.rule_mut(r).numbered = true;
     let guard = g.rule(r).guard;
     let mut e = g.node(guard).next.unwrap();
@@ -716,7 +717,7 @@ fn number_a_subroutine(g: &mut CffSubrGraph, r: RuleId, current: &mut u32) {
     }
 }
 fn cff_number_subroutines(g: &mut CffSubrGraph) -> u32 {
-    let mut current: u32 = 0_u32;
+    let mut current: u32 = 0;
     let root = g.root;
     let guard = g.rule(root).guard;
     let mut e = g.node(guard).next.unwrap();
@@ -730,12 +731,12 @@ fn cff_number_subroutines(g: &mut CffSubrGraph) -> u32 {
 }
 #[inline]
 fn subroutine_bias(cnt: i32) -> i32 {
-    if cnt < 1240_i32 {
-        return 107_i32;
-    } else if cnt < 33900_i32 {
-        return 1131_i32;
+    if cnt < 1240 {
+        return 107;
+    } else if cnt < 33900 {
+        return 1131;
     } else {
-        return 32768_i32;
+        return 32768;
     };
 }
 fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
@@ -791,23 +792,20 @@ fn serialize_node_to_buffer(
             (ru.numbered, ru.number, ru.height)
         };
         if numbered
-            && number < max_l_subrs.wrapping_add(max_g_subrs)
+            && number < max_l_subrs + max_g_subrs
             && r_height < TYPE2_SUBR_NESTING
         {
             let target: SubrRef;
             if number < max_l_subrs {
-                let stacknum: i32 =
-                    number.wrapping_sub(subroutine_bias(max_l_subrs as i32) as u32) as i32;
+                let stacknum: i32 = number as i32 - subroutine_bias(max_l_subrs as i32);
                 target = SubrRef::LSubr(number as usize);
                 cff_merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
                 cff_merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLSUBR);
             } else {
-                let stacknum_0: i32 = number
-                    .wrapping_sub(max_l_subrs)
-                    .wrapping_sub(subroutine_bias(max_g_subrs as i32) as u32)
-                    as i32;
-                target = SubrRef::GSubr(number.wrapping_sub(max_l_subrs) as usize);
-                cff_merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum_0);
+                let gsubr = number - max_l_subrs;
+                let stacknum: i32 = gsubr as i32 - subroutine_bias(max_g_subrs as i32);
+                target = SubrRef::GSubr(gsubr as usize);
+                cff_merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
                 cff_merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLGSUBR);
             }
             if !g.rule(r).printed {
@@ -837,13 +835,13 @@ fn serialize_node_to_buffer(
             }
         } else {
             let guard = g.rule(r).guard;
-            let mut e_0 = g.node(guard).next.unwrap();
-            while e_0 != guard {
-                let next = g.node(e_0).next.unwrap();
+            let mut e = g.node(guard).next.unwrap();
+            while e != guard {
+                let next = g.node(e).next.unwrap();
                 serialize_node_to_buffer(
-                    g, e_0, buf, top, gsubrs, max_g_subrs, lsubrs, max_l_subrs,
+                    g, e, buf, top, gsubrs, max_g_subrs, lsubrs, max_l_subrs,
                 );
-                e_0 = next;
+                e = next;
             }
         }
     } else {
@@ -855,21 +853,22 @@ pub fn cff_il_graph_to_buffers(
     g: &mut CffSubrGraph,
 ) -> (Buffer, Buffer, Buffer) {
     let root = g.root;
-    cff_stat_height(g, root, 0_u32);
+    cff_stat_height(g, root, 0);
     let max_subroutines: u32 = cff_number_subroutines(g);
     tracing::debug!("[libcff] Total {} subroutines extracted.", max_subroutines);
     let mut max_l_subrs: u32 = max_subroutines;
-    let mut max_g_subrs: u32 = 0_u32;
+    let mut max_g_subrs: u32 = 0;
     if max_l_subrs > TYPE2_MAX_SUBRS {
         max_l_subrs = TYPE2_MAX_SUBRS;
-        max_g_subrs = max_subroutines.wrapping_sub(max_l_subrs);
+        max_g_subrs = max_subroutines - max_l_subrs;
     }
     if max_g_subrs > TYPE2_MAX_SUBRS {
         max_g_subrs = TYPE2_MAX_SUBRS;
     }
-    let total: u32 = max_l_subrs.wrapping_add(max_g_subrs);
-    max_l_subrs = total.wrapping_div(2_u32);
-    max_g_subrs = total.wrapping_sub(max_l_subrs);
+    // Split evenly between local and global subroutines.
+    let total: u32 = max_l_subrs + max_g_subrs;
+    max_l_subrs = total / 2;
+    max_g_subrs = total - max_l_subrs;
     // Was three `__caryll_allocate_clean`'d `*mut Buffer` arrays, each freed
     // field-by-field (every `.data`) and then as a whole -- the same
     // "malloc'd scratch array of plain structs" shape already converted to
@@ -886,11 +885,11 @@ pub fn cff_il_graph_to_buffers(
         data: Vec::new(),
     };
     let mut char_strings: Vec<Buffer> =
-        vec![zero_buffer.clone(); g.total_char_strings.wrapping_add(1_u32) as usize];
-    let mut lsubrs: Vec<Buffer> =
-        vec![zero_buffer.clone(); max_l_subrs.wrapping_add(1_u32) as usize];
-    let mut gsubrs: Vec<Buffer> = vec![zero_buffer; max_g_subrs.wrapping_add(1_u32) as usize];
-    let mut j: u32 = 0_u32;
+        vec![zero_buffer.clone(); g.total_char_strings as usize + 1];
+    let mut lsubrs: Vec<Buffer> = vec![zero_buffer.clone(); max_l_subrs as usize + 1];
+    let mut gsubrs: Vec<Buffer> = vec![zero_buffer; max_g_subrs as usize + 1];
+    // The charstring the next top-level node belongs to.
+    let mut j: u32 = 0;
     let root = g.root;
     let guard = g.rule(root).guard;
     let mut e = g.node(guard).next.unwrap();
@@ -911,7 +910,7 @@ pub fn cff_il_graph_to_buffers(
             max_l_subrs,
         );
         if e_rule.is_none() && e_terminal_is_some && e_hard {
-            j = j.wrapping_add(1);
+            j += 1;
         }
         e = next;
     }

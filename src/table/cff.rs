@@ -24,7 +24,6 @@ use crate::libcff::{
 use otfcc_binary::Buffer;
 use crate::support::options::Options;
 use crate::support::primitives::{Arity, CffSid, GlyphId, Pos, Scale, ShapeId, TableId};
-use crate::support::{FALSE_0, TRUE_0};
 use crate::table::glyf::{
     Contour, GlyfTable, Glyph, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList,
 };
@@ -50,7 +49,7 @@ use crate::libcff::subr::{
 use otfcc_json::BuiltValue;
 use crate::support::primitives::{from_fixed, to_fixed, until_nul};
 use crate::table::fvar::json_new_vq;
-use crate::table::glyf::{StemMask, glyf_point_init, new_glyf_glyph, table_glyf_create_n};
+use crate::table::glyf::{StemMask, new_glyf_glyph, table_glyf_create_n};
 use crate::vf::vq::{
     vq_compare, vq_create_still, vq_get_still, vq_inplace_plus, vq_neutral, vq_point_linear_tfm,
     vq_scale,
@@ -320,108 +319,108 @@ fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], co
     match op.0 {
         6 => {
             pd.blue_values = (0..top as Arity)
-                .map(|j| cffnum(stack[(j as isize) as usize]))
+                .map(|j| cffnum(stack[j as usize]))
                 .collect();
         }
         7 => {
             pd.other_blues = (0..top as Arity)
-                .map(|j| cffnum(stack[(j as isize) as usize]))
+                .map(|j| cffnum(stack[j as usize]))
                 .collect();
         }
         8 => {
             pd.family_blues = (0..top as Arity)
-                .map(|j| cffnum(stack[(j as isize) as usize]))
+                .map(|j| cffnum(stack[j as usize]))
                 .collect();
         }
         9 => {
             pd.family_other_blues = (0..top as Arity)
-                .map(|j| cffnum(stack[(j as isize) as usize]))
+                .map(|j| cffnum(stack[j as usize]))
                 .collect();
         }
         3084 => {
             pd.stem_snap_h = (0..top as Arity)
-                .map(|j| cffnum(stack[(j as isize) as usize]))
+                .map(|j| cffnum(stack[j as usize]))
                 .collect();
         }
         3085 => {
             pd.stem_snap_v = (0..top as Arity)
-                .map(|j| cffnum(stack[(j as isize) as usize]))
+                .map(|j| cffnum(stack[j as usize]))
                 .collect();
         }
         3081 => {
             if top != 0 {
                 pd.blue_scale = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         3082 => {
             if top != 0 {
                 pd.blue_shift = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         3083 => {
             if top != 0 {
                 pd.blue_fuzz = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         10 => {
             if top != 0 {
                 pd.std_hw = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         11 => {
             if top != 0 {
                 pd.std_vw = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         3086 => {
             if top != 0 {
                 pd.force_bold = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 ) != 0.;
             }
         }
         3089 => {
             if top != 0 {
                 pd.language_group = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 ) as u32;
             }
         }
         3090 => {
             if top != 0 {
                 pd.expansion_factor = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         3091 => {
             if top != 0 {
                 pd.initial_random_seed = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         20 => {
             if top != 0 {
                 pd.default_width_x = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         21
             if top != 0 => {
                 pd.nominal_width_x = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         _ => {}
@@ -441,7 +440,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             if top != 0 {
                 meta.version = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 1_i32) as isize) as usize],
+                        stack[top as usize - 1],
                     ) as u16,
                     &file.string,
                 )
@@ -452,7 +451,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             if top != 0 {
                 meta.notice = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 1_i32) as isize) as usize],
+                        stack[top as usize - 1],
                     ) as u16,
                     &file.string,
                 )
@@ -463,7 +462,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             if top != 0 {
                 meta.copyright = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 1_i32) as isize) as usize],
+                        stack[top as usize - 1],
                     ) as u16,
                     &file.string,
                 )
@@ -474,7 +473,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             if top != 0 {
                 meta.font_name = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 1_i32) as isize) as usize],
+                        stack[top as usize - 1],
                     ) as u16,
                     &file.string,
                 )
@@ -485,7 +484,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             if top != 0 {
                 meta.full_name = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 1_i32) as isize) as usize],
+                        stack[top as usize - 1],
                     ) as u16,
                     &file.string,
                 )
@@ -496,7 +495,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             if top != 0 {
                 meta.family_name = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 1_i32) as isize) as usize],
+                        stack[top as usize - 1],
                     ) as u16,
                     &file.string,
                 )
@@ -507,7 +506,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             if top != 0 {
                 meta.weight = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 1_i32) as isize) as usize],
+                        stack[top as usize - 1],
                     ) as u16,
                     &file.string,
                 )
@@ -515,23 +514,23 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             }
         }
         5 => {
-            if top as i32 >= 4_i32 {
+            if top >= 4 {
                 meta.font_b_box_left = cffnum(
-                    stack[((top as i32 - 4_i32) as isize) as usize],
+                    stack[top as usize - 4],
                 );
                 meta.font_b_box_bottom = cffnum(
-                    stack[((top as i32 - 3_i32) as isize) as usize],
+                    stack[top as usize - 3],
                 );
                 meta.font_b_box_right = cffnum(
-                    stack[((top as i32 - 2_i32) as isize) as usize],
+                    stack[top as usize - 2],
                 );
                 meta.font_b_box_top = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         3079 => {
-            if top as i32 >= 6_i32 {
+            if top >= 6 {
                 meta.font_matrix = Some(Box::new(CffFontMatrix {
                     a: 0.,
                     b: 0.,
@@ -542,67 +541,67 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
                 }));
                 let fm: &mut CffFontMatrix = meta.font_matrix.as_deref_mut().unwrap();
                 fm.a = cffnum(
-                    stack[((top as i32 - 6_i32) as isize) as usize],
+                    stack[top as usize - 6],
                 ) as Scale;
                 fm.b = cffnum(
-                    stack[((top as i32 - 5_i32) as isize) as usize],
+                    stack[top as usize - 5],
                 ) as Scale;
                 fm.c = cffnum(
-                    stack[((top as i32 - 4_i32) as isize) as usize],
+                    stack[top as usize - 4],
                 ) as Scale;
                 fm.d = cffnum(
-                    stack[((top as i32 - 3_i32) as isize) as usize],
+                    stack[top as usize - 3],
                 ) as Scale;
                 fm.x = vq_create_still(cffnum(
-                    stack[((top as i32 - 2_i32) as isize) as usize],
+                    stack[top as usize - 2],
                 ) as Pos);
                 fm.y = vq_create_still(cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 ) as Pos);
             }
         }
         3073 => {
             if top != 0 {
                 meta.is_fixed_pitch = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 ) != 0.;
             }
         }
         3074 => {
             if top != 0 {
                 meta.italic_angle = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         3075 => {
             if top != 0 {
                 meta.underline_position = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         3076 => {
             if top != 0 {
                 meta.underline_thickness = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         3080 => {
             if top != 0 {
                 meta.stroke_width = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 );
             }
         }
         18 => {
-            if top as i32 >= 2_i32 {
+            if top >= 2 {
                 let private_length: u32 = cffnum(
-                    stack[((top as i32 - 2_i32) as isize) as usize],
+                    stack[top as usize - 2],
                 ) as u32;
                 let private_offset: u32 = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 ) as u32;
                 meta.private_dict = Some(new_cff_private());
                 // `private_offset`/`private_length` are DICT operator-18's
@@ -631,24 +630,24 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
             }
         }
         3102
-            if top as i32 >= 3_i32 => {
+            if top >= 3 => {
                 meta.is_cid = true;
                 meta.cid_registry = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 3_i32) as isize) as usize],
+                        stack[top as usize - 3],
                     ) as u16,
                     &file.string,
                 )
                 .unwrap_or_default();
                 meta.cid_ordering = get_cff_sid(
                     cffnum(
-                        stack[((top as i32 - 2_i32) as isize) as usize],
+                        stack[top as usize - 2],
                     ) as u16,
                     &file.string,
                 )
                 .unwrap_or_default();
                 meta.cid_supplement = cffnum(
-                    stack[((top as i32 - 1_i32) as isize) as usize],
+                    stack[top as usize - 1],
                 ) as u32;
             }
         _ => {}
@@ -660,7 +659,7 @@ pub(crate) fn callback_draw_setwidth(context: &mut OutlineBuilderContext, width:
 pub(crate) fn callback_draw_next_contour(context: &mut OutlineBuilderContext) {
     context.g.contours.push(Vec::new());
     context.j_contour = context.g.contours.len() as ShapeId;
-    context.j_point = 0 as ShapeId;
+    context.j_point = 0;
 }
 pub(crate) fn callback_draw_lineto(
     context: &mut OutlineBuilderContext,
@@ -668,24 +667,17 @@ pub(crate) fn callback_draw_lineto(
     y1: f64,
 ) {
     if context.j_contour != 0 {
-        let contour: &mut Contour = &mut context.g.contours[(context.j_contour as i32 - 1_i32) as usize];
-        let mut z: Point = Point {
-            x: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            y: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            on_curve: 0,
-        };
-        glyf_point_init(&mut z);
-        z.on_curve = TRUE_0 as i8;
-        z.x = vq_create_still(x1 as Pos);
-        z.y = vq_create_still(y1 as Pos);
-        contour.push(z);
-        context.j_point = (context.j_point as i32 + 1_i32) as ShapeId;
+        let contour: &mut Contour = &mut context.g.contours[context.j_contour as usize - 1];
+        contour.push(still_point(x1, y1, true));
+        context.j_point = context.j_point.wrapping_add(1);
+    }
+}
+/// A point with fixed coordinates, on or off the curve.
+fn still_point(x: f64, y: f64, on_curve: bool) -> Point {
+    Point {
+        x: vq_create_still(x),
+        y: vq_create_still(y),
+        on_curve: on_curve as i8,
     }
 }
 pub(crate) fn callback_draw_curveto(
@@ -698,56 +690,11 @@ pub(crate) fn callback_draw_curveto(
     y3: f64,
 ) {
     if context.j_contour != 0 {
-        let contour: &mut Contour = &mut context.g.contours[(context.j_contour as i32 - 1_i32) as usize];
-        let mut z: Point = Point {
-            x: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            y: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            on_curve: 0,
-        };
-        glyf_point_init(&mut z);
-        z.on_curve = FALSE_0 as i8;
-        z.x = vq_create_still(x1 as Pos);
-        z.y = vq_create_still(y1 as Pos);
-        contour.push(z);
-        let mut z_0: Point = Point {
-            x: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            y: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            on_curve: 0,
-        };
-        glyf_point_init(&mut z_0);
-        z_0.on_curve = FALSE_0 as i8;
-        z_0.x = vq_create_still(x2 as Pos);
-        z_0.y = vq_create_still(y2 as Pos);
-        contour.push(z_0);
-        let mut z_1: Point = Point {
-            x: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            y: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            on_curve: 0,
-        };
-        glyf_point_init(&mut z_1);
-        z_1.on_curve = TRUE_0 as i8;
-        z_1.x = vq_create_still(x3 as Pos);
-        z_1.y = vq_create_still(y3 as Pos);
-        contour.push(z_1);
-        context.j_point = (context.j_point as i32 + 3_i32) as ShapeId;
+        let contour: &mut Contour = &mut context.g.contours[context.j_contour as usize - 1];
+        contour.push(still_point(x1, y1, false));
+        contour.push(still_point(x2, y2, false));
+        contour.push(still_point(x3, y3, true));
+        context.j_point = context.j_point.wrapping_add(3);
     }
 }
 pub(crate) fn callback_draw_sethint(
@@ -972,16 +919,12 @@ fn build_outline(
             z.x = cx.clone();
             z.y = cy.clone();
         }
-        if vq_compare(
-            contour[0_usize].x.clone(),
-            contour[contour.len().wrapping_sub(1_usize)].x.clone(),
-        ) == 0
-            && vq_compare(
-                contour[0_usize].y.clone(),
-                contour[contour.len().wrapping_sub(1_usize)].y.clone(),
-            ) == 0
-            && (contour[0_usize].on_curve as i32 != 0
-                && contour[contour.len().wrapping_sub(1_usize)].on_curve as i32 != 0)
+        // Drop a closing point that repeats the first, both on the curve.
+        let (first, last) = (&contour[0], &contour[contour.len() - 1]);
+        if vq_compare(first.x.clone(), last.x.clone()) == 0
+            && vq_compare(first.y.clone(), last.y.clone()) == 0
+            && first.on_curve != 0
+            && last.on_curve != 0
         {
             contour.pop();
         }
@@ -997,118 +940,41 @@ fn form_cid_string(cid: CffSid) -> Vec<u8> {
     return crate::bytesbuild!(b"CID", cid as i32);
 }
 fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_file: &CffFile) {
-    let charset: &CffCharset = &cff_file.charsets;
     let is_cid = meta.is_cid;
-    if is_cid {
-        match charset {
-            CffCharset::Format0(glyph) => {
-                for (j, &g) in glyph.iter().enumerate() {
-                    let sid: CffSid = g as CffSid;
-                    let glyphname: Option<Vec<u8>> =
-                        get_cff_sid(sid as u16, &cff_file.string);
-                    if let Some(glyphname) = glyphname {
-                        glyphs[j + 1].as_mut().unwrap().name = glyphname;
-                        glyphs[j + 1].as_mut().unwrap().cid = sid as GlyphId;
+    // Ranges of format 1 and 2 charsets as (first SID, count), in glyph
+    // order from glyph 1. The SID arithmetic wraps, as it always has, for a
+    // range that runs past 65535.
+    let ranges: Vec<(CffSid, u32)> = match &cff_file.charsets {
+        CffCharset::Format0(sids) => {
+            // An explicit SID per glyph. A CID font names its glyphs by
+            // string too here, and records the SID as the CID.
+            for (j, &sid) in sids.iter().enumerate() {
+                if let Some(name) = get_cff_sid(sid, &cff_file.string) {
+                    let glyph = glyphs[j + 1].as_mut().unwrap();
+                    glyph.name = name;
+                    if is_cid {
+                        glyph.cid = sid as GlyphId;
                     }
                 }
             }
-            CffCharset::Format1(range1) => {
-                let mut glyphs_named_sofar: u32 = 1_u32;
-                for r in range1 {
-                    let first: CffSid = r.first as CffSid;
-                    for k in 0..=r.nleft {
-                        let sid_0: CffSid = (first as i32 + k as i32) as CffSid;
-                        let glyphname_0: Vec<u8> = form_cid_string(sid_0);
-                        if (glyphs_named_sofar as usize) < glyphs.len() {
-                            glyphs[glyphs_named_sofar as usize]
-                                .as_mut()
-                                .unwrap()
-                                .name = glyphname_0;
-                            glyphs[glyphs_named_sofar as usize]
-                                .as_mut()
-                                .unwrap()
-                                .cid = sid_0 as GlyphId;
-                        }
-                        glyphs_named_sofar = glyphs_named_sofar.wrapping_add(1);
-                    }
-                }
-            }
-            CffCharset::Format2(range2) => {
-                let mut glyphs_named_sofar_0: u32 = 1_u32;
-                for r in range2 {
-                    let first_0: CffSid = r.first as CffSid;
-                    for k_0 in 0..=r.nleft {
-                        let sid_1: CffSid = (first_0 as i32 + k_0 as i32) as CffSid;
-                        let glyphname_1: Vec<u8> = form_cid_string(sid_1);
-                        if (glyphs_named_sofar_0 as usize) < glyphs.len() {
-                            glyphs[glyphs_named_sofar_0 as usize]
-                                .as_mut()
-                                .unwrap()
-                                .name = glyphname_1;
-                            glyphs[glyphs_named_sofar_0 as usize]
-                                .as_mut()
-                                .unwrap()
-                                .cid = sid_1 as GlyphId;
-                        }
-                        glyphs_named_sofar_0 = glyphs_named_sofar_0.wrapping_add(1);
-                    }
-                }
-            }
-            _ => {}
+            return;
         }
-    } else {
-        match charset {
-            CffCharset::Format0(glyph) => {
-                for (j_2, &g) in glyph.iter().enumerate() {
-                    let sid_2: CffSid = g as CffSid;
-                    let glyphname_2: Option<Vec<u8>> =
-                        get_cff_sid(sid_2 as u16, &cff_file.string);
-                    if let Some(glyphname_2) = glyphname_2 {
-                        glyphs[j_2 + 1].as_mut().unwrap().name = glyphname_2;
-                    }
-                }
-            }
-            CffCharset::Format1(range1) => {
-                let mut glyphs_named_sofar_1: u32 = 1_u32;
-                for r in range1 {
-                    let first_1: GlyphId = r.first as GlyphId;
-                    for k_1 in 0..=r.nleft {
-                        let sid_3: CffSid = (first_1 as i32 + k_1 as i32) as CffSid;
-                        let glyphname_3: Option<Vec<u8>> =
-                            get_cff_sid(sid_3 as u16, &cff_file.string);
-                        if (glyphs_named_sofar_1 as usize) < glyphs.len()
-                            && let Some(glyphname_3) = glyphname_3 {
-                                glyphs[glyphs_named_sofar_1 as usize]
-                                    .as_mut()
-                                    .unwrap()
-                                    .name = glyphname_3;
-                            }
-                        glyphs_named_sofar_1 = glyphs_named_sofar_1.wrapping_add(1);
-                    }
-                }
-            }
-            CffCharset::Format2(range2) => {
-                let mut glyphs_named_sofar_2: u32 = 1_u32;
-                for r in range2 {
-                    let first_2: GlyphId = r.first as GlyphId;
-                    for k_2 in 0..=r.nleft {
-                        let sid_4: CffSid = (first_2 as i32 + k_2 as i32) as CffSid;
-                        let glyphname_4: Option<Vec<u8>> =
-                            get_cff_sid(sid_4 as u16, &cff_file.string);
-                        if (glyphs_named_sofar_2 as usize) < glyphs.len()
-                            && let Some(glyphname_4) = glyphname_4 {
-                                glyphs[glyphs_named_sofar_2 as usize]
-                                    .as_mut()
-                                    .unwrap()
-                                    .name = glyphname_4;
-                            }
-                        glyphs_named_sofar_2 = glyphs_named_sofar_2.wrapping_add(1);
-                    }
-                }
-            }
-            _ => {}
-        }
+        CffCharset::Format1(ranges) => ranges.iter().map(|r| (r.first, r.nleft as u32 + 1)).collect(),
+        CffCharset::Format2(ranges) => ranges.iter().map(|r| (r.first, r.nleft as u32 + 1)).collect(),
+        _ => return,
     };
+    let sids = ranges
+        .into_iter()
+        .flat_map(|(first, count)| (0..count).map(move |k| first.wrapping_add(k as CffSid)));
+    for (slot, sid) in glyphs.iter_mut().skip(1).zip(sids) {
+        let glyph = slot.as_mut().unwrap();
+        if is_cid {
+            glyph.name = form_cid_string(sid);
+            glyph.cid = sid as GlyphId;
+        } else if let Some(name) = get_cff_sid(sid, &cff_file.string) {
+            glyph.name = name;
+        }
+    }
 }
 fn qround(x: f64) -> f64 {
     return from_fixed(to_fixed(x));
@@ -1867,7 +1733,7 @@ fn cff_compile_nameindex(cff: &mut CffTable) -> Buffer {
     let mut name_index = new_empty_cff_index();
     name_index.count = 1 as Arity;
     name_index.off_size = 4_u8;
-    name_index.offset = vec![1_u32, cff.font_name.len().wrapping_add(1_usize) as u32];
+    name_index.offset = vec![1, cff.font_name.len() as u32 + 1];
     // Was `__caryll_allocate_clean`'d to `font_name.len() + 1` bytes but
     // only `font_name.len()` of them ever `memcpy`'d -- the trailing byte
     // stayed zero. `.push(0)` reproduces that exact trailing NUL.
@@ -1885,14 +1751,14 @@ fn cff_make_charset(
 ) -> Buffer {
     let charset: CffCharset = if glyf.len() > 1_usize {
         let (first, nleft) = if cff.is_cid {
-            (1_u16, glyf.len().wrapping_sub(2_usize) as u16)
+            (1, (glyf.len() - 2) as u16)
         } else {
             for entry in glyf.iter().skip(1) {
                 sidof(string_hash, &entry.as_deref().unwrap().name);
             }
             (
                 sidof(string_hash, &glyf[1_usize].as_deref().unwrap().name) as u16,
-                glyf.len().wrapping_sub(2_usize) as u16,
+                (glyf.len() - 2) as u16,
             )
         };
         CffCharset::Format2(vec![CffCharsetRangeFormat2 { first, nleft }])
@@ -2003,77 +1869,52 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
     g2c_context.graph.do_subroutinize = options.cff_do_subroutinize;
     let (s, gs, ls) = cff_make_charstrings(&mut g2c_context);
     cff_subr_graph_dispose(&mut g2c_context.graph);
-    let mut additional_top_dict_ops_size: u32 = 0_u32;
-    let mut off: u32 = h
-        .len()
-        .wrapping_add(n.len())
-        .wrapping_add(11_usize)
-        .wrapping_add(t.len()) as u32;
-    if !c.is_empty() {
-        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(6_u32);
+    // The top dict gets one offset operator per non-empty section that
+    // follows it: 5 bytes for the offset plus the operator's 1 or 2.
+    let mut additional_top_dict_ops_size: u32 = 0;
+    for (section, op_size) in [(&c, 6), (&e, 7), (&s, 6), (&p, 11), (&r, 7)] {
+        if !section.is_empty() {
+            additional_top_dict_ops_size += op_size;
+        }
     }
-    if !e.is_empty() {
-        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(7_u32);
-    }
-    if !s.is_empty() {
-        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(6_u32);
-    }
-    if !p.is_empty() {
-        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(11_u32);
-    }
-    if !r.is_empty() {
-        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(7_u32);
-    }
+    // Header, name index and the top dict index's 11-byte header, then the
+    // top dict itself.
+    let mut off: u32 = (h.len() + n.len() + 11 + t.len()) as u32;
     blob.write_buffer_owned(h);
     blob.write_buffer_owned(n);
-    let delta_size: i32 = t
-        .len()
-        .wrapping_add(additional_top_dict_ops_size as usize)
-        .wrapping_add(1_usize) as u32 as i32;
-    blob.write_buffer_owned(Buffer::from_bytes(&[
-        0_u8,
-        1_u8,
-        4_u8,
-        0_u8,
-        0_u8,
-        0_u8,
-        1_u8,
-        (delta_size >> 24_i32 & 0xff_i32) as u8,
-        (delta_size >> 16_i32 & 0xff_i32) as u8,
-        (delta_size >> 8_i32 & 0xff_i32) as u8,
-        (delta_size & 0xff_i32) as u8,
-    ]));
+    // A one-entry top dict index with 4-byte offsets: count 1, offSize 4,
+    // offsets 1 and 1 + the dict's size.
+    let delta_size = (t.len() + additional_top_dict_ops_size as usize + 1) as u32;
+    let mut top_dict_index_header = vec![0, 1, 4, 0, 0, 0, 1];
+    top_dict_index_header.extend_from_slice(&delta_size.to_be_bytes());
+    blob.write_buffer_owned(Buffer::from_bytes(&top_dict_index_header));
     blob.write_buffer_owned(t);
-    off = (off as usize).wrapping_add(
-        (additional_top_dict_ops_size as usize)
-            .wrapping_add(i.len())
-            .wrapping_add(gs.len()),
-    ) as u32;
+    off += additional_top_dict_ops_size + (i.len() + gs.len()) as u32;
     if !c.is_empty() {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_CHARSET));
-        off = (off as usize).wrapping_add(c.len()) as u32;
+        off += c.len() as u32;
     }
     if !e.is_empty() {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_FD_SELECT));
-        off = (off as usize).wrapping_add(e.len()) as u32;
+        off += e.len() as u32;
     }
     if !s.is_empty() {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_CHAR_STRINGS));
-        off = (off as usize).wrapping_add(s.len()) as u32;
+        off += s.len() as u32;
     }
     if !p.is_empty() {
-        blob.write_buffer_owned(cff_build_offset(p.len() as u32 as i32));
+        blob.write_buffer_owned(cff_build_offset(p.len() as i32));
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
-        off = (off as usize).wrapping_add(p.len()) as u32;
+        off += p.len() as u32;
     }
     if !r.is_empty() {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_FD_ARRAY));
-        off = (off as usize).wrapping_add(r.len()) as u32;
+        off += r.len() as u32;
     }
     blob.write_buffer_owned(i);
     blob.write_buffer_owned(gs);
@@ -2092,39 +1933,29 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         let idx: &mut CffIndex = fd_array_index.as_mut().unwrap();
         let mut fd_array_privates_start_offset: u32 = off;
         let mut fd_array_privates: Vec<Buffer> = Vec::with_capacity(cff.fd_array.len());
-        for j in 0..cff.fd_array.len() as TableId {
-            let pd: CffDict = cff_make_private_dict(cff.fd_array[j as usize].private_dict.as_deref());
-            let mut p_0 = build_dict(&pd);
-            p_0.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
-            p_0.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
-            let private_length_off: usize = {
-                let fd_array_offset = &idx.offset;
-                (fd_array_offset[(j as i32 + 1_i32) as usize]).wrapping_sub(11_u32) as usize
-            };
-            idx.data[private_length_off] = (p_0.len() >> 24_i32 & 0xff_usize) as u8;
-            idx.data[private_length_off + 1] = (p_0.len() >> 16_i32 & 0xff_usize) as u8;
-            idx.data[private_length_off + 2] = (p_0.len() >> 8_i32 & 0xff_usize) as u8;
-            idx.data[private_length_off + 3] = (p_0.len() & 0xff_usize) as u8;
-            let private_offset_off: usize = {
-                let fd_array_offset = &idx.offset;
-                (fd_array_offset[(j as i32 + 1_i32) as usize]).wrapping_sub(6_u32) as usize
-            };
-            idx.data[private_offset_off] = (fd_array_privates_start_offset >> 24_i32 & 0xff_u32) as u8;
-            idx.data[private_offset_off + 1] =
-                (fd_array_privates_start_offset >> 16_i32 & 0xff_u32) as u8;
-            idx.data[private_offset_off + 2] =
-                (fd_array_privates_start_offset >> 8_i32 & 0xff_u32) as u8;
-            idx.data[private_offset_off + 3] = (fd_array_privates_start_offset & 0xff_u32) as u8;
-            fd_array_privates_start_offset = (fd_array_privates_start_offset as usize)
-                .wrapping_add(p_0.len()) as u32;
-            fd_array_privates.push(p_0);
+        for (j, fd) in cff.fd_array.iter().enumerate() {
+            let pd: CffDict = cff_make_private_dict(fd.private_dict.as_deref());
+            let mut private_dict = build_dict(&pd);
+            // Placeholder for the local subroutines' offset, patched below.
+            private_dict.write_buffer_owned(cff_build_offset(-1));
+            private_dict.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
+            // Each font dict ends with `<size> <offset> Private`, two 5-byte
+            // operands and a 1-byte operator; patch both operands in place.
+            let dict_end = idx.offset[j + 1] as usize;
+            let size_at = dict_end - 11;
+            idx.data[size_at..size_at + 4].copy_from_slice(&(private_dict.len() as u32).to_be_bytes());
+            let offset_at = dict_end - 6;
+            idx.data[offset_at..offset_at + 4]
+                .copy_from_slice(&fd_array_privates_start_offset.to_be_bytes());
+            fd_array_privates_start_offset += private_dict.len() as u32;
+            fd_array_privates.push(private_dict);
         }
         r = build_index(idx);
         blob.write_buffer_owned(r);
-        for (j_0, p_0) in fd_array_privates.into_iter().enumerate() {
-            starting_position_of_privates[j_0 + 1] = blob.pos();
-            blob.write_buffer_owned(p_0);
-            ending_position_of_privates[j_0 + 1] = blob.pos();
+        for (j, private_dict) in fd_array_privates.into_iter().enumerate() {
+            starting_position_of_privates[j + 1] = blob.pos();
+            blob.write_buffer_owned(private_dict);
+            ending_position_of_privates[j + 1] = blob.pos();
         }
     } else {
         blob.write_buffer_owned(r);
@@ -2138,12 +1969,11 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         .iter()
         .zip(ending_position_of_privates.iter())
     {
-        let ls_offset: usize = position_of_local_subroutines.wrapping_sub(start);
-        let ptr_off: usize = end.wrapping_sub(5_usize);
-        blob.data[ptr_off] = (ls_offset >> 24_i32 & 0xff_usize) as u8;
-        blob.data[ptr_off + 1] = (ls_offset >> 16_i32 & 0xff_usize) as u8;
-        blob.data[ptr_off + 2] = (ls_offset >> 8_i32 & 0xff_usize) as u8;
-        blob.data[ptr_off + 3] = (ls_offset & 0xff_usize) as u8;
+        // Patch the `Subrs` placeholder at the end of each private dict:
+        // the offset operand is the last 5 bytes before the operator.
+        let ls_offset = (position_of_local_subroutines - start) as u32;
+        let ptr_off: usize = end - 5;
+        blob.data[ptr_off..ptr_off + 4].copy_from_slice(&ls_offset.to_be_bytes());
     }
     return blob;
 }
