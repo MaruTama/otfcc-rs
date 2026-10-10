@@ -43,8 +43,17 @@ pub fn read_entire_stdin() -> Vec<u8> {
     let _ = std::io::stdin().lock().read_to_end(&mut bytes);
     bytes
 }
-fn run(args: Vec<String>) -> i32 {
-    let mut begin = std::time::Instant::now();
+/// What the command line asked for. Argument errors are reported to stderr
+/// while parsing, before logging starts.
+struct BuildArgs {
+    show_help: bool,
+    show_version: bool,
+    invalid_argument: bool,
+    output_path: Option<::std::ffi::CString>,
+    options: Box<Options>,
+    positionals: Vec<String>,
+}
+fn parse_args(args: &[String]) -> BuildArgs {
     let mut show_help: bool = false;
     let mut show_version: bool = false;
     let mut invalid_argument = false;
@@ -106,7 +115,7 @@ fn run(args: Vec<String>) -> i32 {
         LongOpt { name: "optimize", has_arg: true, val: OPT_OPTIMIZE },
         LongOpt { name: "output", has_arg: true, val: OPT_OUTPUT },
     ];
-    let (items, positionals) = getopt_long(&args, "vhqskiO:o:", LONGOPTS);
+    let (items, positionals) = getopt_long(args, "vhqskiO:o:", LONGOPTS);
     for item in items {
         match item {
             GetoptItem::Opt { val, arg } => match val {
@@ -156,6 +165,25 @@ fn run(args: Vec<String>) -> i32 {
             other => report_getopt_error("otfccbuild", other),
         }
     }
+    BuildArgs {
+        show_help,
+        show_version,
+        invalid_argument,
+        output_path,
+        options,
+        positionals,
+    }
+}
+fn run(args: Vec<String>) -> i32 {
+    let mut begin = std::time::Instant::now();
+    let BuildArgs {
+        show_help,
+        show_version,
+        invalid_argument,
+        output_path,
+        options,
+        positionals,
+    } = parse_args(&args);
     // Logging starts only now that `--quiet`/`--verbose` are known; nothing
     // is logged before this point (argument errors go straight to stderr).
     let _root_scope = start_logging("otfccbuild", &options);
