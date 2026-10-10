@@ -77,19 +77,21 @@ pub fn write_each_subtable(
 ) -> TableId {
     ctx.subtables.clear();
     ctx.subtables.reserve(lookup.subtables.len());
-    let mut total_buf_size_short: usize = 0_usize;
-    let mut total_buf_size_ext: usize = 0_usize;
+    // Bytes these subtables take in the lookup list: their own size, or
+    // 8 bytes each when they go out of line behind extension subtables.
+    let mut total_buf_size_short: usize = 0;
+    let mut total_buf_size_ext: usize = 0;
     for subtable in iter_subtables(&lookup.subtables) {
         let buf: Buffer = build(subtable, ctx.heuristics);
-        total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
+        total_buf_size_short += buf.data.len();
         ctx.subtables.push(buf);
-        total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
+        total_buf_size_ext += 8;
     }
     if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
-        *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_ext);
+        *ctx.last_offset += total_buf_size_ext;
         *ctx.prefer_extension_for_this_lut = true;
     } else {
-        *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_short);
+        *ctx.last_offset += total_buf_size_short;
         *ctx.prefer_extension_for_this_lut = false;
     }
     return lookup.subtables.len() as TableId;
@@ -102,20 +104,19 @@ pub fn write_each_subtable_split(
     build: fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
 ) -> TableId {
     ctx.subtables.clear();
-    let mut total_buf_size_short: usize = 0_usize;
+    let mut total_buf_size_short: usize = 0;
     for subtable in iter_subtables(&lookup.subtables) {
         for buf in build(subtable, ctx.heuristics) {
-            total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
+            total_buf_size_short += buf.data.len();
             ctx.subtables.push(buf);
         }
     }
     let total = ctx.subtables.len() as TableId;
     if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
-        *ctx.last_offset = (*ctx.last_offset)
-            .wrapping_add((8_i32 * total as i32) as usize);
+        *ctx.last_offset += 8 * total as usize;
         *ctx.prefer_extension_for_this_lut = true;
     } else {
-        *ctx.last_offset = (*ctx.last_offset).wrapping_add(total_buf_size_short);
+        *ctx.last_offset += total_buf_size_short;
         *ctx.prefer_extension_for_this_lut = false;
     }
     return total;
@@ -180,13 +181,16 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
             },
         );
     }
-    let mut header_size: usize = 2_usize.wrapping_add(2_usize.wrapping_mul(live.len()));
+    // The lookup list and lookup headers: a count and an offset per
+    // lookup, then 6 bytes plus 2 per subtable for each non-empty lookup.
+    let mut header_size: usize = 2 + 2 * live.len();
     for &quantity in subtable_quantity.iter() {
         if quantity != 0 {
-            header_size =
-                header_size.wrapping_add((6_i32 + 2_i32 * quantity as i32) as usize);
+            header_size += 6 + 2 * quantity as usize;
         }
     }
+    // Wraps when the headers alone pass 0xff00, which then never asks for
+    // extension subtables, as it always has.
     let use_extended: bool = last_offset >= 0xff00_usize.wrapping_sub(header_size);
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (live.len()) as u32)]);
     for j_1 in 0..live.len() {

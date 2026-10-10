@@ -800,12 +800,9 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
                     id_range_offset.write_u16be(0_u16);
                 } else {
                     id_delta.write_u16be(0_u16);
-                    id_range_offset.write_u16be(
-                        last_glyph_id_array_offset.wrapping_add(1_usize) as u16,
-                    );
+                    id_range_offset.write_u16be((last_glyph_id_array_offset + 1) as u16);
                 }
-                segments_count =
-                    (segments_count as i32 + 1_i32) as u16;
+                segments_count = segments_count.wrapping_add(1);
                 last_unicode_end = unicode;
                 last_unicode_start = last_unicode_end;
                 last_gid_end = glyph.index as i32;
@@ -821,46 +818,46 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
         id_range_offset.write_u16be(0_u16);
     } else {
         id_delta.write_u16be(0_u16);
-        id_range_offset.write_u16be(last_glyph_id_array_offset.wrapping_add(1_usize) as u16);
+        id_range_offset.write_u16be((last_glyph_id_array_offset + 1) as u16);
     }
-    segments_count = (segments_count as i32 + 1_i32) as u16;
-    if last_gid_end < 0xffff_i32 {
-        end_count.write_u16be(0xffff_u16);
-        start_count.write_u16be(0xffff_u16);
-        id_delta.write_u16be(1_u16);
-        id_range_offset.write_u16be(0_u16);
-        segments_count = (segments_count as i32 + 1_i32) as u16;
+    segments_count = segments_count.wrapping_add(1);
+    // The closing segment for U+FFFF.
+    if last_gid_end < 0xffff {
+        end_count.write_u16be(0xffff);
+        start_count.write_u16be(0xffff);
+        id_delta.write_u16be(1);
+        id_range_offset.write_u16be(0);
+        segments_count = segments_count.wrapping_add(1);
     }
-    for j_0 in 0..segments_count as i32 {
-        let idx = (j_0 * 2_i32) as usize;
-        let mut ro: u16 =
-            u16::from_be_bytes([id_range_offset.data[idx], id_range_offset.data[idx + 1]]);
+    // Each idRangeOffset so far is the glyph ID array position plus one;
+    // make it relative to the entry itself, which sits (segCount - j)
+    // entries before the glyph ID array.
+    for j in 0..segments_count as usize {
+        let at = j * 2;
+        let ro = u16::from_be_bytes([id_range_offset.data[at], id_range_offset.data[at + 1]]);
         if ro != 0 {
-            ro = (ro as i32 - 1_i32) as u16;
-            ro = (ro as i32
-                + 2_i32 * (segments_count as i32 - j_0))
-                as u16;
-            id_range_offset.seek((2_i32 * j_0) as usize);
-            id_range_offset.write_u16be(ro);
+            let distance = 2 * (segments_count as u32 - j as u32);
+            id_range_offset.seek(at);
+            id_range_offset.write_u16be((ro - 1).wrapping_add(distance as u16));
         }
     }
-    buf.write_u16be(4_u16);
-    buf.write_u16be(0_u16);
-    buf.write_u16be(0_u16);
-    buf.write_u16be(((segments_count as i32) << 1_i32) as u16);
-    let mut i: u32;
-    let mut j_1: u32;
-    j_1 = 0_u32;
-    i = 1_u32;
-    while i <= segments_count as u32 {
-        i <<= 1_i32;
-        j_1 = j_1.wrapping_add(1);
+    buf.write_u16be(4); // format
+    buf.write_u16be(0); // length, patched below
+    buf.write_u16be(0); // language
+    buf.write_u16be(segments_count << 1);
+    // searchRange is twice the largest power of two not above segCount,
+    // entrySelector the log2 of that power, and rangeShift what remains.
+    let mut search_range: u32 = 1;
+    let mut entry_selector: u32 = 0;
+    while search_range <= segments_count as u32 {
+        search_range <<= 1;
+        entry_selector += 1;
     }
-    buf.write_u16be(i as u16);
-    buf.write_u16be(j_1.wrapping_sub(1_u32) as u16);
-    buf.write_u16be(((2_i32 * segments_count as i32) as u32).wrapping_sub(i) as u16);
+    buf.write_u16be(search_range as u16);
+    buf.write_u16be((entry_selector - 1) as u16);
+    buf.write_u16be((2 * segments_count as u32 - search_range) as u16);
     buf.write_buffer(&end_count);
-    buf.write_u16be(0_u16);
+    buf.write_u16be(0); // reservedPad
     buf.write_buffer(&start_count);
     buf.write_buffer(&id_delta);
     buf.write_buffer(&id_range_offset);
@@ -906,7 +903,7 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
             buf.write_u32be(last_unicode_start as u32);
             buf.write_u32be(last_unicode_end as u32);
             buf.write_u32be(last_gid_start as u32);
-            n_groups = n_groups.wrapping_add(1_u32);
+            n_groups += 1;
             last_unicode_end = unicode;
             last_unicode_start = last_unicode_end;
             last_gid_end = glyph.index as i32;
@@ -916,7 +913,7 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
     buf.write_u32be(last_unicode_start as u32);
     buf.write_u32be(last_unicode_end as u32);
     buf.write_u32be(last_gid_start as u32);
-    n_groups = n_groups.wrapping_add(1_u32);
+    n_groups += 1;
     buf.seek(4_usize);
     buf.write_u32be(buf.len() as u32);
     buf.seek(12_usize);
@@ -927,16 +924,18 @@ pub const MAX_UNICODE: i32 = 0x110001_i32;
 pub const HAS_DEFAULT: i32 = 1_i32;
 pub const HAS_NON_DEFAULT: i32 = 2_i32;
 #[inline]
+/// Writes the default UVS range `start..=end`, split into ranges of at most
+/// 256 code points (additionalCount is one byte).
 fn write_default_range(dflt: &mut Buffer, n_ranges: &mut u32, mut start: Unicode, end: Unicode) {
-    while end.wrapping_sub(start) > 0xff as Unicode {
+    while end - start > 0xff {
         dflt.write_u24be(start);
-        dflt.write_u8(0xff_u8);
-        start = start.wrapping_add(0x100 as Unicode);
-        *n_ranges = n_ranges.wrapping_add(1_u32);
+        dflt.write_u8(0xff);
+        start += 0x100;
+        *n_ranges += 1;
     }
     dflt.write_u24be(start);
-    dflt.write_u8(end.wrapping_sub(start) as u8);
-    *n_ranges = n_ranges.wrapping_add(1_u32);
+    dflt.write_u8((end - start) as u8);
+    *n_ranges += 1;
 }
 fn build_format14_for_selector(
     cmap: &CmapTable,
@@ -974,48 +973,42 @@ fn build_format14_for_selector(
     }
     non_defaults[0] = 0xffff;
     defaults[0] = 0xffff;
-    non_defaults[(MAX_UNICODE - 1_i32) as usize] = 0xffff;
-    defaults[(MAX_UNICODE - 1_i32) as usize] = 0xffff;
-    let mut num_unicode_value_ranges: u32 = 0_u32;
-    let mut start_unicode_value: Unicode = 0 as Unicode;
-    let mut num_uvs_mappings: u32 = 0_u32;
-    dflt.write_u32be(0_u32);
-    nondflt.write_u32be(0_u32);
-    for u_0 in 1..MAX_UNICODE as Unicode {
-        if defaults[u_0 as usize] as i32 != 0xffff_i32
-            && defaults[u_0.wrapping_sub(1 as Unicode) as usize] as i32 == 0xffff_i32
-        {
-            start_unicode_value = u_0;
+    non_defaults[(MAX_UNICODE - 1) as usize] = 0xffff;
+    defaults[(MAX_UNICODE - 1) as usize] = 0xffff;
+    let mut num_unicode_value_ranges: u32 = 0;
+    let mut start_unicode_value: Unicode = 0;
+    let mut num_uvs_mappings: u32 = 0;
+    dflt.write_u32be(0);
+    nondflt.write_u32be(0);
+    // Both ends of the tables are kept unset above, so every run of
+    // default mappings has a start and an end inside the walk.
+    for u in 1..MAX_UNICODE as Unicode {
+        let here = defaults[u as usize] != 0xffff;
+        let before = defaults[u as usize - 1] != 0xffff;
+        if here && !before {
+            start_unicode_value = u;
         }
-        if defaults[u_0 as usize] as i32 == 0xffff_i32
-            && defaults[u_0.wrapping_sub(1 as Unicode) as usize] as i32 != 0xffff_i32
-        {
-            write_default_range(
-                dflt,
-                &mut num_unicode_value_ranges,
-                start_unicode_value,
-                u_0.wrapping_sub(1 as Unicode),
-            );
+        if !here && before {
+            write_default_range(dflt, &mut num_unicode_value_ranges, start_unicode_value, u - 1);
         }
-        if non_defaults[u_0 as usize] as i32 != 0xffff_i32 {
-            nondflt.write_u24be(u_0);
-            nondflt.write_u16be(non_defaults[u_0 as usize] as u16);
-            num_uvs_mappings = num_uvs_mappings.wrapping_add(1);
+        if non_defaults[u as usize] != 0xffff {
+            nondflt.write_u24be(u);
+            nondflt.write_u16be(non_defaults[u as usize]);
+            num_uvs_mappings += 1;
         }
     }
     dflt.seek(0_usize);
     dflt.write_u32be(num_unicode_value_ranges);
     nondflt.seek(0_usize);
     nondflt.write_u32be(num_uvs_mappings);
-    return ((if num_unicode_value_ranges != 0 {
-        HAS_DEFAULT
-    } else {
-        0_i32
-    }) | (if num_uvs_mappings != 0 {
-        HAS_NON_DEFAULT
-    } else {
-        0_i32
-    })) as u8;
+    let mut results = 0;
+    if num_unicode_value_ranges != 0 {
+        results |= HAS_DEFAULT;
+    }
+    if num_uvs_mappings != 0 {
+        results |= HAS_NON_DEFAULT;
+    }
+    return results as u8;
 }
 fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
@@ -1024,22 +1017,17 @@ fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
             valid_selectors[key.selector as usize] = true;
         }
     }
-    let mut n_selectors: u32 = 0_u32;
-    for selector in 0..MAX_UNICODE as Unicode {
-        if valid_selectors[selector as usize] {
-            n_selectors = n_selectors.wrapping_add(1);
-        }
-    }
+    let n_selectors = valid_selectors.iter().filter(|&&valid| valid).count() as u32;
     let mut st: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 14_u32),
         bk_int(BkCellType::B32, 0_u32),
         bk_int(BkCellType::B32, n_selectors),
     ]);
-    for selector_0 in 0..MAX_UNICODE as Unicode {
-        if valid_selectors[selector_0 as usize] {
+    for selector in 0..MAX_UNICODE as Unicode {
+        if valid_selectors[selector as usize] {
             let mut dflt = Buffer::new();
             let mut nondflt = Buffer::new();
-            let results: u8 = build_format14_for_selector(cmap, selector_0, &mut dflt, &mut nondflt);
+            let results: u8 = build_format14_for_selector(cmap, selector, &mut dflt, &mut nondflt);
             let dflt = if results as i32 & HAS_DEFAULT == 0 {
                 None
             } else {
@@ -1053,18 +1041,10 @@ fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
             bk_push(
                 &mut st,
                 vec![
-                    bk_int(
-                        BkCellType::B8,
-                        selector_0 >> 16_i32 & 0xff as Unicode,
-                    ),
-                    bk_int(
-                        BkCellType::B8,
-                        selector_0 >> 8_i32 & 0xff as Unicode,
-                    ),
-                    bk_int(
-                        BkCellType::B8,
-                        selector_0 & 0xff as Unicode,
-                    ),
+                    // varSelector is a 24-bit value.
+                    bk_int(BkCellType::B8, selector >> 16 & 0xff),
+                    bk_int(BkCellType::B8, selector >> 8 & 0xff),
+                    bk_int(BkCellType::B8, selector & 0xff),
                     bk_ptr(BkCellType::P32, bk_new_block_from_buffer(dflt)),
                     bk_ptr(BkCellType::P32, bk_new_block_from_buffer(nondflt)),
                 ],
