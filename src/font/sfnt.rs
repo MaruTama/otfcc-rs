@@ -33,7 +33,7 @@ pub struct Packet {
 // `count` (either `1`, or read from a TTC header -- also untrusted).
 #[derive(Debug)]
 pub struct SplineFontContainer {
-    pub type_0: u32,
+    pub header_tag: u32,
     pub count: u32,
     pub offsets: Vec<u32>,
     pub packets: Vec<Packet>,
@@ -158,11 +158,11 @@ fn read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) ->
 // in one place, instead of duplicating the "free `font`, return null"
 // cleanup at every read site.
 fn read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) -> bool {
-    let Some(type_0) = get32u(file) else {
+    let Some(header_tag) = get32u(file) else {
         return false;
     };
-    font.type_0 = type_0;
-    match font.type_0 {
+    font.header_tag = header_tag;
+    match font.header_tag {
         crate::tag::SFNT_VERSION_OTTO
         | crate::tag::SFNT_VERSION_TRUE_TYPE
         | crate::tag::SFNT_VERSION_MAC_TRUE
@@ -267,7 +267,7 @@ pub fn read_sfnt(path: &std::path::Path) -> Option<SplineFontContainer> {
 /// `read_sfnt` itself was `FILE*`-shaped).
 pub fn read_sfnt_from_reader<R: Read + Seek>(file: &mut R) -> Option<SplineFontContainer> {
     let mut font = SplineFontContainer {
-        type_0: 0,
+        header_tag: 0,
         count: 0,
         offsets: Vec::new(),
         packets: Vec::new(),

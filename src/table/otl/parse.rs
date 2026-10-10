@@ -134,12 +134,12 @@ fn _declare_lookup_parser(
 ) -> bool {
     let lv = _lookup;
     let llt = kind.lookup_type();
-    let type_0 = lv.and_then(|v| v.get_typed(b"type", JsonType::String));
-    let matches_type = type_0
+    let type_name = lv.and_then(|v| v.get_typed(b"type", JsonType::String));
+    let matches_type = type_name
         .and_then(ParsedValue::as_str_bytes)
         .is_some_and(|b| b == llt.name().as_bytes());
     if !matches_type {
-        if type_0.is_none() {
+        if type_name.is_none() {
             tracing::warn!("Lookup {} does not have a valid 'type' field.", ByteStr(lookup_name));
         }
         return false;
@@ -161,7 +161,7 @@ fn _declare_lookup_parser(
     // `LookupEntry.lookup` itself stays `*mut Lookup`: a transient owner
     // handed off at the one non-alias push site in `parse_otl`.
     let mut lookup: Box<Lookup> = new_lookup();
-    lookup.type_0 = llt;
+    lookup.lookup_type = llt;
     lookup.flags = lv
         .and_then(|v| v.get(b"flags"))
         .map_or(0, |v| v.flags(&LOOKUP_FLAGS_LABELS)) as u16;

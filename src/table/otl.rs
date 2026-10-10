@@ -226,7 +226,7 @@ impl Drop for Subtable {
 }
 #[derive(Debug)]
 pub struct ExtendSubtable {
-    pub type_0: LookupType,
+    pub lookup_type: LookupType,
     pub subtable: Option<Box<Subtable>>,
 }
 // Embedded by value in `Subtable::GposMarkToLigature` -- no `Copy`/`Clone`
@@ -311,7 +311,7 @@ pub struct GposSingleEntry {
 pub struct GsubReverseSubtable {
     pub match_count: TableId,
     pub input_index: TableId,
-    pub match_0: Vec<Coverage>,
+    pub sequence: Vec<Coverage>,
     pub to: Coverage,
 }
 // Was a C-shaped `struct { type_0: ChainingType, c2rust_unnamed: union {
@@ -383,7 +383,7 @@ pub struct ChainingRule {
     pub match_count: TableId,
     pub input_begins: TableId,
     pub input_ends: TableId,
-    pub match_0: Vec<Coverage>,
+    pub sequence: Vec<Coverage>,
     pub apply: Vec<ChainLookupApplication>,
 }
 /// `lookup: LookupHandle` (= `Handle`) already has a real `Drop`/`Clone`
@@ -418,7 +418,7 @@ pub struct GsubSingleEntry {
 #[derive(Debug)]
 pub struct Lookup {
     pub name: Vec<u8>,
-    pub type_0: LookupType,
+    pub lookup_type: LookupType,
     pub _offset: u32,
     pub flags: u16,
     pub subtables: SubtableList,
@@ -562,7 +562,7 @@ pub struct OtlTable {
 pub(crate) fn new_lookup() -> Box<Lookup> {
     Box::new(Lookup {
         name: Vec::new(),
-        type_0: OTL_TYPE_UNKNOWN,
+        lookup_type: OTL_TYPE_UNKNOWN,
         _offset: 0,
         flags: 0,
         subtables: Vec::new(),

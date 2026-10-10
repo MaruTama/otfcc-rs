@@ -27,8 +27,8 @@ use crate::table::otl::{GsubReverseSubtable, Subtable};
 // is sound there; the build side (`build_gsub_reverse`) needed a
 // different fix (clone-then-reverse a local instead) once it started
 // taking a shared `&Subtable`.
-fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
-    match_0[..input_index as usize].reverse();
+fn reverse_backtracks(sequence: &mut [Coverage], input_index: TableId) {
+    sequence[..input_index as usize].reverse();
 }
 pub fn otl_read_gsub_reverse(
     data: &[u8],
@@ -39,7 +39,7 @@ pub fn otl_read_gsub_reverse(
     let mut subtable = GsubReverseSubtable {
         match_count: 0,
         input_index: 0,
-        match_0: Vec::new(),
+        sequence: Vec::new(),
         to: Coverage::new(),
     };
 
@@ -109,23 +109,23 @@ pub fn otl_read_gsub_reverse(
         // `Coverage`s and index-assigning is the direct replacement for
         // the old `offset`-indexed writes into `__caryll_allocate_clean`'d
         // memory.
-        subtable.match_0 = vec![Coverage::new(); match_count as usize];
+        subtable.sequence = vec![Coverage::new(); match_count as usize];
         subtable.input_index = n_backtrack;
 
         for (j, &cov_offset) in backtrack_offsets.iter().enumerate() {
-            subtable.match_0[j] = read_coverage(data, cov_offset, budget);
+            subtable.sequence[j] = read_coverage(data, cov_offset, budget);
         }
 
         let input_cov_offset = offset.wrapping_add(input_cov_rel as u32);
-        subtable.match_0[subtable.input_index as usize] = read_coverage(data, input_cov_offset, budget);
+        subtable.sequence[subtable.input_index as usize] = read_coverage(data, input_cov_offset, budget);
 
-        if n_replacement as usize != subtable.match_0[subtable.input_index as usize].len() {
+        if n_replacement as usize != subtable.sequence[subtable.input_index as usize].len() {
             break 'parse;
         }
 
         for (j, &cov_offset) in forward_offsets.iter().enumerate() {
             let fwd_idx = n_backtrack as usize + 1 + j;
-            subtable.match_0[fwd_idx] = read_coverage(data, cov_offset, budget);
+            subtable.sequence[fwd_idx] = read_coverage(data, cov_offset, budget);
         }
 
         subtable.to = Coverage::new();
@@ -135,7 +135,7 @@ pub fn otl_read_gsub_reverse(
                 handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle,
             );
         }
-        reverse_backtracks(&mut subtable.match_0, subtable.input_index);
+        reverse_backtracks(&mut subtable.sequence, subtable.input_index);
         return Some(Subtable::GsubReverse(subtable));
     }
     None
@@ -150,7 +150,7 @@ pub fn otl_gsub_dump_reverse(_subtable: &Subtable) -> BuiltValue {
     // `match_0.len()` (both the read and JSON-parse paths always build
     // exactly `match_count` entries, but this function has no reason to
     // rely on that instead of the field itself).
-    for cov in subtable.match_0.iter().take(subtable.match_count as usize) {
+    for cov in subtable.sequence.iter().take(subtable.match_count as usize) {
         _match.push_item(dump_coverage(cov));
     }
     _st.push_field(b"match", _match);
@@ -166,14 +166,14 @@ pub fn otl_gsub_parse_reverse(
     let _to = sv.get_typed(b"to", JsonType::Array)?;
     let match_items = _match.as_array().unwrap();
     let match_count = match_items.len() as TableId;
-    let mut match_0: Vec<Coverage> = Vec::with_capacity(match_count as usize);
+    let mut sequence: Vec<Coverage> = Vec::with_capacity(match_count as usize);
     for item in match_items {
-        match_0.push(parse_coverage(Some(item)));
+        sequence.push(parse_coverage(Some(item)));
     }
     let subtable = GsubReverseSubtable {
         match_count,
         input_index: sv.get_num_or(b"inputIndex", 0.0) as TableId,
-        match_0,
+        sequence,
         to: parse_coverage(Some(_to)),
     };
     Some(Subtable::GsubReverse(subtable))
@@ -193,14 +193,14 @@ pub fn build_gsub_reverse(
     // the clone; every read below of a backtrack-region index goes through
     // `backtrack` instead of `subtable.match_0`, and every other region
     // reads `subtable.match_0` directly, unmodified.
-    let mut backtrack: Vec<Coverage> = subtable.match_0[..subtable.input_index as usize].to_vec();
+    let mut backtrack: Vec<Coverage> = subtable.sequence[..subtable.input_index as usize].to_vec();
     backtrack.reverse();
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(
-                &subtable.match_0[subtable.input_index as usize],
+                &subtable.sequence[subtable.input_index as usize],
             ))),
         ),
     ]);
@@ -233,7 +233,7 @@ pub fn build_gsub_reverse(
     // bound the original indexed by, not the full `match_0` container.
     let forward_start = subtable.input_index as usize + 1;
     let forward_end = subtable.match_count as usize;
-    for cov in subtable.match_0[forward_start..forward_end].iter() {
+    for cov in subtable.sequence[forward_start..forward_end].iter() {
         bk_push(
             &mut root,
             vec![bk_ptr(
@@ -286,14 +286,14 @@ mod otl_read_gsub_reverse_tests {
         assert_eq!(subtable.match_count, 2);
         assert_eq!(subtable.input_index, 1);
         assert_eq!(
-            subtable.match_0[0]
+            subtable.sequence[0]
                 .iter()
                 .map(|h| h.index)
                 .collect::<Vec<_>>(),
             vec![21]
         );
         assert_eq!(
-            subtable.match_0[1]
+            subtable.sequence[1]
                 .iter()
                 .map(|h| h.index)
                 .collect::<Vec<_>>(),

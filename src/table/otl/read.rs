@@ -259,7 +259,7 @@ fn parse_otl_common(
         let mut hr = FontReader::new(data).at(lookup_offset as usize)?;
         hr.require_room(6, 1)?;
         lookup._offset = lookup_offset;
-        lookup.type_0 = LookupType::from_file(lookup_type_base, hr.u16()?);
+        lookup.lookup_type = LookupType::from_file(lookup_type_base, hr.u16()?);
         table_box.lookups.push(Some(lookup));
     }
 
@@ -425,14 +425,14 @@ fn parse_otl_common(
                     b"lookup_",
                     prefix,
                     b"_",
-                    Hex2(lookup.type_0.raw()),
+                    Hex2(lookup.lookup_type.raw()),
                     b"_",
                     j_3 as i32,
                 );
             } else {
                 lookup.name = crate::bytesbuild!(
                     b"lookup_",
-                    Hex2(lookup.type_0.raw()),
+                    Hex2(lookup.lookup_type.raw()),
                     b"_",
                     j_3 as i32,
                 );
@@ -451,7 +451,7 @@ fn read_otl_lookup(
     let parsed = FontReader::new(data)
         .at(lookup._offset as usize)
         .and_then(|mut r| {
-            r.skip(2)?; // lookupType, already resolved into type_0
+            r.skip(2)?; // lookupType, already resolved into lookup_type
             let flags = r.u16()?;
             let subtable_count = r.u16()?;
             r.require_room(subtable_count as usize, 2)?;
@@ -471,18 +471,18 @@ fn read_otl_lookup(
     let (flags, subtable_offsets) = match parsed {
         Ok(v) => v,
         Err(_) => {
-            lookup.type_0 = OTL_TYPE_UNKNOWN;
+            lookup.lookup_type = OTL_TYPE_UNKNOWN;
             return;
         }
     };
     lookup.flags = flags;
     for subtable_offset in subtable_offsets {
         let subtable =
-            read_otl_subtable(data, subtable_offset, lookup.type_0, max_glyphs, options, budget);
+            read_otl_subtable(data, subtable_offset, lookup.lookup_type, max_glyphs, options, budget);
         lookup.subtables.push(subtable);
     }
-    if lookup.type_0 == OTL_TYPE_GSUB_EXTEND || lookup.type_0 == OTL_TYPE_GPOS_EXTEND {
-        lookup.type_0 = OTL_TYPE_UNKNOWN;
+    if lookup.lookup_type == OTL_TYPE_GSUB_EXTEND || lookup.lookup_type == OTL_TYPE_GPOS_EXTEND {
+        lookup.lookup_type = OTL_TYPE_UNKNOWN;
         // First `Some` slot (holes only appear via later consolidation,
         // but this dispatch runs right after the read above, so a linear
         // search rather than assuming slot 0 is still correct) decides
@@ -493,12 +493,12 @@ fn read_otl_lookup(
                 let Subtable::Extend(ext) = elem.as_ref() else {
                     unreachable!()
                 };
-                ext.type_0
+                ext.lookup_type
             })
         }) {
-            lookup.type_0 = ext_type;
+            lookup.lookup_type = ext_type;
         }
-        if lookup.type_0 != OTL_TYPE_UNKNOWN {
+        if lookup.lookup_type != OTL_TYPE_UNKNOWN {
             for slot in lookup.subtables.iter_mut() {
                 // `.take()` both reads this slot's element (if any) and
                 // leaves `None` behind -- the direct replacement for the old
@@ -521,9 +521,9 @@ fn read_otl_lookup(
                     let Subtable::Extend(ext) = &mut *elem else {
                         unreachable!()
                     };
-                    let ext_type = ext.type_0;
+                    let ext_type = ext.lookup_type;
                     let nested = ext.subtable.take();
-                    if ext_type == lookup.type_0 {
+                    if ext_type == lookup.lookup_type {
                         *slot = nested;
                     } else {
                         // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
@@ -531,7 +531,7 @@ fn read_otl_lookup(
                         // never pushed anywhere, so it's just let go out of scope
                         // instead of the old explicit `otfcc_delete_lookup` call.
                         let mut temp: Box<Lookup> = new_lookup();
-                        temp.type_0 = ext_type;
+                        temp.lookup_type = ext_type;
                         temp.subtables.push(nested);
                         drop(temp);
                         // Slot already `None` from `.take()` above.
@@ -551,11 +551,11 @@ fn read_otl_lookup(
             return;
         }
     }
-    if lookup.type_0 == OTL_TYPE_GSUB_CONTEXT {
-        lookup.type_0 = OTL_TYPE_GSUB_CHAINING;
+    if lookup.lookup_type == OTL_TYPE_GSUB_CONTEXT {
+        lookup.lookup_type = OTL_TYPE_GSUB_CHAINING;
     }
-    if lookup.type_0 == OTL_TYPE_GPOS_CONTEXT {
-        lookup.type_0 = OTL_TYPE_GPOS_CHAINING;
+    if lookup.lookup_type == OTL_TYPE_GPOS_CONTEXT {
+        lookup.lookup_type = OTL_TYPE_GPOS_CHAINING;
     }
 }
 pub fn read_otl(
@@ -755,7 +755,7 @@ mod parse_otl_common_tests {
         // `read_otl_subtable` (unconverted, out of scope) falls
         // through to its null-return arm -- this test only checks that one
         // subtable slot was appended, not what's in it.
-        lookup.type_0 = OTL_TYPE_GSUB_UNKNOWN;
+        lookup.lookup_type = OTL_TYPE_GSUB_UNKNOWN;
         read_otl_lookup(&data, &mut lookup, 0, &options, &mut OtlReadBudget::new());
         assert_eq!(lookup.subtables.len(), 1);
     }
@@ -766,6 +766,6 @@ mod parse_otl_common_tests {
         let options = zeroed_options();
         let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
         read_otl_lookup(&data, otl.lookups[0].as_mut().unwrap(), 0, &options, &mut OtlReadBudget::new());
-        assert_eq!(otl.lookups[0].as_ref().unwrap().type_0, OTL_TYPE_UNKNOWN);
+        assert_eq!(otl.lookups[0].as_ref().unwrap().lookup_type, OTL_TYPE_UNKNOWN);
     }
 }

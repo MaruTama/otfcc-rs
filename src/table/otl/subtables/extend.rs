@@ -46,14 +46,14 @@ fn read_otl_extend(
     let extension_lookup_type = u16::from_be_bytes([header[2], header[3]]);
     let extension_offset = u32::from_be_bytes([header[4], header[5], header[6], header[7]]);
     let real_subtable_offset = subtable_offset.checked_add(extension_offset)?;
-    let type_0 = LookupType::from_file(basis, extension_lookup_type);
+    let lookup_type = LookupType::from_file(basis, extension_lookup_type);
     // `read_otl_subtable` returns `Option<Box<Subtable>>`, the same
     // type `ExtendSubtable.subtable` holds -- no conversion at this
     // boundary. A nested read that fails still yields an `Extend` with an
     // empty `subtable` (only a bad *header* above rejects the whole thing),
     // exactly as before.
-    let subtable = read_otl_subtable(data, real_subtable_offset, type_0, max_glyphs, options, budget);
-    Some(Subtable::Extend(ExtendSubtable { type_0, subtable }))
+    let subtable = read_otl_subtable(data, real_subtable_offset, lookup_type, max_glyphs, options, budget);
+    Some(Subtable::Extend(ExtendSubtable { lookup_type, subtable }))
 }
 pub fn read_otl_gsub_extend(
     data: &[u8],

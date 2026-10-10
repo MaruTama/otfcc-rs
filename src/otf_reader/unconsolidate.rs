@@ -359,7 +359,7 @@ pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
     lookup.subtables = newsts;
 }
 fn expand_chain(lookup: &mut Lookup) {
-    if let Some(kind) = lookup_kind(lookup.type_0) {
+    if let Some(kind) = lookup_kind(lookup.lookup_type) {
         kind.unconsolidate(lookup);
     }
 }

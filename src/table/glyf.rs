@@ -292,19 +292,19 @@ fn glyf_contour_fill(arr: &mut Contour, n: usize) {
     }
 }
 #[inline]
-fn init_glyf_reference(ref_0: &mut ComponentReference) {
-    ref_0.glyph = handle_empty() as GlyphHandle;
-    ref_0.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-    ref_0.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-    ref_0.a = 1_i32 as Scale;
-    ref_0.b = 0_i32 as Scale;
-    ref_0.c = 0_i32 as Scale;
-    ref_0.d = 1_i32 as Scale;
-    ref_0.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
-    ref_0.outer = 0 as ShapeId;
-    ref_0.inner = ref_0.outer;
-    ref_0.round_to_grid = false;
-    ref_0.use_my_metrics = false;
+fn init_glyf_reference(glyph_ref: &mut ComponentReference) {
+    glyph_ref.glyph = handle_empty() as GlyphHandle;
+    glyph_ref.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
+    glyph_ref.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
+    glyph_ref.a = 1_i32 as Scale;
+    glyph_ref.b = 0_i32 as Scale;
+    glyph_ref.c = 0_i32 as Scale;
+    glyph_ref.d = 1_i32 as Scale;
+    glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
+    glyph_ref.outer = 0 as ShapeId;
+    glyph_ref.inner = glyph_ref.outer;
+    glyph_ref.round_to_grid = false;
+    glyph_ref.use_my_metrics = false;
 }
 #[inline]
 pub fn glyf_component_reference_empty() -> ComponentReference {
@@ -423,28 +423,28 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
     }
     let mut references = BuiltValue::new_array(g.references.len());
     for r in g.references.iter() {
-        let mut ref_0 = BuiltValue::new_object(9);
-        ref_0.push_field(b"glyph", BuiltValue::str_truncated_at_nul(&r.glyph.name));
+        let mut ref_json = BuiltValue::new_object(9);
+        ref_json.push_field(b"glyph", BuiltValue::str_truncated_at_nul(&r.glyph.name));
         // See the comment on the `json_new_vq` calls in
         // `glyf_glyph_dump_contours` above.
-        ref_0.push_field(b"x", json_new_vq(r.x.borrow().clone(), ctx.fvar.as_deref()));
-        ref_0.push_field(b"y", json_new_vq(r.y.borrow().clone(), ctx.fvar.as_deref()));
-        ref_0.push_field(b"a", BuiltValue::position(r.a as Pos));
-        ref_0.push_field(b"b", BuiltValue::position(r.b as Pos));
-        ref_0.push_field(b"c", BuiltValue::position(r.c as Pos));
-        ref_0.push_field(b"d", BuiltValue::position(r.d as Pos));
+        ref_json.push_field(b"x", json_new_vq(r.x.borrow().clone(), ctx.fvar.as_deref()));
+        ref_json.push_field(b"y", json_new_vq(r.y.borrow().clone(), ctx.fvar.as_deref()));
+        ref_json.push_field(b"a", BuiltValue::position(r.a as Pos));
+        ref_json.push_field(b"b", BuiltValue::position(r.b as Pos));
+        ref_json.push_field(b"c", BuiltValue::position(r.c as Pos));
+        ref_json.push_field(b"d", BuiltValue::position(r.d as Pos));
         if r.is_anchored.get() != RefAnchorStatus::Xy {
-            ref_0.push_field(b"isAnchored", BuiltValue::Bool(true));
-            ref_0.push_field(b"inner", BuiltValue::Int(r.inner as i64));
-            ref_0.push_field(b"outer", BuiltValue::Int(r.outer as i64));
+            ref_json.push_field(b"isAnchored", BuiltValue::Bool(true));
+            ref_json.push_field(b"inner", BuiltValue::Int(r.inner as i64));
+            ref_json.push_field(b"outer", BuiltValue::Int(r.outer as i64));
         }
         if r.round_to_grid {
-            ref_0.push_field(b"roundToGrid", BuiltValue::Bool(true));
+            ref_json.push_field(b"roundToGrid", BuiltValue::Bool(true));
         }
         if r.use_my_metrics {
-            ref_0.push_field(b"useMyMetrics", BuiltValue::Bool(true));
+            ref_json.push_field(b"useMyMetrics", BuiltValue::Bool(true));
         }
-        references.push_item(ref_0.preserialize());
+        references.push_item(ref_json.preserialize());
     }
     target.push_field(b"references", references);
 }
@@ -622,34 +622,34 @@ fn glyf_parse_contours(col: Option<&ParsedValue>, g: &mut Glyph) {
     }
 }
 fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
-    let mut ref_0: ComponentReference = glyf_component_reference_empty();
+    let mut glyph_ref: ComponentReference = glyf_component_reference_empty();
     let Some(_gname) = refdump.get_typed(b"glyph", JsonType::String) else {
-        ref_0.glyph.name = Vec::new();
-        ref_0.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-        ref_0.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-        ref_0.a = 1.0f64 as Scale;
-        ref_0.b = 0.0f64 as Scale;
-        ref_0.c = 0.0f64 as Scale;
-        ref_0.d = 1.0f64 as Scale;
-        ref_0.round_to_grid = false;
-        ref_0.use_my_metrics = false;
-        return ref_0;
+        glyph_ref.glyph.name = Vec::new();
+        glyph_ref.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
+        glyph_ref.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
+        glyph_ref.a = 1.0f64 as Scale;
+        glyph_ref.b = 0.0f64 as Scale;
+        glyph_ref.c = 0.0f64 as Scale;
+        glyph_ref.d = 1.0f64 as Scale;
+        glyph_ref.round_to_grid = false;
+        glyph_ref.use_my_metrics = false;
+        return glyph_ref;
     };
-    ref_0.glyph = handle_from_name(_gname.as_str_bytes().map(|b| b.to_vec()));
-    ref_0.x = std::cell::RefCell::new(json_vq_of(refdump.get(b"x")));
-    ref_0.y = std::cell::RefCell::new(json_vq_of(refdump.get(b"y")));
-    ref_0.a = refdump.get_num_or(b"a", 1.0f64) as Scale;
-    ref_0.b = refdump.get_num_or(b"b", 0.0f64) as Scale;
-    ref_0.c = refdump.get_num_or(b"c", 0.0f64) as Scale;
-    ref_0.d = refdump.get_num_or(b"d", 1.0f64) as Scale;
-    ref_0.round_to_grid = refdump.get_bool(b"roundToGrid");
-    ref_0.use_my_metrics = refdump.get_bool(b"useMyMetrics");
+    glyph_ref.glyph = handle_from_name(_gname.as_str_bytes().map(|b| b.to_vec()));
+    glyph_ref.x = std::cell::RefCell::new(json_vq_of(refdump.get(b"x")));
+    glyph_ref.y = std::cell::RefCell::new(json_vq_of(refdump.get(b"y")));
+    glyph_ref.a = refdump.get_num_or(b"a", 1.0f64) as Scale;
+    glyph_ref.b = refdump.get_num_or(b"b", 0.0f64) as Scale;
+    glyph_ref.c = refdump.get_num_or(b"c", 0.0f64) as Scale;
+    glyph_ref.d = refdump.get_num_or(b"d", 1.0f64) as Scale;
+    glyph_ref.round_to_grid = refdump.get_bool(b"roundToGrid");
+    glyph_ref.use_my_metrics = refdump.get_bool(b"useMyMetrics");
     if refdump.get_bool(b"isAnchored") {
-        ref_0.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorXy);
-        ref_0.inner = refdump.get_int(b"inner") as ShapeId;
-        ref_0.outer = refdump.get_int(b"outer") as ShapeId;
+        glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorXy);
+        glyph_ref.inner = refdump.get_int(b"inner") as ShapeId;
+        glyph_ref.outer = refdump.get_int(b"outer") as ShapeId;
     }
-    ref_0
+    glyph_ref
 }
 fn glyf_parse_references(col: Option<&ParsedValue>, g: &mut Glyph) {
     let Some(items) = col.and_then(ParsedValue::as_array) else {

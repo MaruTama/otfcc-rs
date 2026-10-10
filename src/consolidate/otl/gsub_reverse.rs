@@ -21,7 +21,7 @@ pub fn consolidate_gsub_reverse(
     // `consolidate_font` always populates `glyph_order` before
     // that, whenever `glyf` is present.
     let match_count = subtable.match_count as usize;
-    for cov in subtable.match_0.iter_mut().take(match_count) {
+    for cov in subtable.sequence.iter_mut().take(match_count) {
         fontop_consolidate_coverage(glyph_order, cov);
     }
     fontop_consolidate_coverage(glyph_order, &mut subtable.to);
@@ -54,7 +54,7 @@ pub fn consolidate_gsub_reverse(
         std::collections::BTreeMap::new();
     // `.zip()` stops at the shorter side on its own, the same bound `n =
     // min(...)` computed by hand.
-    for (from, to) in subtable.match_0[input_index].iter().zip(subtable.to.iter()) {
+    for (from, to) in subtable.sequence[input_index].iter().zip(subtable.to.iter()) {
         let fromid: i32 = from.index as i32;
         if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
             let toid: i32 = to.index as i32;
@@ -66,13 +66,13 @@ pub fn consolidate_gsub_reverse(
         }
     }
     let count: usize = seen.len();
-    if count != subtable.match_0[input_index].len() || count != subtable.to.len() {
+    if count != subtable.sequence[input_index].len() || count != subtable.to.len() {
         tracing::warn!("[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n");
     }
-    subtable.match_0[input_index] = Vec::new();
+    subtable.sequence[input_index] = Vec::new();
     subtable.to = Vec::new();
     for (fromid, (fromname, toid, toname)) in seen {
-        subtable.match_0[input_index].push(Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle);
+        subtable.sequence[input_index].push(Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle);
         subtable.to.push(Handle::new(HandleState::Consolidated, toid as GlyphId, toname) as GlyphHandle);
     }
     return false;

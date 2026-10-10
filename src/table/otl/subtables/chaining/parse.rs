@@ -18,13 +18,13 @@ pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let apply_items = apply_val.as_array().unwrap();
     let mut rule = ChainingRule {
         match_count: match_items.len() as TableId,
-        match_0: Vec::with_capacity(match_items.len()),
+        sequence: Vec::with_capacity(match_items.len()),
         ..ChainingRule::default()
     };
     rule.input_begins = sv.get_num_or(b"inputBegins", 0.0) as TableId;
     rule.input_ends = sv.get_num_or(b"inputEnds", rule.match_count as f64) as TableId;
     for item in match_items {
-        rule.match_0.push(parse_coverage(Some(item)));
+        rule.sequence.push(parse_coverage(Some(item)));
     }
     rule.apply = Vec::with_capacity(apply_items.len());
     for application in apply_items {

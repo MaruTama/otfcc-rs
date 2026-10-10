@@ -617,7 +617,7 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
     let mut flush: bool = false;
     let mut last: bool = false;
     for j in 0..il.instr.len() as u32 {
-        match il.instr[j as usize].type_0 as u32 {
+        match il.instr[j as usize].kind as u32 {
             0 => {
                 if flush {
                     let n = g.alloc_node();

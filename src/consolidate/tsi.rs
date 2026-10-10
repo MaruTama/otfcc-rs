@@ -32,7 +32,7 @@ pub(crate) fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &
     let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; glyf.len()];
     let entries: &mut Vec<TsiEntry> = tsi.as_mut().unwrap();
     for entry in entries.iter_mut() {
-        if entry.type_0 == TsiEntryType::Glyph {
+        if entry.kind == TsiEntryType::Glyph {
             if gord_consolidate_handle(glyph_order, &mut entry.glyph) {
                 gid_entries[entry.glyph.index as usize] =
                     Some(::core::mem::take(&mut entry.content));
@@ -47,19 +47,19 @@ pub(crate) fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &
     }
     for (j, entry) in gid_entries.iter_mut().enumerate() {
         let mut e_0: TsiEntry = TsiEntry {
-            type_0: TsiEntryType::Glyph,
+            kind: TsiEntryType::Glyph,
             glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
             content: Vec::new(),
         };
-        e_0.type_0 = TsiEntryType::Glyph;
+        e_0.kind = TsiEntryType::Glyph;
         e_0.glyph = handle_from_index(j as GlyphId) as GlyphHandle;
         gord_consolidate_handle(glyph_order, &mut e_0.glyph);
         e_0.content = entry.take().unwrap_or_default();
         consolidated.push(e_0);
     }
     consolidated.sort_by(|a, b| {
-        (a.type_0 as u32)
-            .cmp(&(b.type_0 as u32))
+        (a.kind as u32)
+            .cmp(&(b.kind as u32))
             .then(a.glyph.index.cmp(&b.glyph.index))
     });
     // Old `tsi` (the previous value) drops naturally here, when this
