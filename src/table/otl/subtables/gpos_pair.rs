@@ -55,235 +55,209 @@ pub fn otl_read_gpos_pair(
     _max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
+    let subtable_format = FontReader::new(data)
+        .at(offset as usize)
+        .and_then(|mut r| r.u16())
+        .ok()?;
+    match subtable_format {
+        1 => read_pair_format1(data, offset, budget),
+        2 => read_pair_format2(data, offset, budget),
+        _ => None,
+    }
+}
+/// Format 1: one PairSet of individual pairs per covered first glyph.
+fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Option<Subtable> {
     let mut subtable = GposPairSubtable {
         first: None,
         second: None,
         first_values: Vec::new(),
         second_values: Vec::new(),
     };
+    let mut header = FontReader::new(data).at(offset as usize + 2).ok()?;
+    let cov_rel = header.u16().ok()?;
 
-    'parse: {
-        let Ok(subtable_format) = FontReader::new(data)
-            .at(offset as usize)
-            .and_then(|mut r| r.u16())
-        else {
-            break 'parse;
-        };
+    // Built as a local and moved into `subtable` once the branch has
+    // succeeded; every early `return None` drops it.
+    let cov: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
+    let first_cd = ClassDef {
+        maxclass: (cov.len() as i32 - 1) as GlyphClass,
+        classes: (0..cov.len()).map(|j| j as GlyphClass).collect(),
+        glyphs: cov,
+    };
 
-        if subtable_format == 1 {
-            let Ok(mut header) = FontReader::new(data).at(offset as usize + 2) else {
-                break 'parse;
-            };
-            let Ok(cov_rel) = header.u16() else {
-                break 'parse;
-            };
+    let format1 = header.u16().ok()?;
+    let format2 = header.u16().ok()?;
+    let len1 = position_format_length(format1);
+    let len2 = position_format_length(format2);
+    let pair_set_count = header.u16().ok()?;
+    if pair_set_count as usize != first_cd.glyphs.len() {
+        return None;
+    }
+    if header.require_room(pair_set_count as usize, 2).is_err() {
+        return None;
+    }
+    let mut pair_set_offsets = Vec::with_capacity(pair_set_count as usize);
+    for _ in 0..pair_set_count {
+        pair_set_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+    }
 
-            // Built as a local and moved into `subtable` once the branch has
-            // succeeded; every `break 'parse` drops `subtable`.
-            let cov: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
-            let first_cd = ClassDef {
-                maxclass: (cov.len() as i32 - 1) as GlyphClass,
-                classes: (0..cov.len()).map(|j| j as GlyphClass).collect(),
-                glyphs: cov,
-            };
+    // Check every PairSet's header and record array first.
+    let stride = 2usize + len1 as usize + len2 as usize;
+    let mut pair_counts = Vec::with_capacity(pair_set_count as usize);
+    for &pso in &pair_set_offsets {
+        let mut pr = FontReader::new(data).at(pso as usize).ok()?;
+        let pc = pr.u16().ok()?;
+        if pr.require_room(pc as usize, stride).is_err() {
+            return None;
+        }
+        pair_counts.push(pc);
+    }
 
-            let Ok(format1) = header.u16() else {
-                break 'parse;
-            };
-            let Ok(format2) = header.u16() else {
-                break 'parse;
-            };
-            let len1 = position_format_length(format1);
-            let len2 = position_format_length(format2);
-            let Ok(pair_set_count) = header.u16() else {
-                break 'parse;
-            };
-            if pair_set_count as usize != first_cd.glyphs.len() {
-                break 'parse;
-            }
-            if header.require_room(pair_set_count as usize, 2).is_err() {
-                break 'parse;
-            }
-            let mut pair_set_offsets = Vec::with_capacity(pair_set_count as usize);
-            for _ in 0..pair_set_count {
-                pair_set_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
-            }
-
-            // Check every PairSet's header and record array first.
-            let stride = 2usize + len1 as usize + len2 as usize;
-            let mut pair_counts = Vec::with_capacity(pair_set_count as usize);
-            for &pso in &pair_set_offsets {
-                let Ok(mut pr) = FontReader::new(data).at(pso as usize) else {
-                    break 'parse;
-                };
-                let Ok(pc) = pr.u16() else { break 'parse };
-                if pr.require_room(pc as usize, stride).is_err() {
-                    break 'parse;
-                }
-                pair_counts.push(pc);
-            }
-
-            // Format 1 lists pairs individually, so a class def for the second
-            // glyphs is synthesized: each distinct second glyph, in order of
-            // first appearance, gets the next class from 1 (class 0 means "not
-            // covered"). The set is built while first reading the pairs,
-            // looked up while placing the values, and walked at the end to
-            // fill `subtable.second`.
-            let mut h: indexmap::IndexSet<i32> = indexmap::IndexSet::new();
-            for (i, &pso) in pair_set_offsets.iter().enumerate() {
-                for k in 0..pair_counts[i] {
-                    let second_offset = pso as usize + 2 + stride * k as usize;
-                    // Already validated by the pass above.
-                    let second = FontReader::new(data)
-                        .at(second_offset)
-                        .unwrap()
-                        .u16()
-                        .unwrap() as i32;
-                    h.insert(second);
-                }
-            }
-
-            let n_second = h.len();
-            let mut second_cd = ClassDef {
-                maxclass: n_second as GlyphClass,
-                classes: vec![0 as GlyphClass; n_second],
-                glyphs: vec![GlyphHandle::default(); n_second],
-            };
-            let class2_count = second_cd.maxclass as usize + 1;
-
-            let first_class_count = first_cd.maxclass as usize + 1;
-            let mut first_values: Vec<Vec<PositionValue>> =
-                vec![vec![position_zero(); class2_count]; first_class_count];
-            let mut second_values: Vec<Vec<PositionValue>> =
-                vec![vec![position_zero(); class2_count]; first_class_count];
-
-            for (j3, &pso) in pair_set_offsets.iter().enumerate() {
-                for k1 in 0..pair_counts[j3] {
-                    let second_offset = pso as usize + 2 + stride * k1 as usize;
-                    let second = FontReader::new(data)
-                        .at(second_offset)
-                        .unwrap()
-                        .u16()
-                        .unwrap() as i32;
-                    if let Some(idx) = h.get_index_of(&second) {
-                        let cid = idx + 1;
-                        first_values[j3][cid] =
-                            read_gpos_value(data, (second_offset + 2) as u32, format1);
-                        second_values[j3][cid] = read_gpos_value(
-                            data,
-                            (second_offset + 2 + len1 as usize) as u32,
-                            format2,
-                        );
-                    }
-                }
-            }
-            subtable.first_values = first_values;
-            subtable.second_values = second_values;
-            for (jj, &gid) in h.iter().enumerate() {
-                second_cd.glyphs[jj] = handle_from_index(gid as GlyphId) as GlyphHandle;
-                second_cd.classes[jj] = (jj + 1) as GlyphClass;
-            }
-            subtable.first = Some(Box::new(first_cd));
-            subtable.second = Some(Box::new(second_cd));
-            return Some(Subtable::GposPair(subtable));
-        } else if subtable_format == 2 {
-            let Ok(mut header) = FontReader::new(data).at(offset as usize + 2) else {
-                break 'parse;
-            };
-            let Ok(cov_rel) = header.u16() else {
-                break 'parse;
-            };
-            let Ok(format1_0) = header.u16() else {
-                break 'parse;
-            };
-            let Ok(format2_0) = header.u16() else {
-                break 'parse;
-            };
-            let Ok(cd1_rel) = header.u16() else {
-                break 'parse;
-            };
-            let Ok(cd2_rel) = header.u16() else {
-                break 'parse;
-            };
-            let Ok(class1_count) = header.u16() else {
-                break 'parse;
-            };
-            let Ok(class2_count) = header.u16() else {
-                break 'parse;
-            };
-            let len1_0 = position_format_length(format1_0);
-            let len2_0 = position_format_length(format2_0);
-
-            let cov_0: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
-            // `expand_class_def` takes the class def it is given and returns a
-            // new one.
-            let first_cd = expand_class_def(
-                &cov_0,
-                read_class_def(data, offset.wrapping_add(cd1_rel as u32)),
-            );
-            let second_cd = read_class_def(data, offset.wrapping_add(cd2_rel as u32));
-            if first_cd.maxclass as usize + 1 != class1_count as usize {
-                break 'parse;
-            }
-            if second_cd.maxclass as usize + 1 != class2_count as usize {
-                break 'parse;
-            }
-            subtable.first = Some(Box::new(first_cd));
-            subtable.second = Some(Box::new(second_cd));
-
-            let stride = len1_0 as usize + len2_0 as usize;
-            let Some(total_cells) = (class1_count as usize).checked_mul(class2_count as usize)
-            else {
-                break 'parse;
-            };
-            // See `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS`'s own doc comment:
-            // `require_room` below is a no-op when `stride` is 0 (both
-            // value formats absent), so `total_cells` needs its own,
-            // stride-independent cap -- checked first, before either
-            // `Vec::with_capacity(class2_count)` allocation below ever
-            // runs, so a rejected subtable never pays for one.
-            if total_cells > MAX_TOTAL_GPOS_PAIR_CLASS_CELLS {
-                break 'parse;
-            }
-            let Ok(matrix) = FontReader::new(data).at(offset as usize + 16) else {
-                break 'parse;
-            };
-            if matrix.require_room(total_cells, stride).is_err() {
-                break 'parse;
-            }
-
-            // Format 2 fills every cell exhaustively and in order, so
-            // (unlike Format 1's `cid`-indexed overwrite pass) no
-            // pre-sized placeholder grid is needed -- each row is just
-            // pushed as it's read.
-            let mut first_values: Vec<Vec<PositionValue>> =
-                Vec::with_capacity(class1_count as usize);
-            let mut second_values: Vec<Vec<PositionValue>> =
-                Vec::with_capacity(class1_count as usize);
-            for j4 in 0..class1_count as u32 {
-                let mut row1 = Vec::with_capacity(class2_count as usize);
-                let mut row2 = Vec::with_capacity(class2_count as usize);
-                for k2 in 0..class2_count as u32 {
-                    // Safe from u32 overflow: `require_room` above already
-                    // rejected any input where `total_cells * stride`
-                    // wouldn't fit in `data`'s own length (itself bounded
-                    // by a `u32`-sized table), so every offset computed
-                    // here is bounded by that.
-                    let cell_offset = offset
-                        .wrapping_add(16)
-                        .wrapping_add((j4 * class2_count as u32 + k2) * stride as u32);
-                    row1.push(read_gpos_value(data, cell_offset, format1_0));
-                    row2.push(read_gpos_value(data, cell_offset + len1_0 as u32, format2_0));
-                }
-                first_values.push(row1);
-                second_values.push(row2);
-            }
-            subtable.first_values = first_values;
-            subtable.second_values = second_values;
-            return Some(Subtable::GposPair(subtable));
+    // Format 1 lists pairs individually, so a class def for the second
+    // glyphs is synthesized: each distinct second glyph, in order of
+    // first appearance, gets the next class from 1 (class 0 means "not
+    // covered"). The set is built while first reading the pairs,
+    // looked up while placing the values, and walked at the end to
+    // fill `subtable.second`.
+    let mut h: indexmap::IndexSet<i32> = indexmap::IndexSet::new();
+    for (i, &pso) in pair_set_offsets.iter().enumerate() {
+        for k in 0..pair_counts[i] {
+            let second_offset = pso as usize + 2 + stride * k as usize;
+            // Already validated by the pass above.
+            let second = FontReader::new(data)
+                .at(second_offset)
+                .unwrap()
+                .u16()
+                .unwrap() as i32;
+            h.insert(second);
         }
     }
-    None
+
+    let n_second = h.len();
+    let mut second_cd = ClassDef {
+        maxclass: n_second as GlyphClass,
+        classes: vec![0 as GlyphClass; n_second],
+        glyphs: vec![GlyphHandle::default(); n_second],
+    };
+    let class2_count = second_cd.maxclass as usize + 1;
+
+    let first_class_count = first_cd.maxclass as usize + 1;
+    let mut first_values: Vec<Vec<PositionValue>> =
+        vec![vec![position_zero(); class2_count]; first_class_count];
+    let mut second_values: Vec<Vec<PositionValue>> =
+        vec![vec![position_zero(); class2_count]; first_class_count];
+
+    for (j3, &pso) in pair_set_offsets.iter().enumerate() {
+        for k1 in 0..pair_counts[j3] {
+            let second_offset = pso as usize + 2 + stride * k1 as usize;
+            let second = FontReader::new(data)
+                .at(second_offset)
+                .unwrap()
+                .u16()
+                .unwrap() as i32;
+            if let Some(idx) = h.get_index_of(&second) {
+                let cid = idx + 1;
+                first_values[j3][cid] =
+                    read_gpos_value(data, (second_offset + 2) as u32, format1);
+                second_values[j3][cid] = read_gpos_value(
+                    data,
+                    (second_offset + 2 + len1 as usize) as u32,
+                    format2,
+                );
+            }
+        }
+    }
+    subtable.first_values = first_values;
+    subtable.second_values = second_values;
+    for (jj, &gid) in h.iter().enumerate() {
+        second_cd.glyphs[jj] = handle_from_index(gid as GlyphId) as GlyphHandle;
+        second_cd.classes[jj] = (jj + 1) as GlyphClass;
+    }
+    subtable.first = Some(Box::new(first_cd));
+    subtable.second = Some(Box::new(second_cd));
+    return Some(Subtable::GposPair(subtable));
+}
+/// Format 2: a class-by-class matrix of values.
+fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Option<Subtable> {
+    let mut subtable = GposPairSubtable {
+        first: None,
+        second: None,
+        first_values: Vec::new(),
+        second_values: Vec::new(),
+    };
+    let mut header = FontReader::new(data).at(offset as usize + 2).ok()?;
+    let cov_rel = header.u16().ok()?;
+    let format1_0 = header.u16().ok()?;
+    let format2_0 = header.u16().ok()?;
+    let cd1_rel = header.u16().ok()?;
+    let cd2_rel = header.u16().ok()?;
+    let class1_count = header.u16().ok()?;
+    let class2_count = header.u16().ok()?;
+    let len1_0 = position_format_length(format1_0);
+    let len2_0 = position_format_length(format2_0);
+
+    let cov_0: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
+    // `expand_class_def` takes the class def it is given and returns a
+    // new one.
+    let first_cd = expand_class_def(
+        &cov_0,
+        read_class_def(data, offset.wrapping_add(cd1_rel as u32)),
+    );
+    let second_cd = read_class_def(data, offset.wrapping_add(cd2_rel as u32));
+    if first_cd.maxclass as usize + 1 != class1_count as usize {
+        return None;
+    }
+    if second_cd.maxclass as usize + 1 != class2_count as usize {
+        return None;
+    }
+    subtable.first = Some(Box::new(first_cd));
+    subtable.second = Some(Box::new(second_cd));
+
+    let stride = len1_0 as usize + len2_0 as usize;
+    let total_cells = (class1_count as usize).checked_mul(class2_count as usize)?;
+    // See `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS`'s own doc comment:
+    // `require_room` below is a no-op when `stride` is 0 (both
+    // value formats absent), so `total_cells` needs its own,
+    // stride-independent cap -- checked first, before either
+    // `Vec::with_capacity(class2_count)` allocation below ever
+    // runs, so a rejected subtable never pays for one.
+    if total_cells > MAX_TOTAL_GPOS_PAIR_CLASS_CELLS {
+        return None;
+    }
+    let matrix = FontReader::new(data).at(offset as usize + 16).ok()?;
+    if matrix.require_room(total_cells, stride).is_err() {
+        return None;
+    }
+
+    // Format 2 fills every cell exhaustively and in order, so
+    // (unlike Format 1's `cid`-indexed overwrite pass) no
+    // pre-sized placeholder grid is needed -- each row is just
+    // pushed as it's read.
+    let mut first_values: Vec<Vec<PositionValue>> =
+        Vec::with_capacity(class1_count as usize);
+    let mut second_values: Vec<Vec<PositionValue>> =
+        Vec::with_capacity(class1_count as usize);
+    for j4 in 0..class1_count as u32 {
+        let mut row1 = Vec::with_capacity(class2_count as usize);
+        let mut row2 = Vec::with_capacity(class2_count as usize);
+        for k2 in 0..class2_count as u32 {
+            // Safe from u32 overflow: `require_room` above already
+            // rejected any input where `total_cells * stride`
+            // wouldn't fit in `data`'s own length (itself bounded
+            // by a `u32`-sized table), so every offset computed
+            // here is bounded by that.
+            let cell_offset = offset
+                .wrapping_add(16)
+                .wrapping_add((j4 * class2_count as u32 + k2) * stride as u32);
+            row1.push(read_gpos_value(data, cell_offset, format1_0));
+            row2.push(read_gpos_value(data, cell_offset + len1_0 as u32, format2_0));
+        }
+        first_values.push(row1);
+        second_values.push(row2);
+    }
+    subtable.first_values = first_values;
+    subtable.second_values = second_values;
+    return Some(Subtable::GposPair(subtable));
 }
 pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposPair(subtable) = _subtable else {

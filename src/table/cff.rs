@@ -236,113 +236,28 @@ fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], co
         &mut *context.meta
     };
     let pd: &mut CffPrivateDict = meta.private_dict.as_deref_mut().unwrap();
-    match op.0 {
-        6 => {
-            pd.blue_values = (0..top as Arity)
-                .map(|j| cffnum(stack[j as usize]))
-                .collect();
-        }
-        7 => {
-            pd.other_blues = (0..top as Arity)
-                .map(|j| cffnum(stack[j as usize]))
-                .collect();
-        }
-        8 => {
-            pd.family_blues = (0..top as Arity)
-                .map(|j| cffnum(stack[j as usize]))
-                .collect();
-        }
-        9 => {
-            pd.family_other_blues = (0..top as Arity)
-                .map(|j| cffnum(stack[j as usize]))
-                .collect();
-        }
-        3084 => {
-            pd.stem_snap_h = (0..top as Arity)
-                .map(|j| cffnum(stack[j as usize]))
-                .collect();
-        }
-        3085 => {
-            pd.stem_snap_v = (0..top as Arity)
-                .map(|j| cffnum(stack[j as usize]))
-                .collect();
-        }
-        3081 => {
-            if top != 0 {
-                pd.blue_scale = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        3082 => {
-            if top != 0 {
-                pd.blue_shift = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        3083 => {
-            if top != 0 {
-                pd.blue_fuzz = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        10 => {
-            if top != 0 {
-                pd.std_hw = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        11 => {
-            if top != 0 {
-                pd.std_vw = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        3086 => {
-            if top != 0 {
-                pd.force_bold = cffnum(
-                    stack[top as usize - 1],
-                ) != 0.;
-            }
-        }
-        3089 => {
-            if top != 0 {
-                pd.language_group = cffnum(
-                    stack[top as usize - 1],
-                ) as u32;
-            }
-        }
-        3090 => {
-            if top != 0 {
-                pd.expansion_factor = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        3091 => {
-            if top != 0 {
-                pd.initial_random_seed = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        20 => {
-            if top != 0 {
-                pd.default_width_x = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        21
-            if top != 0 => {
-                pd.nominal_width_x = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
+    // Every operand, in order (the delta-encoded arrays).
+    let all = || (0..top as Arity).map(|j| cffnum(stack[j as usize])).collect::<Vec<f64>>();
+    // The operand `n` places below the top; only read once `top >= n` is known.
+    let last = |n: usize| cffnum(stack[top as usize - n]);
+    match op {
+        OP_BLUE_VALUES => pd.blue_values = all(),
+        OP_OTHER_BLUES => pd.other_blues = all(),
+        OP_FAMILY_BLUES => pd.family_blues = all(),
+        OP_FAMILY_OTHER_BLUES => pd.family_other_blues = all(),
+        OP_STEM_SNAP_H => pd.stem_snap_h = all(),
+        OP_STEM_SNAP_V => pd.stem_snap_v = all(),
+        OP_BLUE_SCALE if top != 0 => pd.blue_scale = last(1),
+        OP_BLUE_SHIFT if top != 0 => pd.blue_shift = last(1),
+        OP_BLUE_FUZZ if top != 0 => pd.blue_fuzz = last(1),
+        OP_STD_HW if top != 0 => pd.std_hw = last(1),
+        OP_STD_VW if top != 0 => pd.std_vw = last(1),
+        OP_FORCE_BOLD if top != 0 => pd.force_bold = last(1) != 0.,
+        OP_LANGUAGE_GROUP if top != 0 => pd.language_group = last(1) as u32,
+        OP_EXPANSION_FACTOR if top != 0 => pd.expansion_factor = last(1),
+        OP_INITIAL_RANDOM_SEED if top != 0 => pd.initial_random_seed = last(1),
+        OP_DEFAULT_WIDTH_X if top != 0 => pd.default_width_x = last(1),
+        OP_NOMINAL_WIDTH_X if top != 0 => pd.nominal_width_x = last(1),
         _ => {}
     };
 }
@@ -355,214 +270,64 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
     } else {
         &mut *context.meta
     };
-    match op.0 {
-        0 => {
-            if top != 0 {
-                meta.version = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 1],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
+    // The operand `n` places below the top; only read once `top >= n` is known.
+    let last = |n: usize| cffnum(stack[top as usize - n]);
+    // That operand as a string id, resolved against the String INDEX.
+    let sid = |n: usize| get_cff_sid(last(n) as u16, &file.string).unwrap_or_default();
+    match op {
+        OP_VERSION if top != 0 => meta.version = sid(1),
+        OP_NOTICE if top != 0 => meta.notice = sid(1),
+        OP_COPYRIGHT if top != 0 => meta.copyright = sid(1),
+        OP_FONT_NAME if top != 0 => meta.font_name = sid(1),
+        OP_FULL_NAME if top != 0 => meta.full_name = sid(1),
+        OP_FAMILY_NAME if top != 0 => meta.family_name = sid(1),
+        OP_WEIGHT if top != 0 => meta.weight = sid(1),
+        OP_FONT_BBOX if top >= 4 => {
+            meta.font_b_box_left = last(4);
+            meta.font_b_box_bottom = last(3);
+            meta.font_b_box_right = last(2);
+            meta.font_b_box_top = last(1);
+        }
+        OP_FONT_MATRIX if top >= 6 => {
+            meta.font_matrix = Some(Box::new(CffFontMatrix {
+                a: last(6) as Scale,
+                b: last(5) as Scale,
+                c: last(4) as Scale,
+                d: last(3) as Scale,
+                x: vq_create_still(last(2) as Pos),
+                y: vq_create_still(last(1) as Pos),
+            }));
+        }
+        OP_IS_FIXED_PITCH if top != 0 => meta.is_fixed_pitch = last(1) != 0.,
+        OP_ITALIC_ANGLE if top != 0 => meta.italic_angle = last(1),
+        OP_UNDERLINE_POSITION if top != 0 => meta.underline_position = last(1),
+        OP_UNDERLINE_THICKNESS if top != 0 => meta.underline_thickness = last(1),
+        OP_STROKE_WIDTH if top != 0 => meta.stroke_width = last(1),
+        OP_PRIVATE if top >= 2 => {
+            let private_length: u32 = last(2) as u32;
+            let private_offset: u32 = last(1) as u32;
+            meta.private_dict = Some(new_cff_private());
+            // The Private DICT's offset and length come from the font;
+            // skip the DICT, keeping the default `private_dict`, when
+            // they do not fit in the table.
+            let raw_slice = file.raw_data.as_slice();
+            if let Some(private_bytes) = raw_slice
+                .get(private_offset as usize..)
+                .and_then(|s| s.get(..private_length as usize))
+            {
+                // `meta`'s last use was the assignment above, so its borrow
+                // of `context` has ended and `context` can be reborrowed.
+                parse_to_callback(private_bytes, |op, top, stack| {
+                    callback_extract_private(op, top, stack, context);
+                });
             }
         }
-        1 => {
-            if top != 0 {
-                meta.notice = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 1],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
-            }
+        OP_ROS if top >= 3 => {
+            meta.is_cid = true;
+            meta.cid_registry = sid(3);
+            meta.cid_ordering = sid(2);
+            meta.cid_supplement = last(1) as u32;
         }
-        3072 => {
-            if top != 0 {
-                meta.copyright = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 1],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
-            }
-        }
-        3110 => {
-            if top != 0 {
-                meta.font_name = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 1],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
-            }
-        }
-        2 => {
-            if top != 0 {
-                meta.full_name = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 1],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
-            }
-        }
-        3 => {
-            if top != 0 {
-                meta.family_name = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 1],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
-            }
-        }
-        4 => {
-            if top != 0 {
-                meta.weight = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 1],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
-            }
-        }
-        5 => {
-            if top >= 4 {
-                meta.font_b_box_left = cffnum(
-                    stack[top as usize - 4],
-                );
-                meta.font_b_box_bottom = cffnum(
-                    stack[top as usize - 3],
-                );
-                meta.font_b_box_right = cffnum(
-                    stack[top as usize - 2],
-                );
-                meta.font_b_box_top = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        3079 => {
-            if top >= 6 {
-                meta.font_matrix = Some(Box::new(CffFontMatrix {
-                    a: 0.,
-                    b: 0.,
-                    c: 0.,
-                    d: 0.,
-                    x: vq_neutral(),
-                    y: vq_neutral(),
-                }));
-                let fm: &mut CffFontMatrix = meta.font_matrix.as_deref_mut().unwrap();
-                fm.a = cffnum(
-                    stack[top as usize - 6],
-                ) as Scale;
-                fm.b = cffnum(
-                    stack[top as usize - 5],
-                ) as Scale;
-                fm.c = cffnum(
-                    stack[top as usize - 4],
-                ) as Scale;
-                fm.d = cffnum(
-                    stack[top as usize - 3],
-                ) as Scale;
-                fm.x = vq_create_still(cffnum(
-                    stack[top as usize - 2],
-                ) as Pos);
-                fm.y = vq_create_still(cffnum(
-                    stack[top as usize - 1],
-                ) as Pos);
-            }
-        }
-        3073 => {
-            if top != 0 {
-                meta.is_fixed_pitch = cffnum(
-                    stack[top as usize - 1],
-                ) != 0.;
-            }
-        }
-        3074 => {
-            if top != 0 {
-                meta.italic_angle = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        3075 => {
-            if top != 0 {
-                meta.underline_position = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        3076 => {
-            if top != 0 {
-                meta.underline_thickness = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        3080 => {
-            if top != 0 {
-                meta.stroke_width = cffnum(
-                    stack[top as usize - 1],
-                );
-            }
-        }
-        18 => {
-            if top >= 2 {
-                let private_length: u32 = cffnum(
-                    stack[top as usize - 2],
-                ) as u32;
-                let private_offset: u32 = cffnum(
-                    stack[top as usize - 1],
-                ) as u32;
-                meta.private_dict = Some(new_cff_private());
-                // The Private DICT's offset and length come from the font;
-                // skip the DICT, keeping the default `private_dict`, when
-                // they do not fit in the table.
-                let raw_slice = file.raw_data.as_slice();
-                if let Some(private_bytes) = raw_slice
-                    .get(private_offset as usize..)
-                    .and_then(|s| s.get(..private_length as usize))
-                {
-                    // `meta`'s last use was the assignment above -- its
-                    // (and thus `context.meta`'s) borrow has already ended
-                    // here, so this fresh reborrow of `context` as a whole
-                    // is sound under NLL.
-                    parse_to_callback(private_bytes, |op, top, stack| {
-                        callback_extract_private(op, top, stack, context);
-                    });
-                }
-            }
-        }
-        3102
-            if top >= 3 => {
-                meta.is_cid = true;
-                meta.cid_registry = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 3],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
-                meta.cid_ordering = get_cff_sid(
-                    cffnum(
-                        stack[top as usize - 2],
-                    ) as u16,
-                    &file.string,
-                )
-                .unwrap_or_default();
-                meta.cid_supplement = cffnum(
-                    stack[top as usize - 1],
-                ) as u32;
-            }
         _ => {}
     };
 }

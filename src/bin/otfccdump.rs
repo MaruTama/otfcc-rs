@@ -23,7 +23,57 @@ pub fn print_help() {
         "\nUsage : otfccdump [OPTIONS] input.[otf|ttf|ttc]\n\n -h, --help              : Display this help message and exit.\n -v, --version           : Display version information and exit.\n -o <file>               : Set output file path to <file>. When absent the dump\n                           will be written to STDOUT.\n -n <n>, --ttc-index <n> : Use the <n>th subfont within the input font.\n --pretty                : Prettify the output JSON.\n --ugly                  : Force uglify the output JSON.\n --verbose               : Show more information when building.\n -q, --quiet             : Be silent when building.\n\n --ignore-glyph-order    : Do not export glyph order information.\n --glyph-name-prefix pfx : Add a prefix to the glyph names.\n --ignore-hints          : Do not export hinting information.\n --decimal-cmap          : Export 'cmap' keys as decimal number.\n --hex-cmap              : Export 'cmap' keys as hex number (U+FFFF).\n --name-by-hash          : Name glyphs using its hash value.\n --name-by-gid           : Name glyphs using its glyph id.\n --add-bom               : Add BOM mark in the output. (It is default on Windows\n                           when redirecting to another program. Use --no-bom to\n                           turn it off.)\n\n"
     );
 }
-fn run(args: Vec<String>) -> i32 {
+/// The JSON layout: packed, unless `--pretty` is given or the dump goes to a
+/// terminal; `--ugly` forces packed either way.
+fn json_layout(show_pretty: bool, show_ugly: bool, has_output_path: bool) -> JsonSerializeOpts {
+    let mut mode = JSON_SERIALIZE_MODE_PACKED;
+    if show_pretty || !has_output_path && std::io::stdout().is_terminal() {
+        mode = JSON_SERIALIZE_MODE_MULTILINE;
+    }
+    if show_ugly {
+        mode = JSON_SERIALIZE_MODE_PACKED;
+    }
+    JsonSerializeOpts { mode, opts: 0, indent_size: 4 }
+}
+/// Opens where the JSON goes -- the `-o` file or stdout -- and writes the BOM
+/// if asked. Returns the writer and whether writing the file has already
+/// failed; a file that cannot be created becomes a sink, so the dump still
+/// runs and the failure is reported in the Output step.
+fn open_output(output_path: Option<&::std::ffi::CString>, add_bom: bool) -> (Box<dyn Write>, bool) {
+    let mut write_failed = false;
+    let mut out: Box<dyn Write> = match output_path {
+        Some(output_path) => {
+            let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
+            match std::fs::File::create(std::path::Path::new(os_path)) {
+                Ok(f) => Box::new(std::io::BufWriter::new(f)),
+                Err(_) => {
+                    write_failed = true;
+                    Box::new(std::io::sink())
+                }
+            }
+        }
+        None => Box::new(std::io::BufWriter::new(std::io::stdout().lock())),
+    };
+    if add_bom && out.write_all(&[0xef, 0xbb, 0xbf]).is_err() {
+        write_failed = true;
+    }
+    (out, write_failed)
+}
+/// What the command line asked for. Argument errors are reported to stderr
+/// while parsing, before logging starts.
+struct DumpArgs {
+    show_help: bool,
+    show_version: bool,
+    show_pretty: bool,
+    show_ugly: bool,
+    add_bom: bool,
+    ttcindex: u32,
+    invalid_argument: bool,
+    options: Box<Options>,
+    output_path: Option<::std::ffi::CString>,
+    positionals: Vec<String>,
+}
+fn parse_args(args: &[String]) -> DumpArgs {
     let mut show_help: bool = false;
     let mut show_version: bool = false;
     let mut show_pretty: bool = false;
@@ -80,9 +130,7 @@ fn run(args: Vec<String>) -> i32 {
     let mut options: Box<Options> = Box::default();
     options.decimal_cmap = true;
     let mut output_path: Option<::std::ffi::CString> = None;
-    // Assigned once the positional arguments are known, below.
-    let in_path: ::std::ffi::CString;
-    let (items, positionals) = getopt_long(&args, "vhqpio:n:", LONGOPTS);
+    let (items, positionals) = getopt_long(args, "vhqpio:n:", LONGOPTS);
     for item in items {
         match item {
             GetoptItem::Opt { val, arg } => match val {
@@ -127,6 +175,34 @@ fn run(args: Vec<String>) -> i32 {
             other => report_getopt_error("otfccdump", other),
         }
     }
+    DumpArgs {
+        show_help,
+        show_version,
+        show_pretty,
+        show_ugly,
+        add_bom,
+        ttcindex,
+        invalid_argument,
+        options,
+        output_path,
+        positionals,
+    }
+}
+fn run(args: Vec<String>) -> i32 {
+    let DumpArgs {
+        show_help,
+        show_version,
+        show_pretty,
+        show_ugly,
+        add_bom,
+        ttcindex,
+        invalid_argument,
+        options,
+        output_path,
+        positionals,
+    } = parse_args(&args);
+    // Assigned once the positional arguments are known, below.
+    let in_path: ::std::ffi::CString;
     if options.debug_wait_on_start {
         // `--debug-wait-on-start` blocks until the user presses a key, so a
         // debugger can attach. A read error (EOF under a pipe) means "do
@@ -199,41 +275,10 @@ fn run(args: Vec<String>) -> i32 {
     // and the output opened before the Dump step. The steps and their log
     // lines stay as they were: Serialize to JSON now only flushes, and a
     // file that cannot be opened or written is still reported in Output.
-    let mut json_options: JsonSerializeOpts = JsonSerializeOpts {
-        mode: 0,
-        opts: 0,
-        indent_size: 0,
-    };
-    json_options.mode = JSON_SERIALIZE_MODE_PACKED;
-    json_options.opts = 0_i32;
-    json_options.indent_size = 4_i32;
-    if show_pretty as i32 != 0
-        || output_path.is_none() && std::io::stdout().is_terminal()
-    {
-        json_options.mode = JSON_SERIALIZE_MODE_MULTILINE;
-    }
-    if show_ugly {
-        json_options.mode = JSON_SERIALIZE_MODE_PACKED;
-    }
+    let json_options = json_layout(show_pretty, show_ugly, output_path.is_some());
     // Whether writing the output file has failed so far. Writes to stdout
-    // are not checked, as before.
-    let mut write_failed = false;
-    let mut out: Box<dyn Write> = match output_path {
-        Some(ref output_path) => {
-            let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
-            match std::fs::File::create(std::path::Path::new(os_path)) {
-                Ok(f) => Box::new(std::io::BufWriter::new(f)),
-                Err(_) => {
-                    write_failed = true;
-                    Box::new(std::io::sink())
-                }
-            }
-        }
-        None => Box::new(std::io::BufWriter::new(std::io::stdout().lock())),
-    };
-    if add_bom && out.write_all(&[0xef, 0xbb, 0xbf]).is_err() {
-        write_failed = true;
-    }
+    // are not checked.
+    let (out, mut write_failed) = open_output(output_path.as_ref(), add_bom);
     let mut writer = JsonStreamWriter::new(out, json_options);
     let stage = otfcc_rust::logger::stage("Dump");
     {
