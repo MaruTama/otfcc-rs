@@ -2,12 +2,9 @@
 //! benchmark itself -- each `benches/*.rs` file does `mod support;` and uses
 //! these.
 //!
-//! Deliberately duplicates (rather than shares) `tests/support/mod.rs`'s
-//! tiny `repo_root()`/`payload()` helpers: Cargo compiles `tests/` and
-//! `benches/` as separate, unrelated sets of target crates, so there is no
-//! straightforward way to reuse one directory's `mod support;` from the
-//! other without fighting that separation -- and the duplicated part is a
-//! handful of lines, cheaper to repeat than to plumb around.
+//! `repo_root()`/`payload()` are a handful of lines, repeated here rather
+//! than shared with the tests: Cargo compiles `tests/` and `benches/` as
+//! separate sets of target crates.
 //!
 //! Every `unsafe` call in the crate's own c2rust-shaped dump/build pipeline
 //! (`*mut Font`/`*mut SplineFontContainer`/`*mut BuiltValue`/

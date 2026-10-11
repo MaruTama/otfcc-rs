@@ -400,6 +400,19 @@ name = "otfcc-binary"
 version = "0.10.4"
 
 [[package]]
+name = "otfcc-cli"
+version = "0.10.4"
+dependencies = [
+ "otfcc-binary",
+ "otfcc-json",
+ "otfcc_rust",
+ "regex",
+ "serde_json",
+ "sha2",
+ "tracing",
+]
+
+[[package]]
 name = "otfcc-json"
 version = "0.10.4"
 dependencies = [
@@ -419,10 +432,7 @@ dependencies = [
  "object",
  "otfcc-binary",
  "otfcc-json",
- "regex",
- "serde_json",
  "sha1",
- "sha2",
  "tracing",
  "tracing-subscriber",
 ]

@@ -3,8 +3,6 @@
 //! and FFI-side tests use. Both go through each table's `dump_to`, and the
 //! tables that stream (`glyf`, `cmap`) do so member by member; this checks
 //! that the two paths give the same bytes on every payload font.
-mod support;
-
 use otfcc_json::{
     JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, JsonStreamWriter,
     json_serialize_ex,
@@ -25,7 +23,7 @@ fn read_font(path: &std::path::Path, options: &Options) -> Box<Font> {
 
 #[test]
 fn streamed_dump_matches_the_built_tree() {
-    let mut fonts: Vec<_> = std::fs::read_dir(support::repo_root().join("tests/payload"))
+    let mut fonts: Vec<_> = std::fs::read_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/payload"))
         .unwrap()
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "ttf" || x == "otf"))

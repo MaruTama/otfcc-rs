@@ -2,8 +2,8 @@
 
 // Fuzzes the full otfccdump pipeline: read_sfnt -> read_otf ->
 // consolidate_font -> serialize_to_json, in that order -- exactly
-// otfccdump.rs's own Read Font / Consolidate / Dump sequence (src/bin/
-// otfccdump.rs).
+// otfccdump's own Read Font / Consolidate / Dump sequence
+// (crates/otfcc-cli/src/bin/otfccdump.rs).
 //
 // `otf_parse` (this crate's other target) stops after `read_otf`, so it
 // never exercises consolidation or JSON serialization at all. That gap is

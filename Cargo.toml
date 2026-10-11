@@ -1,10 +1,13 @@
-# The workspace: this package (the otfcc library and its two binaries) and
-# the layers it uses that know nothing about fonts' tables: `crates/otfcc-json`
-# (JSON) and `crates/otfcc-binary` (binary reading, writing and packing). Declaring it here also stops
-# cargo from looking for a workspace above this checkout. `fuzz/` declares
-# its own workspace.
+# The workspace: this package (the otfcc library) and the crates around it.
+# `crates/otfcc-cli` holds the two command-line tools; `crates/otfcc-json`
+# (JSON) and `crates/otfcc-binary` (binary reading, writing and packing) are
+# the layers the library uses that know nothing about fonts' tables.
+# `default-members` makes a plain `cargo build`/`cargo test` at the root
+# include the tools. Declaring the workspace here also stops cargo from
+# looking for one above this checkout. `fuzz/` declares its own workspace.
 [workspace]
-members = ["crates/otfcc-binary", "crates/otfcc-json"]
+members = ["crates/otfcc-binary", "crates/otfcc-cli", "crates/otfcc-json"]
+default-members = [".", "crates/otfcc-cli"]
 
 [package]
 name = "otfcc_rust"
@@ -14,9 +17,8 @@ version = "0.10.4"
 publish = false
 edition = "2024"
 
-# Standard cargo layout: the library is src/lib.rs and the two CLI binaries are
-# auto-discovered from src/bin/, so neither needs an explicit `path`.
-# `staticlib`/`cdylib` mirror what the C build produces (premake5.lua builds
+# Standard cargo layout: the library is src/lib.rs (the command-line tools
+# live in crates/otfcc-cli). `staticlib`/`cdylib` mirror what the C build produces (premake5.lua builds
 # otfccdll as a SharedLib); the four public `extern "C"` functions in
 # src/ffi/dll.rs are what callers reach through the cdylib.
 [lib]
@@ -118,9 +120,6 @@ libloading = "0.9.0"
 # pull in for reading compressed debug sections, which the dynamic export
 # table itself never is.
 object = { version = "0.40.0", default-features = false, features = ["read"] }
-regex = "1.13.1"
-serde_json = "1.0.151"
-sha2 = "0.11.0"
 
 [[bench]]
 name = "dump"

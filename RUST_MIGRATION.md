@@ -53,7 +53,6 @@ named after itself (`src/lib/support/buffer/buffer.rs`). That is now:
 ```
 Cargo.toml                  the workspace and the `otfcc_rust` package
 src/lib.rs                  crate root: a flat list of `pub mod`
-src/bin/{otfccdump,otfccbuild}.rs
 src/ffi/dll.rs              the four public extern "C" functions
 src/version.rs              MAIN_VER / SECONDARY_VER / PATCH_VER
 src/{consolidate,font,json_reader,json_writer,libcff,logger,
@@ -62,6 +61,11 @@ crates/otfcc-json/          `otfcc_json`: JSON parser (`ParsedValue`),
                             value tree and serializer (`BuiltValue`,
                             `JsonStreamWriter`), and the vendored Grisu2
                             dtoa; no otfcc dependency
+crates/otfcc-cli/           `otfcc_cli` and the `otfccdump`/`otfccbuild`
+                            binaries: option parsing, the step-time log and
+                            the startup steps; uses `otfcc_rust` only
+                            through its public API. Its tests run the
+                            binaries against tests/payload and tests/golden
 crates/otfcc-binary/        `otfcc_binary`: bounds-checked reading
                             (`FontReader`), the write buffer (`Buffer`) and
                             the offset-graph packer (`bk`); no otfcc
@@ -70,11 +74,7 @@ crates/otfcc-binary/        `otfcc_binary`: bounds-checked reading
 
 Every directory has a sibling module file (`src/support.rs` for
 `src/support/`), the 2018-style layout with no `mod.rs`, so paths are now
-`crate::support::stdio::FILE`. The code only the two binaries use (option
-parsing, the step-time stopwatch, the startup and logging setup they share)
-lives in `src/support/cli/` rather than `src/bin/` — the binaries link
-against it as a library module, and anything directly under `src/bin/`
-would be treated as a third binary target. Each table is one module
+`crate::support::stdio::FILE`. Each table is one module
 under `src/table/` holding its reader, JSON parser, JSON dumper and builder
 (`meta` and `vdmx` used to be split into `read`/`parse`/`dump`/`build`/
 `types` submodules; `glyf` and `otl` keep subdirectories because they are

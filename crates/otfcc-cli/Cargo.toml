@@ -1,0 +1,27 @@
+[package]
+name = "otfcc-cli"
+version = "0.10.4"
+publish = false
+edition = "2024"
+description = "The otfccdump and otfccbuild command-line tools"
+
+# The library (`otfcc_cli`) is what the two binaries share; the binaries
+# themselves are auto-discovered from src/bin/.
+[lib]
+name = "otfcc_cli"
+
+[lints]
+workspace = true
+
+[dependencies]
+otfcc_rust = { path = "../.." }
+otfcc-binary = { path = "../otfcc-binary" }
+otfcc-json = { path = "../otfcc-json" }
+tracing = { version = "0.1.44", default-features = false, features = ["std"] }
+
+# The tests run the built binaries against tests/payload and compare with
+# tests/golden at the repository root.
+[dev-dependencies]
+regex = "1.13.1"
+serde_json = "1.0.151"
+sha2 = "0.11.0"
