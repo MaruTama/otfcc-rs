@@ -11,12 +11,14 @@
 //!   `chaining::read`'s `MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS`,
 //!   `MAX_TOTAL_CLASS_COVERAGE_CALLS` and `MAX_TOTAL_RULES_PER_TABLE`
 //! - `mark_attach_anchors`: `gpos_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`
+//! - `pair_grid_cells`: `gpos_pair::MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE`
 
 use crate::table::otl::coverage::MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE;
 use crate::table::otl::subtables::chaining::read::{
     MAX_TOTAL_CLASS_COVERAGE_CALLS, MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS, MAX_TOTAL_RULES_PER_TABLE,
 };
 use crate::table::otl::subtables::gpos_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE;
+use crate::table::otl::subtables::gpos_pair::MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE;
 
 /// The remaining allowance of each kind of work for the table being read.
 /// Every field counts down from its limit and never wraps below zero.
@@ -32,6 +34,8 @@ pub struct OtlReadBudget {
     pub(crate) rules: u32,
     /// Anchor slots allocated by the mark-attachment readers.
     pub(crate) mark_attach_anchors: u32,
+    /// Cells of the pair-positioning value grids (`gpos_pair`).
+    pub(crate) pair_grid_cells: u32,
 }
 
 impl OtlReadBudget {
@@ -43,6 +47,7 @@ impl OtlReadBudget {
             class_coverage_calls: MAX_TOTAL_CLASS_COVERAGE_CALLS,
             rules: MAX_TOTAL_RULES_PER_TABLE,
             mark_attach_anchors: MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE,
+            pair_grid_cells: MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE,
         }
     }
 
@@ -91,6 +96,12 @@ impl OtlReadBudget {
         let Ok(n) = u32::try_from(n) else { return false };
         Self::try_spend(&mut self.mark_attach_anchors, n)
     }
+
+    /// Spends `n` cells of the pair-positioning grids if all are available.
+    pub(crate) fn try_spend_pair_grid_cells(&mut self, n: usize) -> bool {
+        let Ok(n) = u32::try_from(n) else { return false };
+        Self::try_spend(&mut self.pair_grid_cells, n)
+    }
 }
 
 impl Default for OtlReadBudget {
@@ -111,6 +122,15 @@ mod tests {
         assert!(budget.try_spend_mark_attach_anchors(3));
         assert_eq!(budget.mark_attach_anchors, 0);
         assert!(!budget.try_spend_mark_attach_anchors(1));
+    }
+
+    #[test]
+    fn pair_grid_cells_are_a_table_wide_allowance() {
+        let mut budget = OtlReadBudget { pair_grid_cells: 10, ..OtlReadBudget::new() };
+        assert!(budget.try_spend_pair_grid_cells(6));
+        assert!(!budget.try_spend_pair_grid_cells(5));
+        assert_eq!(budget.pair_grid_cells, 4);
+        assert!(budget.try_spend_pair_grid_cells(4));
     }
 
     #[test]

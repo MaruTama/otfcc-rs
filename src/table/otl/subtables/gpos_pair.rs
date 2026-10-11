@@ -49,6 +49,14 @@ pub struct IndividualGposPair {
 // The largest real product in this repo's fonts is Cormorant-Medium's
 // 384 * 1560 = 599,040, so 2,000,000 leaves more than 3x headroom.
 const MAX_TOTAL_GPOS_PAIR_CLASS_CELLS: usize = 2_000_000;
+// The cap above is per subtable; this one is for the whole table, and covers
+// both formats. A subtable's grids stay allocated until the table is read, so
+// many subtables each under the per-subtable cap still add up: a fuzzed GPOS
+// of ~100 format 1 subtables, each with an empty coverage (which reads as
+// 65,536 classes of one cell), asked for ~20M cells and ~1.5 GB. The most any
+// font in this repo spends is under 30,000 cells, so 8,000,000 leaves
+// generous headroom while keeping the grids to a few hundred MB.
+pub(crate) const MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE: u32 = 8_000_000;
 pub fn otl_read_gpos_pair(
     data: &[u8],
     offset: u32,
@@ -142,6 +150,16 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     let class2_count = second_cd.maxclass as usize + 1;
 
     let first_class_count = first_cd.maxclass as usize + 1;
+    // Both counts are small, but the two grids below hold their product:
+    // many PairSets can share one set of records, so a few KB of table can
+    // ask for hundreds of MB. Same cap, for the same reason, as format 2's
+    // class grid (see `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS`).
+    if first_class_count.saturating_mul(class2_count) > MAX_TOTAL_GPOS_PAIR_CLASS_CELLS {
+        return None;
+    }
+    if !budget.try_spend_pair_grid_cells(first_class_count * class2_count) {
+        return None;
+    }
     let mut first_values: Vec<Vec<PositionValue>> =
         vec![vec![position_zero(); class2_count]; first_class_count];
     let mut second_values: Vec<Vec<PositionValue>> =
@@ -222,6 +240,9 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     // `Vec::with_capacity(class2_count)` allocation below ever
     // runs, so a rejected subtable never pays for one.
     if total_cells > MAX_TOTAL_GPOS_PAIR_CLASS_CELLS {
+        return None;
+    }
+    if !budget.try_spend_pair_grid_cells(total_cells) {
         return None;
     }
     let matrix = FontReader::new(data).at(offset as usize + 16).ok()?;
@@ -588,6 +609,67 @@ mod otl_read_gpos_pair_tests {
         );
         assert_eq!(second.classes, vec![1]);
         assert_eq!(subtable.first_values[0][1].dx, 50.0);
+    }
+
+    /// A format 1 subtable covering `n` glyphs whose `n` PairSets are all the
+    /// same set of `n` pairs (no value records): `n` distinct second glyphs,
+    /// so the synthesized grid has `n * (n + 1)` cells from about `6 * n` bytes.
+    fn format1_shared_pairset_table(n: u16) -> Vec<u8> {
+        let n_us = n as usize;
+        let cov_at = 10 + 2 * n_us;
+        let pairset_at = cov_at + 4 + 2 * n_us;
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // format
+        data.extend_from_slice(&(cov_at as u16).to_be_bytes()); // coverageOffset
+        data.extend_from_slice(&0u16.to_be_bytes()); // valueFormat1: none
+        data.extend_from_slice(&0u16.to_be_bytes()); // valueFormat2: none
+        data.extend_from_slice(&n.to_be_bytes()); // pairSetCount
+        for _ in 0..n {
+            data.extend_from_slice(&(pairset_at as u16).to_be_bytes());
+        }
+        data.extend_from_slice(&1u16.to_be_bytes()); // coverage format 1
+        data.extend_from_slice(&n.to_be_bytes());
+        for g in 0..n {
+            data.extend_from_slice(&g.to_be_bytes());
+        }
+        data.extend_from_slice(&n.to_be_bytes()); // pairValueCount
+        for g in 0..n {
+            data.extend_from_slice(&(1000 + g).to_be_bytes()); // secondGlyph
+        }
+        data
+    }
+
+    #[test]
+    fn format1_grid_within_the_cell_cap_is_read() {
+        // 1000 * 1001 = 1,001,000 cells, under the 2,000,000 cap.
+        let data = format1_shared_pairset_table(1000);
+        let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
+        let Some(Subtable::GposPair(ref subtable)) = result else {
+            panic!("a grid within the cap should be read")
+        };
+        assert_eq!(subtable.first_values.len(), 1000);
+        assert_eq!(subtable.first_values[0].len(), 1001);
+    }
+
+    #[test]
+    fn format1_grids_across_subtables_draw_on_one_table_wide_allowance() {
+        // Each subtable is under the per-subtable cap (1,001,000 cells), but
+        // the table's allowance only covers two of them.
+        let data = format1_shared_pairset_table(1000);
+        let mut budget = OtlReadBudget { pair_grid_cells: 2_100_000, ..OtlReadBudget::new() };
+        assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_some());
+        assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_some());
+        assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_none());
+    }
+
+    #[test]
+    fn format1_grid_over_the_cell_cap_is_rejected_not_allocated() {
+        // 1500 * 1501 = 2,251,500 cells from a ~9 KB table: a fuzzer found
+        // the same shape asking for ~800 MB (two grids of ~12.5M cells).
+        let data = format1_shared_pairset_table(1500);
+        assert!(data.len() < 10_000);
+        let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
+        assert!(result.is_none());
     }
 
     #[test]
