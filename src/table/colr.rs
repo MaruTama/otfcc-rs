@@ -23,8 +23,8 @@ pub struct ColrMapping {
 }
 pub type ColrTable = Vec<ColrMapping>;
 
-static BASE_GLYPH_REC_LENGTH: usize = 6_usize;
-static LAYER_REC_LENGTH: usize = 4_usize;
+const BASE_GLYPH_REC_LENGTH: usize = 6;
+const LAYER_REC_LENGTH: usize = 4;
 /// `offset_base_glyph_record`/`offset_layer_record` are raw `u32`s straight
 /// from the file, so every position is computed through `FontReader`'s
 /// `checked_add`/`checked_mul` rather than by plain addition.

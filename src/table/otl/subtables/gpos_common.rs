@@ -212,10 +212,10 @@ pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
         bk_int(BkCellType::B16, (a.y as i16 as i32) as u32),
     ]));
 }
-pub static FORMAT_DX: u8 = 1_u8;
-pub static FORMAT_DY: u8 = 2_u8;
-pub static FORMAT_DWIDTH: u8 = 4_u8;
-pub static FORMAT_DHEIGHT: u8 = 8_u8;
+pub const FORMAT_DX: u16 = 1;
+pub const FORMAT_DY: u16 = 2;
+pub const FORMAT_DWIDTH: u16 = 4;
+pub const FORMAT_DHEIGHT: u16 = 8;
 /// Size in bytes of a GPOS ValueRecord with this ValueFormat: 2 bytes per
 /// field whose bit is set among the low 8 bits (`XPlacement` through
 /// `YAdvDevice`); the reserved high bits never contribute a field.
@@ -244,19 +244,19 @@ pub fn read_gpos_value(data: &[u8], offset: u32, format: u16) -> PositionValue {
         return v;
     };
     let mut pos = 0;
-    if format & FORMAT_DX as u16 != 0 {
+    if format & FORMAT_DX != 0 {
         v.dx = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
         pos += 2;
     }
-    if format & FORMAT_DY as u16 != 0 {
+    if format & FORMAT_DY != 0 {
         v.dy = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
         pos += 2;
     }
-    if format & FORMAT_DWIDTH as u16 != 0 {
+    if format & FORMAT_DWIDTH != 0 {
         v.d_width = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
         pos += 2;
     }
-    if format & FORMAT_DHEIGHT as u16 != 0 {
+    if format & FORMAT_DHEIGHT != 0 {
         v.d_height = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
     }
     v
@@ -294,41 +294,38 @@ pub fn gpos_parse_value(pos: Option<&ParsedValue>) -> PositionValue {
     return v;
 }
 pub fn required_position_format(v: PositionValue) -> u8 {
-    return ((if v.dx != 0. {
-        FORMAT_DX as i32
-    } else {
-        0_i32
-    }) | (if v.dy != 0. {
-        FORMAT_DY as i32
-    } else {
-        0_i32
-    }) | (if v.d_width != 0. {
-        FORMAT_DWIDTH as i32
-    } else {
-        0_i32
-    }) | (if v.d_height != 0. {
-        FORMAT_DHEIGHT as i32
-    } else {
-        0_i32
-    })) as u8;
+    let mut format: u16 = 0;
+    if v.dx != 0. {
+        format |= FORMAT_DX;
+    }
+    if v.dy != 0. {
+        format |= FORMAT_DY;
+    }
+    if v.d_width != 0. {
+        format |= FORMAT_DWIDTH;
+    }
+    if v.d_height != 0. {
+        format |= FORMAT_DHEIGHT;
+    }
+    return format as u8;
 }
 pub fn write_gpos_value(buf: &mut Buffer, v: PositionValue, format: u16) {
-    if format as i32 & FORMAT_DX as i32 != 0 {
+    if format & FORMAT_DX != 0 {
         buf.write_i16be(v.dx as i16);
     }
-    if format as i32 & FORMAT_DY as i32 != 0 {
+    if format & FORMAT_DY != 0 {
         buf.write_i16be(v.dy as i16);
     }
-    if format as i32 & FORMAT_DWIDTH as i32 != 0 {
+    if format & FORMAT_DWIDTH != 0 {
         buf.write_i16be(v.d_width as i16);
     }
-    if format as i32 & FORMAT_DHEIGHT as i32 != 0 {
+    if format & FORMAT_DHEIGHT != 0 {
         buf.write_i16be(v.d_height as i16);
     }
 }
 pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
     let mut b: BkBlock = bk_new_block(Vec::new());
-    if format as i32 & FORMAT_DX as i32 != 0 {
+    if format & FORMAT_DX != 0 {
         bk_push(
             &mut b,
             vec![bk_int(
@@ -337,7 +334,7 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
             )],
         );
     }
-    if format as i32 & FORMAT_DY as i32 != 0 {
+    if format & FORMAT_DY != 0 {
         bk_push(
             &mut b,
             vec![bk_int(
@@ -346,7 +343,7 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
             )],
         );
     }
-    if format as i32 & FORMAT_DWIDTH as i32 != 0 {
+    if format & FORMAT_DWIDTH != 0 {
         bk_push(
             &mut b,
             vec![bk_int(
@@ -355,7 +352,7 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
             )],
         );
     }
-    if format as i32 & FORMAT_DHEIGHT as i32 != 0 {
+    if format & FORMAT_DHEIGHT != 0 {
         bk_push(
             &mut b,
             vec![bk_int(
@@ -394,7 +391,7 @@ mod read_anchor_and_value_tests {
 
     #[test]
     fn read_gpos_value_reads_only_the_fields_the_format_selects() {
-        let format = FORMAT_DX as u16 | FORMAT_DY as u16;
+        let format = FORMAT_DX | FORMAT_DY;
         let mut data = vec![0u8; 4];
         data[0..2].copy_from_slice(&10i16.to_be_bytes());
         data[2..4].copy_from_slice(&20i16.to_be_bytes());
@@ -404,7 +401,7 @@ mod read_anchor_and_value_tests {
 
     #[test]
     fn read_gpos_value_truncated_is_zero_not_oob() {
-        let format = FORMAT_DX as u16 | FORMAT_DY as u16;
+        let format = FORMAT_DX | FORMAT_DY;
         let data = vec![0u8; 2]; // needs 4 bytes for dx+dy, only 2 present
         let v = read_gpos_value(&data, 0, format);
         assert_eq!((v.dx, v.dy), (0.0, 0.0));

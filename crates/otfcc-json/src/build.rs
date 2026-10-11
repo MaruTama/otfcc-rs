@@ -18,19 +18,14 @@ pub struct JsonSerializeOpts {
     pub opts: i32,
     pub indent_size: i32,
 }
-pub const JSON_SERIALIZE_MODE_MULTILINE: i32 = 0_i32;
-pub const JSON_SERIALIZE_MODE_SINGLE_LINE: i32 = 1_i32;
-pub const JSON_SERIALIZE_MODE_PACKED: i32 = 2_i32;
-pub const JSON_SERIALIZE_OPT_CRLF: i32 =
-    1_i32 << 1_i32;
-pub const JSON_SERIALIZE_OPT_PACK_BRACKETS: i32 =
-    1_i32 << 2_i32;
-pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA: i32 =
-    1_i32 << 3_i32;
-pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON: i32 =
-    1_i32 << 4_i32;
-pub const JSON_SERIALIZE_OPT_USE_TABS: i32 =
-    1_i32 << 5_i32;
+pub const JSON_SERIALIZE_MODE_MULTILINE: i32 = 0;
+pub const JSON_SERIALIZE_MODE_SINGLE_LINE: i32 = 1;
+pub const JSON_SERIALIZE_MODE_PACKED: i32 = 2;
+pub const JSON_SERIALIZE_OPT_CRLF: i32 = 1 << 1;
+pub const JSON_SERIALIZE_OPT_PACK_BRACKETS: i32 = 1 << 2;
+pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA: i32 = 1 << 3;
+pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON: i32 = 1 << 4;
+pub const JSON_SERIALIZE_OPT_USE_TABS: i32 = 1 << 5;
 
 /// The build-side JSON tree. Unlike `parsed_json::ParsedValue`, no
 /// NUL-termination convention is needed on `Str`/keys: nothing on the

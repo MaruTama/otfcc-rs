@@ -32,7 +32,7 @@ fn storage_to_dense<T>(list: &[Option<T>]) -> Vec<Option<u16>> {
         })
         .collect()
 }
-pub const LARGE_SUBTABLE_LIMIT: i32 = 4096_i32;
+pub const LARGE_SUBTABLE_LIMIT: usize = 4096;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0_u32;
     if !name.is_empty() {
@@ -86,7 +86,7 @@ pub fn write_each_subtable(
         ctx.subtables.push(buf);
         total_buf_size_ext += 8;
     }
-    if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
+    if total_buf_size_short > LARGE_SUBTABLE_LIMIT {
         *ctx.last_offset += total_buf_size_ext;
         *ctx.prefer_extension_for_this_lut = true;
     } else {
@@ -111,7 +111,7 @@ pub fn write_each_subtable_split(
         }
     }
     let total = ctx.subtables.len() as TableId;
-    if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
+    if total_buf_size_short > LARGE_SUBTABLE_LIMIT {
         *ctx.last_offset += 8 * total as usize;
         *ctx.prefer_extension_for_this_lut = true;
     } else {

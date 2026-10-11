@@ -180,7 +180,7 @@ fn build_gsub_multi_subtable_range(
     }
     return bk_build_block(root);
 }
-pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: i32 = 0xff00_i32;
+pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: usize = 0xff00;
 pub fn build_gsub_multi_subtable_split(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
@@ -199,7 +199,7 @@ pub fn build_gsub_multi_subtable_split(
                 + 2_i32) as usize)
                 .wrapping_add((subtable[end as usize].to.len()).wrapping_mul(2_usize));
             if end as i32 > start as i32
-                && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT as usize
+                && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT
             {
                 break;
             }

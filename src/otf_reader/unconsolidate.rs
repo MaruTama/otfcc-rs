@@ -159,12 +159,11 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         if options.name_glyphs_by_hash {
             let h: GlyphHash = name_glyph_by_hash(glyf[j as usize].as_deref().unwrap(), glyf);
             let mut gname: Vec<u8> = Vec::new();
-            for j_0 in 0..SHA1_BLOCK_SIZE as u16 {
-                if j_0 % 4 == 0 && j_0 / 4 != 0 {
+            for (j_0, &byte) in h.hash.iter().enumerate() {
+                if j_0 % 4 == 0 && j_0 != 0 {
                     gname.extend_from_slice(b"-");
                 }
-                Hex2Upper((h.hash[j_0 as usize] as i32) as u32)
-                    .append_to_vec(&mut gname);
+                Hex2Upper(byte as u32).append_to_vec(&mut gname);
             }
             let shared_name = if gord_lookup_name(&glyph_order, gname.clone()) {
                 let mut n: GlyphId = 2 as GlyphId;
@@ -445,7 +444,6 @@ pub fn unconsolidate_font(font: &mut Font, options: &Options) {
         name_glyphs(font, &gord);
     }
 }
-pub const SHA1_BLOCK_SIZE: i32 = 20_i32;
 
 #[cfg(test)]
 mod tests {

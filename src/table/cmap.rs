@@ -28,7 +28,6 @@ pub struct CmapTable {
     pub unicodes: std::collections::BTreeMap<i32, GlyphHandle>,
     pub uvs: std::collections::BTreeMap<CmapUvsKey, GlyphHandle>,
 }
-pub const UINT16_MAX: i32 = 65535_i32;
 pub fn encode_cmap_by_index(
     cmap: &mut CmapTable,
     c: i32,
@@ -774,7 +773,7 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
 }
 fn try_build_cmap_format4(cmap: &CmapTable) -> Option<Buffer> {
     let buf = build_cmap_format4(cmap);
-    if buf.len() > UINT16_MAX as usize {
+    if buf.len() > u16::MAX as usize {
         None
     } else {
         Some(buf)
@@ -826,9 +825,9 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
     buf.write_u32be(n_groups);
     return buf;
 }
-pub const MAX_UNICODE: i32 = 0x110001_i32;
-pub const HAS_DEFAULT: i32 = 1_i32;
-pub const HAS_NON_DEFAULT: i32 = 2_i32;
+pub const MAX_UNICODE: Unicode = 0x110001;
+pub const HAS_DEFAULT: u8 = 1;
+pub const HAS_NON_DEFAULT: u8 = 2;
 #[inline]
 /// Writes the default UVS range `start..=end`, split into ranges of at most
 /// 256 code points (additionalCount is one byte).
@@ -855,7 +854,7 @@ fn build_format14_for_selector(
     let mut non_defaults: Vec<GlyphId> = vec![0xffff; MAX_UNICODE as usize];
     for (key, glyph) in cmap.uvs.iter() {
         let u: Unicode = key.unicode as Unicode;
-        if !(key.selector != selector || u >= MAX_UNICODE as Unicode)
+        if !(key.selector != selector || u >= MAX_UNICODE)
             && !glyph.name.is_empty() {
                 let uvs_gid: GlyphId = glyph.index;
                 match cmap_lookup(cmap, u as i32) {
@@ -882,7 +881,7 @@ fn build_format14_for_selector(
     nondflt.write_u32be(0);
     // Both ends of the tables are kept unset above, so every run of
     // default mappings has a start and an end inside the walk.
-    for u in 1..MAX_UNICODE as Unicode {
+    for u in 1..MAX_UNICODE {
         let here = defaults[u as usize] != 0xffff;
         let before = defaults[u as usize - 1] != 0xffff;
         if here && !before {
@@ -901,19 +900,19 @@ fn build_format14_for_selector(
     dflt.write_u32be(num_unicode_value_ranges);
     nondflt.seek(0_usize);
     nondflt.write_u32be(num_uvs_mappings);
-    let mut results = 0;
+    let mut results: u8 = 0;
     if num_unicode_value_ranges != 0 {
         results |= HAS_DEFAULT;
     }
     if num_uvs_mappings != 0 {
         results |= HAS_NON_DEFAULT;
     }
-    return results as u8;
+    return results;
 }
 fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
     for key in cmap.uvs.keys() {
-        if key.selector < MAX_UNICODE as u32 {
+        if key.selector < MAX_UNICODE {
             valid_selectors[key.selector as usize] = true;
         }
     }
@@ -923,17 +922,17 @@ fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
         bk_int(BkCellType::B32, 0_u32),
         bk_int(BkCellType::B32, n_selectors),
     ]);
-    for selector in 0..MAX_UNICODE as Unicode {
+    for selector in 0..MAX_UNICODE {
         if valid_selectors[selector as usize] {
             let mut dflt = Buffer::new();
             let mut nondflt = Buffer::new();
             let results: u8 = build_format14_for_selector(cmap, selector, &mut dflt, &mut nondflt);
-            let dflt = if results as i32 & HAS_DEFAULT == 0 {
+            let dflt = if results & HAS_DEFAULT == 0 {
                 None
             } else {
                 Some(dflt)
             };
-            let nondflt = if results as i32 & HAS_NON_DEFAULT == 0 {
+            let nondflt = if results & HAS_NON_DEFAULT == 0 {
                 None
             } else {
                 Some(nondflt)

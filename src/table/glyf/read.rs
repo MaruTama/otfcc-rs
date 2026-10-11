@@ -278,11 +278,11 @@ fn read_glyph(body: &[u8], offset: usize, length: usize) -> Option<Box<Glyph>> {
     g.stat.y_max = y_max;
     Some(g)
 }
-pub const GVAR_OFFSETS_ARE_LONG: i32 = 1_i32;
-pub const EMBEDDED_PEAK_TUPLE: i32 = 0x8000_i32;
-pub const INTERMEDIATE_REGION: i32 = 0x4000_i32;
-pub const PRIVATE_POINT_NUMBERS: i32 = 0x2000_i32;
-pub const TUPLE_INDEX_MASK: i32 = 0xfff_i32;
+pub const GVAR_OFFSETS_ARE_LONG: u16 = 1;
+pub const EMBEDDED_PEAK_TUPLE: u16 = 0x8000;
+pub const INTERMEDIATE_REGION: u16 = 0x4000;
+pub const PRIVATE_POINT_NUMBERS: u16 = 0x2000;
+pub const TUPLE_INDEX_MASK: u16 = 0xfff;
 // A `TupleVariationHeader` array has no length of its own -- each header's
 // end (and so the next one's start) is only known after reading *this*
 // header's own `tupleIndex` flags, which is why this can't be a simple
@@ -294,18 +294,18 @@ pub const TUPLE_INDEX_MASK: i32 = 0xfff_i32;
 fn next_tvh_offset(gvar: &[u8], tvh_offset: usize, dimensions: u16) -> Option<usize> {
     let tuple_index = FontReader::new(gvar).at(tvh_offset + 2).ok()?.u16().ok()?;
     let mut bump: usize = 4; // variationDataSize(2) + tupleIndex(2)
-    if tuple_index & EMBEDDED_PEAK_TUPLE as u16 != 0 {
+    if tuple_index & EMBEDDED_PEAK_TUPLE != 0 {
         bump += dimensions as usize * ::core::mem::size_of::<F2Dot14>();
     }
-    if tuple_index & INTERMEDIATE_REGION as u16 != 0 {
+    if tuple_index & INTERMEDIATE_REGION != 0 {
         bump += 2 * dimensions as usize * ::core::mem::size_of::<F2Dot14>();
     }
     Some(tvh_offset + bump)
 }
-pub const POINT_COUNT_IS_WORD: i32 = 0x80_i32;
-pub const POINT_COUNT_LONG_MASK: i32 = 0x7fff_i32;
-pub const POINT_RUN_COUNT_MASK: i32 = 0x7f_i32;
-pub const POINTS_ARE_WORDS: i32 = 0x80_i32;
+pub const POINT_COUNT_IS_WORD: u8 = 0x80;
+pub const POINT_COUNT_LONG_MASK: u16 = 0x7fff;
+pub const POINT_RUN_COUNT_MASK: u8 = 0x7f;
+pub const POINTS_ARE_WORDS: u8 = 0x80;
 /// Reads a packed point-number list at `offset`. Returns the offset just
 /// past it and the point indices, or `None` if it runs past `gvar`.
 #[inline]
@@ -316,16 +316,14 @@ fn parse_point_numbers(
 ) -> Option<(usize, Vec<ShapeId>)> {
     let mut r = FontReader::new(gvar).at(offset).ok()?;
     let first_byte: u8 = r.u8().ok()?;
-    let n_points: u16 = if first_byte as i32 & POINT_COUNT_IS_WORD != 0 {
+    let n_points: u16 = if first_byte & POINT_COUNT_IS_WORD != 0 {
         let second_byte: u8 = r.u8().ok()?;
-        (((first_byte as i32) << 8_i32
-            | second_byte as i32)
-            & POINT_COUNT_LONG_MASK) as u16
+        ((first_byte as u16) << 8 | second_byte as u16) & POINT_COUNT_LONG_MASK
     } else {
         first_byte as u16
     };
     let mut point_indeces: Vec<ShapeId>;
-    if n_points as i32 > 0_i32 {
+    if n_points > 0 {
         let mut run: PackedPointRun = PackedPointRun {
             length: 0 as ShapeId,
             wide: false,
@@ -335,9 +333,8 @@ fn parse_point_numbers(
         for _ in 0..n_points {
             if run.length == 0 {
                 let run_header: u8 = r.u8().ok()?;
-                run.wide = run_header as i32 & POINTS_ARE_WORDS != 0;
-                run.length = ((run_header as i32 & POINT_RUN_COUNT_MASK)
-                    + 1_i32) as ShapeId;
+                run.wide = run_header & POINTS_ARE_WORDS != 0;
+                run.length = (run_header & POINT_RUN_COUNT_MASK) as ShapeId + 1;
             }
             let mut point_number: i16 = j_point as i16;
             if run.wide {
@@ -361,9 +358,9 @@ fn parse_point_numbers(
     }
     Some((r.pos(), point_indeces))
 }
-pub const DELTAS_ARE_ZERO: i32 = 0x80_i32;
-pub const DELTAS_ARE_WORDS: i32 = 0x40_i32;
-pub const DELTA_RUN_COUNT_MASK: i32 = 0x3f_i32;
+pub const DELTAS_ARE_ZERO: u8 = 0x80;
+pub const DELTAS_ARE_WORDS: u8 = 0x40;
+pub const DELTA_RUN_COUNT_MASK: u8 = 0x3f;
 #[inline]
 fn read_packed_delta(
     gvar: &[u8],
@@ -381,10 +378,9 @@ fn read_packed_delta(
         let mut delta: i16 = 0_i16;
         if run.length == 0 {
             let run_header: u8 = r.u8().ok()?;
-            run.zero = run_header as i32 & DELTAS_ARE_ZERO != 0;
-            run.wide = run_header as i32 & DELTAS_ARE_WORDS != 0;
-            run.length = ((run_header as i32 & DELTA_RUN_COUNT_MASK)
-                + 1_i32) as ShapeId;
+            run.zero = run_header & DELTAS_ARE_ZERO != 0;
+            run.wide = run_header & DELTAS_ARE_WORDS != 0;
+            run.length = (run_header & DELTA_RUN_COUNT_MASK) as ShapeId + 1;
         }
         if !run.zero {
             if run.wide {
@@ -717,9 +713,9 @@ fn polymorphize_glyph(
         let mut th = FontReader::new(gvar).at(tvh_offset).ok()?;
         let variation_data_size = th.u16().ok()?;
         let tuple_index_raw = th.u16().ok()?;
-        let tuple_index: ShapeId = (tuple_index_raw & TUPLE_INDEX_MASK as u16) as ShapeId;
-        let has_embedded_peak: bool = tuple_index_raw & EMBEDDED_PEAK_TUPLE as u16 != 0;
-        let has_intermediate: bool = tuple_index_raw & INTERMEDIATE_REGION as u16 != 0;
+        let tuple_index: ShapeId = (tuple_index_raw & TUPLE_INDEX_MASK) as ShapeId;
+        let has_embedded_peak: bool = tuple_index_raw & EMBEDDED_PEAK_TUPLE != 0;
+        let has_intermediate: bool = tuple_index_raw & INTERMEDIATE_REGION != 0;
 
         let peak_offset = if has_embedded_peak {
             tvh_offset + 4
@@ -751,7 +747,7 @@ fn polymorphize_glyph(
         let n_points: ShapeId;
         let point_indeces: ::std::borrow::Cow<[ShapeId]>;
         let after_points: usize;
-        if tuple_index_raw & PRIVATE_POINT_NUMBERS as u16 != 0 {
+        if tuple_index_raw & PRIVATE_POINT_NUMBERS != 0 {
             let (new_tsd, private_point_numbers) =
                 parse_point_numbers(gvar, tsd, total_delta_entries)?;
             after_points = new_tsd;
@@ -822,7 +818,7 @@ fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'
     };
 
     let dimensions = axis_count;
-    let offsets_are_long = flags & GVAR_OFFSETS_ARE_LONG as u16 != 0;
+    let offsets_are_long = flags & GVAR_OFFSETS_ARE_LONG != 0;
     const OFFSET_ARRAY_BASE: usize = 20; // sizeof(GVARHeader)
 
     for (j, glyph_slot) in glyf.iter_mut().enumerate() {

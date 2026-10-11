@@ -169,12 +169,10 @@ pub struct CffCharstringBuilderContext<'a> {
     pub options: &'a Options,
     pub graph: CffSubrGraph,
 }
-pub static DEFAULT_BLUE_SCALE: f64 = 0.039625f64;
-pub static DEFAULT_BLUE_SHIFT: f64 =
-    7_f64;
-pub static DEFAULT_BLUE_FUZZ: f64 =
-    1_f64;
-pub static DEFAULT_EXPANSION_FACTOR: f64 = 0.06f64;
+pub const DEFAULT_BLUE_SCALE: f64 = 0.039625;
+pub const DEFAULT_BLUE_SHIFT: f64 = 7.0;
+pub const DEFAULT_BLUE_FUZZ: f64 = 1.0;
+pub const DEFAULT_EXPANSION_FACTOR: f64 = 0.06;
 fn new_cff_private() -> Box<CffPrivateDict> {
     Box::new(CffPrivateDict {
         blue_values: Vec::new(),
