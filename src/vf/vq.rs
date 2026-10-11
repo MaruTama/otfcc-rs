@@ -54,7 +54,7 @@ pub struct VQ {
 }
 #[inline]
 fn init_vq_segment(vqs: &mut VqSegment) {
-    *vqs = VqSegment::Still(0_i32 as Pos);
+    *vqs = VqSegment::Still(0 as Pos);
 }
 #[inline]
 fn copy_vq_segment(dst: &mut VqSegment, src: &VqSegment) {
@@ -93,16 +93,16 @@ fn vq_segment_dispose(x: &mut VqSegment) {
 // every call site here only reads its argument.
 fn vqs_compare(a: &VqSegment, b: &VqSegment) -> i32 {
     match (a, b) {
-        (VqSegment::Still(_), VqSegment::Delta(_)) => -1_i32,
-        (VqSegment::Delta(_), VqSegment::Still(_)) => 1_i32,
+        (VqSegment::Still(_), VqSegment::Delta(_)) => -1,
+        (VqSegment::Delta(_), VqSegment::Still(_)) => 1,
         (VqSegment::Still(av), VqSegment::Still(bv)) => {
             if av < bv {
-                return -1_i32;
+                return -1;
             }
             if av > bv {
-                return 1_i32;
+                return 1;
             }
-            0_i32
+            0
         }
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
             let vqrc: i32 = vq_compare_region(&ad.region, &bd.region);
@@ -110,23 +110,23 @@ fn vqs_compare(a: &VqSegment, b: &VqSegment) -> i32 {
                 return vqrc;
             }
             if ad.quantity < bd.quantity {
-                return -1_i32;
+                return -1;
             }
             if ad.quantity > bd.quantity {
-                return 1_i32;
+                return 1;
             }
-            0_i32
+            0
         }
     }
 }
 pub(crate) fn vq_neutral() -> VQ {
-    return vq_create_still(0_i32 as Pos);
+    return vq_create_still(0 as Pos);
 }
 fn vqs_compatible(a: &VqSegment, b: &VqSegment) -> bool {
     match (a, b) {
         (VqSegment::Still(_), VqSegment::Still(_)) => true,
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
-            0_i32 == vq_compare_region(&ad.region, &bd.region)
+            0 == vq_compare_region(&ad.region, &bd.region)
         }
         _ => false,
     }
@@ -136,8 +136,8 @@ fn simplify_vq(x: &mut VQ) {
         return;
     }
     let shift: &mut Vec<VqSegment> = &mut x.shift;
-    shift.sort_by(|a, b| vqs_compare(a, b).cmp(&0_i32));
-    let mut k: usize = 0_usize;
+    shift.sort_by(|a, b| vqs_compare(a, b).cmp(&0));
+    let mut k: usize = 0;
     for j in 1..shift.len() {
         if vqs_compatible(&shift[k], &shift[j]) {
             let other = shift[j].clone();
@@ -159,7 +159,7 @@ fn simplify_vq(x: &mut VQ) {
             k = k.wrapping_add(1);
         }
     }
-    shift.truncate(k.wrapping_add(1_usize));
+    shift.truncate(k.wrapping_add(1));
 }
 pub(crate) fn vq_inplace_plus(a: &mut VQ, b: VQ) {
     a.kernel += b.kernel;
@@ -190,7 +190,7 @@ fn vq_inplace_scale(a: &mut VQ, b: Pos) {
     }
 }
 fn vq_inplace_negate(a: &mut VQ) {
-    vq_inplace_scale(a, -1_i32 as Pos);
+    vq_inplace_scale(a, -1 as Pos);
 }
 fn vq_negate(a: VQ) -> VQ {
     let mut result: VQ = a;
@@ -222,10 +222,10 @@ pub(crate) fn vq_scale(a: VQ, b: Pos) -> VQ {
 }
 pub(crate) fn vq_compare(a: VQ, b: VQ) -> i32 {
     if a.shift.len() < b.shift.len() {
-        return -1_i32;
+        return -1;
     }
     if a.shift.len() > b.shift.len() {
-        return 1_i32;
+        return 1;
     }
     for (av, bv) in a.shift.iter().zip(b.shift.iter()) {
         let cr: i32 = vqs_compare(av, bv);

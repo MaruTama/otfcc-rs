@@ -63,7 +63,7 @@ pub const F16DOT16_K: i32 = 1 << (F16DOT16_PRECISION - 1);
 pub const F16DOT16_INFINITY: F16Dot16 = F16Dot16::MAX;
 pub const F16DOT16_NEGATIVE_INFINITY: F16Dot16 = F16Dot16::MIN;
 pub fn from_f2dot14(x: F2Dot14) -> f64 {
-    return x as i32 as f64 / 16384.0f64;
+    return x as i32 as f64 / 16384.0;
 }
 // `f64::round`, not libm's `round` through an `extern "C"` block: the two
 // agree bit-for-bit (both round half away from zero, per IEEE 754 / C99),
@@ -75,13 +75,13 @@ pub fn from_f2dot14(x: F2Dot14) -> f64 {
 // `#[cfg_attr(miri, ignore)]`d purely because reaching `to_fixed`
 // meant calling libm `round`, which Miri cannot execute on macOS.
 pub fn to_f2dot14(x: f64) -> i16 {
-    return (x * 16384.0f64).round() as i16;
+    return (x * 16384.0).round() as i16;
 }
 pub fn from_fixed(x: F16Dot16) -> f64 {
-    return x as f64 / 65536.0f64;
+    return x as f64 / 65536.0;
 }
 pub fn to_fixed(x: f64) -> F16Dot16 {
-    return (x * 65536.0f64).round() as F16Dot16;
+    return (x * 65536.0).round() as F16Dot16;
 }
 #[inline]
 fn clamp(value: i64) -> F16Dot16 {

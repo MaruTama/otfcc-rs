@@ -138,9 +138,9 @@ pub(crate) fn parse_class_def(cd: Option<&ParsedValue>) -> Option<ClassDef> {
 }
 pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     let mut buf = Buffer::new();
-    buf.write_u16be(2_u16);
+    buf.write_u16be(2);
     if cd.glyphs.is_empty() {
-        buf.write_u16be(0_u16);
+        buf.write_u16be(0);
         return buf;
     }
     // `sort_by_key` (stable), same as `Coverage`'s `build_coverage_format`.
@@ -155,7 +155,7 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     }
     let jj: GlyphId = count_u16(r.len());
     if jj == 0 {
-        buf.write_u16be(0_u16);
+        buf.write_u16be(0);
         return buf;
     }
     r.sort_by_key(|rec| rec.gid);
@@ -168,13 +168,13 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     for rec in r.iter().skip(1) {
         let current: GlyphId = rec.gid;
         if !(current as i32 <= last_gid as i32) {
-            if current as i32 == end_gid as i32 + 1_i32 && rec.cid as i32 == last_class as i32 {
+            if current as i32 == end_gid as i32 + 1 && rec.cid as i32 == last_class as i32 {
                 end_gid = current;
             } else {
                 ranges.write_u16be(start_gid as u16);
                 ranges.write_u16be(end_gid as u16);
                 ranges.write_u16be(last_class as u16);
-                n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
+                n_ranges = (n_ranges as i32 + 1) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
                 last_class = rec.cid;
@@ -185,7 +185,7 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     ranges.write_u16be(start_gid as u16);
     ranges.write_u16be(end_gid as u16);
     ranges.write_u16be(last_class as u16);
-    n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
+    n_ranges = (n_ranges as i32 + 1) as GlyphId;
     buf.write_u16be(n_ranges as u16);
     buf.write_buffer_owned(ranges);
     buf

@@ -288,7 +288,7 @@ fn getoffset(
 ) -> u32 {
     let offref: usize = offsets[blocks[ref_id.0 as usize].index as usize];
     let offtgt: usize = offsets[blocks[target.0 as usize].index as usize];
-    if (bits as i32) < 32_i32 && (offtgt < offref || offtgt.wrapping_sub(offref) >> bits as i32 != 0)
+    if (bits as i32) < 32 && (offtgt < offref || offtgt.wrapping_sub(offref) >> bits as i32 != 0)
     {
         // No `Logger`/`Options` reaches this deep into the bk-block
         // serializer (`build_bkblock` is called from ~19 unrelated

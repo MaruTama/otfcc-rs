@@ -87,7 +87,7 @@ fn read_base_script(
         let coordinate = if val_offset != 0 {
             read_base_value(data, base_values_offset + val_offset as usize) as Pos
         } else {
-            0_i32 as Pos
+            0 as Pos
         };
         base_values.push(BaseValue { tag, coordinate });
     }
@@ -326,7 +326,7 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
                     vec![bk_ptr(
                         BkCellType::P16,
                         Some(bk_new_block(vec![
-                            bk_int(BkCellType::B16, 1_u32),
+                            bk_int(BkCellType::B16, 1),
                             bk_int(
                                 BkCellType::B16,
                                 (entry_0.base_values[found_index].coordinate as i16 as i32) as u32,
@@ -340,8 +340,8 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
                     vec![bk_ptr(
                         BkCellType::P16,
                         Some(bk_new_block(vec![
-                            bk_int(BkCellType::B16, 1_u32),
-                            bk_int(BkCellType::B16, 0_u32),
+                            bk_int(BkCellType::B16, 1),
+                            bk_int(BkCellType::B16, 0),
                         ])),
                     )],
                 );
@@ -350,7 +350,7 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
         let script_record: BkBlock = bk_new_block(vec![
             bk_ptr(BkCellType::P16, Some(base_values)),
             bk_ptr(BkCellType::P16, None),
-            bk_int(BkCellType::B16, 0_u32),
+            bk_int(BkCellType::B16, 0),
         ]);
         bk_push(
             &mut base_script_list,
@@ -370,7 +370,7 @@ pub fn build_base(base: Option<&BaseTable>) -> Option<Buffer> {
     let horizontal_bk = base.horizontal.as_deref().map(axis_to_bk);
     let vertical_bk = base.vertical.as_deref().map(axis_to_bk);
     let root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B32, 0x10000_u32),
+        bk_int(BkCellType::B32, 0x10000),
         bk_ptr(BkCellType::P16, horizontal_bk),
         bk_ptr(BkCellType::P16, vertical_bk),
     ]);
@@ -379,16 +379,16 @@ pub fn build_base(base: Option<&BaseTable>) -> Option<Buffer> {
 #[inline]
 fn str2tag(tags: Option<&[u8]>) -> u32 {
     let Some(tags) = tags else {
-        return 0_u32;
+        return 0;
     };
-    let mut tag: u32 = 0_u32;
-    let mut len: u8 = 0_u8;
+    let mut tag: u32 = 0;
+    let mut len: u8 = 0;
     for &b in tags.iter().take(4) {
-        tag = tag << 8_i32 | b as u32;
+        tag = tag << 8 | b as u32;
         len = len.wrapping_add(1);
     }
     for _ in len..4_u8 {
-        tag = tag << 8_i32 | ' ' as i32 as u32;
+        tag = tag << 8 | ' ' as i32 as u32;
     }
     tag
 }

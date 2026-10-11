@@ -20,9 +20,9 @@ fn by_stem_pos(a: &PostscriptStemDef, b: &PostscriptStemDef) -> i32 {
     if a.position == b.position {
         a.map as i32 - b.map as i32
     } else if a.position > b.position {
-        1_i32
+        1
     } else {
-        -1_i32
+        -1
     }
 }
 fn by_mask_pointindex(a: &PostscriptHintMask, b: &PostscriptHintMask) -> i32 {
@@ -216,7 +216,7 @@ pub fn get_point_coordinates(
             );
             return true;
         }
-        search.stated = (search.stated as i32 + 1_i32) as ShapeId;
+        search.stated = (search.stated as i32 + 1) as ShapeId;
     }
     for rr in &g.references {
         consolidate_anchor_ref(table, gr, rr, options, depth + 1);
@@ -326,11 +326,11 @@ pub fn consolidate_anchor_ref(
         if (vq_get_still(rr.x.borrow().clone()) as f64
             - vq_get_still(rrx.clone()) as f64)
             .abs()
-            > 0.5f64
+            > 0.5
             && (vq_get_still(rr.y.borrow().clone()) as f64
                 - vq_get_still(rry.clone()) as f64)
                 .abs()
-                > 0.5f64
+                > 0.5
         {
             tracing::warn!("Anchored reference to {} does not match its X/Y offset data.", ByteStr(&rr.glyph.name));
         }

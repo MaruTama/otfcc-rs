@@ -127,7 +127,7 @@ pub fn build_gpos_cursive(
         push_to_coverage(&mut cov, entry.target.clone());
     }
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 1_u32),
+        bk_int(BkCellType::B16, 1),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),

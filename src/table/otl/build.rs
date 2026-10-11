@@ -34,24 +34,24 @@ fn storage_to_dense<T>(list: &[Option<T>]) -> Vec<Option<u16>> {
 }
 pub const LARGE_SUBTABLE_LIMIT: usize = 4096;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
-    let mut tag: u32 = 0_u32;
+    let mut tag: u32 = 0;
     if !name.is_empty() {
-        tag |= ((name[0_usize] as i32) << 24_i32) as u32;
+        tag |= ((name[0] as i32) << 24) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as i32) << 24_i32) as u32;
+        tag |= ((' ' as i32 as u8 as i32) << 24) as u32;
     }
-    if name.len() > 1_usize {
-        tag |= ((name[1_usize] as i32) << 16_i32) as u32;
+    if name.len() > 1 {
+        tag |= ((name[1] as i32) << 16) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as i32) << 16_i32) as u32;
+        tag |= ((' ' as i32 as u8 as i32) << 16) as u32;
     }
-    if name.len() > 2_usize {
-        tag |= ((name[2_usize] as i32) << 8_i32) as u32;
+    if name.len() > 2 {
+        tag |= ((name[2] as i32) << 8) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as i32) << 8_i32) as u32;
+        tag |= ((' ' as i32 as u8 as i32) << 8) as u32;
     }
-    if name.len() > 3_usize {
-        tag |= (name[3_usize] as i32) as u32;
+    if name.len() > 3 {
+        tag |= (name[3] as i32) as u32;
     } else {
         tag |= (' ' as i32 as u8 as i32) as u32;
     }
@@ -157,7 +157,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
     let mut subtables: Vec<Vec<Buffer>> = vec![Vec::new(); live.len()];
     let mut subtable_quantity: Vec<TableId> = vec![0 as TableId; live.len()];
     let mut prefer_ext_for_this_lut: Vec<bool> = vec![false; live.len()];
-    let mut last_offset: usize = 0_usize;
+    let mut last_offset: usize = 0;
     for j in 0..live.len() {
         let (lookup_idx, lookup) = live[j];
         let heu: BuildHeuristics = get_lookup_heuristics(table, lookup_idx, lookup);
@@ -235,7 +235,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
                     .wrapping_sub(can_be_contextual as u32)
                     as u16;
                 let stub: BkBlock = bk_new_block(vec![
-                    bk_int(BkCellType::B16, 1_u32),
+                    bk_int(BkCellType::B16, 1),
                     bk_int(BkCellType::B16, (extension_lookup_type as i32) as u32),
                     bk_ptr(
                         BkCellType::P32,
@@ -253,7 +253,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
                 );
             }
         }
-        bk_push(&mut blk, vec![bk_int(BkCellType::B16, 0_u32)]);
+        bk_push(&mut blk, vec![bk_int(BkCellType::B16, 0)]);
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(blk))]);
     }
     return root;
@@ -427,7 +427,7 @@ pub fn build_otl(table: Option<&OtlTable>, tag: &[u8]) -> Option<Buffer> {
         let features: BkBlock = write_otl_features(table, &lookup_dense);
         let languages: BkBlock = write_otl_script_and_languages(table, &feature_dense);
         let root: BkBlock = bk_new_block(vec![
-            bk_int(BkCellType::B32, 0x10000_u32),
+            bk_int(BkCellType::B32, 0x10000),
             bk_ptr(BkCellType::P16, Some(languages)),
             bk_ptr(BkCellType::P16, Some(features)),
             bk_ptr(BkCellType::P16, Some(lookups)),

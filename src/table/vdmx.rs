@@ -188,8 +188,8 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
         );
     }
     for rr_0 in ratios.iter() {
-        let mut startsz: u16 = 0xffff_u16;
-        let mut endsz: u16 = 0_u16;
+        let mut startsz: u16 = 0xffff;
+        let mut endsz: u16 = 0;
         for r in rr_0.records.iter() {
             if startsz as i32 > r.y_pel_height as i32 {
                 startsz = r.y_pel_height;

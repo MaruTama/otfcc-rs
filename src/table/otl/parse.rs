@@ -156,7 +156,7 @@ fn _declare_lookup_parser(
         .map_or(0, |v| v.flags(&LOOKUP_FLAGS_LABELS)) as u16;
     let mark_attachment_type: u16 = lv.map_or(0, |v| v.get_int(b"markAttachmentType")) as u16;
     if mark_attachment_type != 0 {
-        lookup.flags = (lookup.flags as i32 | (mark_attachment_type as i32) << 8_i32) as u16;
+        lookup.flags = (lookup.flags as i32 | (mark_attachment_type as i32) << 8) as u16;
     }
     let subtable_items = subtables.as_array().unwrap();
     let stage = crate::logger::stage(ByteStr(lookup_name));
@@ -370,7 +370,7 @@ fn figure_out_features_from_json(
     return fh;
 }
 pub fn is_valid_language_name(name: &[u8]) -> bool {
-    return name.len() == 9_usize && name[4] == SCRIPT_LANGUAGE_SEPARATOR;
+    return name.len() == 9 && name[4] == SCRIPT_LANGUAGE_SEPARATOR;
 }
 fn figure_out_languages_from_json(
     languages: Option<&ParsedValue>,

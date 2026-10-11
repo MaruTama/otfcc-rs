@@ -206,8 +206,8 @@ fn table_cff_new() -> Box<CffTable> {
         weight: Vec::new(),
         is_fixed_pitch: false,
         italic_angle: 0 as f64,
-        underline_position: -100_f64,
-        underline_thickness: 50_f64,
+        underline_position: -100.0,
+        underline_thickness: 50.0,
         font_b_box_top: 0 as f64,
         font_b_box_bottom: 0 as f64,
         font_b_box_left: 0 as f64,
@@ -407,9 +407,9 @@ pub(crate) fn callback_draw_setmask(
         mask_v: StemMask::default(),
     };
     if context.j_contour != 0 {
-        mask.contours_before = (context.j_contour as i32 - 1_i32) as u16;
+        mask.contours_before = (context.j_contour as i32 - 1) as u16;
     } else {
-        mask.contours_before = 0_u16;
+        mask.contours_before = 0;
     }
     mask.points_before = context.j_point;
     let stem_h_len = context.g.stem_h.len();
@@ -432,26 +432,26 @@ pub(crate) fn callback_draw_setmask(
     } else {
         mask_list.push(mask);
         if is_contour_mask {
-            context.defined_contour_masks = (context.defined_contour_masks as i32 + 1_i32) as u8;
+            context.defined_contour_masks = (context.defined_contour_masks as i32 + 1) as u8;
         } else {
-            context.defined_hint_masks = (context.defined_hint_masks as i32 + 1_i32) as u8;
+            context.defined_hint_masks = (context.defined_hint_masks as i32 + 1) as u8;
         }
     };
 }
 pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> f64 {
     let mut x: u64 = context.randx;
-    x ^= x >> 12_i32;
-    x ^= x << 25_i32;
-    x ^= x >> 27_i32;
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
     context.randx = x;
     // xorshift, then put the bits into an f64's mantissa with an exponent
     // of 0 to get a uniform double in [1, 2), and subtract 1.
-    let mut bits: u64 = x.wrapping_mul(2685821657736338717_u64);
-    bits = bits >> 12_i32 | 0x3ff0000000000000_u64;
-    let q: f64 = if bits & 2048_u64 != 0 {
+    let mut bits: u64 = x.wrapping_mul(2685821657736338717);
+    bits = bits >> 12 | 0x3ff0000000000000;
+    let q: f64 = if bits & 2048 != 0 {
         1.0f64 - 2.220_446_049_250_313E-16_f64 / 2.0f64
     } else {
-        1.0f64
+        1.0
     };
     return f64::from_bits(bits) - q;
 }
@@ -509,13 +509,13 @@ fn build_outline(
         g: glyphs[i as usize].as_deref_mut().unwrap(),
         j_contour: 0 as ShapeId,
         j_point: 0 as ShapeId,
-        default_width_x: 0.0f64,
-        nominal_width_x: 0.0f64,
-        defined_h_stems: 0_u8,
-        defined_v_stems: 0_u8,
-        defined_hint_masks: 0_u8,
-        defined_contour_masks: 0_u8,
-        randx: 0_u64,
+        default_width_x: 0.0,
+        nominal_width_x: 0.0,
+        defined_h_stems: 0,
+        defined_v_stems: 0,
+        defined_hint_masks: 0,
+        defined_contour_masks: 0,
+        randx: 0,
     };
     let f_raw_data = f.raw_data.as_slice();
     let fd: u8 = if !matches!(f.fdselect, CffFdSelect::Unspecified) {
@@ -552,8 +552,8 @@ fn build_outline(
     // entry exactly matches `data.len() + 1`) -- so `offset[i] - 1` is
     // always in `0..=data.len()` for any `i` within the INDEX's own
     // count, the same invariant `locate_subr`/`get_cff_sid` rely on.
-    let char_string_start = (char_strings_offset[i as usize] - 1_u32) as usize;
-    let char_string_end = (char_strings_offset[(i as i32 + 1_i32) as usize] - 1_u32) as usize;
+    let char_string_start = (char_strings_offset[i as usize] - 1) as usize;
+    let char_string_end = (char_strings_offset[(i as i32 + 1) as usize] - 1) as usize;
     let char_string_bytes: &[u8] = &f.char_strings.data[char_string_start..char_string_end];
     bc.j_contour = 0 as ShapeId;
     bc.j_point = 0 as ShapeId;
@@ -702,7 +702,7 @@ pub fn read_cff_and_glyf_tables(
             // ---- Phase A: Top/Font DICT + Private DICT extraction ----
             {
                 let mut context = CffFdExtractContext {
-                    fd_array_index: -1_i32,
+                    fd_array_index: -1,
                     meta: &mut meta,
                     cff_file: &cff_file,
                 };
@@ -710,8 +710,8 @@ pub fn read_cff_and_glyf_tables(
                     {
                         let top_dict_len = {
                             let top_dict_offset = &cff_file.top_dict.offset;
-                            (top_dict_offset[1_usize])
-                                .wrapping_sub(top_dict_offset[0_usize])
+                            (top_dict_offset[1])
+                                .wrapping_sub(top_dict_offset[0])
                         } as usize;
                         let top_dict_data: &[u8] = &cff_file.top_dict.data;
                         top_dict_data.get(..top_dict_len).unwrap_or(&[])
@@ -722,7 +722,7 @@ pub fn read_cff_and_glyf_tables(
                 );
                 if context.meta.font_name.is_empty() {
                     context.meta.font_name =
-                        get_cff_sid(391_u16, &cff_file.name).unwrap_or_default();
+                        get_cff_sid(391, &cff_file.name).unwrap_or_default();
                 }
                 if cff_file.font_dict.count != 0 {
                     let fd_count = cff_file.font_dict.count as usize;
@@ -745,7 +745,7 @@ pub fn read_cff_and_glyf_tables(
                                 let start =
                                     font_dict_offset[j as usize].wrapping_sub(1) as usize;
                                 let len = (font_dict_offset[(j as i32
-                                    + 1_i32)
+                                    + 1)
                                     as usize])
                                     .wrapping_sub(font_dict_offset[j as usize])
                                     as usize;
@@ -767,9 +767,9 @@ pub fn read_cff_and_glyf_tables(
                 }
             } // `context` (and its `&mut meta` borrow) ends here.
 
-            let mut seed: u64 = 0x1234567887654321_u64;
+            let mut seed: u64 = 0x1234567887654321;
             if let Some(pd) = meta.private_dict.as_deref() {
-                seed = pd.initial_random_seed as u64 ^ 0x1234567887654321_u64;
+                seed = pd.initial_random_seed as u64 ^ 0x1234567887654321;
             }
             let mut glyphs: GlyfTable = table_glyf_create_n(cff_file.char_strings.count as usize);
 
@@ -899,13 +899,13 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
     if table.italic_angle != 0. {
         _cff.push_field(b"italicAngle", BuiltValue::Double(table.italic_angle));
     }
-    if table.underline_position != -100_f64 {
+    if table.underline_position != -100.0 {
         _cff.push_field(
             b"underlinePosition",
             BuiltValue::Double(table.underline_position),
         );
     }
-    if table.underline_thickness != 50_f64 {
+    if table.underline_thickness != 50.0 {
         _cff.push_field(
             b"underlineThickness",
             BuiltValue::Double(table.underline_thickness),
@@ -1017,8 +1017,8 @@ fn fd_from_json(dump: Option<&ParsedValue>, options: &Options, top_level: bool) 
     table.weight = dump.get_bytes_owned(b"weight").unwrap_or_default();
     table.is_fixed_pitch = dump.get_bool(b"isFixedPitch");
     table.italic_angle = dump.get_num(b"italicAngle");
-    table.underline_position = dump.get_num_or(b"underlinePosition", -100.0f64);
-    table.underline_thickness = dump.get_num_or(b"underlineThickness", 50.0f64);
+    table.underline_position = dump.get_num_or(b"underlinePosition", -100.0);
+    table.underline_thickness = dump.get_num_or(b"underlineThickness", 50.0);
     table.stroke_width = dump.get_num(b"strokeWidth");
     table.font_b_box_left = dump.get_num(b"fontBBoxLeft");
     table.font_b_box_bottom = dump.get_num(b"fontBBoxBottom");
@@ -1106,11 +1106,11 @@ fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, B
 fn sidof(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> i32 {
     let key: Vec<u8> = until_nul(s).to_vec();
     if let Some(idx) = h.get_index_of(&key) {
-        return 391_i32 + idx as i32;
+        return 391 + idx as i32;
     }
     let idx = h.len();
     h.insert(key, s.to_vec());
-    return 391_i32 + idx as i32;
+    return 391 + idx as i32;
 }
 fn cffdict_givemeablank(dict: &mut CffDict) -> &mut CffDictEntry {
     dict.ents.push(CffDictEntry {
@@ -1286,11 +1286,11 @@ fn cff_compile_nameindex(cff: &mut CffTable) -> Buffer {
     }
     let mut name_index = new_empty_cff_index();
     name_index.count = 1 as Arity;
-    name_index.off_size = 4_u8;
+    name_index.off_size = 4;
     name_index.offset = vec![1, cff.font_name.len() as u32 + 1];
     // The name is written with a trailing NUL.
     let mut name_data: Vec<u8> = cff.font_name.clone();
-    name_data.push(0_u8);
+    name_data.push(0);
     name_index.data = name_data;
     let buf = build_index(&name_index);
     cff.font_name = Vec::new();
@@ -1301,7 +1301,7 @@ fn cff_make_charset(
     glyf: &GlyfTable,
     string_hash: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> Buffer {
-    let charset: CffCharset = if glyf.len() > 1_usize {
+    let charset: CffCharset = if glyf.len() > 1 {
         let (first, nleft) = if cff.is_cid {
             (1, (glyf.len() - 2) as u16)
         } else {
@@ -1309,7 +1309,7 @@ fn cff_make_charset(
                 sidof(string_hash, &entry.as_deref().unwrap().name);
             }
             (
-                sidof(string_hash, &glyf[1_usize].as_deref().unwrap().name) as u16,
+                sidof(string_hash, &glyf[1].as_deref().unwrap().name) as u16,
                 (glyf.len() - 2) as u16,
             )
         };
@@ -1329,19 +1329,19 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
         return Buffer::new();
     }
     let fds: CffFdSelect = if !glyf.is_empty() {
-        let mut fdi0: u8 = glyf[0_usize].as_deref().unwrap().fd_select.index as u8;
+        let mut fdi0: u8 = glyf[0].as_deref().unwrap().fd_select.index as u8;
         if fdi0 as usize > cff.fd_array.len() {
-            fdi0 = 0_u8;
+            fdi0 = 0;
         }
         let mut current: u8 = fdi0;
         let mut range3: Vec<CffFdSelectRangeFormat3> = vec![CffFdSelectRangeFormat3 {
-            first: 0_u16,
+            first: 0,
             fd: current,
         }];
         for (j, entry) in glyf.iter().enumerate().skip(1) {
             let mut fdi: u8 = entry.as_deref().unwrap().fd_select.index as u8;
             if fdi as usize > cff.fd_array.len() {
-                fdi = 0_u8;
+                fdi = 0;
             }
             if fdi as i32 != current as i32 {
                 current = fdi;

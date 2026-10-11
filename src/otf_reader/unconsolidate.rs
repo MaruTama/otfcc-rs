@@ -170,7 +170,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
                 let mut still_in: bool = false;
                 loop {
                     if still_in {
-                        n = (n as i32 + 1_i32) as GlyphId;
+                        n = (n as i32 + 1) as GlyphId;
                     }
                     let newname: Vec<u8> =
                         crate::bytesbuild!(&gname, b"-", &prefix, n as i32);
@@ -215,8 +215,8 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         }
     if let Some(cmap) = font.cmap.as_ref().filter(|_| !options.name_glyphs_by_gid) {
         for (&unicode, glyph) in cmap.unicodes.iter() {
-            if glyph.index as i32 > 0_i32 {
-                let aglfn_name = if unicode > 0_i32 && unicode < 0xffff_i32 {
+            if glyph.index as i32 > 0 {
+                let aglfn_name = if unicode > 0 && unicode < 0xffff {
                     aglfn_name(unicode as u32)
                 } else {
                     None
@@ -235,9 +235,9 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         if j_1 > 1 {
             name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as i32);
         } else if j_1 == 1 {
-            if glyf[1_usize].is_some()
-                && glyf[1_usize].as_deref().unwrap().contours.is_empty()
-                && glyf[1_usize].as_deref().unwrap().references.is_empty()
+            if glyf[1].is_some()
+                && glyf[1].as_deref().unwrap().contours.is_empty()
+                && glyf[1].as_deref().unwrap().references.is_empty()
             {
                 name_0 = crate::bytesbuild!(&prefix, b".null");
             } else {

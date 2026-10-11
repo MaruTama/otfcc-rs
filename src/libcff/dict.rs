@@ -23,7 +23,7 @@ pub struct CffDict {
 // `.get(start..).and_then(|s| s.get(..len))` and fall back to "not found"
 // when it doesn't fit.
 pub(crate) fn parse_to_callback(data: &[u8], mut callback: impl FnMut(CffDictOperator, u8, &[CffValue])) {
-    let mut index: u8 = 0_u8;
+    let mut index: u8 = 0;
     let mut val: CffValue = CffValue::Unset;
     let mut stack: [CffValue; 256] = [CffValue::Unset; 256];
     let mut pos: usize = 0;
@@ -36,7 +36,7 @@ pub(crate) fn parse_to_callback(data: &[u8], mut callback: impl FnMut(CffDictOpe
         match val {
             CffValue::Operator(op) => {
                 callback(CffDictOperator(op as u32), index, &stack[..index as usize]);
-                index = 0_u8;
+                index = 0;
             }
             CffValue::Integer(_) | CffValue::Double(_) => {
                 stack[index as usize] = val;
@@ -79,7 +79,7 @@ pub(crate) fn build_dict(dict: &CffDict) -> Buffer {
             let blob_val: Buffer = match *val {
                 CffValue::Integer(i) => cff_encode_cff_integer(i),
                 CffValue::Double(d) => cff_encode_cff_float(d),
-                CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0_i32),
+                CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0),
             };
             blob.write_buffer_owned(blob_val);
         }

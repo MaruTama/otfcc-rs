@@ -66,17 +66,17 @@ pub fn read_svg(packet: &Packet) -> Option<SvgTable> {
     decode_svg(&table.data).ok()
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {
-    return doc.len() > 4_usize
-        && doc[0_usize] as i32 == '<' as i32
-        && doc[1_usize] as i32 == 's' as i32
-        && doc[2_usize] as i32 == 'v' as i32
-        && doc[3_usize] as i32 == 'g' as i32
-        || doc.len() > 5_usize
-            && doc[0_usize] as i32 == '<' as i32
-            && doc[1_usize] as i32 == '?' as i32
-            && doc[2_usize] as i32 == 'x' as i32
-            && doc[3_usize] as i32 == 'm' as i32
-            && doc[4_usize] as i32 == 'l' as i32;
+    return doc.len() > 4
+        && doc[0] as i32 == '<' as i32
+        && doc[1] as i32 == 's' as i32
+        && doc[2] as i32 == 'v' as i32
+        && doc[3] as i32 == 'g' as i32
+        || doc.len() > 5
+            && doc[0] as i32 == '<' as i32
+            && doc[1] as i32 == '?' as i32
+            && doc[2] as i32 == 'x' as i32
+            && doc[3] as i32 == 'm' as i32
+            && doc[4] as i32 == 'l' as i32;
 }
 pub fn dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
     let svg = match svg {
@@ -159,9 +159,9 @@ pub fn build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
         );
     }
     let root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 0_u32),
+        bk_int(BkCellType::B16, 0),
         bk_ptr(BkCellType::P32, Some(major)),
-        bk_int(BkCellType::B32, 0_u32),
+        bk_int(BkCellType::B32, 0),
     ]);
     // `svg` drops naturally at the end of this scope -- `document` is a
     // plain `Vec<u8>` now, self-dropping along with the rest of

@@ -142,8 +142,8 @@ pub(crate) fn parse_coverage(cov: Option<&ParsedValue>) -> Coverage {
 pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer {
     if coverage.is_empty() {
         let mut buf = Buffer::new();
-        buf.write_u16be(2_u16);
-        buf.write_u16be(0_u16);
+        buf.write_u16be(2);
+        buf.write_u16be(0);
         return buf;
     }
     // `sort_by_key` is stable, like every other sort in this file.
@@ -151,16 +151,16 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     r.sort_by_key(|&gid| gid);
     let jj: GlyphId = count_u16(r.len());
     let mut format1 = Buffer::new();
-    format1.write_u16be(1_u16);
+    format1.write_u16be(1);
     format1.write_u16be(jj as u16);
     for &gid in &r {
         format1.write_u16be(gid);
     }
-    if (jj as i32) < 2_i32 {
+    if (jj as i32) < 2 {
         return format1;
     }
     let mut format2 = Buffer::new();
-    format2.write_u16be(2_u16);
+    format2.write_u16be(2);
     let mut ranges = Buffer::new();
     let mut start_gid: GlyphId = r[0];
     let mut end_gid: GlyphId = start_gid;
@@ -168,13 +168,13 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     let mut n_ranges: GlyphId = 0 as GlyphId;
     for (j_1, &current) in r.iter().enumerate().skip(1) {
         if !(current as i32 <= last_gid as i32) {
-            if current as i32 == end_gid as i32 + 1_i32 {
+            if current as i32 == end_gid as i32 + 1 {
                 end_gid = current;
             } else {
                 ranges.write_u16be(start_gid as u16);
                 ranges.write_u16be(end_gid as u16);
-                ranges.write_u16be((j_1 as i32 + start_gid as i32 - end_gid as i32 - 1_i32) as u16);
-                n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
+                ranges.write_u16be((j_1 as i32 + start_gid as i32 - end_gid as i32 - 1) as u16);
+                n_ranges = (n_ranges as i32 + 1) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
             }
@@ -186,9 +186,9 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     ranges.write_u16be(
         (jj as i32 + start_gid as i32
             - end_gid as i32
-            - 1_i32) as u16,
+            - 1) as u16,
     );
-    n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
+    n_ranges = (n_ranges as i32 + 1) as GlyphId;
     format2.write_u16be(n_ranges as u16);
     format2.write_buffer_owned(ranges);
     match format {
@@ -204,7 +204,7 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     }
 }
 pub(crate) fn build_coverage(coverage: &Coverage) -> Buffer {
-    build_coverage_format(coverage, 0_u16)
+    build_coverage_format(coverage, 0)
 }
 pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
     // `truncate` drops every handle past the compacted length, including

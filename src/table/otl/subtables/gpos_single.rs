@@ -125,7 +125,7 @@ pub fn build_gpos_single(
         unreachable!()
     };
     let mut is_const: bool = !subtable.is_empty();
-    let mut format: u16 = 0_u16;
+    let mut format: u16 = 0;
     if !subtable.is_empty() {
         for entry in subtable.iter() {
             is_const = is_const
@@ -143,7 +143,7 @@ pub fn build_gpos_single(
     let coverage_buf: Buffer = build_coverage(&cov);
     if is_const {
         let b: BkBlock = bk_new_block(vec![
-            bk_int(BkCellType::B16, 1_u32),
+            bk_int(BkCellType::B16, 1),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, (format as i32) as u32),
             bk_ptr(
@@ -154,7 +154,7 @@ pub fn build_gpos_single(
         return bk_build_block(b);
     } else {
         let mut b_0: BkBlock = bk_new_block(vec![
-            bk_int(BkCellType::B16, 2_u32),
+            bk_int(BkCellType::B16, 2),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, (format as i32) as u32),
             bk_int(BkCellType::B16, (subtable.len()) as u32),

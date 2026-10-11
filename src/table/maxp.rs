@@ -149,7 +149,7 @@ pub fn parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     // body regardless, so their zeroed default matches the old
     // `memset`-based one exactly.
     let mut maxp = MaxpTable {
-        version: 0x10000_i32 as F16Dot16,
+        version: 0x10000 as F16Dot16,
         num_glyphs: 0,
         max_points: 0,
         max_contours: 0,

@@ -557,7 +557,7 @@ impl<'a> Parser<'a> {
         // So a lone `-` is accepted here too, not rejected.
 
         let mut is_double = false;
-        let mut dbl = 0.0f64;
+        let mut dbl = 0.0;
 
         if self.peek() == Some(b'.') {
             is_double = true;
@@ -573,7 +573,7 @@ impl<'a> Parser<'a> {
             if frac_digits == 0 {
                 return None; // "5." with no digit after the dot
             }
-            dbl += frac as f64 / 10.0f64.powf(frac_digits as f64);
+            dbl += frac as f64 / 10.0_f64.powf(frac_digits as f64);
         }
 
         if matches!(self.peek(), Some(b'e' | b'E')) {
@@ -604,7 +604,7 @@ impl<'a> Parser<'a> {
                 return None; // "5e" with no digit after the e
             }
             let signed_exp = if exp_negative { -exp } else { exp };
-            dbl *= 10.0f64.powf(signed_exp as f64);
+            dbl *= 10.0_f64.powf(signed_exp as f64);
         }
 
         if is_double {
@@ -738,7 +738,7 @@ mod tests {
     // not a bug in parse_number reachable on any real target.
     #[cfg_attr(
         miri,
-        ignore = "10.0f64.powf() is not required to be correctly-rounded; Miri's shim disagrees with native libm by a few ULPs (and with itself between runs)"
+        ignore = "10.0_f64.powf() is not required to be correctly-rounded; Miri's shim disagrees with native libm by a few ULPs (and with itself between runs)"
     )]
     fn number_edge_cases() {
         assert_eq!(parse_v("5"), ParsedValue::Int(5));
@@ -807,7 +807,7 @@ mod tests {
     // to be correctly-rounded").
     #[cfg_attr(
         miri,
-        ignore = "10.0f64.powf() is not required to be correctly-rounded; Miri's shim disagrees with native libm by a few ULPs"
+        ignore = "10.0_f64.powf() is not required to be correctly-rounded; Miri's shim disagrees with native libm by a few ULPs"
     )]
     fn string_edge_cases() {
         // `\u` escape + surrogate pair (é, 😀), plus \t \n \\ \".

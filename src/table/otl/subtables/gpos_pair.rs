@@ -268,9 +268,9 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     let mut st = BuiltValue::new_object(3);
     st.push_field(b"first", dump_class_def(first_cd));
     st.push_field(b"second", dump_class_def(second_cd));
-    let mut mat = BuiltValue::new_array((first_cd.maxclass as i32 + 1_i32) as usize);
+    let mut mat = BuiltValue::new_array((first_cd.maxclass as i32 + 1) as usize);
     for j in 0..=first_cd.maxclass {
-        let mut row = BuiltValue::new_array((second_cd.maxclass as i32 + 1_i32) as usize);
+        let mut row = BuiltValue::new_array((second_cd.maxclass as i32 + 1) as usize);
         for k in 0..=second_cd.maxclass {
             let f1: u8 = required_position_format(subtable.first_values[j as usize][k as usize]);
             let f2: u8 = required_position_format(subtable.second_values[j as usize][k as usize]);
@@ -296,7 +296,7 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
                     row.push_item(pair);
                 }
             } else {
-                row.push_item(BuiltValue::position(0_i32 as Pos));
+                row.push_item(BuiltValue::position(0 as Pos));
             }
         }
         mat.push_item(row.preserialize());
@@ -377,12 +377,12 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     };
     let first_cd: &ClassDef = subtable.first.as_deref().unwrap();
     let second_cd: &ClassDef = subtable.second.as_deref().unwrap();
-    let mut format1: u16 = 0_u16;
-    let mut format2: u16 = 0_u16;
+    let mut format1: u16 = 0;
+    let mut format2: u16 = 0;
     let class1_count: GlyphClass =
-        (first_cd.maxclass as i32 + 1_i32) as GlyphClass;
+        (first_cd.maxclass as i32 + 1) as GlyphClass;
     let class2_count: GlyphClass =
-        (second_cd.maxclass as i32 + 1_i32) as GlyphClass;
+        (second_cd.maxclass as i32 + 1) as GlyphClass;
     for j in 0..class1_count {
         for k in 0..class2_count {
             format1 = (format1 as i32
@@ -409,7 +409,7 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let mut cov: Coverage = cov_from_cd(first_cd);
     shrink_coverage(&mut cov, true);
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 1_u32),
+        bk_int(BkCellType::B16, 1),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),
@@ -474,12 +474,12 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     };
     let first_cd: &ClassDef = subtable.first.as_deref().unwrap();
     let second_cd: &ClassDef = subtable.second.as_deref().unwrap();
-    let mut format1: u16 = 0_u16;
-    let mut format2: u16 = 0_u16;
+    let mut format1: u16 = 0;
+    let mut format2: u16 = 0;
     let class1_count: GlyphClass =
-        (first_cd.maxclass as i32 + 1_i32) as GlyphClass;
+        (first_cd.maxclass as i32 + 1) as GlyphClass;
     let class2_count: GlyphClass =
-        (second_cd.maxclass as i32 + 1_i32) as GlyphClass;
+        (second_cd.maxclass as i32 + 1) as GlyphClass;
     for j in 0..class1_count {
         for k in 0..class2_count {
             format1 = (format1 as i32
@@ -492,7 +492,7 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     }
     let cov: Coverage = cov_from_cd(first_cd);
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 2_u32),
+        bk_int(BkCellType::B16, 2),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),

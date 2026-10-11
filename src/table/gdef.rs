@@ -191,13 +191,13 @@ fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
         v.glyph = handle_from_name(Some(key[..key.len() - 1].to_vec()));
         for _caret in items {
             let mut caret: CaretValue = CaretValue {
-                format: 1_i8,
+                format: 1,
                 coordiante: 0_i32 as Pos,
                 point_index: 0xffff_i32 as i16,
             };
             if _caret.as_object().is_some() {
                 if _caret.get_typed(b"atPoint", JsonType::Integer).is_some() {
-                    caret.format = 2_i8;
+                    caret.format = 2;
                     caret.point_index = _caret.get_int(b"atPoint") as i16;
                 } else {
                     caret.coordiante = _caret.get_num(b"at") as Pos;
@@ -285,7 +285,7 @@ pub fn build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
         b_mark_attach_class_def = bk_new_block_from_buffer(Some(build_class_def(cd)));
     }
     let root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B32, 0x10000_u32),
+        bk_int(BkCellType::B32, 0x10000),
         bk_ptr(BkCellType::P16, b_glyph_class_def),
         bk_ptr(BkCellType::P16, b_attach_list),
         bk_ptr(BkCellType::P16, b_lig_caret_list),

@@ -75,7 +75,7 @@ fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut Shap
     // are, before indexing.
     while *cp as usize >= contours[*cc as usize].len() {
         *cp = 0 as ShapeId;
-        *cc = (*cc as i32 + 1_i32) as ShapeId;
+        *cc = (*cc as i32 + 1) as ShapeId;
     }
     let point = &mut contours[*cc as usize][*cp as usize];
     *cp = (*cp).wrapping_add(1);
@@ -375,7 +375,7 @@ fn read_packed_delta(
         zero: false,
     };
     for filled in 0..n_points {
-        let mut delta: i16 = 0_i16;
+        let mut delta: i16 = 0;
         if run.length == 0 {
             let run_header: u8 = r.u8().ok()?;
             run.zero = run_header & DELTAS_ARE_ZERO != 0;
@@ -404,11 +404,11 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
             let mut j_next: ShapeId = j;
             while !nudges[j_next as usize].is_touched() {
                 if j_next as i32
-                    == j_max as i32 - 1_i32
+                    == j_max as i32 - 1
                 {
                     j_next = j_min;
                 } else {
-                    j_next = (j_next as i32 + 1_i32) as ShapeId;
+                    j_next = (j_next as i32 + 1) as ShapeId;
                 }
                 if j_next as i32 == j as i32 {
                     break;
@@ -417,9 +417,9 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
             let mut j_prev: ShapeId = j;
             while !nudges[j_prev as usize].is_touched() {
                 if j_prev as i32 == j_min as i32 {
-                    j_prev = (j_max as i32 - 1_i32) as ShapeId;
+                    j_prev = (j_max as i32 - 1) as ShapeId;
                 } else {
-                    j_prev = (j_prev as i32 - 1_i32) as ShapeId;
+                    j_prev = (j_prev as i32 - 1) as ShapeId;
                 }
                 if j_prev as i32 == j as i32 {
                     break;
@@ -479,7 +479,7 @@ fn apply_coords(
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     for _ in 0..total_points {
         nudges.push(VqSegment::Delta(VqSegmentDelta {
-            quantity: 0_i32 as Pos,
+            quantity: 0 as Pos,
             touched: false,
             region: Rc::clone(r),
         }));
@@ -587,7 +587,7 @@ fn apply_polymorphism(
         j += 1;
     }
 
-    if (total_points as i32 + 1_i32) < n_touched_points as i32 {
+    if (total_points as i32 + 1) < n_touched_points as i32 {
         vq_add_delta(
             &mut glyph.horizontal_origin,
             true,
@@ -598,22 +598,22 @@ fn apply_polymorphism(
             &mut glyph.advance_width,
             true,
             r,
-            delta_x[(total_points as i32 + 1_i32) as usize] - delta_x[total_points as usize],
+            delta_x[(total_points as i32 + 1) as usize] - delta_x[total_points as usize],
         );
     }
-    if (total_points as i32 + 3_i32) < n_touched_points as i32 {
+    if (total_points as i32 + 3) < n_touched_points as i32 {
         vq_add_delta(
             &mut glyph.vertical_origin,
             true,
             r,
-            delta_y[(total_points as i32 + 2_i32) as usize],
+            delta_y[(total_points as i32 + 2) as usize],
         );
         vq_add_delta(
             &mut glyph.advance_height,
             true,
             r,
-            delta_y[(total_points as i32 + 2_i32) as usize]
-                - delta_y[(total_points as i32 + 3_i32) as usize],
+            delta_y[(total_points as i32 + 2) as usize]
+                - delta_y[(total_points as i32 + 3) as usize],
         );
     }
 }
@@ -636,16 +636,16 @@ fn create_region_from_tuples(
         };
         let peak_val: Pos = from_f2dot14(peak_raw as F2Dot14) as Pos;
         let mut span: VqAxisSpan = VqAxisSpan {
-            start: (if peak_val <= 0_i32 as Pos {
-                -1_i32
+            start: (if peak_val <= 0 as Pos {
+                -1
             } else {
-                0_i32
+                0
             }) as Pos,
             peak: peak_val,
-            end: (if peak_val >= 0_i32 as Pos {
-                1_i32
+            end: (if peak_val >= 0 as Pos {
+                1
             } else {
-                0_i32
+                0
             }) as Pos,
         };
         if let Some(start_offset) = range_offset {
@@ -696,8 +696,8 @@ fn polymorphize_glyph(
     let mut header = FontReader::new(gvar).at(gvd_offset).ok()?;
     let raw_tuple_variation_count = header.u16().ok()?;
     let data_offset_field = header.u16().ok()?;
-    let n_tuples: u16 = raw_tuple_variation_count & 0xfff_u16;
-    let has_shared_point_numbers: bool = raw_tuple_variation_count & 0x8000_u16 != 0;
+    let n_tuples: u16 = raw_tuple_variation_count & 0xfff;
+    let has_shared_point_numbers: bool = raw_tuple_variation_count & 0x8000 != 0;
     let mut tvh_offset: usize = gvd_offset + 4;
 
     // Empty means the glyph has no shared point numbers.
@@ -708,7 +708,7 @@ fn polymorphize_glyph(
         data_offset = new_offset;
         shared_point_indeces = indeces;
     }
-    let mut tsd_start: usize = 0_usize;
+    let mut tsd_start: usize = 0;
     for _ in 0..n_tuples {
         let mut th = FontReader::new(gvar).at(tvh_offset).ok()?;
         let variation_data_size = th.u16().ok()?;
@@ -851,7 +851,7 @@ fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'
             dimensions,
             shared_tuple_count,
             shared_tuples_offset: shared_tuples_offset as usize,
-            coord_dimensions: 2_u8,
+            coord_dimensions: 2,
             allow_iup: !glyph_slot.as_deref().unwrap().contours.is_empty(),
             n_phantom_points: ctx.n_phantom_points,
         };

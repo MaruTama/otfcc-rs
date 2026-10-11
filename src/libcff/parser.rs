@@ -155,46 +155,46 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
     };
     if !cff.top_dict.data.is_empty() {
         let mut offset_0: i32;
-        offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHAR_STRINGS, 0_u32);
-        if offset_0 != -1_i32 {
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHAR_STRINGS, 0);
+        if offset_0 != -1 {
             extract_index(header_slice, offset_0 as u32, &mut cff.char_strings);
             cff.cnt_glyph = cff.char_strings.count as u16;
         } else {
             empty_index(&mut cff.char_strings);
             tracing::warn!("[libcff] Bad CFF font: no any glyph data.\n");
         }
-        offset_0 = parse_dict_key_int(top_dict_bytes, OP_ENCODING, 0_u32);
-        if offset_0 != -1_i32 {
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_ENCODING, 0);
+        if offset_0 != -1 {
             cff.encodings = parse_encoding(cff, offset_0);
         } else {
             cff.encodings = CffEncoding::Unspecified;
         }
-        offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHARSET, 0_u32);
-        if offset_0 != -1_i32 {
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHARSET, 0);
+        if offset_0 != -1 {
             cff.charsets =
                 cff_extract_charset(header_slice, offset_0, cff.char_strings.count as u16);
         } else {
             cff.charsets = CffCharset::IsoAdobe;
         }
-        offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_SELECT, 0_u32);
-        if cff.char_strings.count != 0 && offset_0 != -1_i32 {
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_SELECT, 0);
+        if cff.char_strings.count != 0 && offset_0 != -1 {
             cff.fdselect =
                 cff_extract_fd_select(header_slice, offset_0, cff.char_strings.count as u16);
         } else {
             cff.fdselect = CffFdSelect::Unspecified;
         }
-        offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_ARRAY, 0_u32);
-        if offset_0 != -1_i32 {
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_ARRAY, 0);
+        if offset_0 != -1 {
             extract_index(header_slice, offset_0 as u32, &mut cff.font_dict);
         } else {
             empty_index(&mut cff.font_dict);
         }
     }
-    let mut private_len: i32 = -1_i32;
-    let mut private_off: i32 = -1_i32;
+    let mut private_len: i32 = -1;
+    let mut private_off: i32 = -1;
     if !cff.top_dict.data.is_empty() {
-        private_len = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 0_u32);
-        private_off = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 1_u32);
+        private_len = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 0);
+        private_off = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 1);
     }
     // The Private DICT's offset and length come from the font: read it only
     // when the range lies inside the table, and otherwise fall back to no
@@ -207,8 +207,8 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
         None
     };
     if let Some(private_bytes) = private_dict_bytes {
-        offset = parse_dict_key_int(private_bytes, OP_SUBRS, 0_u32);
-        if offset != -1_i32 {
+        offset = parse_dict_key_int(private_bytes, OP_SUBRS, 0);
+        if offset != -1 {
             extract_index(
                 header_slice,
                 (private_off + offset) as u32,
@@ -246,7 +246,7 @@ pub fn cff_open_stream(data: &[u8]) -> Box<CffFile> {
         local_subr: new_empty_cff_index(),
     });
     file.raw_data = data.to_vec();
-    file.cnt_glyph = 0_u16;
+    file.cnt_glyph = 0;
     parse_cff_bytecode(&mut file);
     return file;
 }
@@ -259,7 +259,7 @@ pub fn cff_parse_subr(
     select: &CffFdSelect,
     subr: &mut CffIndex,
 ) -> u8 {
-    let mut fd: u8 = 0_u8;
+    let mut fd: u8 = 0;
     let off_subr: i32;
     match select {
         CffFdSelect::Format0(fds) => {
@@ -272,14 +272,14 @@ pub fn cff_parse_subr(
                 }
             }
             if idx as i32
-                >= range3[range3.len() - 1_usize].first as i32
+                >= range3[range3.len() - 1].first as i32
                 && (idx as i32) < *sentinel as i32
             {
-                fd = range3[range3.len() - 1_usize].fd;
+                fd = range3[range3.len() - 1].fd;
             }
         }
         CffFdSelect::Unspecified => {
-            fd = 0_u8;
+            fd = 0;
         }
     }
     // `fd` comes from the FDSelect table -- attacker-controlled bytes from
@@ -311,8 +311,8 @@ pub fn cff_parse_subr(
         .get(fd_dict_start..)
         .and_then(|s| s.get(..fd_dict_len))
         .unwrap_or(&[]);
-    let off_private: i32 = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1_u32);
-    let len_private: i32 = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0_u32);
+    let off_private: i32 = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1);
+    let len_private: i32 = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0);
     // Same bounds hole as `parse_cff_bytecode`'s Local Subrs lookup above:
     // `off_private`/`len_private` are Private-DICT-controlled operands,
     // unvalidated against `raw_length` until now.
@@ -323,8 +323,8 @@ pub fn cff_parse_subr(
         None
     };
     if let Some(private_bytes) = private_dict_bytes {
-        off_subr = parse_dict_key_int(private_bytes, OP_SUBRS, 0_u32);
-        if off_subr != -1_i32 {
+        off_subr = parse_dict_key_int(private_bytes, OP_SUBRS, 0);
+        if off_subr != -1 {
             extract_index(raw, (off_private + off_subr) as u32, subr);
         } else {
             empty_index(subr);
@@ -353,12 +353,12 @@ pub(crate) fn locate_subr(subr_index: &CffIndex, bias: u16, subr: i32) -> Option
     subr_index.data.get(data_offset..)?.get(..data_len)
 }
 pub(crate) fn compute_subr_bias(cnt: u16) -> u16 {
-    if (cnt as i32) < 1240_i32 {
-        return 107_u16;
-    } else if (cnt as i32) < 33900_i32 {
-        return 1131_u16;
+    if (cnt as i32) < 1240 {
+        return 107;
+    } else if (cnt as i32) < 33900 {
+        return 1131;
     } else {
-        return 32768_u16;
+        return 32768;
     };
 }
 pub use crate::libcff::charstring_interp::cff_parse_outline;

@@ -24,7 +24,7 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
 ///
 /// `index` is bounds-checked against `sfnt.count` before use.
 pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Option<Box<Font>> {
-    if sfnt.count.wrapping_sub(1_u32) < index {
+    if sfnt.count.wrapping_sub(1) < index {
         return None;
     } else {
         let mut font: Box<Font> = Box::default();

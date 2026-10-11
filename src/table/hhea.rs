@@ -96,7 +96,7 @@ pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
 }
 pub fn parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     let mut hhea = HheaTable {
-        version: 0x10000_i32 as F16Dot16,
+        version: 0x10000 as F16Dot16,
         ascender: 0,
         descender: 0,
         line_gap: 0,
@@ -142,11 +142,11 @@ pub fn build_hhea(hhea: Option<&HheaTable>) -> Option<Buffer> {
     buf.write_u16be(hhea.caret_slope_rise as u16);
     buf.write_u16be(hhea.caret_slope_run as u16);
     buf.write_u16be(hhea.caret_offset as u16);
-    buf.write_u16be(hhea.reserved[0_i32 as usize] as u16);
-    buf.write_u16be(hhea.reserved[1_i32 as usize] as u16);
-    buf.write_u16be(hhea.reserved[2_i32 as usize] as u16);
-    buf.write_u16be(hhea.reserved[3_i32 as usize] as u16);
-    buf.write_u16be(0_u16);
+    buf.write_u16be(hhea.reserved[0_usize] as u16);
+    buf.write_u16be(hhea.reserved[1_usize] as u16);
+    buf.write_u16be(hhea.reserved[2_usize] as u16);
+    buf.write_u16be(hhea.reserved[3_usize] as u16);
+    buf.write_u16be(0);
     buf.write_u16be(hhea.number_of_metrics);
     Some(buf)
 }

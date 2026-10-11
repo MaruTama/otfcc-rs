@@ -42,18 +42,18 @@ pub fn stat_single_glyph(
     topj: GlyphId,
 ) -> GlyphStat {
     let mut stat: GlyphStat = GlyphStat {
-        x_min: 0_i32 as Pos,
-        x_max: 0_i32 as Pos,
-        y_min: 0_i32 as Pos,
-        y_max: 0_i32 as Pos,
-        nest_depth: 0_u16,
-        n_points: 0_u16,
-        n_contours: 0_u16,
-        n_composite_points: 0_u16,
-        n_composite_contours: 0_u16,
+        x_min: 0 as Pos,
+        x_max: 0 as Pos,
+        y_min: 0 as Pos,
+        y_max: 0 as Pos,
+        nest_depth: 0,
+        n_points: 0,
+        n_contours: 0,
+        n_composite_points: 0,
+        n_composite_contours: 0,
     };
     let j: GlyphId = gr.glyph.index;
-    if depth as i32 >= 0xff_i32 {
+    if depth as i32 >= 0xff {
         return stat;
     }
     if stated[j as usize] == StatStatus::Doing {
@@ -67,8 +67,8 @@ pub fn stat_single_glyph(
     let mut xmax: Pos = -POS_MAX as Pos;
     let mut ymin: Pos = POS_MAX as Pos;
     let mut ymax: Pos = -POS_MAX as Pos;
-    let mut nest_depth: u16 = 0_u16;
-    let mut n_points: u16 = 0_u16;
+    let mut nest_depth: u16 = 0;
+    let mut n_points: u16 = 0;
     let mut n_composite_points: u16;
     let mut n_composite_contours: u16;
     for contour in &g.contours {
@@ -94,7 +94,7 @@ pub fn stat_single_glyph(
             if y > ymax {
                 ymax = y;
             }
-            n_points = (n_points as i32 + 1_i32) as u16;
+            n_points = (n_points as i32 + 1) as u16;
         }
     }
     n_composite_points = n_points;
@@ -140,7 +140,7 @@ pub fn stat_single_glyph(
             table,
             &mut glyph_ref,
             stated,
-            (depth as i32 + 1_i32) as u8,
+            (depth as i32 + 1) as u8,
             topj,
         );
         if thatstat.x_min < xmin {
@@ -155,11 +155,11 @@ pub fn stat_single_glyph(
         if thatstat.y_max > ymax {
             ymax = thatstat.y_max;
         }
-        if thatstat.nest_depth as i32 + 1_i32
+        if thatstat.nest_depth as i32 + 1
             > nest_depth as i32
         {
             nest_depth =
-                (thatstat.nest_depth as i32 + 1_i32) as u16;
+                (thatstat.nest_depth as i32 + 1) as u16;
         }
         n_composite_points = (n_composite_points as i32
             + thatstat.n_composite_points as i32)
@@ -169,11 +169,11 @@ pub fn stat_single_glyph(
             as u16;
     }
     if xmin > xmax {
-        xmax = 0_i32 as Pos;
+        xmax = 0 as Pos;
         xmin = xmax;
     }
     if ymin > ymax {
-        ymax = 0_i32 as Pos;
+        ymax = 0 as Pos;
         ymin = ymax;
     }
     stat.x_min = xmin;
@@ -221,13 +221,13 @@ pub fn stat_glyf(font: &mut Font) {
             outer: 0,
         };
         gr.glyph = handle_from_index(j);
-        gr.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-        gr.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-        gr.a = 1_i32 as Scale;
-        gr.b = 0_i32 as Scale;
-        gr.c = 0_i32 as Scale;
-        gr.d = 1_i32 as Scale;
-        let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0_u8, j);
+        gr.x = std::cell::RefCell::new(vq_create_still(0 as Pos));
+        gr.y = std::cell::RefCell::new(vq_create_still(0 as Pos));
+        gr.a = 1 as Scale;
+        gr.b = 0 as Scale;
+        gr.c = 0 as Scale;
+        gr.d = 1 as Scale;
+        let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0, j);
         glyf[j as usize].as_mut().unwrap().stat = thatstat;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
@@ -251,13 +251,13 @@ pub fn stat_maxp(font: &mut Font) {
     // Only ever called (from `stat_font`) under a `.maxp.is_some()`/
     // `.glyf.is_some()` guard.
     let maxp = font.maxp.as_deref_mut().unwrap();
-    let mut nest_depth: u16 = 0_u16;
-    let mut n_points: u16 = 0_u16;
-    let mut n_contours: u16 = 0_u16;
-    let mut n_components: u16 = 0_u16;
-    let mut n_composite_points: u16 = 0_u16;
-    let mut n_composite_contours: u16 = 0_u16;
-    let mut inst_size: u16 = 0_u16;
+    let mut nest_depth: u16 = 0;
+    let mut n_points: u16 = 0;
+    let mut n_contours: u16 = 0;
+    let mut n_components: u16 = 0;
+    let mut n_composite_points: u16 = 0;
+    let mut n_composite_contours: u16 = 0;
+    let mut inst_size: u16 = 0;
     let glyf = font.glyf.as_ref().unwrap();
     for g in glyf.iter() {
         let g = g.as_deref().unwrap();
@@ -306,15 +306,15 @@ fn stat_hmtx(font: &mut Font) {
     let mut count_k: GlyphId = 0 as GlyphId;
     let mut lsb_at_x_0: bool = true;
     if font.subtype != FontSubtype::Cff {
-        while count_a as i32 > 2_i32
+        while count_a as i32 > 2
             && vq_get_still(
-                glyf[(count_a as i32 - 1_i32) as usize]
+                glyf[(count_a as i32 - 1) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_width
                     .clone(),
             ) == vq_get_still(
-                glyf[(count_a as i32 - 2_i32) as usize]
+                glyf[(count_a as i32 - 2) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_width
@@ -329,13 +329,13 @@ fn stat_hmtx(font: &mut Font) {
     // covers `metrics`, the rest covers `left_side_bearing` in order).
     let mut metrics: Vec<HorizontalMetric> = Vec::with_capacity(count_a as usize);
     let mut left_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
-    let mut min_lsb: Pos = 0x7fff_i32 as Pos;
-    let mut min_rsb: Pos = 0x7fff_i32 as Pos;
-    let mut max_extent: Pos = -0x8000_i32 as Pos;
-    let mut max_width: Length = 0_i32 as Length;
+    let mut min_lsb: Pos = 0x7fff as Pos;
+    let mut min_rsb: Pos = 0x7fff as Pos;
+    let mut max_extent: Pos = -0x8000 as Pos;
+    let mut max_width: Length = 0 as Length;
     for (j, slot) in glyf.iter_mut().enumerate() {
         let g = slot.as_mut().unwrap();
-        if vq_is_zero(g.horizontal_origin.clone(), 1.0f64 / 1000.0f64) {
+        if vq_is_zero(g.horizontal_origin.clone(), 1.0 / 1000.0) {
             g.horizontal_origin = vq_neutral();
         } else {
             lsb_at_x_0 = false;
@@ -376,11 +376,11 @@ fn stat_hmtx(font: &mut Font) {
         left_side_bearing,
     }));
     let head = font.head.as_deref_mut().unwrap();
-    head.flags = (head.flags as i32 & !0x2_i32
+    head.flags = (head.flags as i32 & !0x2
         | (if lsb_at_x_0 {
-            0x2_i32
+            0x2
         } else {
-            0_i32
+            0
         })) as u16;
 }
 fn stat_vmtx(font: &mut Font, options: &Options) {
@@ -391,15 +391,15 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
     let mut count_a: GlyphId = count_u16(glyf.len());
     let mut count_k: GlyphId = 0 as GlyphId;
     if !(font.subtype == FontSubtype::Cff && !options.cff_short_vmtx) {
-        while count_a as i32 > 2_i32
+        while count_a as i32 > 2
             && vq_get_still(
-                glyf[(count_a as i32 - 1_i32) as usize]
+                glyf[(count_a as i32 - 1) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_height
                     .clone(),
             ) == vq_get_still(
-                glyf[(count_a as i32 - 2_i32) as usize]
+                glyf[(count_a as i32 - 2) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_height
@@ -414,10 +414,10 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
     // `stat_hmtx`'s `metrics`/`left_side_bearing`.
     let mut metrics: Vec<VerticalMetric> = Vec::with_capacity(count_a as usize);
     let mut top_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
-    let mut min_tsb: Pos = 0x7fff_i32 as Pos;
-    let mut min_bsb: Pos = 0x7fff_i32 as Pos;
-    let mut max_extent: Pos = -0x8000_i32 as Pos;
-    let mut max_height: Length = 0_i32 as Length;
+    let mut min_tsb: Pos = 0x7fff as Pos;
+    let mut min_bsb: Pos = 0x7fff as Pos;
+    let mut max_extent: Pos = -0x8000 as Pos;
+    let mut max_height: Length = 0 as Length;
     for (j, slot) in glyf.iter().enumerate() {
         let g = slot.as_deref().unwrap();
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
@@ -600,8 +600,8 @@ fn unicode_range_bits(u: i32) -> [u32; 4] {
 }
 fn stat_os_2_unicode_ranges(font: &mut Font, options: &Options) {
     let mut ranges = [0u32; 4];
-    let mut min_unicode: i32 = 0xffff_i32;
-    let mut max_unicode: i32 = 0_i32;
+    let mut min_unicode: i32 = 0xffff;
+    let mut max_unicode: i32 = 0;
     for &u in font.cmap.as_ref().unwrap().unicodes.keys() {
         min_unicode = min_unicode.min(u);
         max_unicode = max_unicode.max(u);
@@ -617,15 +617,15 @@ fn stat_os_2_unicode_ranges(font: &mut Font, options: &Options) {
         os_2.ul_unicode_range3 = u3;
         os_2.ul_unicode_range4 = u4;
     }
-    if min_unicode < 0x10000_i32 {
+    if min_unicode < 0x10000 {
         os_2.us_first_char_index = min_unicode as u16;
     } else {
-        os_2.us_first_char_index = 0xffff_u16;
+        os_2.us_first_char_index = 0xffff;
     }
-    if max_unicode < 0x10000_i32 {
+    if max_unicode < 0x10000 {
         os_2.us_last_char_index = max_unicode as u16;
     } else {
-        os_2.us_last_char_index = 0xffff_u16;
+        os_2.us_last_char_index = 0xffff;
     };
 }
 fn stat_os_2_average_width(font: &mut Font, options: &Options) {
@@ -635,10 +635,10 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     // Only ever called (from `stat_font`, via `stat_os_2`) under a
     // `.glyf.is_some()` guard.
     let glyf = font.glyf.as_ref().unwrap();
-    let mut total_width: u32 = 0_u32;
+    let mut total_width: u32 = 0;
     for slot in glyf.iter() {
         let adw: Pos = vq_get_still(slot.as_deref().unwrap().advance_width.clone()) as Pos;
-        if adw > 0_i32 as Pos {
+        if adw > 0 as Pos {
             total_width = (total_width as Pos + adw) as u32;
         }
     }
@@ -658,7 +658,7 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     };
 }
 fn stat_max_context_otl(table: &OtlTable) -> u16 {
-    let mut maxc: u16 = 1_u16;
+    let mut maxc: u16 = 1;
     // This runs on the post-consolidation table (part of `otf_writer.rs`'s
     // build path), so a `None` slot here is a real, possible hole
     // consolidation punched, not a bug -- skip it, same as everywhere else
@@ -671,7 +671,7 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
     maxc
 }
 fn stat_max_context(font: &mut Font) {
-    let mut maxc: u16 = 1_u16;
+    let mut maxc: u16 = 1;
     if let Some(gsub) = font.gsub.as_deref() {
         let maxc_gsub: u16 = stat_max_context_otl(gsub);
         if maxc_gsub as i32 > maxc as i32 {
@@ -691,7 +691,7 @@ fn stat_os_2(font: &mut Font, options: &Options) {
     stat_os_2_average_width(font, options);
     stat_max_context(font);
 }
-pub const MAX_STAT_METRIC: i32 = 4096_i32;
+pub const MAX_STAT_METRIC: i32 = 4096;
 fn stat_cff_widths(font: &mut Font) {
     if font.glyf.is_none() || font.cff.is_none() {
         return;
@@ -701,34 +701,34 @@ fn stat_cff_widths(font: &mut Font) {
     for g in iter_glyphs(glyf) {
         let int_width: u16 = vq_get_still(g.advance_width.clone()) as u16;
         if (int_width as i32) < MAX_STAT_METRIC {
-            frequency[int_width as usize] = frequency[int_width as usize].wrapping_add(1_u32);
+            frequency[int_width as usize] = frequency[int_width as usize].wrapping_add(1);
         }
     }
-    let mut maxfreq: u16 = 0_u16;
-    let mut maxj: u16 = 0_u16;
+    let mut maxfreq: u16 = 0;
+    let mut maxj: u16 = 0;
     for (width, &count) in frequency.iter().enumerate() {
         if count > maxfreq as u32 {
             maxfreq = count as u16;
             maxj = width as u16;
         }
     }
-    let mut nn: u16 = 0_u16;
-    let mut nnsum: u32 = 0_u32;
+    let mut nn: u16 = 0;
+    let mut nnsum: u32 = 0;
     for g in iter_glyphs(glyf) {
         let adw: Pos = vq_get_still(g.advance_width.clone()) as Pos;
         if adw != maxj as i32 as Pos {
-            nn = (nn as i32 + 1_i32) as u16;
+            nn = (nn as i32 + 1) as u16;
             nnsum = (nnsum as Pos + adw) as u32;
         }
     }
-    let mut nominal_width_x: i16 = 0_i16;
-    if nn as i32 > 0_i32 {
+    let mut nominal_width_x: i16 = 0;
+    if nn as i32 > 0 {
         nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
     }
     let cff = font.cff.as_deref_mut().unwrap();
     if let Some(pd) = cff.private_dict.as_deref_mut() {
         pd.default_width_x = maxj as f64;
-        if nn as i32 != 0_i32 {
+        if nn as i32 != 0 {
             pd.nominal_width_x = nominal_width_x as f64;
         }
     }
@@ -750,12 +750,12 @@ fn stat_vorg(font: &mut Font) {
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for g in iter_glyphs(glyf) {
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
-        if vori >= 0_i32 as Pos && vori < MAX_STAT_METRIC as Pos {
+        if vori >= 0 as Pos && vori < MAX_STAT_METRIC as Pos {
             frequency[vori as u16 as usize] =
-                frequency[vori as u16 as usize].wrapping_add(1_u32);
+                frequency[vori as u16 as usize].wrapping_add(1);
         }
     }
-    let mut maxfreq: u32 = 0_u32;
+    let mut maxfreq: u32 = 0;
     let mut maxj: GlyphId = 0 as GlyphId;
     for (origin, &count) in frequency.iter().enumerate() {
         if count > maxfreq {
@@ -769,7 +769,7 @@ fn stat_vorg(font: &mut Font) {
         let vori_0: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
         if vori_0 != maxj as i32 as Pos {
             n_vert_origs =
-                (n_vert_origs as i32 + 1_i32) as GlyphId;
+                (n_vert_origs as i32 + 1) as GlyphId;
         }
     }
     let mut entries: Vec<VorgEntry> = Vec::with_capacity(n_vert_origs as usize);
@@ -814,7 +814,7 @@ pub fn stat_font(font: &mut Font, options: &Options) {
                 .duration_since(::std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
-            font.head.as_deref_mut().unwrap().modified = 2082844800_i64 + now;
+            font.head.as_deref_mut().unwrap().modified = 2082844800 + now;
         }
     }
     if font.head.is_some() && font.cff.is_some() {
@@ -845,27 +845,27 @@ pub fn stat_font(font: &mut Font, options: &Options) {
             cff.font_matrix = None;
             for fd in cff.fd_array.iter_mut() {
                 fd.font_matrix = None;
-                if units_per_em as i32 == 1000_i32 {
+                if units_per_em as i32 == 1000 {
                     fd.font_matrix = None;
                 } else {
                     fd.font_matrix = Some(Box::new(CffFontMatrix {
-                        a: (1.0f64 / units_per_em as i32 as f64) as Scale,
-                        b: 0.0f64 as Scale,
-                        c: 0.0f64 as Scale,
-                        d: (1.0f64 / units_per_em as i32 as f64) as Scale,
+                        a: (1.0 / units_per_em as i32 as f64) as Scale,
+                        b: 0.0 as Scale,
+                        c: 0.0 as Scale,
+                        d: (1.0 / units_per_em as i32 as f64) as Scale,
                         x: vq_neutral(),
                         y: vq_neutral(),
                     }));
                 }
             }
-        } else if units_per_em as i32 == 1000_i32 {
+        } else if units_per_em as i32 == 1000 {
             cff.font_matrix = None;
         } else {
             cff.font_matrix = Some(Box::new(CffFontMatrix {
-                a: (1.0f64 / units_per_em as i32 as f64) as Scale,
-                b: 0.0f64 as Scale,
-                c: 0.0f64 as Scale,
-                d: (1.0f64 / units_per_em as i32 as f64) as Scale,
+                a: (1.0 / units_per_em as i32 as f64) as Scale,
+                b: 0.0 as Scale,
+                c: 0.0 as Scale,
+                d: (1.0 / units_per_em as i32 as f64) as Scale,
                 x: vq_neutral(),
                 y: vq_neutral(),
             }));
@@ -902,10 +902,10 @@ pub fn stat_font(font: &mut Font, options: &Options) {
     }
     if font.subtype == FontSubtype::Ttf {
         if let Some(maxp) = font.maxp.as_deref_mut() {
-            maxp.version = 0x10000_i32 as F16Dot16;
+            maxp.version = 0x10000 as F16Dot16;
         }
     } else if let Some(maxp) = font.maxp.as_deref_mut() {
-        maxp.version = 0x5000_i32 as F16Dot16;
+        maxp.version = 0x5000 as F16Dot16;
     }
     if font.glyf.is_some() && font.hhea.is_some() {
         stat_hmtx(font);

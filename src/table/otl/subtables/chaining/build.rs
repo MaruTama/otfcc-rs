@@ -55,7 +55,7 @@ pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     // index goes through `backtrack` instead.
     let mut backtrack: Vec<Coverage> = rule.sequence[..rule.input_begins as usize].to_vec();
     backtrack.reverse();
-    let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3_u32)]);
+    let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3)]);
     bk_push(
         &mut root,
         vec![bk_int(
@@ -120,7 +120,7 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
     };
     let ic: &ClassDef = ruleset.ic.as_deref().unwrap();
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 2_u32),
+        bk_int(BkCellType::B16, 2),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&ic.glyphs))),
@@ -139,11 +139,11 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
         ),
         bk_int(
             BkCellType::B16,
-            (ic.maxclass as i32 + 1_i32) as u32,
+            (ic.maxclass as i32 + 1) as u32,
         ),
     ]);
     let mut rcpg: Vec<GlyphClass> =
-        vec![0; (ic.maxclass as i32 + 1_i32) as usize];
+        vec![0; (ic.maxclass as i32 + 1) as usize];
     for slot in ruleset.rules.iter() {
         let rule_j0: &ChainingRule =
             slot.as_deref().expect("chaining rule slot should never be None at build time");
@@ -192,7 +192,7 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
                             (n_input as i32) as u32,
                         )],
                     );
-                    let m_0_start = (rule.input_begins as i32 + 1_i32) as usize;
+                    let m_0_start = (rule.input_begins as i32 + 1) as usize;
                     for cov in &rule.sequence[m_0_start..rule.input_ends as usize] {
                         bk_push(&mut r, vec![bk_int(BkCellType::B16, cov[0].index as u32)]);
                     }
@@ -251,7 +251,7 @@ pub fn build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
     // made here had no observable effect on this function's output and is
     // simply not needed, rather than needing the clone-then-reverse
     // treatment `build_chaining_coverage` needs.
-    let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3_u32)]);
+    let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3)]);
     bk_push(
         &mut root,
         vec![bk_int(
@@ -290,7 +290,7 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     };
     let ic: &ClassDef = ruleset.ic.as_deref().unwrap();
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 2_u32),
+        bk_int(BkCellType::B16, 2),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&ic.glyphs))),
@@ -301,11 +301,11 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
         ),
         bk_int(
             BkCellType::B16,
-            (ic.maxclass as i32 + 1_i32) as u32,
+            (ic.maxclass as i32 + 1) as u32,
         ),
     ]);
     let mut rcpg: Vec<GlyphClass> =
-        vec![0; (ic.maxclass as i32 + 1_i32) as usize];
+        vec![0; (ic.maxclass as i32 + 1) as usize];
     for slot in ruleset.rules.iter() {
         let rule_j0: &ChainingRule =
             slot.as_deref().expect("chaining rule slot should never be None at build time");
@@ -346,7 +346,7 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
                             (rule.apply.len() as i32) as u32,
                         )],
                     );
-                    let m_start = (rule.input_begins as i32 + 1_i32) as usize;
+                    let m_start = (rule.input_begins as i32 + 1) as usize;
                     for cov in &rule.sequence[m_start..rule.input_ends as usize] {
                         bk_push(&mut r, vec![bk_int(BkCellType::B16, cov[0].index as u32)]);
                     }

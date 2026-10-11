@@ -80,7 +80,7 @@ fn parse_args(args: &[String]) -> DumpArgs {
     let mut show_ugly: bool = false;
     let mut add_bom: bool = false;
     let mut _no_bom: bool = false;
-    let mut ttcindex: u32 = 0_u32;
+    let mut ttcindex: u32 = 0;
     let mut invalid_argument = false;
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
@@ -215,11 +215,11 @@ fn run(args: Vec<String>) -> i32 {
     if show_help {
         print_version_info("otfccdump");
         print_help();
-        return 0_i32;
+        return 0;
     }
     if show_version {
         print_version_info("otfccdump");
-        return 0_i32;
+        return 0;
     }
     if invalid_argument {
         return EXIT_FAILURE;
@@ -238,13 +238,13 @@ fn run(args: Vec<String>) -> i32 {
     {
         tracing::debug!("From file {}", ByteStr(in_path.as_bytes()));
         sfnt = read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(in_path.as_bytes())));
-        if sfnt.as_ref().is_none_or(|s| s.count == 0_u32) {
+        if sfnt.as_ref().is_none_or(|s| s.count == 0) {
             tracing::error!("Cannot read SFNT file \"{}\". Exit.\n", ByteStr(in_path.as_bytes()));
             return EXIT_FAILURE;
         }
         let subfonts = sfnt.as_ref().unwrap().count;
         if ttcindex >= subfonts {
-            tracing::error!("Subfont index {} out of range for \"{}\" (0 -- {}). Exit.\n", ttcindex, ByteStr(in_path.as_bytes()), ByteStr(subfonts.wrapping_sub(1_u32)));
+            tracing::error!("Subfont index {} out of range for \"{}\" (0 -- {}). Exit.\n", ttcindex, ByteStr(in_path.as_bytes()), ByteStr(subfonts.wrapping_sub(1)));
             return EXIT_FAILURE;
         }
         log_step_time(&mut begin);
@@ -314,7 +314,7 @@ fn run(args: Vec<String>) -> i32 {
         log_step_time(&mut begin);
         stage.finish();
     }
-    return 0_i32;
+    return 0;
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();

@@ -49,7 +49,7 @@ fn order_glyphs(go: &mut GlyphOrder) {
     for &idx in idxs.iter() {
         go.entries[idx].gid = gid;
         go.by_gid.insert(gid, idx);
-        gid = (gid as i32 + 1_i32) as GlyphId;
+        gid = (gid as i32 + 1) as GlyphId;
     }
 }
 // `name` is a borrowed `&[u8]` now, not `SdsRaw` -- this function only
@@ -80,9 +80,9 @@ fn place_order_entries_from_glyf(table: &ParsedValue, go: &mut GlyphOrder) {
         let gname: Vec<u8> = key[..key.len() - 1].to_vec();
         let j = j as u32;
         if gname.as_slice() == b".notdef" {
-            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 0_u32);
+            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 0);
         } else if gname.as_slice() == b".null" {
-            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 1_u32);
+            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 1);
         } else {
             set_order_by_name(go, gname, GlyphOrderPass::Glyf, j);
         }

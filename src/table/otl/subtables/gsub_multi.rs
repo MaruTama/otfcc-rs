@@ -151,7 +151,7 @@ fn build_gsub_multi_subtable_range(
         );
     }
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 1_u32),
+        bk_int(BkCellType::B16, 1),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),
@@ -191,13 +191,13 @@ pub fn build_gsub_multi_subtable_split(
     let mut parts: Vec<Buffer> = Vec::new();
     let mut start: GlyphId = 0 as GlyphId;
     while (start as usize) < subtable.len() {
-        let mut size: usize = (6_i32 + 4_i32) as usize;
+        let mut size: usize = (6 + 4) as usize;
         let mut end: GlyphId = start;
         while (end as usize) < subtable.len() {
-            let entry_size: usize = ((2_i32
-                + 2_i32
-                + 2_i32) as usize)
-                .wrapping_add((subtable[end as usize].to.len()).wrapping_mul(2_usize));
+            let entry_size: usize = ((2
+                + 2
+                + 2) as usize)
+                .wrapping_add((subtable[end as usize].to.len()).wrapping_mul(2));
             if end as i32 > start as i32
                 && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT
             {

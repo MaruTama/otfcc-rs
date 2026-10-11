@@ -159,16 +159,16 @@ pub fn otl_parse_mark_array(
 pub fn otl_anchor_absent() -> Anchor {
     let anchor: Anchor = Anchor {
         present: false,
-        x: 0_i32 as Pos,
-        y: 0_i32 as Pos,
+        x: 0 as Pos,
+        y: 0 as Pos,
     };
     return anchor;
 }
 pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
-        x: 0_i32 as Pos,
-        y: 0_i32 as Pos,
+        x: 0 as Pos,
+        y: 0 as Pos,
     };
     let Ok(bytes) = FontReader::new(data).at(offset as usize).and_then(|mut r| r.bytes(6)) else {
         return anchor;
@@ -191,8 +191,8 @@ pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
 pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
-        x: 0_i32 as Pos,
-        y: 0_i32 as Pos,
+        x: 0 as Pos,
+        y: 0 as Pos,
     };
     let Some(v) = v.filter(|v| v.as_object().is_some()) else {
         return anchor;
@@ -207,7 +207,7 @@ pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
         return None;
     }
     return Some(bk_new_block(vec![
-        bk_int(BkCellType::B16, 1_u32),
+        bk_int(BkCellType::B16, 1),
         bk_int(BkCellType::B16, (a.x as i16 as i32) as u32),
         bk_int(BkCellType::B16, (a.y as i16 as i32) as u32),
     ]));
@@ -224,19 +224,19 @@ pub fn position_format_length(format: u16) -> u8 {
 }
 pub fn position_zero() -> PositionValue {
     let v: PositionValue = PositionValue {
-        dx: 0.0f64,
-        dy: 0.0f64,
-        d_width: 0.0f64,
-        d_height: 0.0f64,
+        dx: 0.0,
+        dy: 0.0,
+        d_width: 0.0,
+        d_height: 0.0,
     };
     return v;
 }
 pub fn read_gpos_value(data: &[u8], offset: u32, format: u16) -> PositionValue {
     let mut v: PositionValue = PositionValue {
-        dx: 0.0f64,
-        dy: 0.0f64,
-        d_width: 0.0f64,
-        d_height: 0.0f64,
+        dx: 0.0,
+        dy: 0.0,
+        d_width: 0.0,
+        d_height: 0.0,
     };
     let len = position_format_length(format) as usize;
     let Ok(bytes) = FontReader::new(data).at(offset as usize).and_then(|mut r| r.bytes(len))
@@ -279,10 +279,10 @@ pub fn gpos_dump_value(value: PositionValue) -> BuiltValue {
 }
 pub fn gpos_parse_value(pos: Option<&ParsedValue>) -> PositionValue {
     let mut v: PositionValue = PositionValue {
-        dx: 0.0f64,
-        dy: 0.0f64,
-        d_width: 0.0f64,
-        d_height: 0.0f64,
+        dx: 0.0,
+        dy: 0.0,
+        d_width: 0.0,
+        d_height: 0.0,
     };
     let Some(pos) = pos.filter(|p| p.as_object().is_some()) else {
         return v;

@@ -123,14 +123,14 @@ pub fn build_gsub_single_subtable(
         let difference: i32 =
             subtable[0].to.index as i32 - subtable[0].from.index as i32;
         is_constant_difference = is_constant_difference as i32 != 0
-            && difference < 0x8000_i32
-            && difference > -0x8000_i32;
+            && difference < 0x8000
+            && difference > -0x8000;
         for entry in subtable.iter().skip(1) {
             let diff_j: i32 = entry.to.index as i32 - entry.from.index as i32;
             is_constant_difference = is_constant_difference
                 && diff_j == difference
-                && diff_j < 0x8000_i32
-                && diff_j > -0x8000_i32;
+                && diff_j < 0x8000
+                && diff_j > -0x8000;
         }
     }
     let mut cov: Coverage = Vec::new();
@@ -143,7 +143,7 @@ pub fn build_gsub_single_subtable(
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {
         let b: BkBlock = bk_new_block(vec![
-            bk_int(BkCellType::B16, 1_u32),
+            bk_int(BkCellType::B16, 1),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(
                 BkCellType::B16,
@@ -154,7 +154,7 @@ pub fn build_gsub_single_subtable(
         return bk_build_block(b);
     } else {
         let mut b_0: BkBlock = bk_new_block(vec![
-            bk_int(BkCellType::B16, 2_u32),
+            bk_int(BkCellType::B16, 2),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, (subtable.len()) as u32),
         ]);

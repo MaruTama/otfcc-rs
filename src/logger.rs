@@ -404,7 +404,7 @@ mod tests {
                 return;
             }
             self.indents.pop();
-            self.level = (self.level as i32 - 1_i32) as u16;
+            self.level = (self.level as i32 - 1) as u16;
             if (self.level as i32) < self.last_logged_level as i32 {
                 self.last_logged_level = self.level;
             }
@@ -422,9 +422,9 @@ mod tests {
         fn log(&mut self, verbosity: u8, kind: LoggerType, data: &[u8]) {
             let mut demand: Vec<u8> = Vec::new();
             for (level, indent) in self.indents.iter().enumerate() {
-                if (level as i32) < self.last_logged_level as i32 - 1_i32 {
+                if (level as i32) < self.last_logged_level as i32 - 1 {
                     demand.resize(demand.len() + indent.len(), b' ');
-                    if (level as i32) < self.last_logged_level as i32 - 2_i32 {
+                    if (level as i32) < self.last_logged_level as i32 - 2 {
                         demand.extend_from_slice(b" | ");
                     } else {
                         demand.extend_from_slice(b" |-");
@@ -615,6 +615,6 @@ mod tests {
         assert_eq!(ByteStr(&name).to_string(), "abc", "a Vec is cut at NUL");
         assert_eq!(ByteStr(&name[..]).to_string(), "abc\u{0}def", "a slice is not");
         assert_eq!(ByteStr(b"a\xffb").to_string(), "a\u{fffd}b");
-        assert_eq!(ByteStr(-7_i32).to_string(), "-7");
+        assert_eq!(ByteStr(-7).to_string(), "-7");
     }
 }

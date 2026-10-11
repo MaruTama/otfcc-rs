@@ -149,11 +149,11 @@ pub fn build_vhea(vhea: Option<&VheaTable>) -> Option<Buffer> {
     buf.write_u16be(vhea.caret_slope_rise as u16);
     buf.write_u16be(vhea.caret_slope_run as u16);
     buf.write_u16be(vhea.caret_offset as u16);
-    buf.write_u16be(0_u16);
-    buf.write_u16be(0_u16);
-    buf.write_u16be(0_u16);
-    buf.write_u16be(0_u16);
-    buf.write_u16be(0_u16);
+    buf.write_u16be(0);
+    buf.write_u16be(0);
+    buf.write_u16be(0);
+    buf.write_u16be(0);
+    buf.write_u16be(0);
     buf.write_u16be(vhea.num_of_long_ver_metrics);
     Some(buf)
 }
