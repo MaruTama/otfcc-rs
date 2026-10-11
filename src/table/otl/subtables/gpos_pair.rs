@@ -641,27 +641,29 @@ mod otl_read_gpos_pair_tests {
 
     #[test]
     fn format1_grid_within_the_cell_cap_is_read() {
-        // 1000 * 1001 = 1,001,000 cells, under the 2,000,000 cap.
-        let data = format1_shared_pairset_table(1000);
+        // 50 * 51 = 2,550 cells, well under the 2,000,000 cap.
+        let data = format1_shared_pairset_table(50);
         let result = otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new());
         let Some(Subtable::GposPair(ref subtable)) = result else {
             panic!("a grid within the cap should be read")
         };
-        assert_eq!(subtable.first_values.len(), 1000);
-        assert_eq!(subtable.first_values[0].len(), 1001);
+        assert_eq!(subtable.first_values.len(), 50);
+        assert_eq!(subtable.first_values[0].len(), 51);
     }
 
     #[test]
     fn format1_grids_across_subtables_draw_on_one_table_wide_allowance() {
-        // Each subtable is under the per-subtable cap (1,001,000 cells), but
-        // the table's allowance only covers two of them.
-        let data = format1_shared_pairset_table(1000);
-        let mut budget = OtlReadBudget { pair_grid_cells: 2_100_000, ..OtlReadBudget::new() };
+        // Each subtable has 2,550 cells, but the table's allowance (5,500)
+        // only covers two of them.
+        let data = format1_shared_pairset_table(50);
+        let mut budget = OtlReadBudget { pair_grid_cells: 5_500, ..OtlReadBudget::new() };
         assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_some());
         assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_some());
         assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_none());
     }
 
+    // Reading 2.25M pairs one by one is too slow under Miri's interpreter.
+    #[cfg_attr(miri, ignore = "2.25M-pair table is too slow under Miri")]
     #[test]
     fn format1_grid_over_the_cell_cap_is_rejected_not_allocated() {
         // 1500 * 1501 = 2,251,500 cells from a ~9 KB table: a fuzzer found
