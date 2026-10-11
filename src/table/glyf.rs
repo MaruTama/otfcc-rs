@@ -3,7 +3,6 @@ pub mod read;
 
 use crate::json_writer::DumpSink;
 use crate::logger::ByteStr;
-use crate::support::TRUE_0;
 use otfcc_binary::Buffer;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
 use crate::support::handle::{
@@ -194,9 +193,9 @@ pub struct GlyfIOContext<'a> {
 /// applied to, which is what lets the two sites drop their casts.
 pub const MASK_ON_CURVE: i8 = 1;
 fn create_point(p: &mut Point) {
-    p.x = vq_create_still(0_i32 as Pos);
-    p.y = vq_create_still(0_i32 as Pos);
-    p.on_curve = TRUE_0 as i8;
+    p.x = vq_create_still(0.0);
+    p.y = vq_create_still(0.0);
+    p.on_curve = 1;
 }
 fn copy_point(dst: &mut Point, src: &Point) {
     dst.x = src.x.clone();
