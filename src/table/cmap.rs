@@ -620,10 +620,10 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
-        if !(k.unicode > 0_u32
-            && k.unicode <= 0x10ffff_u32
-            && k.selector > 0_u32
-            && k.selector <= 0x10ffff_u32)
+        if !(k.unicode > 0
+            && k.unicode <= 0x10ffff
+            && k.selector > 0
+            && k.selector <= 0x10ffff)
         {
             continue;
         }
@@ -660,15 +660,15 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
     let mut id_range_offset = Buffer::new();
     let mut glyph_id_array = Buffer::new();
     let mut started: bool = false;
-    let mut last_unicode_start: i32 = 0xffffff_i32;
-    let mut last_unicode_end: i32 = 0xffffff_i32;
-    let mut last_gid_start: i32 = 0xffffff_i32;
-    let mut last_gid_end: i32 = 0xffffff_i32;
-    let mut last_glyph_id_array_offset: usize = 0_usize;
+    let mut last_unicode_start: i32 = 0xffffff;
+    let mut last_unicode_end: i32 = 0xffffff;
+    let mut last_gid_start: i32 = 0xffffff;
+    let mut last_gid_end: i32 = 0xffffff;
+    let mut last_glyph_id_array_offset: usize = 0;
     let mut is_sequencial: bool = true;
-    let mut segments_count: u16 = 0_u16;
+    let mut segments_count: u16 = 0;
     for (&unicode, glyph) in cmap.unicodes.iter() {
-        if unicode <= 0xffff_i32 {
+        if unicode <= 0xffff {
             if !started {
                 started = true;
                 last_unicode_end = unicode;
@@ -676,14 +676,14 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
                 last_gid_end = glyph.index as i32;
                 last_gid_start = last_gid_end;
                 is_sequencial = true;
-            } else if unicode == last_unicode_end + 1_i32
-                && !(glyph.index as i32 != last_gid_end + 1_i32
+            } else if unicode == last_unicode_end + 1
+                && !(glyph.index as i32 != last_gid_end + 1
                     && is_sequencial as i32 != 0
-                    && last_gid_end - last_gid_start >= 4_i32)
+                    && last_gid_end - last_gid_start >= 4)
             {
                 if is_sequencial as i32 != 0
                     && !(glyph.index as i32
-                        == last_gid_end + 1_i32)
+                        == last_gid_end + 1)
                 {
                     last_glyph_id_array_offset = glyph_id_array.cursor;
                     for j in last_gid_start..=last_gid_end {
@@ -692,7 +692,7 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
                 }
                 last_unicode_end = unicode;
                 is_sequencial = is_sequencial as i32 != 0
-                    && glyph.index as i32 == last_gid_end + 1_i32;
+                    && glyph.index as i32 == last_gid_end + 1;
                 last_gid_end = glyph.index as i32;
                 if !is_sequencial {
                     glyph_id_array.write_u16be(last_gid_end as u16);
@@ -702,9 +702,9 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
                 start_count.write_u16be(last_unicode_start as u16);
                 if is_sequencial {
                     id_delta.write_u16be((last_gid_start - last_unicode_start) as u16);
-                    id_range_offset.write_u16be(0_u16);
+                    id_range_offset.write_u16be(0);
                 } else {
-                    id_delta.write_u16be(0_u16);
+                    id_delta.write_u16be(0);
                     id_range_offset.write_u16be((last_glyph_id_array_offset + 1) as u16);
                 }
                 segments_count = segments_count.wrapping_add(1);
@@ -720,9 +720,9 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
     start_count.write_u16be(last_unicode_start as u16);
     if is_sequencial {
         id_delta.write_u16be((last_gid_start - last_unicode_start) as u16);
-        id_range_offset.write_u16be(0_u16);
+        id_range_offset.write_u16be(0);
     } else {
-        id_delta.write_u16be(0_u16);
+        id_delta.write_u16be(0);
         id_range_offset.write_u16be((last_glyph_id_array_offset + 1) as u16);
     }
     segments_count = segments_count.wrapping_add(1);
@@ -767,7 +767,7 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
     buf.write_buffer(&id_delta);
     buf.write_buffer(&id_range_offset);
     buf.write_buffer(&glyph_id_array);
-    buf.seek(2_usize);
+    buf.seek(2);
     buf.write_u16be(buf.len() as u16);
     buf
 }
@@ -781,17 +781,17 @@ fn try_build_cmap_format4(cmap: &CmapTable) -> Option<Buffer> {
 }
 fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
     let mut buf = Buffer::new();
-    buf.write_u16be(12_u16);
-    buf.write_u16be(0_u16);
-    buf.write_u32be(0_u32);
-    buf.write_u32be(0_u32);
-    buf.write_u32be(0_u32);
-    let mut n_groups: u32 = 0_u32;
+    buf.write_u16be(12);
+    buf.write_u16be(0);
+    buf.write_u32be(0);
+    buf.write_u32be(0);
+    buf.write_u32be(0);
+    let mut n_groups: u32 = 0;
     let mut started: bool = false;
-    let mut last_unicode_start: i32 = 0xffffff_i32;
-    let mut last_unicode_end: i32 = 0xffffff_i32;
-    let mut last_gid_start: i32 = 0xffffff_i32;
-    let mut last_gid_end: i32 = 0xffffff_i32;
+    let mut last_unicode_start: i32 = 0xffffff;
+    let mut last_unicode_end: i32 = 0xffffff;
+    let mut last_gid_start: i32 = 0xffffff;
+    let mut last_gid_end: i32 = 0xffffff;
     for (&unicode, glyph) in cmap.unicodes.iter() {
         if !started {
             started = true;
@@ -799,8 +799,8 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
             last_unicode_start = last_unicode_end;
             last_gid_end = glyph.index as i32;
             last_gid_start = last_gid_end;
-        } else if unicode == last_unicode_end + 1_i32
-            && glyph.index as i32 == last_gid_end + 1_i32
+        } else if unicode == last_unicode_end + 1
+            && glyph.index as i32 == last_gid_end + 1
         {
             last_unicode_end = unicode;
             last_gid_end = glyph.index as i32;
@@ -819,9 +819,9 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
     buf.write_u32be(last_unicode_end as u32);
     buf.write_u32be(last_gid_start as u32);
     n_groups += 1;
-    buf.seek(4_usize);
+    buf.seek(4);
     buf.write_u32be(buf.len() as u32);
-    buf.seek(12_usize);
+    buf.seek(12);
     buf.write_u32be(n_groups);
     return buf;
 }
@@ -896,9 +896,9 @@ fn build_format14_for_selector(
             num_uvs_mappings += 1;
         }
     }
-    dflt.seek(0_usize);
+    dflt.seek(0);
     dflt.write_u32be(num_unicode_value_ranges);
-    nondflt.seek(0_usize);
+    nondflt.seek(0);
     nondflt.write_u32be(num_uvs_mappings);
     let mut results: u8 = 0;
     if num_unicode_value_ranges != 0 {
@@ -918,8 +918,8 @@ fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
     }
     let n_selectors = valid_selectors.iter().filter(|&&valid| valid).count() as u32;
     let mut st: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 14_u32),
-        bk_int(BkCellType::B32, 0_u32),
+        bk_int(BkCellType::B16, 14),
+        bk_int(BkCellType::B32, 0),
         bk_int(BkCellType::B32, n_selectors),
     ]);
     for selector in 0..MAX_UNICODE {
@@ -951,7 +951,7 @@ fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
         }
     }
     let mut buf = bk_build_block(st);
-    buf.seek(2_usize);
+    buf.seek(2);
     buf.write_u32be(buf.len() as u32);
     buf
 }
@@ -963,7 +963,7 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
     let mut requires_format12: bool = false;
     let has_uvs: bool = !cmap.uvs.is_empty();
     for &unicode in cmap.unicodes.keys() {
-        if unicode > 0xffff_i32 {
+        if unicode > 0xffff {
             requires_format12 = true;
         }
     }
@@ -975,43 +975,43 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         }
     }
     let mut n_tables: u8 = (if requires_format12 as i32 != 0 {
-        4_i32
+        4
     } else {
-        2_i32
+        2
     }) as u8;
     if has_uvs {
-        n_tables = (n_tables as i32 + 1_i32) as u8;
+        n_tables = (n_tables as i32 + 1) as u8;
     }
     let format4: Buffer = format4.unwrap_or_else(|| {
         let mut stub = Buffer::new();
-        stub.write_u16be(4_u16);
-        stub.write_u16be(32_u16);
-        stub.write_u16be(0_u16);
-        stub.write_u16be(4_u16);
-        stub.write_u16be(4_u16);
-        stub.write_u16be(1_u16);
-        stub.write_u16be(0_u16);
-        stub.write_u16be(0_u16);
-        stub.write_u16be(0xffff_u16);
-        stub.write_u16be(0_u16);
-        stub.write_u16be(0_u16);
-        stub.write_u16be(0xffff_u16);
-        stub.write_u16be(0_u16);
-        stub.write_u16be(1_u16);
-        stub.write_u16be(0_u16);
-        stub.write_u16be(0_u16);
+        stub.write_u16be(4);
+        stub.write_u16be(32);
+        stub.write_u16be(0);
+        stub.write_u16be(4);
+        stub.write_u16be(4);
+        stub.write_u16be(1);
+        stub.write_u16be(0);
+        stub.write_u16be(0);
+        stub.write_u16be(0xffff);
+        stub.write_u16be(0);
+        stub.write_u16be(0);
+        stub.write_u16be(0xffff);
+        stub.write_u16be(0);
+        stub.write_u16be(1);
+        stub.write_u16be(0);
+        stub.write_u16be(0);
         stub
     });
     let format12 = build_cmap_format12(cmap);
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 0_u32),
+        bk_int(BkCellType::B16, 0),
         bk_int(BkCellType::B16, (n_tables as i32) as u32),
     ]);
     bk_push(
         &mut root,
         vec![
-            bk_int(BkCellType::B16, 0_u32),
-            bk_int(BkCellType::B16, 3_u32),
+            bk_int(BkCellType::B16, 0),
+            bk_int(BkCellType::B16, 3),
             bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
         ],
     );
@@ -1019,8 +1019,8 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         bk_push(
             &mut root,
             vec![
-                bk_int(BkCellType::B16, 0_u32),
-                bk_int(BkCellType::B16, 4_u32),
+                bk_int(BkCellType::B16, 0),
+                bk_int(BkCellType::B16, 4),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),
             ],
         );
@@ -1030,8 +1030,8 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         bk_push(
             &mut root,
             vec![
-                bk_int(BkCellType::B16, 0_u32),
-                bk_int(BkCellType::B16, 5_u32),
+                bk_int(BkCellType::B16, 0),
+                bk_int(BkCellType::B16, 5),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer(Some(format14))),
             ],
         );
@@ -1039,8 +1039,8 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
     bk_push(
         &mut root,
         vec![
-            bk_int(BkCellType::B16, 3_u32),
-            bk_int(BkCellType::B16, 1_u32),
+            bk_int(BkCellType::B16, 3),
+            bk_int(BkCellType::B16, 1),
             bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
         ],
     );
@@ -1048,8 +1048,8 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         bk_push(
             &mut root,
             vec![
-                bk_int(BkCellType::B16, 3_u32),
-                bk_int(BkCellType::B16, 10_u32),
+                bk_int(BkCellType::B16, 3),
+                bk_int(BkCellType::B16, 10),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),
             ],
         );

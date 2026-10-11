@@ -87,7 +87,7 @@ pub fn parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
         for r in items {
             if r.as_object().is_some() {
                 gasp.records.push(GaspRecord {
-                    range_max_ppem: r.get_int_or(b"rangeMaxPPEM", 0xffff_i32) as GlyphSize,
+                    range_max_ppem: r.get_int_or(b"rangeMaxPPEM", 0xffff) as GlyphSize,
                     dogray: r.get_bool(b"dogray"),
                     gridfit: r.get_bool(b"gridfit"),
                     symmetric_smoothing: r.get_bool(b"symmetric_smoothing"),
@@ -102,7 +102,7 @@ pub fn parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
 pub fn build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {
     let gasp = gasp?;
     let mut buf = Buffer::new();
-    buf.write_u16be(1_u16);
+    buf.write_u16be(1);
     buf.write_u16be(gasp.records.len() as u16);
     for r in &gasp.records {
         buf.write_u16be(r.range_max_ppem);

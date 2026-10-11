@@ -173,9 +173,9 @@ pub fn parse_name(root: &ParsedValue) -> Option<NameTable> {
 pub fn build_name(name: Option<&NameTable>) -> Option<Buffer> {
     let records: &Vec<NameRecord> = name?;
     let mut buf = Buffer::new();
-    buf.write_u16be(0_u16);
+    buf.write_u16be(0);
     buf.write_u16be(records.len() as u16);
-    buf.write_u16be(0_u16);
+    buf.write_u16be(0);
     let mut strings = Buffer::new();
     for record in records.iter() {
         buf.write_u16be(record.platform_id);
@@ -209,7 +209,7 @@ pub fn build_name(name: Option<&NameTable>) -> Option<Buffer> {
     strings.write_bytes(&copyright);
     let strings_offset = buf.pos();
     buf.write_buffer_owned(strings);
-    buf.seek(4_usize);
+    buf.seek(4);
     buf.write_u16be(strings_offset as u16);
     Some(buf)
 }

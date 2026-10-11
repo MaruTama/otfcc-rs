@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn write_i16be_writes_negative_positions_as_twos_complement() {
         let mut b = Buffer::new();
-        for x in [-41.0f64, -1.0, -32768.0, 41.9, -41.9, 0.0, 65535.0] {
+        for x in [-41.0, -1.0, -32768.0, 41.9, -41.9, 0.0, 65535.0] {
             b.write_i16be(x as i16);
         }
         assert_eq!(
@@ -271,7 +271,7 @@ mod tests {
             [0xff, 0xd7, 0xff, 0xff, 0x80, 0x00, 0x00, 41, 0xff, 0xd7, 0x00, 0x00, 0x7f, 0xff]
         );
         // ...where a direct unsigned cast would have written 0.
-        assert_eq!(-41.0f64 as u16, 0);
+        assert_eq!(-41.0 as u16, 0);
     }
 
 }

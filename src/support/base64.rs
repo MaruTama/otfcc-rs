@@ -31,7 +31,7 @@ pub fn base64_encode(src: &[u8]) -> Vec<u8> {
 /// `decode_treats_a_non_trailing_equals_sign_as_data_not_padding` below,
 /// which pins the exact quirk.
 pub fn base64_decode(src: &[u8]) -> Option<Vec<u8>> {
-    let mut dtable = [0x80_u8; 256];
+    let mut dtable = [0x80; 256];
     for (i, &c) in BASE64_TABLE.iter().enumerate() {
         dtable[c as usize] = i as u8;
     }

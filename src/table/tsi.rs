@@ -48,10 +48,10 @@ pub struct TsiBuildTarget {
 #[inline]
 fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
-        return gid as i32 != 0xfffe_i32
-            && gid as i32 != 0xfffc_i32;
+        return gid as i32 != 0xfffe
+            && gid as i32 != 0xfffc;
     } else {
-        return (gid as i32) < 0xfffa_i32;
+        return (gid as i32) < 0xfffa;
     };
 }
 // One 8-byte record: gid(u16) + text_length(u16, widened) + text_offset(u32).
@@ -82,16 +82,16 @@ pub fn read_tsi(
     let text_part = packet.pieces.iter().find(|p| p.tag == tag_text)?;
     let text_len = text_part.data.len() as u32;
     let mut tsi: TsiTable = Vec::new();
-    let mut j: u32 = 0_u32;
+    let mut j: u32 = 0;
     while let Ok(entry) = read_tsi_index_entry(&index_part.data, j) {
         if is_valid_gid(entry.gid, tag_index)
             && entry.text_offset < text_len
             && entry.text_length != 0
         {
             let mut predicted_text_length: u32 = text_len.wrapping_sub(entry.text_offset);
-            let mut k: u32 = j.wrapping_add(1_u32);
+            let mut k: u32 = j.wrapping_add(1);
             while let Ok(entry_k) = read_tsi_index_entry(&index_part.data, k) {
-                if entry_k.gid as i32 != 0xfffe_i32
+                if entry_k.gid as i32 != 0xfffe
                     && entry_k.text_offset < text_len
                     && entry_k.text_offset > entry.text_offset
                 {
@@ -101,7 +101,7 @@ pub fn read_tsi(
                     k = k.wrapping_add(1);
                 }
             }
-            let text_length = if entry.text_length >= 0x8000_u32 {
+            let text_length = if entry.text_length >= 0x8000 {
                 predicted_text_length
             } else {
                 entry.text_length
@@ -250,19 +250,19 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, kind: TsiEntryT
         let length_after = target.text_part.as_ref().unwrap().pos();
         let index_part = target.index_part.as_mut().unwrap();
         index_part.write_u16be(propergid(Some(entry), kind) as u16);
-        if length_after.wrapping_sub(length_sofar) < 0x8000_usize {
+        if length_after.wrapping_sub(length_sofar) < 0x8000 {
             index_part.write_u16be(length_after.wrapping_sub(length_sofar) as u16);
         } else {
-            index_part.write_u16be(0x8000_u16);
+            index_part.write_u16be(0x8000);
         }
         index_part.write_u32be(length_sofar as u32);
-        items_pushed = (items_pushed as i32 + 1_i32) as GlyphId;
+        items_pushed = (items_pushed as i32 + 1) as GlyphId;
     }
     for _ in items_pushed..min_n {
         let text_pos = target.text_part.as_ref().unwrap().pos();
         let index_part = target.index_part.as_mut().unwrap();
         index_part.write_u16be(propergid(None, kind) as u16);
-        index_part.write_u16be(0_u16);
+        index_part.write_u16be(0);
         index_part.write_u32be(text_pos as u32);
     }
 }
@@ -279,9 +279,9 @@ pub fn build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
     };
     push_tsi_entries(&mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
     let index_part = target.index_part.as_mut().unwrap();
-    index_part.write_u16be(0xfffe_u16);
-    index_part.write_u16be(0_u16);
-    index_part.write_u32be(0xabfc1f34_u32);
+    index_part.write_u16be(0xfffe);
+    index_part.write_u16be(0);
+    index_part.write_u32be(0xabfc1f34);
     push_tsi_entries(&mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
     push_tsi_entries(&mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
     push_tsi_entries(&mut target, tsi, TsiEntryType::ReservedFffc, 1 as GlyphId);

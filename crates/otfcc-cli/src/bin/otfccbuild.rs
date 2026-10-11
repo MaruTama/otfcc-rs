@@ -59,7 +59,7 @@ fn parse_args(args: &[String]) -> BuildArgs {
     let mut invalid_argument = false;
     let mut output_path: Option<::std::ffi::CString> = None;
     let mut options: Box<Options> = Box::default();
-    options_optimize_to(&mut options, 1_u8);
+    options_optimize_to(&mut options, 1);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     // `--keep-glyph-order` and `--dont-ignore-glyph-order` are synonyms, so
@@ -190,11 +190,11 @@ fn run(args: Vec<String>) -> i32 {
     if show_help {
         print_version_info("otfccbuild");
         print_help();
-        return 0_i32;
+        return 0;
     }
     if show_version {
         print_version_info("otfccbuild");
-        return 0_i32;
+        return 0;
     }
     if invalid_argument {
         return EXIT_FAILURE;
@@ -280,7 +280,7 @@ fn run(args: Vec<String>) -> i32 {
         // free needed.
         stage.finish();
     }
-    return 0_i32;
+    return 0;
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();

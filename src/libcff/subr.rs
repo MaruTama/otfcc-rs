@@ -557,7 +557,7 @@ fn append_node_to_graph(g: &mut CffSubrGraph, n: NodeId) {
     x_insert_node_after(g, last, n);
     if g.do_subroutinize
         && !check_doublet_match(g, last)
-            && g.node(n).terminal.as_ref().unwrap().len() > 15_usize {
+            && g.node(n).terminal.as_ref().unwrap().len() > 15 {
                 check_singlet_match(g, n);
             }
 }

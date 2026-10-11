@@ -306,7 +306,7 @@ mod tests {
             b"_",
             Hex2(0x1f),
             b"_",
-            7_i32,
+            7,
         );
         assert_eq!(got, b"lookup_ccmp_1f_7");
     }

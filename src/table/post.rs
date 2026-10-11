@@ -467,7 +467,7 @@ pub fn parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable
     // is absent (never overwritten below in that case, unlike every other
     // field); `post_name_map` is never touched here, so it stays `None`.
     let mut post = PostTable {
-        version: 0x30000_i32 as F16Dot16,
+        version: 0x30000 as F16Dot16,
         italic_angle: 0,
         underline_position: 0,
         underline_thickness: 0,
@@ -481,7 +481,7 @@ pub fn parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable
     if let Some(table) = root.get_typed(b"post", JsonType::Object) {
         let stage = crate::logger::stage("post");
         if options.short_post {
-            post.version = 0x30000_i32 as F16Dot16;
+            post.version = 0x30000 as F16Dot16;
         } else {
             post.version = to_fixed(table.get_num(b"version"));
         }
@@ -519,7 +519,7 @@ pub fn build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> 
         buf.write_u16be(glyphorder.by_gid.len() as u16);
         for &idx in glyphorder.by_gid.values() {
             let entry = &glyphorder.entries[idx];
-            buf.write_u16be((258_i32 + entry.gid as i32) as u16);
+            buf.write_u16be((258 + entry.gid as i32) as u16);
         }
         for &idx in glyphorder.by_gid.values() {
             let entry = &glyphorder.entries[idx];

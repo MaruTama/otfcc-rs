@@ -7,38 +7,38 @@ use otfcc_binary::FontReader;
 /// still works in `i32` -- unchanged arithmetic, unchanged bytes.
 pub fn cff_encode_cff_operator(val: CffDictOperator) -> Buffer {
     let val = val.0 as i32;
-    if val > 256_i32 {
-        Buffer::from_bytes(&[(val / 256_i32) as u8, (val % 256_i32) as u8])
+    if val > 256 {
+        Buffer::from_bytes(&[(val / 256) as u8, (val % 256) as u8])
     } else {
         Buffer::from_bytes(&[val as u8])
     }
 }
 pub fn cff_encode_cff_integer(mut val: i32) -> Buffer {
-    if (-107_i32..=107_i32).contains(&val) {
-        Buffer::from_bytes(&[(val + 139_i32) as u8])
-    } else if (108_i32..=1131_i32).contains(&val) {
-        val -= 108_i32;
-        Buffer::from_bytes(&[((val >> 8_i32) + 247_i32) as u8, (val & 0xff_i32) as u8])
-    } else if (-1131_i32..=-108_i32).contains(&val) {
-        val = -108_i32 - val;
-        Buffer::from_bytes(&[((val >> 8_i32) + 251_i32) as u8, (val & 0xff_i32) as u8])
-    } else if (-32768_i32..32768_i32).contains(&val) {
-        Buffer::from_bytes(&[28_u8, (val >> 8_i32) as u8, (val & 0xff_i32) as u8])
+    if (-107..=107).contains(&val) {
+        Buffer::from_bytes(&[(val + 139) as u8])
+    } else if (108..=1131).contains(&val) {
+        val -= 108;
+        Buffer::from_bytes(&[((val >> 8) + 247) as u8, (val & 0xff) as u8])
+    } else if (-1131..=-108).contains(&val) {
+        val = -108 - val;
+        Buffer::from_bytes(&[((val >> 8) + 251) as u8, (val & 0xff) as u8])
+    } else if (-32768..32768_i32).contains(&val) {
+        Buffer::from_bytes(&[28, (val >> 8) as u8, (val & 0xff) as u8])
     } else {
         Buffer::from_bytes(&[
-            29_u8,
-            (val >> 24_i32 & 0xff_i32) as u8,
-            (val >> 16_i32 & 0xff_i32) as u8,
-            (val >> 8_i32 & 0xff_i32) as u8,
-            (val & 0xff_i32) as u8,
+            29,
+            (val >> 24 & 0xff) as u8,
+            (val >> 16 & 0xff) as u8,
+            (val >> 8 & 0xff) as u8,
+            (val & 0xff) as u8,
         ])
     }
 }
 pub fn cff_encode_cff_float(val: f64) -> Buffer {
     let mut blob = Buffer::new();
-    if val == 0.0f64 {
-        blob.write_u8(30_u8);
-        blob.write_u8(0xf_u8);
+    if val == 0.0 {
+        blob.write_u8(30);
+        blob.write_u8(0xf);
         return blob;
     }
     let text = format_g(val, 13);
@@ -76,7 +76,7 @@ pub fn cff_encode_cff_float(val: f64) -> Buffer {
         nibbles.push(0xf);
         nibbles.push(0xf);
     }
-    blob.write_u8(30_u8);
+    blob.write_u8(30);
     for pair in nibbles.chunks(2) {
         blob.write_u8(pair[0] * 16 + pair[1]);
     }
@@ -131,7 +131,7 @@ pub fn cff_decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
         let integer_part = ((((b1 as i32) << 8) | b2 as i32) as i16) as i32;
         let fraction_part = ((((b3 as i32) << 8) | b4 as i32) as u16) as i32;
         (
-            CffValue::Double(integer_part as f64 + fraction_part as f64 / 65536.0f64),
+            CffValue::Double(integer_part as f64 + fraction_part as f64 / 65536.0),
             5,
         )
     };

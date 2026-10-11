@@ -178,7 +178,7 @@ pub fn build_gsub_reverse(
     let mut backtrack: Vec<Coverage> = subtable.sequence[..subtable.input_index as usize].to_vec();
     backtrack.reverse();
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 1_u32),
+        bk_int(BkCellType::B16, 1),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(
@@ -208,7 +208,7 @@ pub fn build_gsub_reverse(
             BkCellType::B16,
             (subtable.match_count as i32
                 - subtable.input_index as i32
-                - 1_i32) as u32,
+                - 1) as u32,
         )],
     );
     // Forward-region slice: [input_index + 1, match_count).

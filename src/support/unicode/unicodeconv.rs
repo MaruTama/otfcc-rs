@@ -26,7 +26,7 @@ pub fn utf16be_to_utf8(inb: &[u8]) -> Vec<u8> {
         let bits_start;
         if c < 0x80 {
             out.push(c as u8);
-            bits_start = -6_i32;
+            bits_start = -6;
         } else if c < 0x800 {
             out.push((c >> 6 & 0x1f | 0xc0) as u8);
             bits_start = 0;
@@ -99,10 +99,10 @@ pub fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
             out.push((c >> 8 & 0xff) as u8);
             out.push((c & 0xff) as u8);
         } else if c < 0x110000 {
-            let tmp1 = (0xd800_u32 | c >> 10) as u16;
+            let tmp1 = (0xd800 | c >> 10) as u16;
             out.push((tmp1 >> 8) as u8);
             out.push((tmp1 & 0xff) as u8);
-            let tmp2 = (0xdc00_u32 | c & 0x3ff) as u16;
+            let tmp2 = (0xdc00 | c & 0x3ff) as u16;
             out.push((tmp2 >> 8) as u8);
             out.push((tmp2 & 0xff) as u8);
         }

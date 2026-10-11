@@ -51,13 +51,13 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
             // the log message and/or the retry loop.
             if !set_glyph_order_by_name(go, name.clone(), gid) {
                 tracing::warn!("[Consolidate] Glyph name {} is already in use.", ByteStr(&name));
-                let mut suffix: u32 = 2_u32;
+                let mut suffix: u32 = 2;
                 let mut success: bool;
                 loop {
                     let newname: Vec<u8> = crate::bytesbuild!(&name, b"_", suffix);
                     success = set_glyph_order_by_name(go, newname.clone(), gid);
                     if !success {
-                        suffix = suffix.wrapping_add(1_u32);
+                        suffix = suffix.wrapping_add(1);
                     } else {
                         tracing::warn!("[Consolidate] Glyph {} is renamed into {}.", ByteStr(&name), ByteStr(&newname));
                         g.name = newname;

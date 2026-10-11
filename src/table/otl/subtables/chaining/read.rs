@@ -150,7 +150,7 @@ pub fn class_coverage(
     // `class_zero_glyphs` budget. Class 0 (every glyph not otherwise
     // classified) is found with a bitmap of the classified glyphs, built
     // once, instead of a scan per candidate.
-    if cls as i32 == 0_i32 {
+    if cls as i32 == 0 {
         let mut classified = vec![false; max_glyphs as usize];
         // `0..cd.glyphs.len()`: the bound is `cd.glyphs`'s own length,
         // fixed for this whole call (never mutated inside either loop),
@@ -164,7 +164,7 @@ pub fn class_coverage(
             if !budget.class_zero_left() {
                 break;
             }
-            if cd.classes[j] as i32 > 0_i32 {
+            if cd.classes[j] as i32 > 0 {
                 let idx = cd.glyphs[j].index as usize;
                 if idx < classified.len() {
                     classified[idx] = true;
@@ -212,7 +212,7 @@ pub fn format3_coverage(
     _max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Coverage {
-    return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32), budget);
+    return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2), budget);
 }
 // The `FontReader` reads and `require_room` checks below never reserve
 // bytes the following reads do not use.
@@ -520,7 +520,7 @@ pub fn otl_read_contextual(
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
-    let mut format: u16 = 0_u16;
+    let mut format: u16 = 0;
     if let Ok(mut r) = FontReader::new(data).at(offset as usize)
         && let Ok(f) = r.u16() {
             format = f;
@@ -537,8 +537,8 @@ pub fn otl_read_contextual(
         3 => {
             let rule_ptr = general_read_contextual_rule(
                 data,
-                offset.wrapping_add(2_u32),
-                0_u16,
+                offset.wrapping_add(2),
+                0,
                 false,
                 format3_coverage,
                 max_glyphs,
@@ -917,7 +917,7 @@ pub fn otl_read_chaining(
 ) -> Option<Subtable> {
     // See the identical comment in `otl_read_contextual`.
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
-    let mut format: u16 = 0_u16;
+    let mut format: u16 = 0;
     if let Ok(mut r) = FontReader::new(data).at(offset as usize)
         && let Ok(f) = r.u16() {
             format = f;
@@ -934,8 +934,8 @@ pub fn otl_read_chaining(
         3 => {
             let rule_ptr = general_read_chaining_rule(
                 data,
-                offset.wrapping_add(2_u32),
-                0_u16,
+                offset.wrapping_add(2),
+                0,
                 false,
                 format3_coverage,
                 max_glyphs,

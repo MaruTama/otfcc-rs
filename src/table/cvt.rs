@@ -51,7 +51,7 @@ pub fn parse_cvt(root: &ParsedValue, tag: &[u8]) -> Option<Box<CvtTable>> {
             words.push(match record {
                 ParsedValue::Int(i) => *i as u16,
                 ParsedValue::Double(d) => *d as u16,
-                _ => 0_u16,
+                _ => 0,
             });
         }
         stage.finish();

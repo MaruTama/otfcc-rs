@@ -63,46 +63,46 @@ pub fn sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer: Opti
     }
     let entry = create_segment(tag, buffer);
     builder.tables.insert(tag as i32, entry);
-    tracing::debug!("OpenType table {}{}{}{} successfully built.\n", ByteStr(Byte((tag >> 24_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag >> 16_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag >> 8_i32 & 0xff_u32) as u8)), ByteStr(Byte((tag & 0xff_u32) as u8)));
+    tracing::debug!("OpenType table {}{}{}{} successfully built.\n", ByteStr(Byte((tag >> 24 & 0xff) as u8)), ByteStr(Byte((tag >> 16 & 0xff) as u8)), ByteStr(Byte((tag >> 8 & 0xff) as u8)), ByteStr(Byte((tag & 0xff) as u8)));
 }
 // `builder.is_null()` was dead here too, same reasoning as
 // `sfnt_builder_push_table` above.
 pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
     let mut buffer = Buffer::new();
     let n_tables: u16 = builder.tables.len() as u16;
-    let search_range: u16 = ((if (n_tables as i32) < 16_i32 {
-        8_i32
+    let search_range: u16 = ((if (n_tables as i32) < 16 {
+        8
     } else {
-        if (n_tables as i32) < 32_i32 {
-            16_i32
+        if (n_tables as i32) < 32 {
+            16
         } else {
-            if (n_tables as i32) < 64_i32 {
-                32_i32
+            if (n_tables as i32) < 64 {
+                32
             } else {
-                64_i32
+                64
             }
         }
-    }) * 16_i32) as u16;
+    }) * 16) as u16;
     buffer.write_u32be(builder.header);
     buffer.write_u16be(n_tables);
     buffer.write_u16be(search_range);
     buffer.write_u16be(
-        (if (n_tables as i32) < 16_i32 {
-            3_i32
-        } else if (n_tables as i32) < 32_i32 {
-            4_i32
-        } else if (n_tables as i32) < 64_i32 {
-            5_i32
+        (if (n_tables as i32) < 16 {
+            3
+        } else if (n_tables as i32) < 32 {
+            4
+        } else if (n_tables as i32) < 64 {
+            5
         } else {
-            6_i32
+            6
         }) as u16,
     );
     buffer.write_u16be(
-        (n_tables as i32 * 16_i32
+        (n_tables as i32 * 16
             - search_range as i32) as u16,
     );
-    let mut offset: usize = (12_i32
-        + n_tables as i32 * 16_i32)
+    let mut offset: usize = (12
+        + n_tables as i32 * 16)
         as usize;
     let mut head_offset: usize = offset;
     for (tag, table) in builder.tables.iter() {
@@ -121,7 +121,7 @@ pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
     }
     buffer.long_align();
     let whole_checksum: u32 = buf_checksum_bytes(&buffer.data);
-    buffer.seek(head_offset.wrapping_add(8_usize));
+    buffer.seek(head_offset.wrapping_add(8));
     buffer.write_u32be(0xb1b0afba_u32.wrapping_sub(whole_checksum));
     buffer
 }

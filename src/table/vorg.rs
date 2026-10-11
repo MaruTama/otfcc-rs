@@ -54,8 +54,8 @@ pub fn read_vorg(packet: &Packet) -> Option<Box<VorgTable>> {
 pub fn build_vorg(table: Option<&VorgTable>) -> Option<Buffer> {
     let table = table?;
     let mut buf = Buffer::new();
-    buf.write_u16be(1_u16);
-    buf.write_u16be(0_u16);
+    buf.write_u16be(1);
+    buf.write_u16be(0);
     buf.write_i16be(table.default_vertical_origin as i16);
     buf.write_u16be(table.num_vert_origin_y_metrics);
     for entry in table.entries.iter().take(table.num_vert_origin_y_metrics as usize) {

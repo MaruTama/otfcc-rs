@@ -71,7 +71,7 @@ pub fn cff_extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset
             }
             1 => {
                 let mut size: usize = 0;
-                let mut glyphs_encoded_sofar: u32 = 1_u32;
+                let mut glyphs_encoded_sofar: u32 = 1;
                 while glyphs_encoded_sofar < nchars as u32 {
                     let Ok(nleft) = FontReader::new(slice)
                         .at(offset + 3 + 3 * size)
@@ -99,7 +99,7 @@ pub fn cff_extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset
             }
             2 => {
                 let mut size: usize = 0;
-                let mut glyphs_encoded_sofar: u32 = 1_u32;
+                let mut glyphs_encoded_sofar: u32 = 1;
                 while glyphs_encoded_sofar < nchars as u32 {
                     let Ok(nleft) = FontReader::new(slice)
                         .at(offset + 3 + 4 * size)
@@ -138,31 +138,31 @@ pub fn cff_build_charset(cset: &CffCharset) -> Buffer {
         CffCharset::IsoAdobe | CffCharset::Expert | CffCharset::ExpertSubset => Buffer::new(),
         CffCharset::Format0(glyph) => {
             let mut blob = Buffer::new();
-            blob.write_u8(0_u8);
+            blob.write_u8(0);
             for &g in glyph.iter() {
-                blob.write_u8((g as i32 / 256_i32) as u8);
-                blob.write_u8((g as i32 % 256_i32) as u8);
+                blob.write_u8((g as i32 / 256) as u8);
+                blob.write_u8((g as i32 % 256) as u8);
             }
             blob
         }
         CffCharset::Format1(range1) => {
             let mut blob_0 = Buffer::new();
-            blob_0.write_u8(1_u8);
+            blob_0.write_u8(1);
             for r in range1.iter() {
-                blob_0.write_u8((r.first as i32 / 256_i32) as u8);
-                blob_0.write_u8((r.first as i32 % 256_i32) as u8);
+                blob_0.write_u8((r.first as i32 / 256) as u8);
+                blob_0.write_u8((r.first as i32 % 256) as u8);
                 blob_0.write_u8(r.nleft);
             }
             blob_0
         }
         CffCharset::Format2(range2) => {
             let mut blob_1 = Buffer::new();
-            blob_1.write_u8(2_u8);
+            blob_1.write_u8(2);
             for r in range2.iter() {
-                blob_1.write_u8((r.first as i32 / 256_i32) as u8);
-                blob_1.write_u8((r.first as i32 % 256_i32) as u8);
-                blob_1.write_u8((r.nleft as i32 / 256_i32) as u8);
-                blob_1.write_u8((r.nleft as i32 % 256_i32) as u8);
+                blob_1.write_u8((r.first as i32 / 256) as u8);
+                blob_1.write_u8((r.first as i32 % 256) as u8);
+                blob_1.write_u8((r.nleft as i32 / 256) as u8);
+                blob_1.write_u8((r.nleft as i32 % 256) as u8);
             }
             blob_1
         }

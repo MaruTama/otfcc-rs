@@ -25,7 +25,7 @@ fn class_compatible(
     past: &mut i32,
 ) -> i32 {
     if cov.is_empty() {
-        return 1_i32;
+        return 1;
     }
     let gid: GlyphId = cov[0].index;
     match h.get(&gid).map(|v| v.cls) {
@@ -33,7 +33,7 @@ fn class_compatible(
             for entry in cov.iter().skip(1) {
                 match h.get(&entry.index) {
                     Some(ss) if ss.cls == cls => {}
-                    _ => return 0_i32,
+                    _ => return 0,
                 }
             }
             // Original built a throwaway `revh` -- a hash of `cov`'s own
@@ -56,23 +56,23 @@ fn class_compatible(
                 .iter()
                 .filter(|&(_, v)| v.cls == cls)
                 .all(|(gid_2, _)| revset.contains(gid_2));
-            if allcheck { cls } else { 0_i32 }
+            if allcheck { cls } else { 0 }
         }
         None => {
             for entry in cov.iter().skip(1) {
                 if h.contains_key(&entry.index) {
-                    return 0_i32;
+                    return 0;
                 }
             }
-            let new_cls: i32 = *past + 1_i32;
+            let new_cls: i32 = *past + 1;
             for entry in cov.iter() {
                 h.entry(entry.index).or_insert(ClassifierValue {
                     gname: entry.name.clone(),
                     cls: new_cls,
                 });
             }
-            *past += 1_i32;
-            1_i32
+            *past += 1;
+            1
         }
     }
 }
@@ -180,9 +180,9 @@ pub fn try_classify_around(
         std::collections::BTreeMap::new();
     let mut hf: std::collections::BTreeMap<GlyphId, ClassifierValue> =
         std::collections::BTreeMap::new();
-    let mut classno_b: i32 = 0_i32;
-    let mut classno_i: i32 = 0_i32;
-    let mut classno_f: i32 = 0_i32;
+    let mut classno_b: i32 = 0;
+    let mut classno_i: i32 = 0;
+    let mut classno_f: i32 = 0;
 
     let rule0 = chaining_rule_const(chaining_subtable_ref(&subtables[j]));
 

@@ -402,13 +402,13 @@ static STRING_STANDARD: [&str; 391] = [
 /// so this function stays safe on its own if a `CffIndex` is ever built
 /// any other way in the future.
 pub fn get_cff_sid(idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
-    if idx as i32 <= 390_i32 {
+    if idx as i32 <= 390 {
         return Some(STRING_STANDARD[idx as usize].as_bytes().to_vec());
     }
     if str.count == 0 as Arity {
         return None;
     }
-    let sid_index = (idx as i32 - 391_i32) as Arity;
+    let sid_index = (idx as i32 - 391) as Arity;
     if sid_index >= str.count {
         return None;
     }

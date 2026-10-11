@@ -26,7 +26,7 @@ pub fn consolidate_gsub_reverse(
     }
     fontop_consolidate_coverage(glyph_order, &mut subtable.to);
     if subtable.input_index as i32 >= subtable.match_count as i32 {
-        subtable.input_index = (subtable.match_count as i32 - 1_i32) as TableId;
+        subtable.input_index = (subtable.match_count as i32 - 1) as TableId;
     }
     let input_index = subtable.input_index as usize;
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later

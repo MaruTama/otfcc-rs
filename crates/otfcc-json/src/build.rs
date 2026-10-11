@@ -124,7 +124,7 @@ impl BuiltValue {
     pub fn dump_flags(flags: i32, labels: &[&str]) -> BuiltValue {
         let mut v = BuiltValue::new_object(0);
         for (j, label) in labels.iter().enumerate() {
-            if flags & 1_i32 << j != 0 {
+            if flags & 1 << j != 0 {
                 v.push_field(label.as_bytes(), BuiltValue::Bool(true));
             }
         }
@@ -467,12 +467,12 @@ mod tests {
         root.push_field(b"ints", arr);
 
         for (dbl, key) in [
-            (0.0f64, "zero"),
-            (-0.0f64, "negzero"),
-            (3.5f64, "frac"),
-            (-123.456f64, "negfrac"),
-            (1.0e20f64, "big"),
-            (1.0e-20f64, "small"),
+            (0.0, "zero"),
+            (-0.0, "negzero"),
+            (3.5, "frac"),
+            (-123.456, "negfrac"),
+            (1.0e20, "big"),
+            (1.0e-20, "small"),
         ] {
             root.push_field(key.as_bytes(), BuiltValue::Double(dbl));
         }

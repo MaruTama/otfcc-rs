@@ -23,12 +23,12 @@ pub fn diy_fp_from_double(d: f64) -> DiyFp {
     let biased_e: i32 =
         ((bits & K_DP_EXPONENT_MASK) >> K_DP_SIGNIFICAND_SIZE) as i32;
     let significand: u64 = bits & K_DP_SIGNIFICAND_MASK;
-    if biased_e != 0_i32 {
+    if biased_e != 0 {
         res.f = significand.wrapping_add(K_DP_HIDDEN_BIT);
         res.e = biased_e - K_DP_EXPONENT_BIAS;
     } else {
         res.f = significand;
-        res.e = K_DP_MIN_EXPONENT + 1_i32;
+        res.e = K_DP_MIN_EXPONENT + 1;
     }
     return res;
 }
@@ -38,24 +38,24 @@ fn diy_fp_subtract(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
 }
 #[inline]
 fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
-    let m32: u64 = 0xffffffff_u64;
-    let a: u64 = lhs.f >> 32_i32;
+    let m32: u64 = 0xffffffff;
+    let a: u64 = lhs.f >> 32;
     let b: u64 = lhs.f & m32;
-    let c: u64 = rhs.f >> 32_i32;
+    let c: u64 = rhs.f >> 32;
     let d: u64 = rhs.f & m32;
     let ac: u64 = a.wrapping_mul(c);
     let bc: u64 = b.wrapping_mul(c);
     let ad: u64 = a.wrapping_mul(d);
     let bd: u64 = b.wrapping_mul(d);
-    let mut tmp: u64 = (bd >> 32_i32)
+    let mut tmp: u64 = (bd >> 32)
         .wrapping_add(ad & m32)
         .wrapping_add(bc & m32);
-    tmp = tmp.wrapping_add((1_u32 << 31_i32) as u64);
+    tmp = tmp.wrapping_add((1_u32 << 31) as u64);
     return diy_fp_from_parts(
-        ac.wrapping_add(ad >> 32_i32)
-            .wrapping_add(bc >> 32_i32)
-            .wrapping_add(tmp >> 32_i32),
-        lhs.e + rhs.e + 64_i32,
+        ac.wrapping_add(ad >> 32)
+            .wrapping_add(bc >> 32)
+            .wrapping_add(tmp >> 32),
+        lhs.e + rhs.e + 64,
     );
 }
 #[inline]
@@ -66,29 +66,29 @@ fn normalize(lhs: DiyFp) -> DiyFp {
 #[inline]
 fn normalize_boundary(lhs: DiyFp) -> DiyFp {
     let mut res: DiyFp = lhs;
-    while res.f & K_DP_HIDDEN_BIT << 1_i32 == 0 {
-        res.f <<= 1_i32;
+    while res.f & K_DP_HIDDEN_BIT << 1 == 0 {
+        res.f <<= 1;
         res.e -= 1;
     }
-    res.f <<= K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2_i32;
-    res.e -= K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2_i32;
+    res.f <<= K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2;
+    res.e -= K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2;
     return res;
 }
 #[inline]
 fn normalized_boundaries(lhs: DiyFp, minus: &mut DiyFp, plus: &mut DiyFp) {
     let pl: DiyFp = normalize_boundary(diy_fp_from_parts(
-        (lhs.f << 1_i32).wrapping_add(1_u64),
-        lhs.e - 1_i32,
+        (lhs.f << 1).wrapping_add(1),
+        lhs.e - 1,
     ));
     let mut mi: DiyFp = if lhs.f == K_DP_HIDDEN_BIT {
         diy_fp_from_parts(
-            (lhs.f << 2_i32).wrapping_sub(1_u64),
-            lhs.e - 2_i32,
+            (lhs.f << 2).wrapping_sub(1),
+            lhs.e - 2,
         )
     } else {
         diy_fp_from_parts(
-            (lhs.f << 1_i32).wrapping_sub(1_u64),
-            lhs.e - 1_i32,
+            (lhs.f << 1).wrapping_sub(1),
+            lhs.e - 1,
         )
     };
     mi.f <<= mi.e - pl.e;
@@ -99,281 +99,194 @@ fn normalized_boundaries(lhs: DiyFp, minus: &mut DiyFp, plus: &mut DiyFp) {
 #[inline]
 fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
     static K_CACHED_POWERS_F: [u64; 87] = [
-        (0xfa8fd5a0_u32 as u64) << 32_i32
-            | 0x81c0288_i32 as u64,
-        (0xbaaee17f_u32 as u64) << 32_i32
-            | 0xa23ebf76_u32 as u64,
-        (0x8b16fb20_u32 as u64) << 32_i32
-            | 0x3055ac76_i32 as u64,
-        (0xcf42894a_u32 as u64) << 32_i32
-            | 0x5dce35ea_i32 as u64,
-        (0x9a6bb0aa_u32 as u64) << 32_i32
-            | 0x55653b2d_i32 as u64,
-        (0xe61acf03_u32 as u64) << 32_i32
-            | 0x3d1a45df_i32 as u64,
-        (0xab70fe17_u32 as u64) << 32_i32
-            | 0xc79ac6ca_u32 as u64,
-        (0xff77b1fc_u32 as u64) << 32_i32
-            | 0xbebcdc4f_u32 as u64,
-        (0xbe5691ef_u32 as u64) << 32_i32
-            | 0x416bd60c_i32 as u64,
-        (0x8dd01fad_u32 as u64) << 32_i32
-            | 0x907ffc3c_u32 as u64,
-        (0xd3515c28_u32 as u64) << 32_i32
-            | 0x31559a83_i32 as u64,
-        (0x9d71ac8f_u32 as u64) << 32_i32
-            | 0xada6c9b5_u32 as u64,
-        (0xea9c2277_u32 as u64) << 32_i32
-            | 0x23ee8bcb_i32 as u64,
-        (0xaecc4991_u32 as u64) << 32_i32
-            | 0x4078536d_i32 as u64,
-        (0x823c1279_u32 as u64) << 32_i32
-            | 0x5db6ce57_i32 as u64,
-        (0xc2109436_u32 as u64) << 32_i32
-            | 0x4dfb5637_i32 as u64,
-        (0x9096ea6f_u32 as u64) << 32_i32
-            | 0x3848984f_i32 as u64,
-        (0xd77485cb_u32 as u64) << 32_i32
-            | 0x25823ac7_i32 as u64,
-        (0xa086cfcd_u32 as u64) << 32_i32
-            | 0x97bf97f4_u32 as u64,
-        (0xef340a98_u32 as u64) << 32_i32
-            | 0x172aace5_i32 as u64,
-        (0xb23867fb_u32 as u64) << 32_i32
-            | 0x2a35b28e_i32 as u64,
-        (0x84c8d4df_u32 as u64) << 32_i32
-            | 0xd2c63f3b_u32 as u64,
-        (0xc5dd4427_u32 as u64) << 32_i32
-            | 0x1ad3cdba_i32 as u64,
-        (0x936b9fce_u32 as u64) << 32_i32
-            | 0xbb25c996_u32 as u64,
-        (0xdbac6c24_u32 as u64) << 32_i32
-            | 0x7d62a584_i32 as u64,
-        (0xa3ab6658_u32 as u64) << 32_i32
-            | 0xd5fdaf6_i32 as u64,
-        (0xf3e2f893_u32 as u64) << 32_i32
-            | 0xdec3f126_u32 as u64,
-        (0xb5b5ada8_u32 as u64) << 32_i32
-            | 0xaaff80b8_u32 as u64,
-        (0x87625f05_u32 as u64) << 32_i32
-            | 0x6c7c4a8b_i32 as u64,
-        (0xc9bcff60_u32 as u64) << 32_i32
-            | 0x34c13053_i32 as u64,
-        (0x964e858c_u32 as u64) << 32_i32
-            | 0x91ba2655_u32 as u64,
-        (0xdff97724_u32 as u64) << 32_i32
-            | 0x70297ebd_i32 as u64,
-        (0xa6dfbd9f_u32 as u64) << 32_i32
-            | 0xb8e5b88f_u32 as u64,
-        (0xf8a95fcf_u32 as u64) << 32_i32
-            | 0x88747d94_u32 as u64,
-        (0xb9447093_u32 as u64) << 32_i32
-            | 0x8fa89bcf_u32 as u64,
-        (0x8a08f0f8_u32 as u64) << 32_i32
-            | 0xbf0f156b_u32 as u64,
-        (0xcdb02555_u32 as u64) << 32_i32
-            | 0x653131b6_i32 as u64,
-        (0x993fe2c6_u32 as u64) << 32_i32
-            | 0xd07b7fac_u32 as u64,
-        (0xe45c10c4_u32 as u64) << 32_i32
-            | 0x2a2b3b06_i32 as u64,
-        (0xaa242499_u32 as u64) << 32_i32
-            | 0x697392d3_i32 as u64,
-        (0xfd87b5f2_u32 as u64) << 32_i32
-            | 0x8300ca0e_u32 as u64,
-        (0xbce50864_u32 as u64) << 32_i32
-            | 0x92111aeb_u32 as u64,
-        (0x8cbccc09_u32 as u64) << 32_i32
-            | 0x6f5088cc_i32 as u64,
-        (0xd1b71758_u32 as u64) << 32_i32
-            | 0xe219652c_u32 as u64,
-        (0x9c400000_u32 as u64) << 32_i32
-            | 0_i32 as u64,
-        (0xe8d4a510_u32 as u64) << 32_i32
-            | 0_i32 as u64,
-        (0xad78ebc5_u32 as u64) << 32_i32
-            | 0xac620000_u32 as u64,
-        (0x813f3978_u32 as u64) << 32_i32
-            | 0xf8940984_u32 as u64,
-        (0xc097ce7b_u32 as u64) << 32_i32
-            | 0xc90715b3_u32 as u64,
-        (0x8f7e32ce_u32 as u64) << 32_i32
-            | 0x7bea5c70_i32 as u64,
-        (0xd5d238a4_u32 as u64) << 32_i32
-            | 0xabe98068_u32 as u64,
-        (0x9f4f2726_u32 as u64) << 32_i32
-            | 0x179a2245_i32 as u64,
-        (0xed63a231_u32 as u64) << 32_i32
-            | 0xd4c4fb27_u32 as u64,
-        (0xb0de6538_u32 as u64) << 32_i32
-            | 0x8cc8ada8_u32 as u64,
-        (0x83c7088e_u32 as u64) << 32_i32
-            | 0x1aab65db_i32 as u64,
-        (0xc45d1df9_u32 as u64) << 32_i32
-            | 0x42711d9a_i32 as u64,
-        (0x924d692c_u32 as u64) << 32_i32
-            | 0xa61be758_u32 as u64,
-        (0xda01ee64_u32 as u64) << 32_i32
-            | 0x1a708dea_i32 as u64,
-        (0xa26da399_u32 as u64) << 32_i32
-            | 0x9aef774a_u32 as u64,
-        (0xf209787b_u32 as u64) << 32_i32
-            | 0xb47d6b85_u32 as u64,
-        (0xb454e4a1_u32 as u64) << 32_i32
-            | 0x79dd1877_i32 as u64,
-        (0x865b8692_u32 as u64) << 32_i32
-            | 0x5b9bc5c2_i32 as u64,
-        (0xc83553c5_u32 as u64) << 32_i32
-            | 0xc8965d3d_u32 as u64,
-        (0x952ab45c_u32 as u64) << 32_i32
-            | 0xfa97a0b3_u32 as u64,
-        (0xde469fbd_u32 as u64) << 32_i32
-            | 0x99a05fe3_u32 as u64,
-        (0xa59bc234_u32 as u64) << 32_i32
-            | 0xdb398c25_u32 as u64,
-        (0xf6c69a72_u32 as u64) << 32_i32
-            | 0xa3989f5c_u32 as u64,
-        (0xb7dcbf53_u32 as u64) << 32_i32
-            | 0x54e9bece_i32 as u64,
-        (0x88fcf317_u32 as u64) << 32_i32
-            | 0xf22241e2_u32 as u64,
-        (0xcc20ce9b_u32 as u64) << 32_i32
-            | 0xd35c78a5_u32 as u64,
-        (0x98165af3_u32 as u64) << 32_i32
-            | 0x7b2153df_i32 as u64,
-        (0xe2a0b5dc_u32 as u64) << 32_i32
-            | 0x971f303a_u32 as u64,
-        (0xa8d9d153_u32 as u64) << 32_i32
-            | 0x5ce3b396_i32 as u64,
-        (0xfb9b7cd9_u32 as u64) << 32_i32
-            | 0xa4a7443c_u32 as u64,
-        (0xbb764c4c_u32 as u64) << 32_i32
-            | 0xa7a44410_u32 as u64,
-        (0x8bab8eef_u32 as u64) << 32_i32
-            | 0xb6409c1a_u32 as u64,
-        (0xd01fef10_u32 as u64) << 32_i32
-            | 0xa657842c_u32 as u64,
-        (0x9b10a4e5_u32 as u64) << 32_i32
-            | 0xe9913129_u32 as u64,
-        (0xe7109bfb_u32 as u64) << 32_i32
-            | 0xa19c0c9d_u32 as u64,
-        (0xac2820d9_u32 as u64) << 32_i32
-            | 0x623bf429_i32 as u64,
-        (0x80444b5e_u32 as u64) << 32_i32
-            | 0x7aa7cf85_i32 as u64,
-        (0xbf21e440_u32 as u64) << 32_i32
-            | 0x3acdd2d_i32 as u64,
-        (0x8e679c2f_u32 as u64) << 32_i32
-            | 0x5e44ff8f_i32 as u64,
-        (0xd433179d_u32 as u64) << 32_i32
-            | 0x9c8cb841_u32 as u64,
-        (0x9e19db92_u32 as u64) << 32_i32
-            | 0xb4e31ba9_u32 as u64,
-        (0xeb96bf6e_u32 as u64) << 32_i32
-            | 0xbadf77d9_u32 as u64,
-        (0xaf87023b_u32 as u64) << 32_i32
-            | 0x9bf0ee6b_u32 as u64,
+        0xfa8fd5a0_081c0288,
+        0xbaaee17f_a23ebf76,
+        0x8b16fb20_3055ac76,
+        0xcf42894a_5dce35ea,
+        0x9a6bb0aa_55653b2d,
+        0xe61acf03_3d1a45df,
+        0xab70fe17_c79ac6ca,
+        0xff77b1fc_bebcdc4f,
+        0xbe5691ef_416bd60c,
+        0x8dd01fad_907ffc3c,
+        0xd3515c28_31559a83,
+        0x9d71ac8f_ada6c9b5,
+        0xea9c2277_23ee8bcb,
+        0xaecc4991_4078536d,
+        0x823c1279_5db6ce57,
+        0xc2109436_4dfb5637,
+        0x9096ea6f_3848984f,
+        0xd77485cb_25823ac7,
+        0xa086cfcd_97bf97f4,
+        0xef340a98_172aace5,
+        0xb23867fb_2a35b28e,
+        0x84c8d4df_d2c63f3b,
+        0xc5dd4427_1ad3cdba,
+        0x936b9fce_bb25c996,
+        0xdbac6c24_7d62a584,
+        0xa3ab6658_0d5fdaf6,
+        0xf3e2f893_dec3f126,
+        0xb5b5ada8_aaff80b8,
+        0x87625f05_6c7c4a8b,
+        0xc9bcff60_34c13053,
+        0x964e858c_91ba2655,
+        0xdff97724_70297ebd,
+        0xa6dfbd9f_b8e5b88f,
+        0xf8a95fcf_88747d94,
+        0xb9447093_8fa89bcf,
+        0x8a08f0f8_bf0f156b,
+        0xcdb02555_653131b6,
+        0x993fe2c6_d07b7fac,
+        0xe45c10c4_2a2b3b06,
+        0xaa242499_697392d3,
+        0xfd87b5f2_8300ca0e,
+        0xbce50864_92111aeb,
+        0x8cbccc09_6f5088cc,
+        0xd1b71758_e219652c,
+        0x9c400000_00000000,
+        0xe8d4a510_00000000,
+        0xad78ebc5_ac620000,
+        0x813f3978_f8940984,
+        0xc097ce7b_c90715b3,
+        0x8f7e32ce_7bea5c70,
+        0xd5d238a4_abe98068,
+        0x9f4f2726_179a2245,
+        0xed63a231_d4c4fb27,
+        0xb0de6538_8cc8ada8,
+        0x83c7088e_1aab65db,
+        0xc45d1df9_42711d9a,
+        0x924d692c_a61be758,
+        0xda01ee64_1a708dea,
+        0xa26da399_9aef774a,
+        0xf209787b_b47d6b85,
+        0xb454e4a1_79dd1877,
+        0x865b8692_5b9bc5c2,
+        0xc83553c5_c8965d3d,
+        0x952ab45c_fa97a0b3,
+        0xde469fbd_99a05fe3,
+        0xa59bc234_db398c25,
+        0xf6c69a72_a3989f5c,
+        0xb7dcbf53_54e9bece,
+        0x88fcf317_f22241e2,
+        0xcc20ce9b_d35c78a5,
+        0x98165af3_7b2153df,
+        0xe2a0b5dc_971f303a,
+        0xa8d9d153_5ce3b396,
+        0xfb9b7cd9_a4a7443c,
+        0xbb764c4c_a7a44410,
+        0x8bab8eef_b6409c1a,
+        0xd01fef10_a657842c,
+        0x9b10a4e5_e9913129,
+        0xe7109bfb_a19c0c9d,
+        0xac2820d9_623bf429,
+        0x80444b5e_7aa7cf85,
+        0xbf21e440_03acdd2d,
+        0x8e679c2f_5e44ff8f,
+        0xd433179d_9c8cb841,
+        0x9e19db92_b4e31ba9,
+        0xeb96bf6e_badf77d9,
+        0xaf87023b_9bf0ee6b,
     ];
     static K_CACHED_POWERS_E: [i16; 87] = [
-        -1220_i32 as i16,
-        -1193_i32 as i16,
-        -1166_i32 as i16,
-        -1140_i32 as i16,
-        -1113_i32 as i16,
-        -1087_i32 as i16,
-        -1060_i32 as i16,
-        -1034_i32 as i16,
-        -1007_i32 as i16,
-        -980_i32 as i16,
-        -954_i32 as i16,
-        -927_i32 as i16,
-        -901_i32 as i16,
-        -874_i32 as i16,
-        -847_i32 as i16,
-        -821_i32 as i16,
-        -794_i32 as i16,
-        -768_i32 as i16,
-        -741_i32 as i16,
-        -715_i32 as i16,
-        -688_i32 as i16,
-        -661_i32 as i16,
-        -635_i32 as i16,
-        -608_i32 as i16,
-        -582_i32 as i16,
-        -555_i32 as i16,
-        -529_i32 as i16,
-        -502_i32 as i16,
-        -475_i32 as i16,
-        -449_i32 as i16,
-        -422_i32 as i16,
-        -396_i32 as i16,
-        -369_i32 as i16,
-        -343_i32 as i16,
-        -316_i32 as i16,
-        -289_i32 as i16,
-        -263_i32 as i16,
-        -236_i32 as i16,
-        -210_i32 as i16,
-        -183_i32 as i16,
-        -157_i32 as i16,
-        -130_i32 as i16,
-        -103_i32 as i16,
-        -77_i32 as i16,
-        -50_i32 as i16,
-        -24_i32 as i16,
-        3_i32 as i16,
-        30_i32 as i16,
-        56_i32 as i16,
-        83_i32 as i16,
-        109_i32 as i16,
-        136_i32 as i16,
-        162_i32 as i16,
-        189_i32 as i16,
-        216_i32 as i16,
-        242_i32 as i16,
-        269_i32 as i16,
-        295_i32 as i16,
-        322_i32 as i16,
-        348_i32 as i16,
-        375_i32 as i16,
-        402_i32 as i16,
-        428_i32 as i16,
-        455_i32 as i16,
-        481_i32 as i16,
-        508_i32 as i16,
-        534_i32 as i16,
-        561_i32 as i16,
-        588_i32 as i16,
-        614_i32 as i16,
-        641_i32 as i16,
-        667_i32 as i16,
-        694_i32 as i16,
-        720_i32 as i16,
-        747_i32 as i16,
-        774_i32 as i16,
-        800_i32 as i16,
-        827_i32 as i16,
-        853_i32 as i16,
-        880_i32 as i16,
-        907_i32 as i16,
-        933_i32 as i16,
-        960_i32 as i16,
-        986_i32 as i16,
-        1013_i32 as i16,
-        1039_i32 as i16,
-        1066_i32 as i16,
+        -1220,
+        -1193,
+        -1166,
+        -1140,
+        -1113,
+        -1087,
+        -1060,
+        -1034,
+        -1007,
+        -980,
+        -954,
+        -927,
+        -901,
+        -874,
+        -847,
+        -821,
+        -794,
+        -768,
+        -741,
+        -715,
+        -688,
+        -661,
+        -635,
+        -608,
+        -582,
+        -555,
+        -529,
+        -502,
+        -475,
+        -449,
+        -422,
+        -396,
+        -369,
+        -343,
+        -316,
+        -289,
+        -263,
+        -236,
+        -210,
+        -183,
+        -157,
+        -130,
+        -103,
+        -77,
+        -50,
+        -24,
+        3,
+        30,
+        56,
+        83,
+        109,
+        136,
+        162,
+        189,
+        216,
+        242,
+        269,
+        295,
+        322,
+        348,
+        375,
+        402,
+        428,
+        455,
+        481,
+        508,
+        534,
+        561,
+        588,
+        614,
+        641,
+        667,
+        694,
+        720,
+        747,
+        774,
+        800,
+        827,
+        853,
+        880,
+        907,
+        933,
+        960,
+        986,
+        1013,
+        1039,
+        1066,
     ];
-    let dk: f64 = (-61_i32 - e) as f64
-        * 0.30102999566398114f64
-        + 347_f64;
+    let dk: f64 = (-61 - e) as f64
+        * 0.30102999566398114
+        + 347.0;
     let mut k: i32 = dk as i32;
     if k as f64 != dk {
         k += 1;
     }
     let index: u32 =
-        ((k >> 3_i32) + 1_i32) as u32;
+        ((k >> 3) + 1) as u32;
     *k_out =
-        -(-348_i32 + (index << 3_i32) as i32);
+        -(-348 + (index << 3) as i32);
     return diy_fp_from_parts(
         K_CACHED_POWERS_F[index as usize],
         K_CACHED_POWERS_E[index as usize] as i32,
@@ -386,106 +299,106 @@ fn grisu_round(buffer: &mut [u8], len: i32, delta: u64, mut rest: u64, ten_kappa
         && (rest.wrapping_add(ten_kappa) < wp_w
             || wp_w.wrapping_sub(rest) > rest.wrapping_add(ten_kappa).wrapping_sub(wp_w))
     {
-        buffer[(len - 1_i32) as usize] -= 1;
+        buffer[(len - 1) as usize] -= 1;
         rest = rest.wrapping_add(ten_kappa);
     }
 }
 #[inline]
 fn count_decimal_digit32(n: u32) -> u32 {
-    if n < 10_u32 {
-        return 1_u32;
+    if n < 10 {
+        return 1;
     }
-    if n < 100_u32 {
-        return 2_u32;
+    if n < 100 {
+        return 2;
     }
-    if n < 1000_u32 {
-        return 3_u32;
+    if n < 1000 {
+        return 3;
     }
-    if n < 10000_u32 {
-        return 4_u32;
+    if n < 10000 {
+        return 4;
     }
-    if n < 100000_u32 {
-        return 5_u32;
+    if n < 100000 {
+        return 5;
     }
-    if n < 1000000_u32 {
-        return 6_u32;
+    if n < 1000000 {
+        return 6;
     }
-    if n < 10000000_u32 {
-        return 7_u32;
+    if n < 10000000 {
+        return 7;
     }
-    if n < 100000000_u32 {
-        return 8_u32;
+    if n < 100000000 {
+        return 8;
     }
-    if n < 1000000000_u32 {
-        return 9_u32;
+    if n < 1000000000 {
+        return 9;
     }
-    return 10_u32;
+    return 10;
 }
 #[inline]
 fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i32, k_out: &mut i32) {
     static K_POW10: [u32; 10] = [
-        1_i32 as u32,
-        10_i32 as u32,
-        100_i32 as u32,
-        1000_i32 as u32,
-        10000_i32 as u32,
-        100000_i32 as u32,
-        1000000_i32 as u32,
-        10000000_i32 as u32,
-        100000000_i32 as u32,
-        1000000000_i32 as u32,
+        1,
+        10,
+        100,
+        1000,
+        10000,
+        100000,
+        1000000,
+        10000000,
+        100000000,
+        1000000000,
     ];
-    let one: DiyFp = diy_fp_from_parts((1_i32 as u64) << -mp.e, mp.e) as DiyFp;
+    let one: DiyFp = diy_fp_from_parts(1_u64 << -mp.e, mp.e) as DiyFp;
     let wp_w: DiyFp = diy_fp_subtract(mp, w) as DiyFp;
     let mut p1: u32 = (mp.f >> -one.e) as u32;
-    let mut p2: u64 = mp.f & one.f.wrapping_sub(1_u64);
+    let mut p2: u64 = mp.f & one.f.wrapping_sub(1);
     let mut kappa: i32 = count_decimal_digit32(p1) as i32;
-    *len = 0_i32;
-    while kappa > 0_i32 {
+    *len = 0;
+    while kappa > 0 {
         let d: u32;
         match kappa {
             10 => {
-                d = p1.wrapping_div(1000000000_u32);
-                p1 = p1.wrapping_rem(1000000000_u32);
+                d = p1.wrapping_div(1000000000);
+                p1 = p1.wrapping_rem(1000000000);
             }
             9 => {
-                d = p1.wrapping_div(100000000_u32);
-                p1 = p1.wrapping_rem(100000000_u32);
+                d = p1.wrapping_div(100000000);
+                p1 = p1.wrapping_rem(100000000);
             }
             8 => {
-                d = p1.wrapping_div(10000000_u32);
-                p1 = p1.wrapping_rem(10000000_u32);
+                d = p1.wrapping_div(10000000);
+                p1 = p1.wrapping_rem(10000000);
             }
             7 => {
-                d = p1.wrapping_div(1000000_u32);
-                p1 = p1.wrapping_rem(1000000_u32);
+                d = p1.wrapping_div(1000000);
+                p1 = p1.wrapping_rem(1000000);
             }
             6 => {
-                d = p1.wrapping_div(100000_u32);
-                p1 = p1.wrapping_rem(100000_u32);
+                d = p1.wrapping_div(100000);
+                p1 = p1.wrapping_rem(100000);
             }
             5 => {
-                d = p1.wrapping_div(10000_u32);
-                p1 = p1.wrapping_rem(10000_u32);
+                d = p1.wrapping_div(10000);
+                p1 = p1.wrapping_rem(10000);
             }
             4 => {
-                d = p1.wrapping_div(1000_u32);
-                p1 = p1.wrapping_rem(1000_u32);
+                d = p1.wrapping_div(1000);
+                p1 = p1.wrapping_rem(1000);
             }
             3 => {
-                d = p1.wrapping_div(100_u32);
-                p1 = p1.wrapping_rem(100_u32);
+                d = p1.wrapping_div(100);
+                p1 = p1.wrapping_rem(100);
             }
             2 => {
-                d = p1.wrapping_div(10_u32);
-                p1 = p1.wrapping_rem(10_u32);
+                d = p1.wrapping_div(10);
+                p1 = p1.wrapping_rem(10);
             }
             1 => {
                 d = p1;
-                p1 = 0_u32;
+                p1 = 0;
             }
             _ => {
-                d = 0_u32;
+                d = 0;
             }
         }
         if d != 0 || *len != 0 {
@@ -516,14 +429,14 @@ fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i
         }
     }
     loop {
-        p2 = p2.wrapping_mul(10_u64);
-        delta = delta.wrapping_mul(10_u64);
+        p2 = p2.wrapping_mul(10);
+        delta = delta.wrapping_mul(10);
         let d_0: u8 = (p2 >> -one.e) as u8;
         if d_0 != 0 || *len != 0 {
             buffer[*len as usize] = b'0'.wrapping_add(d_0);
             *len += 1;
         }
-        p2 &= one.f.wrapping_sub(1_u64);
+        p2 &= one.f.wrapping_sub(1);
         kappa -= 1;
         if p2 < delta {
             *k_out += kappa;
@@ -563,21 +476,21 @@ fn get_digits_lut() -> &'static [u8; 200] {
 #[inline]
 fn write_exponent(mut k_out: i32, buffer: &mut [u8]) {
     let mut buffer = buffer;
-    if k_out < 0_i32 {
+    if k_out < 0 {
         buffer[0] = b'-';
         buffer = &mut buffer[1..];
         k_out = -k_out;
     }
-    if k_out >= 100_i32 {
-        buffer[0] = b'0'.wrapping_add((k_out / 100_i32) as u8);
+    if k_out >= 100 {
+        buffer[0] = b'0'.wrapping_add((k_out / 100) as u8);
         buffer = &mut buffer[1..];
-        k_out %= 100_i32;
-        let d = &get_digits_lut()[(k_out * 2_i32) as usize..];
+        k_out %= 100;
+        let d = &get_digits_lut()[(k_out * 2) as usize..];
         buffer[0] = d[0];
         buffer[1] = d[1];
         buffer = &mut buffer[2..];
-    } else if k_out >= 10_i32 {
-        let d = &get_digits_lut()[(k_out * 2_i32) as usize..];
+    } else if k_out >= 10 {
+        let d = &get_digits_lut()[(k_out * 2) as usize..];
         buffer[0] = d[0];
         buffer[1] = d[1];
         buffer = &mut buffer[2..];
@@ -590,38 +503,38 @@ fn write_exponent(mut k_out: i32, buffer: &mut [u8]) {
 #[inline]
 fn prettify(buffer: &mut [u8], length: i32, k: i32) {
     let kk: i32 = length + k;
-    if length <= kk && kk <= 21_i32 {
+    if length <= kk && kk <= 21 {
         let mut i: i32 = length;
         while i < kk {
             buffer[i as usize] = b'0';
             i += 1;
         }
         buffer[kk as usize] = b'.';
-        buffer[(kk + 1_i32) as usize] = b'0';
-        buffer[(kk + 2_i32) as usize] = 0;
-    } else if 0_i32 < kk && kk <= 21_i32 {
-        buffer.copy_within(kk as usize..length as usize, (kk + 1_i32) as usize);
+        buffer[(kk + 1) as usize] = b'0';
+        buffer[(kk + 2) as usize] = 0;
+    } else if 0 < kk && kk <= 21 {
+        buffer.copy_within(kk as usize..length as usize, (kk + 1) as usize);
         buffer[kk as usize] = b'.';
-        buffer[(length + 1_i32) as usize] = 0;
-    } else if -6_i32 < kk && kk <= 0_i32 {
-        let offset: i32 = 2_i32 - kk;
+        buffer[(length + 1) as usize] = 0;
+    } else if -6 < kk && kk <= 0 {
+        let offset: i32 = 2 - kk;
         buffer.copy_within(0..length as usize, offset as usize);
         buffer[0] = b'0';
         buffer[1] = b'.';
-        let mut i_0: i32 = 2_i32;
+        let mut i_0: i32 = 2;
         while i_0 < offset {
             buffer[i_0 as usize] = b'0';
             i_0 += 1;
         }
         buffer[(length + offset) as usize] = 0;
-    } else if length == 1_i32 {
+    } else if length == 1 {
         buffer[1] = b'e';
-        write_exponent(kk - 1_i32, &mut buffer[2..]);
+        write_exponent(kk - 1, &mut buffer[2..]);
     } else {
         buffer.copy_within(1..length as usize, 2);
         buffer[1] = b'.';
-        buffer[(length + 1_i32) as usize] = b'e';
-        write_exponent(kk - 1_i32, &mut buffer[(length + 2_i32) as usize..]);
+        buffer[(length + 1) as usize] = b'e';
+        write_exponent(kk - 1, &mut buffer[(length + 2) as usize..]);
     };
 }
 /// Writes `value`'s shortest round-tripping decimal representation into
@@ -629,13 +542,13 @@ fn prettify(buffer: &mut [u8], length: i32, k: i32) {
 /// byte. Callers slice up to the first NUL.
 pub fn emyg_dtoa(mut value: f64, buffer: &mut [u8]) {
     let mut buffer = buffer;
-    if value == 0_i32 as f64 {
+    if value == 0 as f64 {
         buffer[0] = b'0';
         buffer[1] = b'.';
         buffer[2] = b'0';
         buffer[3] = 0;
     } else {
-        if value < 0_i32 as f64 {
+        if value < 0 as f64 {
             buffer[0] = b'-';
             buffer = &mut buffer[1..];
             value = -value;

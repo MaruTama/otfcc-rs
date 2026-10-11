@@ -656,8 +656,8 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
         }
         stage.finish();
     }
-    if (os_2.version as i32) < 1_i32 {
-        os_2.version = 1_u16;
+    if (os_2.version as i32) < 1 {
+        os_2.version = 1;
     }
     Some(Box::new(os_2))
 }
@@ -696,7 +696,7 @@ pub fn build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
     buf.write_u16be(os_2.us_win_descent);
     buf.write_u32be(os_2.ul_code_page_range1);
     buf.write_u32be(os_2.ul_code_page_range2);
-    if (os_2.version as i32) < 2_i32 {
+    if (os_2.version as i32) < 2 {
         return Some(buf);
     }
     buf.write_u16be(os_2.sx_height as u16);
@@ -704,7 +704,7 @@ pub fn build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
     buf.write_u16be(os_2.us_default_char);
     buf.write_u16be(os_2.us_break_char);
     buf.write_u16be(os_2.us_max_context);
-    if (os_2.version as i32) < 5_i32 {
+    if (os_2.version as i32) < 5 {
         return Some(buf);
     }
     buf.write_u16be(os_2.us_lower_optical_point_size);

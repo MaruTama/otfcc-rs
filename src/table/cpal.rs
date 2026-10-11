@@ -28,11 +28,11 @@ pub struct CpalTable {
     pub palettes: Vec<CpalPalette>,
 }
 pub static WHITE: CpalColor = CpalColor {
-    red: 0xff_u8,
-    green: 0xff_u8,
-    blue: 0xff_u8,
-    alpha: 0xff_u8,
-    label: 0xffff_u16,
+    red: 0xff,
+    green: 0xff,
+    blue: 0xff,
+    alpha: 0xff,
+    label: 0xffff,
 };
 /// The 3 v1 offset arrays (`offsetPaletteTypeArray`/`...LabelArray`/
 /// `...EntryLabelArray`) are read at absolute offsets `16`/`20`/`24 + 2 *
@@ -162,10 +162,10 @@ fn dump_color(color: &CpalColor) -> BuiltValue {
     _color.push_field(b"red", BuiltValue::Int(color.red as i64));
     _color.push_field(b"green", BuiltValue::Int(color.green as i64));
     _color.push_field(b"blue", BuiltValue::Int(color.blue as i64));
-    if color.alpha as i32 != 0xff_i32 {
+    if color.alpha as i32 != 0xff {
         _color.push_field(b"alpha", BuiltValue::Int(color.alpha as i64));
     }
-    if color.label as i32 != 0xffff_i32 {
+    if color.label as i32 != 0xffff {
         _color.push_field(b"label", BuiltValue::Int(color.label as i64));
     }
     _color.preserialize()
@@ -176,7 +176,7 @@ fn dump_palette(palette: &CpalPalette) -> BuiltValue {
     if palette.palette_type != 0 {
         _palette.push_field(b"type", BuiltValue::Int(palette.palette_type as i64));
     }
-    if palette.label != 0xffff_u32 {
+    if palette.label != 0xffff {
         _palette.push_field(b"label", BuiltValue::Int(palette.label as i64));
     }
     let colorset: &Vec<CpalColor> = &palette.colorset;
@@ -271,7 +271,7 @@ fn build_palette_type(cpal: &CpalTable) -> Option<BkBlock> {
 #[inline]
 fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
-    if !palettes.iter().any(|p| p.label != 0xffff_u32) {
+    if !palettes.iter().any(|p| p.label != 0xffff) {
         return None;
     }
     let mut block: BkBlock = bk_new_block(Vec::new());
@@ -283,8 +283,8 @@ fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
 #[inline]
 fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
-    let palette: &CpalPalette = &palettes[0_usize];
-    if !palette.colorset.iter().any(|c| c.label as i32 != 0xffff_i32) {
+    let palette: &CpalPalette = &palettes[0];
+    if !palette.colorset.iter().any(|c| c.label as i32 != 0xffff) {
         return None;
     }
     let mut block: BkBlock = bk_new_block(Vec::new());
@@ -300,7 +300,7 @@ pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
         return None;
     }
     let num_palettes: u16 = palettes.len() as u16;
-    let num_palettes_entries: u16 = palettes[0_usize].colorset.len() as u16;
+    let num_palettes_entries: u16 = palettes[0].colorset.len() as u16;
     let num_color_records: u16 =
         (num_palettes as i32 * num_palettes_entries as i32) as u16;
     let mut color_records: BkBlock = bk_new_block(Vec::new());
@@ -354,7 +354,7 @@ pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
             )],
         );
     }
-    if cpal.version as i32 > 0_i32 {
+    if cpal.version as i32 > 0 {
         bk_push(
             &mut root,
             vec![

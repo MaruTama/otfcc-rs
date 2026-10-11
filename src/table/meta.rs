@@ -124,16 +124,16 @@ pub fn parse_meta(root: &ParsedValue) -> Option<Box<MetaTable>> {
 #[inline]
 fn str2tag(tags: Option<&[u8]>) -> u32 {
     let Some(tags) = tags else {
-        return 0_u32;
+        return 0;
     };
-    let mut tag: u32 = 0_u32;
-    let mut len: u8 = 0_u8;
+    let mut tag: u32 = 0;
+    let mut len: u8 = 0;
     for &b in tags.iter().take(4) {
-        tag = tag << 8_i32 | b as u32;
+        tag = tag << 8 | b as u32;
         len = len.wrapping_add(1);
     }
     for _ in len..4_u8 {
-        tag = tag << 8_i32 | ' ' as i32 as u32;
+        tag = tag << 8 | ' ' as i32 as u32;
     }
     tag
 }
@@ -183,7 +183,7 @@ pub fn build_meta(meta: Option<&MetaTable>) -> Option<Buffer> {
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B32, meta.version),
         bk_int(BkCellType::B32, meta.flags),
-        bk_int(BkCellType::B32, 0_u32),
+        bk_int(BkCellType::B32, 0),
         bk_int(BkCellType::B32, entries.len() as u32),
     ]);
     for e in entries.iter() {

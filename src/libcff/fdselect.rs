@@ -36,16 +36,16 @@ pub fn cff_build_fd_select(fd: &CffFdSelect) -> Buffer {
         CffFdSelect::Format3 { range3, sentinel } => {
             let mut blob_0 = Buffer::new();
             let nranges = range3.len() as i32;
-            blob_0.write_u8(3_u8);
-            blob_0.write_u8((nranges / 256_i32) as u8);
-            blob_0.write_u8((nranges % 256_i32) as u8);
+            blob_0.write_u8(3);
+            blob_0.write_u8((nranges / 256) as u8);
+            blob_0.write_u8((nranges % 256) as u8);
             for r in range3.iter() {
-                blob_0.write_u8((r.first as i32 / 256_i32) as u8);
-                blob_0.write_u8((r.first as i32 % 256_i32) as u8);
+                blob_0.write_u8((r.first as i32 / 256) as u8);
+                blob_0.write_u8((r.first as i32 % 256) as u8);
                 blob_0.write_u8(r.fd);
             }
-            blob_0.write_u8((*sentinel as i32 / 256_i32) as u8);
-            blob_0.write_u8((*sentinel as i32 % 256_i32) as u8);
+            blob_0.write_u8((*sentinel as i32 / 256) as u8);
+            blob_0.write_u8((*sentinel as i32 % 256) as u8);
             blob_0
         }
     }

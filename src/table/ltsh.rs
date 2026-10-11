@@ -51,7 +51,7 @@ pub fn read_ltsh(packet: &Packet) -> Option<Box<LtshTable>> {
 pub fn build_ltsh(ltsh: Option<&LtshTable>) -> Option<Buffer> {
     let ltsh = ltsh?;
     let mut buf = Buffer::new();
-    buf.write_u16be(0_u16);
+    buf.write_u16be(0);
     buf.write_u16be(ltsh.num_glyphs);
     for &pel in ltsh.y_pels.iter().take(ltsh.num_glyphs as usize) {
         buf.write_u8(pel);

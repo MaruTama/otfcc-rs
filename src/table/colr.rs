@@ -131,7 +131,7 @@ pub fn parse_colr(root: &ParsedValue) -> Option<ColrTable> {
                                 glyph: handle_from_name(
                                     layerglyph.as_str_bytes().map(|b| b.to_vec()),
                                 ),
-                                palette_index: layer.get_int_or(b"paletteIndex", 0xffff_i32)
+                                palette_index: layer.get_int_or(b"paletteIndex", 0xffff)
                                     as ColorId,
                             });
                         }
@@ -184,12 +184,12 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
                 ],
             );
             current_layer_index = (current_layer_index as i32
-                + 1_i32)
+                + 1)
                 as GlyphId;
         }
     }
     let root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, 0_u32),
+        bk_int(BkCellType::B16, 0),
         bk_int(BkCellType::B16, (colr.len()) as u32),
         bk_ptr(BkCellType::P32, Some(base_records)),
         bk_ptr(BkCellType::P32, Some(layer_records)),

@@ -26,9 +26,9 @@ pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
     }
     if options.dummy_dsig {
         let mut dsig = Buffer::new();
-        dsig.write_u32be(0x1_u32);
-        dsig.write_u16be(0_u16);
-        dsig.write_u16be(0_u16);
+        dsig.write_u32be(0x1);
+        dsig.write_u16be(0);
+        dsig.write_u16be(0);
         sfnt_builder_push_table(&mut builder, crate::tag::TAG_DSIG, Some(dsig));
     }
     let otf: Buffer = sfnt_builder_serialize(&builder);

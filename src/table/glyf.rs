@@ -57,7 +57,7 @@ impl StemMask {
 
     /// Turns stem `i` on or off. Panics for `i >= 256`.
     pub fn set(&mut self, i: usize, on: bool) {
-        let bit = 1_u64 << (i % 64);
+        let bit = 1 << (i % 64);
         if on {
             self.0[i / 64] |= bit;
         } else {
@@ -249,12 +249,12 @@ fn glyf_contour_fill(arr: &mut Contour, n: usize) {
 #[inline]
 fn init_glyf_reference(glyph_ref: &mut ComponentReference) {
     glyph_ref.glyph = handle_empty() as GlyphHandle;
-    glyph_ref.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-    glyph_ref.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-    glyph_ref.a = 1_i32 as Scale;
-    glyph_ref.b = 0_i32 as Scale;
-    glyph_ref.c = 0_i32 as Scale;
-    glyph_ref.d = 1_i32 as Scale;
+    glyph_ref.x = std::cell::RefCell::new(vq_create_still(0 as Pos));
+    glyph_ref.y = std::cell::RefCell::new(vq_create_still(0 as Pos));
+    glyph_ref.a = 1 as Scale;
+    glyph_ref.b = 0 as Scale;
+    glyph_ref.c = 0 as Scale;
+    glyph_ref.d = 1 as Scale;
     glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
     glyph_ref.outer = 0 as ShapeId;
     glyph_ref.inner = glyph_ref.outer;
@@ -317,19 +317,19 @@ pub fn new_glyf_glyph() -> Box<Glyph> {
         hint_masks: Vec::new(),
         contour_masks: Vec::new(),
         instructions: Vec::new(),
-        y_pel: 0_u8,
+        y_pel: 0,
         fd_select: handle_empty() as FdHandle,
         cid: 0 as GlyphId,
         stat: GlyphStat {
-            x_min: 0_i32 as Pos,
-            x_max: 0_i32 as Pos,
-            y_min: 0_i32 as Pos,
-            y_max: 0_i32 as Pos,
-            nest_depth: 0_u16,
-            n_points: 0_u16,
-            n_contours: 0_u16,
-            n_composite_points: 0_u16,
-            n_composite_contours: 0_u16,
+            x_min: 0 as Pos,
+            x_max: 0 as Pos,
+            y_min: 0 as Pos,
+            y_max: 0 as Pos,
+            nest_depth: 0,
+            n_points: 0,
+            n_contours: 0,
+            n_composite_points: 0,
+            n_composite_contours: 0,
         },
     })
 }
@@ -433,7 +433,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
     );
     if vq_is_still(g.horizontal_origin.clone())
         && (vq_get_still(g.horizontal_origin.clone()) as f64).abs()
-            > 1.0f64 / 1000.0f64
+            > 1.0 / 1000.0
     {
         glyph.push_field(
             b"horizontalOrigin",
@@ -563,12 +563,12 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     let mut glyph_ref: ComponentReference = glyf_component_reference_empty();
     let Some(_gname) = refdump.get_typed(b"glyph", JsonType::String) else {
         glyph_ref.glyph.name = Vec::new();
-        glyph_ref.x = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-        glyph_ref.y = std::cell::RefCell::new(vq_create_still(0_i32 as Pos));
-        glyph_ref.a = 1.0f64 as Scale;
-        glyph_ref.b = 0.0f64 as Scale;
-        glyph_ref.c = 0.0f64 as Scale;
-        glyph_ref.d = 1.0f64 as Scale;
+        glyph_ref.x = std::cell::RefCell::new(vq_create_still(0 as Pos));
+        glyph_ref.y = std::cell::RefCell::new(vq_create_still(0 as Pos));
+        glyph_ref.a = 1.0 as Scale;
+        glyph_ref.b = 0.0 as Scale;
+        glyph_ref.c = 0.0 as Scale;
+        glyph_ref.d = 1.0 as Scale;
         glyph_ref.round_to_grid = false;
         glyph_ref.use_my_metrics = false;
         return glyph_ref;
@@ -576,10 +576,10 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     glyph_ref.glyph = handle_from_name(_gname.as_str_bytes().map(|b| b.to_vec()));
     glyph_ref.x = std::cell::RefCell::new(json_vq_of(refdump.get(b"x")));
     glyph_ref.y = std::cell::RefCell::new(json_vq_of(refdump.get(b"y")));
-    glyph_ref.a = refdump.get_num_or(b"a", 1.0f64) as Scale;
-    glyph_ref.b = refdump.get_num_or(b"b", 0.0f64) as Scale;
-    glyph_ref.c = refdump.get_num_or(b"c", 0.0f64) as Scale;
-    glyph_ref.d = refdump.get_num_or(b"d", 1.0f64) as Scale;
+    glyph_ref.a = refdump.get_num_or(b"a", 1.0) as Scale;
+    glyph_ref.b = refdump.get_num_or(b"b", 0.0) as Scale;
+    glyph_ref.c = refdump.get_num_or(b"c", 0.0) as Scale;
+    glyph_ref.d = refdump.get_num_or(b"d", 1.0) as Scale;
     glyph_ref.round_to_grid = refdump.get_bool(b"roundToGrid");
     glyph_ref.use_my_metrics = refdump.get_bool(b"useMyMetrics");
     if refdump.get_bool(b"isAnchored") {
@@ -606,7 +606,7 @@ fn parse_stems(sd: Option<&ParsedValue>, stems: &mut StemDefList) {
             let sdef = PostscriptStemDef {
                 position: s.get_num(b"position") as Pos,
                 width: s.get_num(b"width") as Pos,
-                map: 0_u16,
+                map: 0,
             };
             stems.push(sdef);
         }
