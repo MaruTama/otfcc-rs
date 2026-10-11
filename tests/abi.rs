@@ -32,7 +32,7 @@ const SNAPSHOT_RELATIVE_PATH: &str = "scripts/abi-exports.txt";
 /// building it happens automatically as part of building this test
 /// binary's own `[lib]` dependency (confirmed: a plain `cargo build`/
 /// `cargo test`, no separate step, already produces `libotfcc_rust.dylib`
-/// in `target/debug/` alongside the two CLI binaries).
+/// in `target/debug/`).
 fn cdylib_path() -> PathBuf {
     let exe = std::env::current_exe().expect("current_exe should resolve for a running test binary");
     let profile_dir = exe

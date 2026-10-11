@@ -17,15 +17,29 @@
 //! `dll-arch-check.sh` works around doesn't apply here, which is why this
 //! file has no equivalent skip logic.
 
-mod support;
-
-use std::ffi::{c_char, c_void, OsStr};
+use otfcc_json::{JSON_SERIALIZE_MODE_MULTILINE, JsonSerializeOpts, json_serialize_ex};
+use otfcc_rust::consolidate::consolidate_font;
+use otfcc_rust::font::sfnt::read_sfnt;
+use otfcc_rust::json_writer::serialize_to_json;
+use otfcc_rust::otf_reader::read_otf;
+use otfcc_rust::support::options::Options;
+use std::ffi::{c_char, c_void};
 use std::path::{Path, PathBuf};
-use support::{otfccdump, payload, repo_root, run_ok, scratch_dir};
 
 /// Same derivation `abi.rs`'s own `cdylib_path` uses -- see its doc
 /// comment for why Cargo has no `CARGO_BIN_EXE_<name>`-style env var for
 /// cdylib artifacts.
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+/// A scratch directory under `build/`, created on first use.
+fn scratch_dir(subdir: &str) -> PathBuf {
+    let dir = repo_root().join("build").join(subdir);
+    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("failed to create {}: {e}", dir.display()));
+    dir
+}
+
 fn cdylib_path() -> PathBuf {
     let exe = std::env::current_exe().expect("current_exe should resolve for a running test binary");
     let profile_dir = exe
@@ -62,18 +76,18 @@ fn byte_diff_count(a: &[u8], b: &[u8]) -> usize {
 fn otfccdll_build_matches_golden_within_timestamp_tolerance() {
     let build = scratch_dir("dll-abi-test-rs");
 
-    // A fresh dump of the same payload compare-with-golden.sh's own
-    // otfccdll section feeds test-dll.py, produced independently here
-    // rather than reused from golden.rs's own build dir -- separate test
-    // binaries can't reliably share a scratch file across processes (see
-    // golden.rs's own iosevka-r.json race between two of its test fns).
-    let input_json = build.join("Molengo-Regular.json");
-    run_ok(
-        "Molengo-Regular dump (for otfccdll)",
-        &otfccdump(),
-        &[payload("Molengo-Regular.ttf").as_os_str(), OsStr::new("-o"), input_json.as_os_str(), OsStr::new("--pretty")],
+    // The JSON input: what `otfccdump --pretty` writes for this payload
+    // (its default options plus `decimal_cmap`), made through the library's
+    // own dump path, since the binaries belong to `crates/otfcc-cli`.
+    let font_path = repo_root().join("tests/payload/Molengo-Regular.ttf");
+    let options = Options { decimal_cmap: true, ..Options::default() };
+    let sfnt = read_sfnt(&font_path).unwrap_or_else(|| panic!("cannot read {}", font_path.display()));
+    let mut font = read_otf(&sfnt, 0, &options).unwrap_or_else(|| panic!("cannot parse {}", font_path.display()));
+    consolidate_font(&mut font, &options);
+    let injson = json_serialize_ex(
+        &serialize_to_json(&mut font, &options),
+        JsonSerializeOpts { mode: JSON_SERIALIZE_MODE_MULTILINE, opts: 0, indent_size: 4 },
     );
-    let injson = std::fs::read(&input_json).unwrap_or_else(|e| panic!("failed to read {}: {e}", input_json.display()));
 
     let lib_path = cdylib_path();
     assert!(
@@ -105,7 +119,7 @@ fn otfccdll_build_matches_golden_within_timestamp_tolerance() {
     std::fs::write(&out_path, &output).unwrap_or_else(|e| panic!("failed to write {}: {e}", out_path.display()));
 
     let golden_path = repo_root().join("tests/golden/dll-test.otf");
-    if support::update_golden() {
+    if std::env::var_os("UPDATE_GOLDEN").is_some() {
         std::fs::write(&golden_path, &output).unwrap_or_else(|e| panic!("failed to write {}: {e}", golden_path.display()));
         eprintln!("  updated tests/golden/dll-test.otf");
         return;

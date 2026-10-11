@@ -6,13 +6,13 @@ use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::model::Font;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::otf_writer::serialize_to_otf;
-use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
-use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
+use otfcc_cli::getopt::{GetoptItem, LongOpt, getopt_long};
+use otfcc_cli::{print_version_info, report_getopt_error, start_logging};
 use otfcc_rust::support::options::options_optimize_to;
 use otfcc_json::ParsedValue;
 use otfcc_json::parse_json;
-use otfcc_rust::support::cli::stopwatch::log_step_time;
-use otfcc_rust::support::EXIT_FAILURE;
+use otfcc_cli::stopwatch::log_step_time;
+use otfcc_cli::EXIT_FAILURE;
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 

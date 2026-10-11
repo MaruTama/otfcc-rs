@@ -11,7 +11,7 @@
 // every one Stage 7-1 fixes should turn into a corpus entry that stays
 // crash-free forever after.
 //
-// The otfccdump binary's equivalent flow (src/bin/otfccdump.rs) reads a real
+// The otfccdump binary's equivalent flow (crates/otfcc-cli/src/bin/otfccdump.rs) reads a real
 // file by path via read_sfnt and process-exits on failure, so its
 // error paths never have to worry about freeing what came before -- this
 // harness runs thousands of iterations in one process, so it can't take

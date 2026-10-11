@@ -1,7 +1,7 @@
-//! Shared helpers for the `cargo test`-native replacements of
-//! `scripts/*.sh` (Stage F in the plan doc). Not a test file itself
-//! (the `support/` subdirectory convention keeps Cargo from treating it as
-//! one) -- each migrated test file does `mod support;` and uses these.
+//! Helpers shared by the tests that run the `otfccdump`/`otfccbuild`
+//! binaries. Not a test file itself (the `support/` subdirectory convention
+//! keeps Cargo from treating it as one) -- each test file does
+//! `mod support;` and uses these.
 //!
 //! Each `tests/*.rs` file is compiled as its own independent binary
 //! (standard Cargo integration-test behavior), so this module is
@@ -14,13 +14,12 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// The repository root -- `CARGO_MANIFEST_DIR` for every test in this
-/// crate, now that the crate root and the repo root are the same directory
-/// (the crate used to live nested under `rust/`, one level below the repo
-/// root, before that directory was hoisted to the top; see
-/// RUST_MIGRATION.md).
+/// The repository root, two levels above this crate: the payload fonts
+/// (`tests/payload`), the golden files (`tests/golden`) and the `build/`
+/// scratch directory live there, and the binaries run from there so the
+/// paths they log match the golden logs.
 pub fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf()
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().expect("the repository root should exist")
 }
 
 pub fn payload(name: &str) -> PathBuf {
@@ -39,9 +38,8 @@ pub fn scratch_dir(subdir: &str) -> PathBuf {
 }
 
 /// Path to the just-built `otfccdump`/`otfccbuild` binaries -- Cargo sets
-/// `CARGO_BIN_EXE_<name>` automatically for every `[[bin]]` target in the
-/// same package, building it first if needed (no separate `build-crate.sh`
-/// step, unlike the shell scripts this replaces).
+/// `CARGO_BIN_EXE_<name>` automatically for every binary in this package,
+/// building it first if needed.
 pub fn otfccdump() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_otfccdump"))
 }

@@ -1,14 +1,19 @@
-// Utilities only the two `src/bin/` CLI entry points use -- long-option
-// argument parsing, the `--verbose` stopwatch timing log, and the startup
-// steps both binaries share -- grouped together since none of it is part of
-// the library's own font-reading/-writing vocabulary.
+//! The `otfccdump` and `otfccbuild` command-line tools.
+//!
+//! This library holds what the two binaries (`src/bin/`) share and the
+//! otfcc library itself does not need: long-option argument parsing, the
+//! `--verbose` step-time log, and the startup steps. The binaries use the
+//! `otfcc_rust` library only through its public API.
 pub mod getopt;
 pub mod stopwatch;
 
-use crate::logger::StageGuard;
-use crate::support::options::Options;
-use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use otfcc_rust::logger::StageGuard;
+use otfcc_rust::support::options::Options;
+use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use getopt::GetoptItem;
+
+/// The process exit status for a failed run (C's `EXIT_FAILURE`).
+pub const EXIT_FAILURE: i32 = 1_i32;
 
 /// Prints the `--version` line, e.g. "This is Polymorphic otfccdump,
 /// version 0.10.4."
@@ -50,6 +55,6 @@ pub fn start_logging(program: &'static str, options: &Options) -> StageGuard {
     } else {
         1
     };
-    crate::logger::install_stderr(verbosity);
-    crate::logger::indent(program)
+    otfcc_rust::logger::install_stderr(verbosity);
+    otfcc_rust::logger::indent(program)
 }

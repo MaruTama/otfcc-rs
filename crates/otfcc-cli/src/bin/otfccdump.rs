@@ -3,7 +3,7 @@ use otfcc_rust::support::options::Options;
 
 use otfcc_rust::font::model::Font;
 use otfcc_rust::font::sfnt::SplineFontContainer;
-use otfcc_rust::support::EXIT_FAILURE;
+use otfcc_cli::EXIT_FAILURE;
 
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::sfnt::read_sfnt;
@@ -12,9 +12,9 @@ use otfcc_rust::otf_reader::read_otf;
 use otfcc_json::{
     JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, JsonStreamWriter,
 };
-use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
-use otfcc_rust::support::cli::{print_version_info, report_getopt_error, start_logging};
-use otfcc_rust::support::cli::stopwatch::log_step_time;
+use otfcc_cli::getopt::{GetoptItem, LongOpt, getopt_long};
+use otfcc_cli::{print_version_info, report_getopt_error, start_logging};
+use otfcc_cli::stopwatch::log_step_time;
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 

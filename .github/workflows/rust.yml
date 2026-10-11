@@ -251,8 +251,7 @@ jobs:
           cache-directories: ~/.cache/miri
 
       # Filtered to just the modules that contain `unsafe fn`/`unsafe {}`
-      # (`grep -rl "unsafe fn\|unsafe {" src --include=*.rs`, excluding
-      # src/bin/ since `--lib` never covered the two binaries anyway) instead
+      # (`grep -rl "unsafe fn\|unsafe {" src --include=*.rs`) instead
       # of every `--lib` test. Miri's interpretation overhead scales with how
       # much code actually runs under it, and most of this crate's ~420 lib
       # tests exercise table readers/writers/JSON (de)serialization that
