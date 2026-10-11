@@ -13,7 +13,7 @@ use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use getopt::GetoptItem;
 
 /// The process exit status for a failed run (C's `EXIT_FAILURE`).
-pub const EXIT_FAILURE: i32 = 1_i32;
+pub const EXIT_FAILURE: i32 = 1;
 
 /// Prints the `--version` line, e.g. "This is Polymorphic otfccdump,
 /// version 0.10.4."

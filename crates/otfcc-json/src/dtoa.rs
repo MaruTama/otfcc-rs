@@ -3,20 +3,13 @@ pub struct DiyFp {
     pub f: u64,
     pub e: i32,
 }
-static K_DIY_SIGNIFICAND_SIZE: i32 = 64_i32;
-static K_DP_SIGNIFICAND_SIZE: i32 = 52_i32;
-static K_DP_EXPONENT_BIAS: i32 =
-    0x3ff_i32 + 52_i32;
-static K_DP_MIN_EXPONENT: i32 =
-    -0x3ff_i32 - 52_i32;
-static K_DP_EXPONENT_MASK: u64 = (0x7ff00000_i32 as u64)
-    << 32_i32
-    | 0_i32 as u64;
-static K_DP_SIGNIFICAND_MASK: u64 = (0xfffff_i32 as u64)
-    << 32_i32
-    | 0xffffffff_u32 as u64;
-static K_DP_HIDDEN_BIT: u64 = (0x100000_i32 as u64) << 32_i32
-    | 0_i32 as u64;
+const K_DIY_SIGNIFICAND_SIZE: i32 = 64;
+const K_DP_SIGNIFICAND_SIZE: i32 = 52;
+const K_DP_EXPONENT_BIAS: i32 = 0x3ff + 52;
+const K_DP_MIN_EXPONENT: i32 = -0x3ff - 52;
+const K_DP_EXPONENT_MASK: u64 = 0x7ff0_0000_0000_0000;
+const K_DP_SIGNIFICAND_MASK: u64 = 0x000f_ffff_ffff_ffff;
+const K_DP_HIDDEN_BIT: u64 = 0x0010_0000_0000_0000;
 #[inline]
 fn diy_fp_from_parts(f: u64, e: i32) -> DiyFp {
     let mut fp: DiyFp = DiyFp { f: 0, e: 0 };

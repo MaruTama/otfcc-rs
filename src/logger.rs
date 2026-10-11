@@ -46,7 +46,8 @@ const LOG_VL_IMPORTANT: u8 = 1;
 const LOG_VL_NOTICE: u8 = 2;
 const LOG_VL_PROGRESS: u8 = 10;
 
-static OTFCC_LOGGER_TYPE_NAMES: [&str; 3] = ["[ERROR]", "[WARNING]", "[NOTE]"];
+/// The prefix each kind of line gets, indexed by kind.
+const KIND_PREFIXES: [&str; 3] = ["[ERROR]", "[WARNING]", "[NOTE]"];
 
 /// Displays one piece of a log message the way `bytesbuild!` renders it
 /// (via `BytePart`): a `&Vec<u8>` (a glyph name) is cut at its first NUL,
@@ -159,8 +160,8 @@ impl TreeFormatter {
                 line.extend_from_slice(b" : ");
             }
         }
-        if (kind as usize) < OTFCC_LOGGER_TYPE_NAMES.len() {
-            line.extend_from_slice(OTFCC_LOGGER_TYPE_NAMES[kind as usize].as_bytes());
+        if (kind as usize) < KIND_PREFIXES.len() {
+            line.extend_from_slice(KIND_PREFIXES[kind as usize].as_bytes());
             line.push(b' ');
         }
         line.extend_from_slice(data);
@@ -434,7 +435,7 @@ mod tests {
                 }
             }
             if (kind as u32) < 3 {
-                demand.extend_from_slice(OTFCC_LOGGER_TYPE_NAMES[kind as usize].as_bytes());
+                demand.extend_from_slice(KIND_PREFIXES[kind as usize].as_bytes());
                 demand.extend_from_slice(b" ");
             }
             demand.extend_from_slice(data);

@@ -22,7 +22,7 @@ pub struct NameRecord {
     pub name_string: Vec<u8>,
 }
 pub type NameTable = Vec<NameRecord>;
-pub const COPYRIGHT_LEN: i32 = 32_i32;
+pub const COPYRIGHT_LEN: usize = 32;
 fn should_decode_as_utf16(record: &NameRecord) -> bool {
     record.platform_id == 0
         || record.platform_id == 2 && record.encoding_id == 1
@@ -205,7 +205,7 @@ pub fn build_name(name: Option<&NameTable>) -> Option<Buffer> {
         b" --",
     );
     // Truncated or NUL-padded to exactly COPYRIGHT_LEN bytes.
-    copyright.resize(COPYRIGHT_LEN as usize, 0);
+    copyright.resize(COPYRIGHT_LEN, 0);
     strings.write_bytes(&copyright);
     let strings_offset = buf.pos();
     buf.write_buffer_owned(strings);

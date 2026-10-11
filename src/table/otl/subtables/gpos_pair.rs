@@ -274,8 +274,8 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
         for k in 0..=second_cd.maxclass {
             let f1: u8 = required_position_format(subtable.first_values[j as usize][k as usize]);
             let f2: u8 = required_position_format(subtable.second_values[j as usize][k as usize]);
-            if f1 as i32 | f2 as i32 != 0 {
-                if f1 as i32 == FORMAT_DWIDTH as i32 && f2 as i32 == 0_i32 {
+            if f1 | f2 != 0 {
+                if f1 as u16 == FORMAT_DWIDTH && f2 == 0 {
                     row.push_item(BuiltValue::position(
                         subtable.first_values[j as usize][k as usize].d_width,
                     ));

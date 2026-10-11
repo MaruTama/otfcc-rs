@@ -19,10 +19,10 @@ pub struct GaspTable {
     pub version: u16,
     pub records: Vec<GaspRecord>,
 }
-pub const GASP_DOGRAY: i32 = 0x2_i32;
-pub const GASP_GRIDFIT: i32 = 0x1_i32;
-pub const GASP_SYMMETRIC_GRIDFIT: i32 = 0x4_i32;
-pub const GASP_SYMMETRIC_SMOOTHING: i32 = 0x8_i32;
+pub const GASP_DOGRAY: u16 = 0x2;
+pub const GASP_GRIDFIT: u16 = 0x1;
+pub const GASP_SYMMETRIC_GRIDFIT: u16 = 0x4;
+pub const GASP_SYMMETRIC_SMOOTHING: u16 = 0x8;
 fn decode_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.u16()?;
@@ -34,10 +34,10 @@ fn decode_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
         let range_gasp_behavior = r.u16()?;
         records.push(GaspRecord {
             range_max_ppem,
-            dogray: range_gasp_behavior & GASP_DOGRAY as u16 != 0,
-            gridfit: range_gasp_behavior & GASP_GRIDFIT as u16 != 0,
-            symmetric_smoothing: range_gasp_behavior & GASP_SYMMETRIC_SMOOTHING as u16 != 0,
-            symmetric_gridfit: range_gasp_behavior & GASP_SYMMETRIC_GRIDFIT as u16 != 0,
+            dogray: range_gasp_behavior & GASP_DOGRAY != 0,
+            gridfit: range_gasp_behavior & GASP_GRIDFIT != 0,
+            symmetric_smoothing: range_gasp_behavior & GASP_SYMMETRIC_SMOOTHING != 0,
+            symmetric_gridfit: range_gasp_behavior & GASP_SYMMETRIC_GRIDFIT != 0,
         });
     }
     Ok(GaspTable { version, records })
@@ -106,20 +106,20 @@ pub fn build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {
     buf.write_u16be(gasp.records.len() as u16);
     for r in &gasp.records {
         buf.write_u16be(r.range_max_ppem);
-        buf.write_u16be(
-            ((if r.dogray { GASP_DOGRAY } else { 0_i32 })
-                | (if r.gridfit { GASP_GRIDFIT } else { 0_i32 })
-                | (if r.symmetric_gridfit {
-                    GASP_SYMMETRIC_GRIDFIT
-                } else {
-                    0_i32
-                })
-                | (if r.symmetric_smoothing {
-                    GASP_SYMMETRIC_SMOOTHING
-                } else {
-                    0_i32
-                })) as u16,
-        );
+        let mut behavior: u16 = 0;
+        if r.dogray {
+            behavior |= GASP_DOGRAY;
+        }
+        if r.gridfit {
+            behavior |= GASP_GRIDFIT;
+        }
+        if r.symmetric_gridfit {
+            behavior |= GASP_SYMMETRIC_GRIDFIT;
+        }
+        if r.symmetric_smoothing {
+            behavior |= GASP_SYMMETRIC_SMOOTHING;
+        }
+        buf.write_u16be(behavior);
     }
     Some(buf)
 }
@@ -135,7 +135,7 @@ mod parse_gasp_tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // numRanges
         data.extend_from_slice(&65535u16.to_be_bytes()); // rangeMaxPPEM
         data.extend_from_slice(
-            &(GASP_GRIDFIT as u16 | GASP_SYMMETRIC_SMOOTHING as u16).to_be_bytes(),
+            &(GASP_GRIDFIT | GASP_SYMMETRIC_SMOOTHING).to_be_bytes(),
         );
         let gasp = decode_gasp(&data).unwrap();
         assert_eq!(gasp.records.len(), 1);

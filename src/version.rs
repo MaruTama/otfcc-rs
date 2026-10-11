@@ -3,9 +3,9 @@
 //! Kept in one place so the two binaries and the `name` table's
 //! "-- By OTFCC %d.%d.%d --" string cannot drift apart.
 
-pub const MAIN_VER: i32 = 0_i32;
-pub const SECONDARY_VER: i32 = 10_i32;
-pub const PATCH_VER: i32 = 4_i32;
+pub const MAIN_VER: i32 = 0;
+pub const SECONDARY_VER: i32 = 10;
+pub const PATCH_VER: i32 = 4;
 
 #[cfg(test)]
 mod tests {
