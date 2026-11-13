@@ -37,7 +37,7 @@ use crate::libcff::charset::cff_build_charset;
 use crate::libcff::codecs::cff_encode_cff_operator;
 use crate::libcff::dict::{build_dict, parse_to_callback};
 use crate::libcff::fdselect::cff_build_fd_select;
-use crate::libcff::index::{build_index, new_empty_cff_index, new_index_by_callback};
+use crate::libcff::index::{build_index, new_index_by_callback};
 use crate::libcff::parser::{cff_open_stream, cff_parse_outline, cff_parse_subr};
 use crate::libcff::string::get_cff_sid;
 use crate::libcff::value::cffnum;
@@ -1284,14 +1284,16 @@ fn cff_compile_nameindex(cff: &mut CffTable) -> Buffer {
     if cff.font_name.is_empty() {
         cff.font_name = b"Caryll-CFF-FONT".to_vec();
     }
-    let mut name_index = new_empty_cff_index();
-    name_index.count = 1 as Arity;
-    name_index.off_size = 4;
-    name_index.offset = vec![1, cff.font_name.len() as u32 + 1];
     // The name is written with a trailing NUL.
     let mut name_data: Vec<u8> = cff.font_name.clone();
     name_data.push(0);
-    name_index.data = name_data;
+    let name_index = CffIndex {
+        count: 1 as Arity,
+        off_size: 4,
+        offset: vec![1, cff.font_name.len() as u32 + 1],
+        data: name_data,
+        ..Default::default()
+    };
     let buf = build_index(&name_index);
     cff.font_name = Vec::new();
     buf

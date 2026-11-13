@@ -6,7 +6,7 @@ use crate::libcff::dict::parse_dict_key_int;
 use crate::libcff::fdselect::CffFdSelect;
 use crate::libcff::fdselect::cff_extract_fd_select;
 use crate::libcff::index::CffIndex;
-use crate::libcff::index::{empty_index, extract_index, get_index_length, new_empty_cff_index};
+use crate::libcff::index::{empty_index, extract_index, get_index_length};
 use crate::libcff::{
     CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, OP_CHAR_STRINGS, OP_CHARSET, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT,
     OP_PRIVATE, OP_SUBRS,
@@ -234,16 +234,16 @@ pub fn cff_open_stream(data: &[u8]) -> Box<CffFile> {
             hdr_size: 0,
             off_size: 0,
         },
-        name: new_empty_cff_index(),
-        top_dict: new_empty_cff_index(),
-        string: new_empty_cff_index(),
-        global_subr: new_empty_cff_index(),
+        name: CffIndex::default(),
+        top_dict: CffIndex::default(),
+        string: CffIndex::default(),
+        global_subr: CffIndex::default(),
         encodings: CffEncoding::Unspecified,
         charsets: CffCharset::IsoAdobe,
         fdselect: CffFdSelect::Unspecified,
-        char_strings: new_empty_cff_index(),
-        font_dict: new_empty_cff_index(),
-        local_subr: new_empty_cff_index(),
+        char_strings: CffIndex::default(),
+        font_dict: CffIndex::default(),
+        local_subr: CffIndex::default(),
     });
     file.raw_data = data.to_vec();
     file.cnt_glyph = 0;

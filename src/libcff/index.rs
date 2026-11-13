@@ -2,13 +2,15 @@ use otfcc_binary::Buffer;
 use otfcc_binary::FontReader;
 use crate::support::primitives::Arity;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 #[repr(u32)]
 pub enum CffIndexCountType {
+    #[default]
     U16 = 0,
     U32 = 1,
 }
-#[derive(Debug)]
+/// An empty INDEX is the default, so `CffFile` can start with every field valid.
+#[derive(Debug, Default)]
 pub struct CffIndex {
     pub count_type: CffIndexCountType,
     pub count: Arity,
@@ -16,51 +18,29 @@ pub struct CffIndex {
     pub offset: Vec<u32>,
     pub data: Vec<u8>,
 }
-// `gu1`/`gu2`/`gu3`/`gu4` (1/2/3/4-byte big-endian unsigned reads, no
-// bounds checking, no length parameter at all) are gone from this file --
-// one of ten near-identical copies across `libcff/` the plan calls out by
-// name (`charset.rs`/`fdselect.rs`/`parser.rs` each still have
-// their own; converting those is separately scoped follow-up work).
-// `FontReader::u8()`/`u16()`/`u24()`/`u32()` are exactly these four reads,
-// checked against the buffer's real length.
-#[inline]
-pub(crate) fn cff_index_dispose(x: &mut CffIndex) {
-    x.offset = Vec::new();
-    x.data = Vec::new();
-}
-/// An empty INDEX. `CffFile` is built from these, so every field starts as a
-/// valid value.
-pub(crate) fn new_empty_cff_index() -> CffIndex {
-    CffIndex {
-        count_type: CffIndexCountType::U16,
-        count: 0 as Arity,
-        off_size: 0,
-        offset: Vec::new(),
-        data: Vec::new(),
-    }
-}
 pub(crate) fn get_index_length(i: &CffIndex) -> u32 {
     if i.count != 0 {
         // Read from the font, so the arithmetic wraps rather than panics on
         // a corrupt offset.
         let data_len = i.offset[i.count as usize].wrapping_sub(1);
         let offsets_len = i.count.wrapping_add(1).wrapping_mul(i.off_size as u32);
-        return 3u32.wrapping_add(data_len).wrapping_add(offsets_len);
+        3u32.wrapping_add(data_len).wrapping_add(offsets_len)
     } else {
-        return 3;
-    };
+        3
+    }
 }
 pub(crate) fn empty_index(i: &mut CffIndex) {
-    cff_index_dispose(i);
+    i.offset = Vec::new();
+    i.data = Vec::new();
     i.count_type = CffIndexCountType::U16;
     i.count = 0 as Arity;
     i.off_size = 0;
 }
-// Reads the INDEX at `pos` into `in_0`. Every read is checked against the
+// Reads the INDEX at `pos` into `index`. Every read is checked against the
 // table, so a malformed INDEX (one whose last offset is 0 would otherwise
-// claim a data block of nearly 4 GB) leaves `in_0` empty, like an INDEX
+// claim a data block of nearly 4 GB) leaves `index` empty, like an INDEX
 // with a count of 0.
-pub(crate) fn extract_index(data: &[u8], pos: u32, in_0: &mut CffIndex) {
+pub(crate) fn extract_index(data: &[u8], pos: u32, index: &mut CffIndex) {
     let result: Option<()> = 'parse: {
         let Ok(mut r) = FontReader::new(data).at(pos as usize) else {
             break 'parse None;
@@ -71,8 +51,8 @@ pub(crate) fn extract_index(data: &[u8], pos: u32, in_0: &mut CffIndex) {
         let Ok(off_size) = r.u8() else {
             break 'parse None;
         };
-        in_0.count = count;
-        in_0.off_size = off_size;
+        index.count = count;
+        index.off_size = off_size;
         if count > 0 as Arity {
             if !(1..=4).contains(&off_size) {
                 break 'parse None;
@@ -120,19 +100,19 @@ pub(crate) fn extract_index(data: &[u8], pos: u32, in_0: &mut CffIndex) {
             let Ok(body) = r.bytes(data_len as usize) else {
                 break 'parse None;
             };
-            in_0.offset = offset;
-            in_0.data = body.to_vec();
+            index.offset = offset;
+            index.data = body.to_vec();
         } else {
-            in_0.offset = Vec::new();
-            in_0.data = Vec::new();
+            index.offset = Vec::new();
+            index.data = Vec::new();
         }
         break 'parse Some(());
     };
     if result.is_none() {
-        in_0.count = 0 as Arity;
-        in_0.off_size = 0;
-        in_0.offset = Vec::new();
-        in_0.data = Vec::new();
+        index.count = 0 as Arity;
+        index.off_size = 0;
+        index.offset = Vec::new();
+        index.data = Vec::new();
     }
 }
 // Builds an INDEX from `length` buffers taken from `items`.
@@ -195,7 +175,7 @@ mod extract_index_tests {
     fn reads_a_well_formed_one_entry_index() {
         // count=1, off_size=1, offset=[1,3] (data is 2 bytes), data=[0xAA,0xBB]
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x03, 0xAA, 0xBB];
-        let mut idx = new_empty_cff_index();
+        let mut idx = CffIndex::default();
             extract_index(&data, 0, &mut idx);
             assert_eq!(idx.count, 1);
             assert_eq!(idx.off_size, 1);
@@ -206,7 +186,7 @@ mod extract_index_tests {
     #[test]
     fn reads_an_empty_index() {
         let data = [0x00u8, 0x00, 0x00]; // count=0, off_size=0
-        let mut idx = new_empty_cff_index();
+        let mut idx = CffIndex::default();
             extract_index(&data, 0, &mut idx);
             assert_eq!(idx.count, 0);
             assert!(idx.offset.is_empty());
@@ -220,7 +200,7 @@ mod extract_index_tests {
         // non-decreasing). `offset[count] - 1` must not wrap to 0xFFFFFFFF
         // and copy ~4GB.
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x00];
-        let mut idx = new_empty_cff_index();
+        let mut idx = CffIndex::default();
             extract_index(&data, 0, &mut idx);
             assert_eq!(idx.count, 0);
             assert!(idx.offset.is_empty());
@@ -232,7 +212,7 @@ mod extract_index_tests {
         // count=5, off_size=4, but the table ends right after off_size --
         // the offset array (and everything past it) is missing entirely.
         let data = [0x00u8, 0x05, 0x04];
-        let mut idx = new_empty_cff_index();
+        let mut idx = CffIndex::default();
             extract_index(&data, 0, &mut idx);
             assert_eq!(idx.count, 0);
             assert!(idx.offset.is_empty());
@@ -246,7 +226,7 @@ mod extract_index_tests {
         // array -- previously unguarded even when the offsets themselves
         // are internally well-formed (not the wraparound case above).
         let data = [0x00u8, 0x01, 0x01, 0x01, 200u8, 0xAA, 0xBB];
-        let mut idx = new_empty_cff_index();
+        let mut idx = CffIndex::default();
             extract_index(&data, 0, &mut idx);
             assert_eq!(idx.count, 0);
             assert!(idx.offset.is_empty());
@@ -264,7 +244,7 @@ mod extract_index_tests {
         // 3 - 5, unsigned) is exactly the `get_cff_sid` wraparound this
         // guard exists to close.
         let data = [0x00u8, 0x02, 0x01, 0x01, 0x05, 0x03, 0xAA, 0xBB, 0xCC];
-        let mut idx = new_empty_cff_index();
+        let mut idx = CffIndex::default();
             extract_index(&data, 0, &mut idx);
             assert_eq!(idx.count, 0);
             assert!(idx.offset.is_empty());
@@ -276,7 +256,7 @@ mod extract_index_tests {
         // as an all-zero offset array, whose last entry is 0 -- the same
         // wraparound as above.
         let data = [0x00u8, 0x01, 0x05, 0x00, 0x00];
-        let mut idx = new_empty_cff_index();
+        let mut idx = CffIndex::default();
             extract_index(&data, 0, &mut idx);
             assert_eq!(idx.count, 0);
     }
