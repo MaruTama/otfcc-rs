@@ -77,15 +77,11 @@ pub struct CffSubrGraph {
     total_char_strings: u32,
     pub do_subroutinize: bool,
 }
-/// `root`/`last` here are placeholders, valid but not yet meaningful --
-/// every real construction site calls `subr_graph_init` (which
-/// allocates the actual root rule into `nodes`/`rules` and overwrites
-/// both) immediately afterward. This exists so callers outside this file
-/// (`table/cff.rs`) can build a `CffSubrGraph` without needing to name
-/// `NodeId`/`RuleId`, which are private to this module.
-impl Default for CffSubrGraph {
-    fn default() -> Self {
-        CffSubrGraph {
+impl CffSubrGraph {
+    /// An empty graph holding only the root rule.
+    pub fn new(do_subroutinize: bool) -> Self {
+        // `root`/`last` are placeholders until `alloc_rule` below replaces them.
+        let mut g = CffSubrGraph {
             nodes: Vec::new(),
             rules: Vec::new(),
             root: RuleId(0),
@@ -93,11 +89,13 @@ impl Default for CffSubrGraph {
             diagram_index: std::collections::HashMap::new(),
             total_rules: 0,
             total_char_strings: 0,
-            do_subroutinize: false,
-        }
+            do_subroutinize,
+        };
+        let root = g.alloc_rule();
+        g.root = root;
+        g.last = root;
+        g
     }
-}
-impl CffSubrGraph {
     fn node(&self, id: NodeId) -> &CffSubrNode {
         let n = &self.nodes[id.0];
         debug_assert!(!n.dead, "use of a deleted CffSubrNode");
@@ -163,35 +161,6 @@ impl CffSubrGraph {
         // Tombstone, not a reused slot -- see `NodeId`'s own comment.
         self.nodes[x.0].dead = true;
     }
-    // Nothing to do: every node's `terminal` is dropped with the graph.
-    fn delete_full_rule(&mut self, _r: RuleId) {}
-    fn init(&mut self) {
-        let root = self.alloc_rule();
-        self.root = root;
-        self.last = root;
-        self.diagram_index = std::collections::HashMap::new();
-        self.total_rules = 0;
-        self.total_char_strings = 0;
-        self.do_subroutinize = false;
-    }
-    fn dispose(&mut self) {
-        let mut r = Some(self.root);
-        while let Some(rid) = r {
-            let next = self.rule(rid).next;
-            self.delete_full_rule(rid);
-            r = next;
-        }
-        // The map's values own nothing (both fields are `Copy`).
-        self.diagram_index = std::collections::HashMap::new();
-    }
-}
-#[inline]
-pub fn subr_graph_init(x: &mut CffSubrGraph) {
-    x.init();
-}
-#[inline]
-pub fn cff_subr_graph_dispose(x: &mut CffSubrGraph) {
-    x.dispose();
 }
 /// The key is header bytes, payload, then a trailing NUL; the leading
 /// `'1'`/`'2'` (singlet vs doublet) keeps the two arities from ever
@@ -891,18 +860,11 @@ mod subr_graph_tests {
     }
 
     fn build(glyphs: &[CffCharstringIl], do_subroutinize: bool) -> (Buffer, Buffer, Buffer) {
-        // `nodes`/`rules` start empty; `subr_graph_init` allocates the
-        // root rule (and its guard node) into them immediately below --
-        // matches `table/cff.rs`'s own construction of this same struct.
-        let mut g = CffSubrGraph::default();
-        subr_graph_init(&mut g);
-        g.do_subroutinize = do_subroutinize;
+        let mut g = CffSubrGraph::new(do_subroutinize);
         for il in glyphs {
             insert_il_to_graph(&mut g, il);
         }
-        let result = il_graph_to_buffers(&mut g);
-        cff_subr_graph_dispose(&mut g);
-        result
+        il_graph_to_buffers(&mut g)
     }
 
     #[test]
