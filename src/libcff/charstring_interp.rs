@@ -749,7 +749,7 @@ fn op_roll(stack: &mut CffStack) -> Flow {
     } else if n > 0 {
         let end = stack.index as usize;
         let rolled = &mut stack.stack[end - n as usize..end];
-        rolled.rotate_right(j.rem_euclid(n as i64) as usize);
+        rolled.rotate_right(j.rem_euclid(i64::from(n)) as usize);
     }
     Flow::Continue
 }

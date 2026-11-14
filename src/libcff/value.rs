@@ -17,7 +17,7 @@ pub enum CffValue {
 /// `0.0`.
 pub fn cffnum(val: CffValue) -> f64 {
     match val {
-        CffValue::Integer(i) => i as f64,
+        CffValue::Integer(i) => f64::from(i),
         CffValue::Double(d) => d,
         CffValue::Unset | CffValue::Operator(_) => 0.0,
     }

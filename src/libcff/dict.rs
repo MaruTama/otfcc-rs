@@ -54,7 +54,7 @@ pub(crate) fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffV
     // with fewer operands than `idx + 1` counts as "not found" (an
     // `idx <= top` check here was a fuzz-found out-of-bounds panic).
     parse_to_callback(data, |cur_op, top, stack| {
-        if cur_op == op && idx < top as u32 {
+        if cur_op == op && idx < u32::from(top) {
             res = stack[idx as usize];
         }
     });

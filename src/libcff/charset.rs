@@ -72,14 +72,14 @@ pub fn extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset {
             1 => {
                 let mut size: usize = 0;
                 let mut glyphs_encoded_sofar: u32 = 1;
-                while glyphs_encoded_sofar < nchars as u32 {
+                while glyphs_encoded_sofar < u32::from(nchars) {
                     let Ok(nleft) = FontReader::new(slice)
                         .at(offset + 3 + 3 * size)
                         .and_then(|mut x| x.u8())
                     else {
                         break 'parse None;
                     };
-                    glyphs_encoded_sofar = glyphs_encoded_sofar.saturating_add(1 + nleft as u32);
+                    glyphs_encoded_sofar = glyphs_encoded_sofar.saturating_add(1 + u32::from(nleft));
                     size += 1;
                 }
                 let mut range1: Vec<CffCharsetRangeFormat1> = Vec::with_capacity(size);
@@ -100,14 +100,14 @@ pub fn extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset {
             2 => {
                 let mut size: usize = 0;
                 let mut glyphs_encoded_sofar: u32 = 1;
-                while glyphs_encoded_sofar < nchars as u32 {
+                while glyphs_encoded_sofar < u32::from(nchars) {
                     let Ok(nleft) = FontReader::new(slice)
                         .at(offset + 3 + 4 * size)
                         .and_then(|mut x| x.u16())
                     else {
                         break 'parse None;
                     };
-                    glyphs_encoded_sofar = glyphs_encoded_sofar.saturating_add(1 + nleft as u32);
+                    glyphs_encoded_sofar = glyphs_encoded_sofar.saturating_add(1 + u32::from(nleft));
                     size += 1;
                 }
                 let mut range2: Vec<CffCharsetRangeFormat2> = Vec::with_capacity(size);
@@ -140,8 +140,8 @@ pub fn build_charset(cset: &CffCharset) -> Buffer {
             let mut blob = Buffer::new();
             blob.write_u8(0);
             for &g in glyph.iter() {
-                blob.write_u8((g as i32 / 256) as u8);
-                blob.write_u8((g as i32 % 256) as u8);
+                blob.write_u8((g / 256) as u8);
+                blob.write_u8((g % 256) as u8);
             }
             blob
         }
@@ -149,8 +149,8 @@ pub fn build_charset(cset: &CffCharset) -> Buffer {
             let mut blob_0 = Buffer::new();
             blob_0.write_u8(1);
             for r in range1.iter() {
-                blob_0.write_u8((r.first as i32 / 256) as u8);
-                blob_0.write_u8((r.first as i32 % 256) as u8);
+                blob_0.write_u8((r.first / 256) as u8);
+                blob_0.write_u8((r.first % 256) as u8);
                 blob_0.write_u8(r.nleft);
             }
             blob_0
@@ -159,10 +159,10 @@ pub fn build_charset(cset: &CffCharset) -> Buffer {
             let mut blob_1 = Buffer::new();
             blob_1.write_u8(2);
             for r in range2.iter() {
-                blob_1.write_u8((r.first as i32 / 256) as u8);
-                blob_1.write_u8((r.first as i32 % 256) as u8);
-                blob_1.write_u8((r.nleft as i32 / 256) as u8);
-                blob_1.write_u8((r.nleft as i32 % 256) as u8);
+                blob_1.write_u8((r.first / 256) as u8);
+                blob_1.write_u8((r.first % 256) as u8);
+                blob_1.write_u8((r.nleft / 256) as u8);
+                blob_1.write_u8((r.nleft % 256) as u8);
             }
             blob_1
         }

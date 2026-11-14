@@ -36,12 +36,12 @@ pub fn build_fd_select(fd: &CffFdSelect) -> Buffer {
             blob_0.write_u8((nranges / 256) as u8);
             blob_0.write_u8((nranges % 256) as u8);
             for r in range3.iter() {
-                blob_0.write_u8((r.first as i32 / 256) as u8);
-                blob_0.write_u8((r.first as i32 % 256) as u8);
+                blob_0.write_u8((r.first / 256) as u8);
+                blob_0.write_u8((r.first % 256) as u8);
                 blob_0.write_u8(r.fd);
             }
-            blob_0.write_u8((*sentinel as i32 / 256) as u8);
-            blob_0.write_u8((*sentinel as i32 % 256) as u8);
+            blob_0.write_u8((*sentinel / 256) as u8);
+            blob_0.write_u8((*sentinel % 256) as u8);
             blob_0
         }
     }

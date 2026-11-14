@@ -122,7 +122,7 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
     cff.head.minor = header_reader.u8().unwrap_or(0);
     cff.head.hdr_size = header_reader.u8().unwrap_or(0);
     cff.head.off_size = header_reader.u8().unwrap_or(0);
-    pos = cff.head.hdr_size as u32;
+    pos = u32::from(cff.head.hdr_size);
     cff.name = parse_index(header_slice, pos);
     pos = 4_u32.wrapping_add(get_index_length(&cff.name));
     cff.top_dict = parse_index(header_slice, pos);
@@ -263,13 +263,13 @@ pub fn parse_subr(
         }
         CffFdSelect::Format3 { range3, sentinel } => {
             for pair in range3.windows(2) {
-                if idx as i32 >= pair[0].first as i32 && (idx as i32) < pair[1].first as i32 {
+                if i32::from(idx) >= i32::from(pair[0].first) && i32::from(idx) < i32::from(pair[1].first) {
                     fd = pair[0].fd;
                 }
             }
-            if idx as i32
-                >= range3[range3.len() - 1].first as i32
-                && (idx as i32) < *sentinel as i32
+            if i32::from(idx)
+                >= i32::from(range3[range3.len() - 1].first)
+                && i32::from(idx) < i32::from(*sentinel)
             {
                 fd = range3[range3.len() - 1].fd;
             }
@@ -290,7 +290,7 @@ pub fn parse_subr(
     // private dict for this glyph" and fall back to `empty_index`, the
     // same fallback already used a few lines down for a well-formed `fd`
     // whose FDArray entry just doesn't declare a Private dict.
-    if fd as u32 >= fdarray.count {
+    if u32::from(fd) >= fdarray.count {
         empty_index(subr);
         return fd;
     }
@@ -349,9 +349,9 @@ pub(crate) fn locate_subr(subr_index: &CffIndex, bias: u16, subr: i32) -> Option
     subr_index.data.get(data_offset..)?.get(..data_len)
 }
 pub(crate) fn compute_subr_bias(cnt: u16) -> u16 {
-    if (cnt as i32) < 1240 {
+    if i32::from(cnt) < 1240 {
         return 107;
-    } else if (cnt as i32) < 33900 {
+    } else if i32::from(cnt) < 33900 {
         return 1131;
     } else {
         return 32768;
