@@ -394,7 +394,7 @@ static STRING_STANDARD: [&str; 391] = [
     "Roman",
     "Semibold",
 ];
-/// `str.offset[]` is only ever populated by `extract_index`, which now
+/// `str.offset[]` is only ever populated by `parse_index`, which now
 /// validates the whole array is non-decreasing and 1-based before this
 /// function ever sees it -- but `start < 1 || end < start` (matching
 /// `locate_subr`'s own defense-in-depth comment) and the explicit
@@ -464,7 +464,7 @@ mod get_cff_sid_tests {
 
     #[test]
     fn non_decreasing_offset_pair_is_rejected_not_wrapped() {
-        // `extract_index` now refuses to build a `CffIndex` with a
+        // `parse_index` now refuses to build a `CffIndex` with a
         // decreasing offset pair at all (see its own test), so this
         // constructs one by hand to confirm `get_cff_sid` doesn't rely
         // solely on that -- the exact bug `cargo fuzz run otf_parse`
