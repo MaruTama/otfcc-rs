@@ -43,9 +43,7 @@ use crate::libcff::string::get_cff_sid;
 use crate::libcff::value::cffnum;
 use crate::libcff::writer::{build_header, build_offset};
 use crate::libcff::charstring_il::{compile_glyph_to_il, optimize_il};
-use crate::libcff::subr::{
-    il_graph_to_buffers, insert_il_to_graph, cff_subr_graph_dispose, subr_graph_init,
-};
+use crate::libcff::subr::{il_graph_to_buffers, insert_il_to_graph};
 use otfcc_json::BuiltValue;
 use crate::support::primitives::{from_fixed, to_fixed, until_nul};
 use crate::table::fvar::json_new_vq;
@@ -1417,12 +1415,9 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         default_width: cff.private_dict.as_deref().unwrap().default_width_x as u16,
         nominal_width_x: cff.private_dict.as_deref().unwrap().nominal_width_x as u16,
         options,
-        graph: CffSubrGraph::default(),
+        graph: CffSubrGraph::new(options.cff_do_subroutinize),
     };
-    subr_graph_init(&mut g2c_context.graph);
-    g2c_context.graph.do_subroutinize = options.cff_do_subroutinize;
     let (s, gs, ls) = cff_make_charstrings(&mut g2c_context);
-    cff_subr_graph_dispose(&mut g2c_context.graph);
     // The top dict gets one offset operator per non-empty section that
     // follows it: 5 bytes for the offset plus the operator's 1 or 2.
     let mut additional_top_dict_ops_size: u32 = 0;
