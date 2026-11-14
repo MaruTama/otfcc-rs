@@ -545,7 +545,7 @@ fn build_outline(
     }
     bc.g.advance_width = vq_create_still(bc.default_width_x as Pos);
     let char_strings_offset = &f.char_strings.offset;
-    // CFF INDEX offsets are 1-based and `extract_index` already validated
+    // CFF INDEX offsets are 1-based and `parse_index` already validated
     // this whole array (non-decreasing, every entry >= 1, and the final
     // entry exactly matches `data.len() + 1`) -- so `offset[i] - 1` is
     // always in `0..=data.len()` for any `i` within the INDEX's own

@@ -6,7 +6,7 @@ use crate::libcff::dict::parse_dict_key_int;
 use crate::libcff::fdselect::CffFdSelect;
 use crate::libcff::fdselect::extract_fd_select;
 use crate::libcff::index::CffIndex;
-use crate::libcff::index::{empty_index, extract_index, get_index_length};
+use crate::libcff::index::{empty_index, get_index_length, parse_index};
 use crate::libcff::{
     CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, OP_CHAR_STRINGS, OP_CHARSET, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT,
     OP_PRIVATE, OP_SUBRS,
@@ -114,7 +114,7 @@ fn parse_encoding(cff: &CffFile, offset: i32) -> CffEncoding {
 fn parse_cff_bytecode(cff: &mut CffFile) {
     let mut pos: u32;
     let offset: i32;
-    // A header shorter than 4 bytes leaves its fields 0; `extract_index`
+    // A header shorter than 4 bytes leaves its fields 0; `parse_index`
     // then fails cleanly on whatever position that gives.
     let header_slice = cff.raw_data.as_slice();
     let mut header_reader = FontReader::new(header_slice);
@@ -123,25 +123,25 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
     cff.head.hdr_size = header_reader.u8().unwrap_or(0);
     cff.head.off_size = header_reader.u8().unwrap_or(0);
     pos = cff.head.hdr_size as u32;
-    extract_index(header_slice, pos, &mut cff.name);
+    cff.name = parse_index(header_slice, pos);
     pos = 4_u32.wrapping_add(get_index_length(&cff.name));
-    extract_index(header_slice, pos, &mut cff.top_dict);
+    cff.top_dict = parse_index(header_slice, pos);
     if cff.name.count != cff.top_dict.count {
         tracing::warn!("[libcff] Bad CFF font: ({}, name), ({}, top_dict).\n", cff.name.count, cff.top_dict.count);
     }
     pos = 4_u32
         .wrapping_add(get_index_length(&cff.name))
         .wrapping_add(get_index_length(&cff.top_dict));
-    extract_index(header_slice, pos, &mut cff.string);
+    cff.string = parse_index(header_slice, pos);
     pos = 4_u32
         .wrapping_add(get_index_length(&cff.name))
         .wrapping_add(get_index_length(&cff.top_dict))
         .wrapping_add(get_index_length(&cff.string));
-    extract_index(header_slice, pos, &mut cff.global_subr);
+    cff.global_subr = parse_index(header_slice, pos);
     // The Top DICT INDEX's `data` is the concatenation of every entry's
     // dict bytes; entry 0 (the only one a well-formed OpenType CFF table
     // ever has, per `cff.name.count != cff.top_dict.count`'s warning
-    // below) starts at `offset[0] - 1`, which `extract_index`'s validation
+    // below) starts at `offset[0] - 1`, which `parse_index`'s validation
     // guarantees is 0 (CFF INDEX offsets are 1-based). Computed once and
     // reused for every key looked up in the Top DICT below. A `top_dict`
     // INDEX with more than one entry gets just its first entry's bytes.
@@ -157,7 +157,7 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
         let mut offset_0: i32;
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHAR_STRINGS, 0);
         if offset_0 != -1 {
-            extract_index(header_slice, offset_0 as u32, &mut cff.char_strings);
+            cff.char_strings = parse_index(header_slice, offset_0 as u32);
             cff.cnt_glyph = cff.char_strings.count as u16;
         } else {
             empty_index(&mut cff.char_strings);
@@ -185,7 +185,7 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_ARRAY, 0);
         if offset_0 != -1 {
-            extract_index(header_slice, offset_0 as u32, &mut cff.font_dict);
+            cff.font_dict = parse_index(header_slice, offset_0 as u32);
         } else {
             empty_index(&mut cff.font_dict);
         }
@@ -209,11 +209,7 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
     if let Some(private_bytes) = private_dict_bytes {
         offset = parse_dict_key_int(private_bytes, OP_SUBRS, 0);
         if offset != -1 {
-            extract_index(
-                header_slice,
-                (private_off + offset) as u32,
-                &mut cff.local_subr,
-            );
+            cff.local_subr = parse_index(header_slice, (private_off + offset) as u32);
         } else {
             empty_index(&mut cff.local_subr);
         }
@@ -299,7 +295,7 @@ pub fn parse_subr(
         return fd;
     }
     // `fd < fdarray.count` is already guaranteed by the early return above,
-    // and `extract_index` guarantees `fdarray.offset.len() == fdarray.count
+    // and `parse_index` guarantees `fdarray.offset.len() == fdarray.count
     // + 1` and that every entry is a valid, non-decreasing 1-based offset
     // into `fdarray.data` -- so this FD's dict-data slice is always in
     // bounds; `.get(start..).and_then(|s| s.get(..len))` checks it anyway.
@@ -325,7 +321,7 @@ pub fn parse_subr(
     if let Some(private_bytes) = private_dict_bytes {
         off_subr = parse_dict_key_int(private_bytes, OP_SUBRS, 0);
         if off_subr != -1 {
-            extract_index(raw, (off_private + off_subr) as u32, subr);
+            *subr = parse_index(raw, (off_private + off_subr) as u32);
         } else {
             empty_index(subr);
         }
@@ -553,7 +549,7 @@ mod locate_subr_tests {
 
     #[test]
     fn a_zero_intermediate_offset_is_rejected() {
-        // `extract_index` only validates the INDEX's *last* offset entry
+        // `parse_index` only validates the INDEX's *last* offset entry
         // against the wraparound bug -- an intermediate entry of 0 (not
         // a valid 1-based offset) was never checked here at all.
         let idx = subr_index(vec![1, 0, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
