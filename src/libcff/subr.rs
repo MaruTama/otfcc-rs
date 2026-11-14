@@ -870,7 +870,7 @@ pub fn cff_il_graph_to_buffers(
 #[cfg(test)]
 mod subr_graph_tests {
     use super::*;
-    use crate::libcff::index::{extract_index, new_empty_cff_index};
+    use crate::libcff::index::extract_index;
     use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
     use crate::libcff::{OP_HLINETO, OP_RMOVETO};
 
@@ -885,7 +885,7 @@ mod subr_graph_tests {
     }
 
     fn index_count(buf: &Buffer) -> u32 {
-        let mut idx = new_empty_cff_index();
+        let mut idx = CffIndex::default();
         extract_index(&buf.data, 0, &mut idx);
         idx.count
     }
