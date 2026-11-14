@@ -174,7 +174,7 @@ fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     if let Some(r) = node.rule {
         key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
     } else {
-        key.extend_from_slice(&node.terminal.as_ref().unwrap().data);
+        key.extend_from_slice(&node.terminal.as_ref().expect("a node without a rule holds bytes").data);
     }
     key.push(0);
     key
@@ -183,24 +183,24 @@ fn get_doublet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     let mut key: Vec<u8> = Vec::new();
     key.push(b'2');
     let node = g.node(n);
-    let next = g.node(node.next.unwrap());
+    let next = g.node(node.next.expect("a doublet starts at a node that has a successor"));
     key.push(if node.rule.is_some() { b'1' } else { b'0' });
     key.push(if next.rule.is_some() { b'1' } else { b'0' });
     if let Some(r) = node.rule {
         key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
     } else {
-        key.extend_from_slice(&node.terminal.as_ref().unwrap().data);
+        key.extend_from_slice(&node.terminal.as_ref().expect("a node without a rule holds bytes").data);
     }
     if let Some(r) = next.rule {
         key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
     } else {
-        key.extend_from_slice(&next.terminal.as_ref().unwrap().data);
+        key.extend_from_slice(&next.terminal.as_ref().expect("a node without a rule holds bytes").data);
     }
     key.push(0);
     key
 }
 fn last_node_of(g: &CffSubrGraph, r: RuleId) -> NodeId {
-    g.node(g.rule(r).guard).prev.unwrap()
+    g.node(g.rule(r).guard).prev.expect("a rule's guard node is linked to its last node")
 }
 fn copy_node(g: &mut CffSubrGraph, n: NodeId) -> NodeId {
     let m = g.alloc_node();
@@ -274,8 +274,8 @@ fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
     } else if nn.rule.is_some() {
         return false;
     } else {
-        let m_terminal = mn.terminal.as_ref().unwrap();
-        let n_terminal = nn.terminal.as_ref().unwrap();
+        let m_terminal = mn.terminal.as_ref().expect("a node without a rule holds bytes");
+        let n_terminal = nn.terminal.as_ref().expect("a node without a rule holds bytes");
         // Compares as C's `strncmp` would, stopping at a NUL in either side
         // even though this is charstring bytecode: two sequences equal up to
         // a NUL compare equal. Kept so output does not change.
