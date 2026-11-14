@@ -10,7 +10,7 @@ use otfcc_binary::Buffer;
 /// `modf` defines the fractional part of an infinity to be a zero of the
 /// same sign, with the integral part set to that same infinity. This
 /// crate's own `Pos` (`f64`) glyph coordinates are never observed to
-/// reach `cff_merge_cs2_operand` as non-finite on any input this crate's
+/// reach `merge_cs2_operand` as non-finite on any input this crate's
 /// fuzz corpus or test suite constructs, but proving that for every
 /// possible caller, present and future, is a much larger claim than this
 /// one function needs to stand on -- special-casing infinity here instead
@@ -24,10 +24,10 @@ fn modf(x: f64) -> (f64, f64) {
         (x.trunc(), x.fract())
     }
 }
-pub fn cff_build_header() -> Buffer {
+pub fn build_header() -> Buffer {
     Buffer::from_bytes(&[1, 0, 4, 4])
 }
-pub fn cff_merge_cs2_operator(blob: &mut Buffer, val: CffCharstringOperator) {
+pub fn merge_cs2_operator(blob: &mut Buffer, val: CffCharstringOperator) {
     let val = val.0;
     if val >= 0x100 {
         blob.write_bytes(&[(val >> 8) as u8, (val & 0xff) as u8]);
@@ -35,7 +35,7 @@ pub fn cff_merge_cs2_operator(blob: &mut Buffer, val: CffCharstringOperator) {
         blob.write_bytes(&[(val & 0xff) as u8]);
     };
 }
-pub fn cff_merge_cs2_int(blob: &mut Buffer, val: i32) {
+pub fn merge_cs2_int(blob: &mut Buffer, val: i32) {
     if (-1131..=-108).contains(&val) {
         blob.write_bytes(&[
             (((-108 - val) / 256 + 251) as u8 as i32) as u8,
@@ -55,7 +55,7 @@ pub fn cff_merge_cs2_int(blob: &mut Buffer, val: i32) {
             ((val << 8 >> 8) as u8 as i32) as u8,
         ]);
     } else {
-        cff_merge_cs2_int(blob, 0);
+        merge_cs2_int(blob, 0);
     };
 }
 fn merge_cs2_real(blob: &mut Buffer, val: f64) {
@@ -70,18 +70,18 @@ fn merge_cs2_real(blob: &mut Buffer, val: f64) {
         (fraction_part as i32 & 0xff) as u8,
     ]);
 }
-pub fn cff_merge_cs2_operand(blob: &mut Buffer, val: f64) {
+pub fn merge_cs2_operand(blob: &mut Buffer, val: f64) {
     let (intpart, fract) = modf(val);
     if fract == 0.0 {
-        cff_merge_cs2_int(blob, intpart as i32);
+        merge_cs2_int(blob, intpart as i32);
     } else {
         merge_cs2_real(blob, val);
     };
 }
-pub fn cff_merge_cs2_special(blob: &mut Buffer, val: u8) {
+pub fn merge_cs2_special(blob: &mut Buffer, val: u8) {
     blob.write_u8(val);
 }
-pub fn cff_build_offset(val: i32) -> Buffer {
+pub fn build_offset(val: i32) -> Buffer {
     Buffer::from_bytes(&[
         29,
         (val >> 24 & 0xff) as u8,

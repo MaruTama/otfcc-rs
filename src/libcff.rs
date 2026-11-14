@@ -161,7 +161,7 @@ pub const OP_VERSION: CffDictOperator = CffDictOperator(0);
 /// instruction type also uses, for values that are not operators at all. That
 /// field therefore stays a bare `i32`; what this newtype covers is everything
 /// *flowing into* it (`il_push_op`, `il_matchop`, `zroll`, `opop_roll`,
-/// `cff_get_standard_arity`, `cff_merge_cs2_operator`), which is where a DICT
+/// `get_standard_arity`, `merge_cs2_operator`), which is where a DICT
 /// operator could have been passed by mistake.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(transparent)]

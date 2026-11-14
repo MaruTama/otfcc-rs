@@ -5,7 +5,7 @@ use otfcc_binary::FontReader;
 /// one of the three predefined charsets (ISOAdobe/Expert/ExpertSubset)
 /// outright, and any other value is a real offset into an embedded charset
 /// table. These three constants are the spec's special-cased offset values
-/// `cff_extract_charset` compares against before treating an offset as real
+/// `extract_charset` compares against before treating an offset as real
 /// -- the same role `CFF_STANDARD_ENCODING_OFFSET`/`CFF_EXPERT_ENCODING_
 /// OFFSET` play for `CffEncoding`.
 const CFF_CHARSET_OFFSET_ISO_ADOBE: i32 = 0;
@@ -37,7 +37,7 @@ pub enum CffCharset {
 // key), or an unrecognized format byte, this falls back to `IsoAdobe`.
 // Format 0's entry count is `nchars - 1`, saturating so `nchars == 0`
 // cannot wrap to a huge allocation.
-pub fn cff_extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset {
+pub fn extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset {
     if offset == CFF_CHARSET_OFFSET_ISO_ADOBE {
         return CffCharset::IsoAdobe;
     } else if offset == CFF_CHARSET_OFFSET_EXPERT {
@@ -133,7 +133,7 @@ pub fn cff_extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset
 // Takes `&CffCharset` instead of by value -- it only ever reads the data,
 // same reasoning as every other builder function in this migration that
 // doesn't need ownership.
-pub fn cff_build_charset(cset: &CffCharset) -> Buffer {
+pub fn build_charset(cset: &CffCharset) -> Buffer {
     match cset {
         CffCharset::IsoAdobe | CffCharset::Expert | CffCharset::ExpertSubset => Buffer::new(),
         CffCharset::Format0(glyph) => {
@@ -179,7 +179,7 @@ mod cff_extract_charset_tests {
         // (and every other non-sentinel test below) starts the real data
         // at offset 3.
         let data = [0u8, 0, 0, 0x00, 0x00, 0x05, 0x00, 0x0A]; // format=0, glyphs=[5,10]
-        let CffCharset::Format0(glyph) = cff_extract_charset(&data, 3, 3) else {
+        let CffCharset::Format0(glyph) = extract_charset(&data, 3, 3) else {
             panic!("expected Format0");
         };
         assert_eq!(glyph, vec![5, 10]);
@@ -190,7 +190,7 @@ mod cff_extract_charset_tests {
         // `nchars - 1` for `nchars == 0` must not wrap to `0xFFFFFFFF` and
         // abort in `Vec::with_capacity`.
         let data = [0u8, 0, 0, 0x00];
-        let CffCharset::Format0(glyph) = cff_extract_charset(&data, 3, 0) else {
+        let CffCharset::Format0(glyph) = extract_charset(&data, 3, 0) else {
             panic!("expected Format0");
         };
         assert!(glyph.is_empty());
@@ -199,14 +199,14 @@ mod cff_extract_charset_tests {
     #[test]
     fn format0_truncated_glyph_array_falls_back_to_iso_adobe_instead_of_reading_oob() {
         let data = [0u8, 0, 0, 0x00, 0x00, 0x05]; // format=0, one glyph's worth of bytes, but 2 needed
-        let result = cff_extract_charset(&data, 3, 3);
+        let result = extract_charset(&data, 3, 3);
         assert!(matches!(result, CffCharset::IsoAdobe));
     }
 
     #[test]
     fn negative_offset_falls_back_to_iso_adobe_instead_of_reading_before_the_buffer() {
         let data = [0u8; 8];
-        let result = cff_extract_charset(&data, -5, 10);
+        let result = extract_charset(&data, -5, 10);
         assert!(matches!(result, CffCharset::IsoAdobe));
     }
 
@@ -216,7 +216,7 @@ mod cff_extract_charset_tests {
         // glyphs (first=100, nleft=1 -> glyphs 100,101) exactly reaches
         // glyphs_encoded_sofar == nchars.
         let data = [0u8, 0, 0, 0x01, 0x00, 0x64, 0x01];
-        let CffCharset::Format1(range1) = cff_extract_charset(&data, 3, 3) else {
+        let CffCharset::Format1(range1) = extract_charset(&data, 3, 3) else {
             panic!("expected Format1");
         };
         assert_eq!(range1.len(), 1);
@@ -227,7 +227,7 @@ mod cff_extract_charset_tests {
     #[test]
     fn format1_truncated_during_the_counting_pass_falls_back_to_iso_adobe() {
         let data = [0u8, 0, 0, 0x01]; // format=1, nothing else -- not even the first range's nleft
-        let result = cff_extract_charset(&data, 3, 3);
+        let result = extract_charset(&data, 3, 3);
         assert!(matches!(result, CffCharset::IsoAdobe));
     }
 }

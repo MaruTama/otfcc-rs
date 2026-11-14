@@ -4,7 +4,7 @@ use crate::libcff::CffCharstringOperator;
 use crate::libcff::index::CffIndex;
 use crate::libcff::index::{build_index, new_index_by_callback};
 use crate::libcff::writer::{
-    cff_merge_cs2_int, cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special,
+    merge_cs2_int, merge_cs2_operand, merge_cs2_operator, merge_cs2_special,
 };
 use crate::libcff::charstring_il::CffCharstringIl;
 use crate::libcff::{
@@ -78,7 +78,7 @@ pub struct CffSubrGraph {
     pub do_subroutinize: bool,
 }
 /// `root`/`last` here are placeholders, valid but not yet meaningful --
-/// every real construction site calls `cff_subr_graph_init` (which
+/// every real construction site calls `subr_graph_init` (which
 /// allocates the actual root rule into `nodes`/`rules` and overwrites
 /// both) immediately afterward. This exists so callers outside this file
 /// (`table/cff.rs`) can build a `CffSubrGraph` without needing to name
@@ -186,7 +186,7 @@ impl CffSubrGraph {
     }
 }
 #[inline]
-pub fn cff_subr_graph_init(x: &mut CffSubrGraph) {
+pub fn subr_graph_init(x: &mut CffSubrGraph) {
     x.init();
 }
 #[inline]
@@ -561,7 +561,7 @@ fn append_node_to_graph(g: &mut CffSubrGraph, n: NodeId) {
                 check_singlet_match(g, n);
             }
 }
-pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
+pub fn insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
     let mut blob = Buffer::new();
     let mut flush: bool = false;
     let mut last: bool = false;
@@ -577,10 +577,10 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
                     blob = Buffer::new();
                     flush = false;
                 }
-                cff_merge_cs2_operand(&mut blob, il.instr[j as usize].d());
+                merge_cs2_operand(&mut blob, il.instr[j as usize].d());
             }
             1 => {
-                cff_merge_cs2_operator(
+                merge_cs2_operator(
                     &mut blob,
                     CffCharstringOperator(il.instr[j as usize].i()),
                 );
@@ -590,7 +590,7 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
                 flush = true;
             }
             2 => {
-                cff_merge_cs2_special(&mut blob, il.instr[j as usize].i() as u8);
+                merge_cs2_special(&mut blob, il.instr[j as usize].i() as u8);
                 flush = true;
             }
             _ => {}
@@ -610,7 +610,7 @@ pub fn cff_insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
     append_node_to_graph(g, end);
     g.total_char_strings += 1;
 }
-fn cff_stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
+fn stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
     if height > g.rule(r).height {
         g.rule_mut(r).height = height;
     }
@@ -620,7 +620,7 @@ fn cff_stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
     while e != guard {
         let rule = g.node(e).rule;
         if let Some(er) = rule {
-            cff_stat_height(g, er, height + 1);
+            stat_height(g, er, height + 1);
             effective_length += 4;
         } else {
             let terminal_len = g.node(e).terminal.as_ref().unwrap().data.len();
@@ -658,7 +658,7 @@ fn number_a_subroutine(g: &mut CffSubrGraph, r: RuleId, current: &mut u32) {
         e = g.node(e).next.unwrap();
     }
 }
-fn cff_number_subroutines(g: &mut CffSubrGraph) -> u32 {
+fn number_subroutines(g: &mut CffSubrGraph) -> u32 {
     let mut current: u32 = 0;
     let root = g.root;
     let guard = g.rule(root).guard;
@@ -735,14 +735,14 @@ fn serialize_node_to_buffer(
             if number < max_l_subrs {
                 let stacknum: i32 = number as i32 - subroutine_bias(max_l_subrs as i32);
                 target = SubrRef::LSubr(number as usize);
-                cff_merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
-                cff_merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLSUBR);
+                merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
+                merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLSUBR);
             } else {
                 let gsubr = number - max_l_subrs;
                 let stacknum: i32 = gsubr as i32 - subroutine_bias(max_g_subrs as i32);
                 target = SubrRef::GSubr(gsubr as usize);
-                cff_merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
-                cff_merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLGSUBR);
+                merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
+                merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLGSUBR);
             }
             if !g.rule(r).printed {
                 g.rule_mut(r).printed = true;
@@ -763,7 +763,7 @@ fn serialize_node_to_buffer(
                     e = next;
                 }
                 if !ends_with_end_char(g, r) {
-                    cff_merge_cs2_operator(
+                    merge_cs2_operator(
                         resolve_subr_ref(target, top, gsubrs, lsubrs),
                         OP_RETURN,
                     );
@@ -785,12 +785,12 @@ fn serialize_node_to_buffer(
             .write_buffer(g.node(node).terminal.as_ref().unwrap());
     };
 }
-pub fn cff_il_graph_to_buffers(
+pub fn il_graph_to_buffers(
     g: &mut CffSubrGraph,
 ) -> (Buffer, Buffer, Buffer) {
     let root = g.root;
-    cff_stat_height(g, root, 0);
-    let max_subroutines: u32 = cff_number_subroutines(g);
+    stat_height(g, root, 0);
+    let max_subroutines: u32 = number_subroutines(g);
     tracing::debug!("[libcff] Total {} subroutines extracted.", max_subroutines);
     let mut max_l_subrs: u32 = max_subroutines;
     let mut max_g_subrs: u32 = 0;
@@ -863,7 +863,7 @@ pub fn cff_il_graph_to_buffers(
 }
 
 // Coverage for the subroutinizer at the two entry points `table/cff.rs`
-// calls (`cff_insert_il_to_graph`, `cff_il_graph_to_buffers`), independent
+// calls (`insert_il_to_graph`, `il_graph_to_buffers`), independent
 // of how the graph is represented internally. Otherwise `-O2`
 // subroutinization is covered only end-to-end, by
 // `KRName-Regular-O2.otf`'s golden checksum.
@@ -891,16 +891,16 @@ mod subr_graph_tests {
     }
 
     fn build(glyphs: &[CffCharstringIl], do_subroutinize: bool) -> (Buffer, Buffer, Buffer) {
-        // `nodes`/`rules` start empty; `cff_subr_graph_init` allocates the
+        // `nodes`/`rules` start empty; `subr_graph_init` allocates the
         // root rule (and its guard node) into them immediately below --
         // matches `table/cff.rs`'s own construction of this same struct.
         let mut g = CffSubrGraph::default();
-        cff_subr_graph_init(&mut g);
+        subr_graph_init(&mut g);
         g.do_subroutinize = do_subroutinize;
         for il in glyphs {
-            cff_insert_il_to_graph(&mut g, il);
+            insert_il_to_graph(&mut g, il);
         }
-        let result = cff_il_graph_to_buffers(&mut g);
+        let result = il_graph_to_buffers(&mut g);
         cff_subr_graph_dispose(&mut g);
         result
     }
