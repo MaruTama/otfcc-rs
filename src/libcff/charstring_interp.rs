@@ -13,8 +13,9 @@ use crate::libcff::codecs::decode_cs2_token;
 use crate::libcff::index::CffIndex;
 use crate::libcff::value::{CffValue, cffnum};
 use crate::support::primitives::Arity;
-use crate::table::cff::{
-    OutlineBuilderContext, callback_draw_curveto, callback_draw_getrand, callback_draw_lineto,
+use crate::table::cff::OutlineBuilderContext;
+use crate::table::cff::read::{
+    callback_draw_curveto, callback_draw_getrand, callback_draw_lineto,
     callback_draw_next_contour, callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
 };
 use crate::libcff::parser::{
