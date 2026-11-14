@@ -1,4 +1,5 @@
 use super::*;
+use crate::libcff::TYPE2_TRANSIENT_ARRAY;
 use crate::libcff::index::CffIndexCountType;
 
 use crate::table::cff::OutlineBuilderContext;
