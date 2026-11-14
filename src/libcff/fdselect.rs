@@ -18,11 +18,7 @@ pub enum CffFdSelect {
         sentinel: u16,
     },
 }
-// `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
-// see `libcff/index.rs`'s own conversion for the same move.
-//
-// Takes `&CffFdSelect` instead of by value -- it only ever reads the data to
-// serialize it, same reasoning as `build_charset`.
+// Only reads the data to serialize it, so it takes a reference.
 pub fn build_fd_select(fd: &CffFdSelect) -> Buffer {
     match fd {
         CffFdSelect::Unspecified => Buffer::new(),
