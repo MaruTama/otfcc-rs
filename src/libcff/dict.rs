@@ -1,6 +1,6 @@
 use crate::libcff::CffDictOperator;
 use crate::libcff::codecs::{
-    cff_decode_cff_token, cff_encode_cff_float, cff_encode_cff_integer, cff_encode_cff_operator,
+    decode_cff_token, encode_float, encode_integer, encode_operator,
 };
 use crate::libcff::value::CffValue;
 use otfcc_binary::Buffer;
@@ -28,9 +28,9 @@ pub(crate) fn parse_to_callback(data: &[u8], mut callback: impl FnMut(CffDictOpe
     let mut stack: [CffValue; 256] = [CffValue::Unset; 256];
     let mut pos: usize = 0;
     while pos < data.len() {
-        // Same fix as `cff_parse_outline`'s equivalent loop: the token
+        // Same fix as `parse_outline`'s equivalent loop: the token
         // itself, not just where it starts, must stay within `data`.
-        let Some(adv) = cff_decode_cff_token(&data[pos..], &mut val) else {
+        let Some(adv) = decode_cff_token(&data[pos..], &mut val) else {
             break;
         };
         match val {
@@ -77,13 +77,13 @@ pub(crate) fn build_dict(dict: &CffDict) -> Buffer {
     for ent in ents {
         for val in &ent.vals {
             let blob_val: Buffer = match *val {
-                CffValue::Integer(i) => cff_encode_cff_integer(i),
-                CffValue::Double(d) => cff_encode_cff_float(d),
-                CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0),
+                CffValue::Integer(i) => encode_integer(i),
+                CffValue::Double(d) => encode_float(d),
+                CffValue::Unset | CffValue::Operator(_) => encode_integer(0),
             };
             blob.write_buffer_owned(blob_val);
         }
-        blob.write_buffer_owned(cff_encode_cff_operator(ent.op));
+        blob.write_buffer_owned(encode_operator(ent.op));
     }
     blob
 }
@@ -114,11 +114,11 @@ mod tests {
             ],
         };
         let mut expected = Buffer::new();
-        expected.write_buffer_owned(cff_encode_cff_integer(1000));
-        expected.write_buffer_owned(cff_encode_cff_integer(2));
-        expected.write_buffer_owned(cff_encode_cff_operator(CffDictOperator(15)));
-        expected.write_buffer_owned(cff_encode_cff_integer(500));
-        expected.write_buffer_owned(cff_encode_cff_operator(CffDictOperator(17)));
+        expected.write_buffer_owned(encode_integer(1000));
+        expected.write_buffer_owned(encode_integer(2));
+        expected.write_buffer_owned(encode_operator(CffDictOperator(15)));
+        expected.write_buffer_owned(encode_integer(500));
+        expected.write_buffer_owned(encode_operator(CffDictOperator(17)));
         assert_eq!(build_dict(&dict).data, expected.data);
     }
 }

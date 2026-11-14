@@ -9,7 +9,7 @@ use crate::libcff::{
 };
 use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
 
-use crate::libcff::opmean::cff_get_standard_arity;
+use crate::libcff::opmean::get_standard_arity;
 use crate::table::glyf::glyf_point_dup;
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_minus, vq_neutral};
@@ -92,7 +92,7 @@ pub fn il_push_op(il: &mut CffCharstringIl, op: CffCharstringOperator) {
     // in, not in the storage.
     il.instr.push(CffCharstringInstruction {
         kind: CffInstructionType::Operator,
-        arity: cff_get_standard_arity(op) as Arity,
+        arity: get_standard_arity(op) as Arity,
         arg: CffCharstringArgument::I(op.0),
     });
 }
@@ -227,7 +227,7 @@ fn il_push_stems(il: &mut CffCharstringIl, g: &Glyph, hasmask: bool, haswidth: b
     _il_push_stemgroup(il, &g.stem_h, hasmask, haswidth, OP_HSTEMHM, OP_HSTEM);
     _il_push_stemgroup(il, &g.stem_v, hasmask, haswidth, OP_VSTEMHM, OP_VSTEM);
 }
-pub fn cff_compile_glyph_to_il(
+pub fn compile_glyph_to_il(
     g: &Glyph,
     default_width: u16,
     nominal_width: u16,
@@ -348,7 +348,7 @@ fn il_matchop(il: &CffCharstringIl, j: u32, op: CffCharstringOperator) -> bool {
 /// Collapse `op` into `op2` when the operands flagged in `zeros` are all zero.
 ///
 /// `zeros` was a vararg list of `arity` ints -- the count implied by
-/// `cff_get_standard_arity(op)` and trusted, never checked. As a slice the two can
+/// `get_standard_arity(op)` and trusted, never checked. As a slice the two can
 /// be compared, and the flags read as the booleans they always were.
 fn zroll(
     il: &mut CffCharstringIl,
@@ -357,7 +357,7 @@ fn zroll(
     op2: CffCharstringOperator,
     zeros: &[bool],
 ) -> u8 {
-    let arity: u8 = cff_get_standard_arity(op);
+    let arity: u8 = get_standard_arity(op);
     let end = j + arity as u32;
     if arity > 16 || end >= il.instr.len() as u32 {
         return 0;
@@ -627,7 +627,7 @@ fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> 
     }
     return 1;
 }
-pub fn cff_optimize_il(il: &mut CffCharstringIl, options: &Options) {
+pub fn optimize_il(il: &mut CffCharstringIl, options: &Options) {
     if !options.cff_roll_char_string {
         return;
     }
@@ -643,7 +643,7 @@ mod cff_compile_glyph_to_il_tests {
     use crate::vf::vq::vq_create_still;
 
     // Compiling a glyph with at least one contour with at least one point
-    // exercises `cff_compile_glyph_to_il`'s per-contour scratch copies;
+    // exercises `compile_glyph_to_il`'s per-contour scratch copies;
     // under Miri this checks no invalid value is ever constructed or
     // dropped there.
     #[test]
@@ -654,7 +654,7 @@ mod cff_compile_glyph_to_il_tests {
             y: vq_create_still(0.0),
             on_curve: 1,
         }]);
-        let il = cff_compile_glyph_to_il(&g, 0, 0);
+        let il = compile_glyph_to_il(&g, 0, 0);
         assert!(!il.instr.is_empty());
     }
 }

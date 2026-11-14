@@ -22,8 +22,8 @@ pub enum CffFdSelect {
 // see `libcff/index.rs`'s own conversion for the same move.
 //
 // Takes `&CffFdSelect` instead of by value -- it only ever reads the data to
-// serialize it, same reasoning as `cff_build_charset`.
-pub fn cff_build_fd_select(fd: &CffFdSelect) -> Buffer {
+// serialize it, same reasoning as `build_charset`.
+pub fn build_fd_select(fd: &CffFdSelect) -> Buffer {
     match fd {
         CffFdSelect::Unspecified => Buffer::new(),
         CffFdSelect::Format0(fds) => {
@@ -56,7 +56,7 @@ pub fn cff_build_fd_select(fd: &CffFdSelect) -> Buffer {
 // whole record. On any bounds failure, a negative `offset` (reachable from
 // a malformed DICT key), or an unrecognized format byte, this falls back to
 // `Unspecified`.
-pub fn cff_extract_fd_select(slice: &[u8], offset: i32, nchars: u16) -> CffFdSelect {
+pub fn extract_fd_select(slice: &[u8], offset: i32, nchars: u16) -> CffFdSelect {
     if offset < 0 {
         return CffFdSelect::Unspecified;
     }
@@ -106,7 +106,7 @@ mod cff_extract_fd_select_tests {
     #[test]
     fn format0_reads_the_fd_array() {
         let data = [0x00u8, 3, 7]; // format=0, fds=[3,7]
-        let CffFdSelect::Format0(fds) = cff_extract_fd_select(&data, 0, 2) else {
+        let CffFdSelect::Format0(fds) = extract_fd_select(&data, 0, 2) else {
             panic!("expected Format0");
         };
         assert_eq!(fds, vec![3, 7]);
@@ -115,14 +115,14 @@ mod cff_extract_fd_select_tests {
     #[test]
     fn format0_truncated_fd_array_falls_back_to_unspecified_instead_of_reading_oob() {
         let data = [0x00u8, 3]; // format=0, one fd, but 2 declared
-        let result = cff_extract_fd_select(&data, 0, 2);
+        let result = extract_fd_select(&data, 0, 2);
         assert!(matches!(result, CffFdSelect::Unspecified));
     }
 
     #[test]
     fn format3_reads_ranges_and_the_trailing_sentinel() {
         let data = [0x03u8, 0x00, 0x01, 0x00, 0x05, 0x02, 0x00, 0x0A];
-        let CffFdSelect::Format3 { range3, sentinel } = cff_extract_fd_select(&data, 0, 0) else {
+        let CffFdSelect::Format3 { range3, sentinel } = extract_fd_select(&data, 0, 0) else {
             panic!("expected Format3");
         };
         assert_eq!(range3.len(), 1);
@@ -136,14 +136,14 @@ mod cff_extract_fd_select_tests {
     {
         // The table must actually hold `nranges` 3-byte entries.
         let data = [0x03u8, 0xFF, 0xFF]; // format=3, nranges=65535, nothing else
-        let result = cff_extract_fd_select(&data, 0, 0);
+        let result = extract_fd_select(&data, 0, 0);
         assert!(matches!(result, CffFdSelect::Unspecified));
     }
 
     #[test]
     fn negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer() {
         let data = [0u8; 8];
-        let result = cff_extract_fd_select(&data, -5, 10);
+        let result = extract_fd_select(&data, -5, 10);
         assert!(matches!(result, CffFdSelect::Unspecified));
     }
 }

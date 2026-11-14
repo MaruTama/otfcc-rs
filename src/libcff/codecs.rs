@@ -5,7 +5,7 @@ use otfcc_binary::Buffer;
 use otfcc_binary::FontReader;
 /// Every caller passes a DICT operator, so the parameter says so. The body
 /// still works in `i32` -- unchanged arithmetic, unchanged bytes.
-pub fn cff_encode_cff_operator(val: CffDictOperator) -> Buffer {
+pub fn encode_operator(val: CffDictOperator) -> Buffer {
     let val = val.0 as i32;
     if val > 256 {
         Buffer::from_bytes(&[(val / 256) as u8, (val % 256) as u8])
@@ -13,7 +13,7 @@ pub fn cff_encode_cff_operator(val: CffDictOperator) -> Buffer {
         Buffer::from_bytes(&[val as u8])
     }
 }
-pub fn cff_encode_cff_integer(mut val: i32) -> Buffer {
+pub fn encode_integer(mut val: i32) -> Buffer {
     if (-107..=107).contains(&val) {
         Buffer::from_bytes(&[(val + 139) as u8])
     } else if (108..=1131).contains(&val) {
@@ -34,7 +34,7 @@ pub fn cff_encode_cff_integer(mut val: i32) -> Buffer {
         ])
     }
 }
-pub fn cff_encode_cff_float(val: f64) -> Buffer {
+pub fn encode_float(val: f64) -> Buffer {
     let mut blob = Buffer::new();
     if val == 0.0 {
         blob.write_u8(30);
@@ -86,7 +86,7 @@ pub fn cff_encode_cff_float(val: f64) -> Buffer {
 // token's start and returns `None` if the token would run past them; the
 // charstring and DICT walks stop there. A token starting near the end of a
 // truncated charstring or DICT is otherwise read past its end.
-pub fn cff_decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
+pub fn decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let mut r = FontReader::new(slice);
     let b0 = r.u8().ok()?;
     // A CS2 operand always becomes a `Double`.
@@ -501,7 +501,7 @@ static DE_T2: [Option<CffDecoder>; 256] = {
         Some(cff_dec_e as CffDecoder),
     ]
 };
-pub fn cff_decode_cff_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
+pub fn decode_cff_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let &b0 = slice.first()?;
     DE_T2[b0 as usize].expect("non-null function pointer")(slice, val)
 }
@@ -518,7 +518,7 @@ mod token_decoder_tests {
     fn cs2_token_reads_a_single_byte_operand() {
         let data = [100u8]; // 32..=246 -> operand = 100-139 = -39
         let mut val = zeroed_val();
-        let advance = cff_decode_cs2_token(&data, &mut val).unwrap();
+        let advance = decode_cs2_token(&data, &mut val).unwrap();
         assert_eq!(advance, 1);
         assert_eq!(val, CffValue::Double(-39.0));
     }
@@ -527,7 +527,7 @@ mod token_decoder_tests {
     fn cs2_token_reads_a_five_byte_fraction() {
         let data = [255u8, 0, 2, 0x80, 0x00]; // integer=2, fraction=32768/65536=0.5
         let mut val = zeroed_val();
-        let advance = cff_decode_cs2_token(&data, &mut val).unwrap();
+        let advance = decode_cs2_token(&data, &mut val).unwrap();
         assert_eq!(advance, 5);
         assert_eq!(val, CffValue::Double(2.5));
     }
@@ -536,21 +536,21 @@ mod token_decoder_tests {
     fn cs2_token_truncated_fraction_is_rejected_instead_of_reading_oob() {
         let data = [255u8, 0, 2]; // needs 5 bytes, only 3 present
         let mut val = zeroed_val();
-        assert!(cff_decode_cs2_token(&data, &mut val).is_none());
+        assert!(decode_cs2_token(&data, &mut val).is_none());
     }
 
     #[test]
     fn cs2_token_truncated_three_byte_operand_is_rejected_instead_of_reading_oob() {
         let data = [28u8, 0x00]; // needs 3 bytes, only 2 present
         let mut val = zeroed_val();
-        assert!(cff_decode_cs2_token(&data, &mut val).is_none());
+        assert!(decode_cs2_token(&data, &mut val).is_none());
     }
 
     #[test]
     fn cff_token_reads_a_dict_integer() {
         let data = [200u8]; // 32..=246 -> 200-139 = 61
         let mut val = zeroed_val();
-        let advance = cff_decode_cff_token(&data, &mut val).unwrap();
+        let advance = decode_cff_token(&data, &mut val).unwrap();
         assert_eq!(advance, 1);
         assert_eq!(val, CffValue::Integer(61));
     }
@@ -563,7 +563,7 @@ mod token_decoder_tests {
         // that used to fire here on every call.
         let data = [22u8];
         let mut val = zeroed_val();
-        let advance = cff_decode_cff_token(&data, &mut val).unwrap();
+        let advance = decode_cff_token(&data, &mut val).unwrap();
         assert_eq!(advance, 1);
         assert_eq!(val, CffValue::Integer(22));
     }
@@ -588,7 +588,7 @@ mod token_decoder_tests {
         let mut val = zeroed_val();
         let start = std::time::Instant::now();
         for i in 0..data.len() {
-            let advance = cff_decode_cff_token(&data[i..], &mut val).unwrap();
+            let advance = decode_cff_token(&data[i..], &mut val).unwrap();
             assert_eq!(advance, 1);
         }
         assert!(
@@ -604,7 +604,7 @@ mod token_decoder_tests {
         // packed as 0x1A, 0x5F -> "1.5".
         let data = [30u8, 0x1A, 0x5F];
         let mut val = zeroed_val();
-        let advance = cff_decode_cff_token(&data, &mut val).unwrap();
+        let advance = decode_cff_token(&data, &mut val).unwrap();
         assert_eq!(advance, 3);
         assert_eq!(val, CffValue::Double(1.5));
     }
@@ -616,14 +616,14 @@ mod token_decoder_tests {
         // never has one used to read arbitrarily far past the buffer.
         let data = [30u8, 0x12]; // neither nibble is 0xf, and there's no more data
         let mut val = zeroed_val();
-        assert!(cff_decode_cff_token(&data, &mut val).is_none());
+        assert!(decode_cff_token(&data, &mut val).is_none());
     }
 
     #[test]
     fn cff_token_zero_remaining_is_rejected() {
         let data = [42u8];
         let mut val = zeroed_val();
-        assert!(cff_decode_cff_token(&data[0..0], &mut val).is_none());
+        assert!(decode_cff_token(&data[0..0], &mut val).is_none());
     }
 }
 
@@ -680,20 +680,20 @@ mod float_encoding_tests {
             (-1e-10, &[30, 0xe1, 0xc1, 0xf]),
         ];
         for &(val, expected) in cases {
-            assert_eq!(cff_encode_cff_float(val).data, expected, "for val = {val:?}");
+            assert_eq!(encode_float(val).data, expected, "for val = {val:?}");
         }
     }
 
     // Round-trips a formatted value through the real decoder
-    // (`cff_decode_cff_token`, the same entry point a DICT parser uses),
+    // (`decode_cff_token`, the same entry point a DICT parser uses),
     // not just through the nibble-packing logic in isolation -- proves
     // the encode/decode pair genuinely agree end to end.
     #[test]
     fn encode_then_decode_recovers_the_same_value() {
         for &val in &[0.0, 1.5, -1.5, 100.0, 0.001, 0.1, -0.1, 1234.5678, 1e20, -1e-10] {
-            let blob = cff_encode_cff_float(val);
+            let blob = encode_float(val);
             let mut decoded = CffValue::Unset;
-            let advance = cff_decode_cff_token(&blob.data, &mut decoded).unwrap();
+            let advance = decode_cff_token(&blob.data, &mut decoded).unwrap();
             assert_eq!(advance as usize, blob.data.len());
             match decoded {
                 CffValue::Double(d) => assert_eq!(d, val, "for val = {val:?}"),
@@ -705,12 +705,12 @@ mod float_encoding_tests {
     // The nibble stream can only encode digits, '.', '-', and 'e-'/'e+' --
     // exactly what `format_g13` ever emits -- so this sweep is really
     // checking that no pseudo-random bit pattern trips the `unreachable!`
-    // in `cff_encode_cff_float`'s nibble-packing match, and that the
+    // in `encode_float`'s nibble-packing match, and that the
     // whole encode/format/decode pipeline never panics on any finite f64.
     #[test]
     #[cfg_attr(
         miri,
-        ignore = "timing-based bulk sweep; 20,000 encode/format/decode round trips through cff_encode_cff_float's %g-style formatting is far too slow to run meaningfully under Miri's interpreter -- this is what actually made the `miri` CI job's libcff:: filter take ~19 minutes by itself, confirmed by CI job logs (108150304183) pinpointing this exact test as the ~18.7-minute gap between it and its neighbor"
+        ignore = "timing-based bulk sweep; 20,000 encode/format/decode round trips through encode_float's %g-style formatting is far too slow to run meaningfully under Miri's interpreter -- this is what actually made the `miri` CI job's libcff:: filter take ~19 minutes by itself, confirmed by CI job logs (108150304183) pinpointing this exact test as the ~18.7-minute gap between it and its neighbor"
     )]
     fn encoding_many_pseudo_random_finite_values_never_panics() {
         let mut state: u64 = 0x243F_6A88_85A3_08D3;
@@ -720,9 +720,9 @@ mod float_encoding_tests {
             if !val.is_finite() {
                 continue;
             }
-            let blob = cff_encode_cff_float(val);
+            let blob = encode_float(val);
             let mut decoded = CffValue::Unset;
-            let advance = cff_decode_cff_token(&blob.data, &mut decoded).unwrap();
+            let advance = decode_cff_token(&blob.data, &mut decoded).unwrap();
             assert_eq!(advance as usize, blob.data.len());
             assert!(matches!(decoded, CffValue::Double(_)));
         }

@@ -33,18 +33,18 @@ use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 use crate::vf::vq::VQ;
 
-use crate::libcff::charset::cff_build_charset;
-use crate::libcff::codecs::cff_encode_cff_operator;
+use crate::libcff::charset::build_charset;
+use crate::libcff::codecs::encode_operator;
 use crate::libcff::dict::{build_dict, parse_to_callback};
-use crate::libcff::fdselect::cff_build_fd_select;
+use crate::libcff::fdselect::build_fd_select;
 use crate::libcff::index::{build_index, new_index_by_callback};
-use crate::libcff::parser::{cff_open_stream, cff_parse_outline, cff_parse_subr};
+use crate::libcff::parser::{open_stream, parse_outline, parse_subr};
 use crate::libcff::string::get_cff_sid;
 use crate::libcff::value::cffnum;
-use crate::libcff::writer::{cff_build_header, cff_build_offset};
-use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
+use crate::libcff::writer::{build_header, build_offset};
+use crate::libcff::charstring_il::{compile_glyph_to_il, optimize_il};
 use crate::libcff::subr::{
-    cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
+    il_graph_to_buffers, insert_il_to_graph, cff_subr_graph_dispose, subr_graph_init,
 };
 use otfcc_json::BuiltValue;
 use crate::support::primitives::{from_fixed, to_fixed, until_nul};
@@ -519,7 +519,7 @@ fn build_outline(
     };
     let f_raw_data = f.raw_data.as_slice();
     let fd: u8 = if !matches!(f.fdselect, CffFdSelect::Unspecified) {
-        cff_parse_subr(
+        parse_subr(
             i,
             f_raw_data,
             &f.font_dict,
@@ -527,7 +527,7 @@ fn build_outline(
             &mut local_subrs,
         )
     } else {
-        cff_parse_subr(
+        parse_subr(
             i,
             f_raw_data,
             &f.top_dict,
@@ -559,7 +559,7 @@ fn build_outline(
     bc.j_point = 0 as ShapeId;
     bc.randx = seed_val;
     let mut total_subr_calls: u32 = 0;
-    cff_parse_outline(
+    parse_outline(
         char_string_bytes,
         &f.global_subr,
         &local_subrs,
@@ -694,7 +694,7 @@ pub fn read_cff_and_glyf_tables(
     let mut ret: CffAndGlyfOwned = CffAndGlyfOwned::default();
     // Only the first `CFF ` table in the packet is read.
     if let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CFF) {
-        let cff_file: Box<CffFile> = cff_open_stream(&table.data);
+        let cff_file: Box<CffFile> = open_stream(&table.data);
         // A Top DICT INDEX with a count of 0 has no offsets to read.
         if cff_file.top_dict.count != 0 {
             let mut meta: Box<CffTable> = table_cff_new();
@@ -1082,22 +1082,22 @@ pub fn parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffTable>>
 fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, Buffer, Buffer) {
     let glyf: &GlyfTable = context.glyf;
     if glyf.is_empty() {
-        // With 0 glyphs, `cff_il_graph_to_buffers` below never runs, so
+        // With 0 glyphs, `il_graph_to_buffers` below never runs, so
         // the caller (`writecff_cid_keyed`) still needs three empty (but
         // real) `Buffer`s here.
         return (Buffer::new(), Buffer::new(), Buffer::new());
     }
     let options: &Options = context.options;
     for entry in glyf.iter() {
-        let mut il: CffCharstringIl = cff_compile_glyph_to_il(
+        let mut il: CffCharstringIl = compile_glyph_to_il(
             entry.as_deref().unwrap(),
             context.default_width,
             context.nominal_width_x,
         );
-        cff_optimize_il(&mut il, options);
-        cff_insert_il_to_graph(&mut context.graph, &il);
+        optimize_il(&mut il, options);
+        insert_il_to_graph(&mut context.graph, &il);
     }
-    cff_il_graph_to_buffers(&mut context.graph)
+    il_graph_to_buffers(&mut context.graph)
 }
 // Returns the SID of `s`, registering it if new: strings get SIDs from 391
 // up in the order they are first seen, and the `IndexMap` keeps that order
@@ -1319,7 +1319,7 @@ fn cff_make_charset(
     } else {
         CffCharset::IsoAdobe
     };
-    return cff_build_charset(&charset);
+    return build_charset(&charset);
 }
 // The `range3` array's final length isn't pre-counted anymore -- a `Vec`
 // absorbs the counting pass, same as `Coverage`/`ClassDef`/`gpos_pair.rs`'s
@@ -1360,7 +1360,7 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
     } else {
         CffFdSelect::Unspecified
     };
-    return cff_build_fd_select(&fds);
+    return build_fd_select(&fds);
 }
 fn compile_fd_buffer(
     fd_array: &[Box<CffTable>],
@@ -1369,9 +1369,9 @@ fn compile_fd_buffer(
 ) -> Buffer {
     let fd: CffDict = cff_make_fd_dict(&fd_array[i as usize], string_hash);
     let mut blob: Buffer = build_dict(&fd);
-    blob.write_buffer_owned(cff_build_offset(0xeeeeeeee_u32 as i32));
-    blob.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
-    blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
+    blob.write_buffer_owned(build_offset(0xeeeeeeee_u32 as i32));
+    blob.write_buffer_owned(build_offset(0xffffffff_u32 as i32));
+    blob.write_buffer_owned(encode_operator(OP_PRIVATE));
     blob
 }
 fn cff_make_fdarray(
@@ -1392,14 +1392,14 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
     let glyf: &GlyfTable = glyf.unwrap_or(&empty_glyf);
     let mut blob = Buffer::new();
     let mut string_hash: indexmap::IndexMap<Vec<u8>, Vec<u8>> = indexmap::IndexMap::new();
-    let h = cff_build_header();
+    let h = build_header();
     let n = cff_compile_nameindex(cff);
     let top: CffDict = cff_make_fd_dict(cff, &mut string_hash);
     let t = build_dict(&top);
     let top_pd: CffDict = cff_make_private_dict(cff.private_dict.as_deref());
     let mut p = build_dict(&top_pd);
-    p.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
-    p.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
+    p.write_buffer_owned(build_offset(0xffffffff_u32 as i32));
+    p.write_buffer_owned(encode_operator(OP_SUBRS));
     let e = cff_make_fdselect(cff, glyf);
     let mut fd_array_index: Option<CffIndex> = None;
     let mut r: Buffer;
@@ -1419,7 +1419,7 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         options,
         graph: CffSubrGraph::default(),
     };
-    cff_subr_graph_init(&mut g2c_context.graph);
+    subr_graph_init(&mut g2c_context.graph);
     g2c_context.graph.do_subroutinize = options.cff_do_subroutinize;
     let (s, gs, ls) = cff_make_charstrings(&mut g2c_context);
     cff_subr_graph_dispose(&mut g2c_context.graph);
@@ -1445,29 +1445,29 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
     blob.write_buffer_owned(t);
     off += additional_top_dict_ops_size + (i.len() + gs.len()) as u32;
     if !c.is_empty() {
-        blob.write_buffer_owned(cff_build_offset(off as i32));
-        blob.write_buffer_owned(cff_encode_cff_operator(OP_CHARSET));
+        blob.write_buffer_owned(build_offset(off as i32));
+        blob.write_buffer_owned(encode_operator(OP_CHARSET));
         off += c.len() as u32;
     }
     if !e.is_empty() {
-        blob.write_buffer_owned(cff_build_offset(off as i32));
-        blob.write_buffer_owned(cff_encode_cff_operator(OP_FD_SELECT));
+        blob.write_buffer_owned(build_offset(off as i32));
+        blob.write_buffer_owned(encode_operator(OP_FD_SELECT));
         off += e.len() as u32;
     }
     if !s.is_empty() {
-        blob.write_buffer_owned(cff_build_offset(off as i32));
-        blob.write_buffer_owned(cff_encode_cff_operator(OP_CHAR_STRINGS));
+        blob.write_buffer_owned(build_offset(off as i32));
+        blob.write_buffer_owned(encode_operator(OP_CHAR_STRINGS));
         off += s.len() as u32;
     }
     if !p.is_empty() {
-        blob.write_buffer_owned(cff_build_offset(p.len() as i32));
-        blob.write_buffer_owned(cff_build_offset(off as i32));
-        blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
+        blob.write_buffer_owned(build_offset(p.len() as i32));
+        blob.write_buffer_owned(build_offset(off as i32));
+        blob.write_buffer_owned(encode_operator(OP_PRIVATE));
         off += p.len() as u32;
     }
     if !r.is_empty() {
-        blob.write_buffer_owned(cff_build_offset(off as i32));
-        blob.write_buffer_owned(cff_encode_cff_operator(OP_FD_ARRAY));
+        blob.write_buffer_owned(build_offset(off as i32));
+        blob.write_buffer_owned(encode_operator(OP_FD_ARRAY));
         off += r.len() as u32;
     }
     blob.write_buffer_owned(i);
@@ -1491,8 +1491,8 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
             let pd: CffDict = cff_make_private_dict(fd.private_dict.as_deref());
             let mut private_dict = build_dict(&pd);
             // Placeholder for the local subroutines' offset, patched below.
-            private_dict.write_buffer_owned(cff_build_offset(-1));
-            private_dict.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
+            private_dict.write_buffer_owned(build_offset(-1));
+            private_dict.write_buffer_owned(encode_operator(OP_SUBRS));
             // Each font dict ends with `<size> <offset> Private`, two 5-byte
             // operands and a 1-byte operator; patch both operands in place.
             let dict_end = idx.offset[j + 1] as usize;

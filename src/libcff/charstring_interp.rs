@@ -2,14 +2,14 @@
 //! subroutines it calls) and draws the result through the
 //! `OutlineBuilderContext` callbacks in `table/cff.rs`.
 //!
-//! `cff_parse_outline` reads tokens and pushes operands; each operator is
+//! `parse_outline` reads tokens and pushes operands; each operator is
 //! one `op_*` function below, named after its `OP_*` constant, and families
 //! of operators that differ only in direction or arity share a helper. An
 //! operator returns [`Flow::Stop`] when the rest of the outline must be
 //! ignored (operand stack overflow, malformed hint mask data).
 
 use crate::logger::ByteStr;
-use crate::libcff::codecs::cff_decode_cs2_token;
+use crate::libcff::codecs::decode_cs2_token;
 use crate::libcff::index::CffIndex;
 use crate::libcff::value::{CffValue, cffnum};
 use crate::support::primitives::Arity;
@@ -74,7 +74,7 @@ impl CffStack {
 /// Runs the CharString `data` and draws it into `outline`. Each subroutine
 /// call runs this again on the same stack and outline, with `depth` one
 /// deeper; `total_calls` counts the subroutine calls made for this glyph.
-pub fn cff_parse_outline(
+pub fn parse_outline(
     data: &[u8],
     gsubr: &CffIndex,
     lsubr: &CffIndex,
@@ -100,7 +100,7 @@ pub fn cff_parse_outline(
         // run past it; stop instead of reading on. (`op_hint_mask` bounds
         // its mask bytes, which follow the operator outside any token, the
         // same way.)
-        let Some(token_length) = cff_decode_cs2_token(&data[pos..], &mut val) else {
+        let Some(token_length) = decode_cs2_token(&data[pos..], &mut val) else {
             break;
         };
         let mut advance = token_length as usize;
@@ -219,7 +219,7 @@ fn op_hint_mask(stack: &mut CffStack, outline: &mut OutlineBuilderContext, op: i
     let vertical = stack.stem > 0;
     read_stem_hints(stack, outline, vertical);
     let mask_length = stack.stem.div_ceil(8);
-    // The mask bytes never go through `cff_decode_cs2_token`'s bounds
+    // The mask bytes never go through `decode_cs2_token`'s bounds
     // checking, and `mask_length` follows the stem count: a fuzz-found
     // input declared enough stems to read one byte past the CharString
     // (an ASan-confirmed heap-buffer-overflow). `mask_bytes` is exactly
@@ -787,7 +787,7 @@ fn call_subroutine(
             tracing::warn!("[libcff] Subroutine call budget ({}) exceeded; the rest of this outline is ignored.\n", MAX_TOTAL_SUBR_CALLS);
         }
     } else {
-        cff_parse_outline(sub_data, subrs.gsubr, subrs.lsubr, stack, outline, depth + 1, total_calls);
+        parse_outline(sub_data, subrs.gsubr, subrs.lsubr, stack, outline, depth + 1, total_calls);
     }
     Flow::Continue
 }
@@ -874,12 +874,12 @@ mod cff_parse_outline_total_calls_tests {
     // sibling stack-operator tests in this file, shrinking the backing
     // `CffStack.stack` allocation (still done below, real but minor) barely
     // moved this test's Miri time, because the actual cost is ~10,000
-    // *recursive `cff_parse_outline` calls*, not the array size. That's
+    // *recursive `parse_outline` calls*, not the array size. That's
     // inherent to what this test proves, the same way
     // `total_language_count_across_the_whole_table_is_capped`
     // (`table/otl/read.rs`) can't shrink its own N below the real cap
     // either. `cargo test` (native) stays the real regression guard.
-    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive cff_parse_outline calls to exercise the real MAX_TOTAL_SUBR_CALLS budget")]
+    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive parse_outline calls to exercise the real MAX_TOTAL_SUBR_CALLS budget")]
     fn call_count_within_the_budget_all_execute() {
         let gsubr = one_trivial_gsubr();
         let lsubr = empty_cff_index();
@@ -900,7 +900,7 @@ mod cff_parse_outline_total_calls_tests {
         // operator, so the outline context is never actually touched.
         let mut g = new_glyf_glyph();
         let mut ctx = dummy_outline_context(&mut g);
-        cff_parse_outline(
+        parse_outline(
             &data,
             &gsubr,
             &lsubr,
@@ -919,13 +919,13 @@ mod cff_parse_outline_total_calls_tests {
     // `callgsubr` can *nest*, but said nothing about how many calls happen
     // *within* one nesting level -- a subroutine graph with wide fan-out
     // at a shallow, spec-legal depth could still do unbounded total work.
-    // `total_calls` (threaded through every recursive `cff_parse_outline`
+    // `total_calls` (threaded through every recursive `parse_outline`
     // call, shared across the whole glyph) is what actually bounds it.
     #[test]
     // Same Miri cost shape as the sibling test above: recursing up to
     // `MAX_TOTAL_SUBR_CALLS` (10,000) before stopping is the point of
     // this test, not something a smaller N could substitute for.
-    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive cff_parse_outline calls before the real MAX_TOTAL_SUBR_CALLS budget stops it")]
+    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive parse_outline calls before the real MAX_TOTAL_SUBR_CALLS budget stops it")]
     fn call_count_past_the_budget_stops_recursing() {
         let gsubr = one_trivial_gsubr();
         let lsubr = empty_cff_index();
@@ -945,7 +945,7 @@ mod cff_parse_outline_total_calls_tests {
         let mut total_calls: u32 = 0;
         let mut g = new_glyf_glyph();
         let mut ctx = dummy_outline_context(&mut g);
-        cff_parse_outline(
+        parse_outline(
             &data,
             &gsubr,
             &lsubr,
@@ -992,7 +992,7 @@ mod cff_parse_outline_hintmask_tests {
     // A fuzz-found font found this: `hintmask`/`cntrmask`'s mask bytes are
     // raw payload embedded directly in the charstring right after the
     // opcode -- unlike every other operand, they never go through
-    // `cff_decode_cs2_token`'s own bounds checking, so nothing stopped
+    // `decode_cs2_token`'s own bounds checking, so nothing stopped
     // `mask_length` (driven by `(*stack).stem`, the accumulated hint count
     // from every `hstem`/`vstem` operator already seen in this charstring)
     // from reading past the actual CharString buffer -- an ASan-confirmed
@@ -1028,7 +1028,7 @@ mod cff_parse_outline_hintmask_tests {
             defined_contour_masks: 0,
             randx: 0,
         };
-        cff_parse_outline(
+        parse_outline(
             &data,
             &gsubr,
             &lsubr,
@@ -1083,7 +1083,7 @@ mod cff_parse_outline_hintmask_tests {
             defined_contour_masks: 0,
             randx: 0,
         };
-        cff_parse_outline(
+        parse_outline(
             &data,
             &gsubr,
             &lsubr,
@@ -1147,7 +1147,7 @@ mod cff_parse_outline_stack_operator_tests {
         let mut total_calls: u32 = 0;
         // None of this module's `put`/`get`/`index`/`roll` charstrings
         // reach a draw operator -- still needs a real `&mut Glyph`-backed
-        // context now that `cff_parse_outline` takes one unconditionally.
+        // context now that `parse_outline` takes one unconditionally.
         let mut g = new_glyf_glyph();
         let mut ctx = OutlineBuilderContext {
             g: &mut g,
@@ -1161,7 +1161,7 @@ mod cff_parse_outline_stack_operator_tests {
             defined_contour_masks: 0,
             randx: 0,
         };
-        cff_parse_outline(
+        parse_outline(
             data,
             &gsubr,
             &lsubr,
@@ -1345,7 +1345,7 @@ mod cff_parse_outline_subr_number_tests {
             defined_contour_masks: 0,
             randx: 0,
         };
-        cff_parse_outline(&data, gsubr, lsubr, &mut stack, &mut ctx, 0, &mut total_calls);
+        parse_outline(&data, gsubr, lsubr, &mut stack, &mut ctx, 0, &mut total_calls);
         g.contours
             .iter()
             .flatten()
@@ -1422,7 +1422,7 @@ mod cff_parse_outline_operand_group_tests {
             defined_contour_masks: 0,
             randx: 0,
         };
-        cff_parse_outline(&data, &gsubr, &lsubr, &mut stack, &mut ctx, 0, &mut total_calls);
+        parse_outline(&data, &gsubr, &lsubr, &mut stack, &mut ctx, 0, &mut total_calls);
         assert_eq!(stack.index, 0);
         g.contours.iter().map(|c| c.len()).sum::<usize>() - 1
     }

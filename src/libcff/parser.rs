@@ -1,10 +1,10 @@
 use otfcc_binary::FontReader;
 
 use crate::libcff::charset::CffCharset;
-use crate::libcff::charset::cff_extract_charset;
+use crate::libcff::charset::extract_charset;
 use crate::libcff::dict::parse_dict_key_int;
 use crate::libcff::fdselect::CffFdSelect;
-use crate::libcff::fdselect::cff_extract_fd_select;
+use crate::libcff::fdselect::extract_fd_select;
 use crate::libcff::index::CffIndex;
 use crate::libcff::index::{empty_index, extract_index, get_index_length};
 use crate::libcff::{
@@ -172,14 +172,14 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHARSET, 0);
         if offset_0 != -1 {
             cff.charsets =
-                cff_extract_charset(header_slice, offset_0, cff.char_strings.count as u16);
+                extract_charset(header_slice, offset_0, cff.char_strings.count as u16);
         } else {
             cff.charsets = CffCharset::IsoAdobe;
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_SELECT, 0);
         if cff.char_strings.count != 0 && offset_0 != -1 {
             cff.fdselect =
-                cff_extract_fd_select(header_slice, offset_0, cff.char_strings.count as u16);
+                extract_fd_select(header_slice, offset_0, cff.char_strings.count as u16);
         } else {
             cff.fdselect = CffFdSelect::Unspecified;
         }
@@ -221,7 +221,7 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
         empty_index(&mut cff.local_subr);
     };
 }
-pub fn cff_open_stream(data: &[u8]) -> Box<CffFile> {
+pub fn open_stream(data: &[u8]) -> Box<CffFile> {
     // Every field starts as a valid empty value: `parse_cff_bytecode`
     // assigns them one by one, and a malformed font may leave some
     // unassigned.
@@ -252,7 +252,7 @@ pub fn cff_open_stream(data: &[u8]) -> Box<CffFile> {
 }
 // Takes `&CffFdSelect` because both callers read it from a shared
 // `CffFile` once per glyph.
-pub fn cff_parse_subr(
+pub fn parse_subr(
     idx: u16,
     raw: &[u8],
     fdarray: &CffIndex,
@@ -361,7 +361,7 @@ pub(crate) fn compute_subr_bias(cnt: u16) -> u16 {
         return 32768;
     };
 }
-pub use crate::libcff::charstring_interp::cff_parse_outline;
+pub use crate::libcff::charstring_interp::parse_outline;
 
 #[cfg(test)]
 mod cff_header_and_encoding_tests {
@@ -492,7 +492,7 @@ mod cff_open_stream_tests {
             0, 0, 0, // String INDEX: empty
             0, 0, 0, // Global Subr INDEX: empty
         ];
-        let file = cff_open_stream(&data);
+        let file = open_stream(&data);
         assert_eq!(file.top_dict.count, 0);
         assert_eq!(file.char_strings.count, 0);
         assert!(file.char_strings.data.is_empty());
@@ -611,9 +611,9 @@ mod cff_parse_subr_tests {
         let select = CffFdSelect::Format0(vec![99]);
         let mut subr = empty_cff_index();
         // `raw` is never touched on this path -- `fd` (99) is already past
-        // `fdarray.count` (1), so `cff_parse_subr` takes its early-return
+        // `fdarray.count` (1), so `parse_subr` takes its early-return
         // branch before reading any font bytes.
-        let fd = cff_parse_subr(0, &[], &fdarray, &select, &mut subr);
+        let fd = parse_subr(0, &[], &fdarray, &select, &mut subr);
         assert_eq!(fd, 99);
         assert_eq!(subr.count, 0);
     }
