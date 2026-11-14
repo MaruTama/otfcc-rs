@@ -1,5 +1,6 @@
 use otfcc_binary::Buffer;
 use otfcc_binary::FontReader;
+use crate::support::error::BuildError;
 use crate::support::primitives::Arity;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
@@ -115,11 +116,18 @@ pub(crate) fn new_index_by_callback(
         data,
     }
 }
-pub(crate) fn build_index(index: &CffIndex) -> Buffer {
+/// Writes an INDEX. CFF1 stores the count in a Card16, so more than 65535
+/// entries cannot be written.
+pub(crate) fn build_index(index: &CffIndex) -> Result<Buffer, BuildError> {
+    let count = u16::try_from(index.count).map_err(|_| BuildError::TooManyEntries {
+        what: "CFF INDEX",
+        count: index.count as usize,
+        max: usize::from(u16::MAX),
+    })?;
     let mut blob = Buffer::new();
     if index.count == 0 {
         blob.write_bytes(&[0, 0, 0]);
-        return blob;
+        return Ok(blob);
     }
     let offset = &index.offset;
     let last_offset: u32 = offset[index.count as usize];
@@ -132,7 +140,7 @@ pub(crate) fn build_index(index: &CffIndex) -> Buffer {
     } else {
         4
     };
-    blob.write_u16be(index.count as u16);
+    blob.write_u16be(count);
     blob.write_u8(off_size as u8);
     for &offset_i in &offset[..=index.count as usize] {
         // Each offset big-endian, in its last `off_size` bytes.
@@ -142,7 +150,7 @@ pub(crate) fn build_index(index: &CffIndex) -> Buffer {
         let n = offset[index.count as usize].wrapping_sub(1) as usize;
         blob.write_bytes(&index.data[..n]);
     }
-    return blob;
+    Ok(blob)
 }
 
 #[cfg(test)]
@@ -230,5 +238,21 @@ mod parse_index_tests {
         let data = [0x00u8, 0x01, 0x05, 0x00, 0x00];
         let idx = parse_index(&data, 0);
             assert_eq!(idx.count, 0);
+    }
+
+    #[test]
+    fn building_an_index_of_65536_entries_is_an_error() {
+        let too_many = new_index_by_callback(65536, (0..65536).map(|_| Buffer::new()));
+        assert_eq!(
+            build_index(&too_many).unwrap_err(),
+            BuildError::TooManyEntries { what: "CFF INDEX", count: 65536, max: 65535 }
+        );
+    }
+
+    #[test]
+    fn an_index_of_65535_entries_can_be_built() {
+        let full = new_index_by_callback(65535, (0..65535).map(|_| Buffer::new()));
+        let bytes = build_index(&full).unwrap();
+        assert_eq!(&bytes.data[..2], &[0xFF, 0xFF]);
     }
 }

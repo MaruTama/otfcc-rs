@@ -44,10 +44,16 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     consolidate_font(&mut font, &options);
     // This is the one genuine `extern "C"` boundary in the crate, so it is
     // also the one place that still needs to hand a `Buffer` back as a raw
-    // pointer -- `serialize_to_otf` returns the `Buffer` itself now.
-    let otf: *mut Buffer = Box::into_raw(Box::new(serialize_to_otf(&mut font, &options)));
+    // pointer -- `serialize_to_otf` returns the `Buffer` itself.
+    let built = serialize_to_otf(&mut font, &options);
     drop(font);
-    return otf;
+    match built {
+        Ok(otf) => Box::into_raw(Box::new(otf)),
+        Err(e) => {
+            tracing::error!("Cannot build the font: {e}");
+            ::core::ptr::null_mut::<Buffer>()
+        }
+    }
 }
 /// # Safety
 /// `buf` must be non-null and point to a live `Buffer` obtained from

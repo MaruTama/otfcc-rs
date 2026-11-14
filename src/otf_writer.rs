@@ -1,6 +1,7 @@
 pub mod stat;
 
 use otfcc_binary::Buffer;
+use crate::support::error::BuildError;
 use crate::support::options::Options;
 
 use crate::font::model::{Font, FontSubtype};
@@ -11,7 +12,7 @@ use crate::font::sfnt_builder::{
 use crate::otf_writer::stat::{stat_font, unstat_font};
 
 /// Serializes a consolidated font into sfnt (OTF/TTF) bytes.
-pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
+pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Result<Buffer, BuildError> {
     stat_font(&mut *font, options);
     let mut builder = SfntBuilder::new(
         (if font.subtype == FontSubtype::Cff {
@@ -21,8 +22,12 @@ pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         }) as u32,
         options,
     );
-    for table in BUILD_ORDER {
-        table.build(font, &mut builder, options);
+    let built = BUILD_ORDER
+        .iter()
+        .try_for_each(|table| table.build(font, &mut builder, options));
+    if let Err(e) = built {
+        unstat_font(&mut *font);
+        return Err(e);
     }
     if options.dummy_dsig {
         let mut dsig = Buffer::new();
@@ -33,5 +38,5 @@ pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
     }
     let otf: Buffer = sfnt_builder_serialize(&builder);
     unstat_font(&mut *font);
-    return otf;
+    Ok(otf)
 }
