@@ -260,7 +260,13 @@ fn run(args: Vec<String>) -> i32 {
     }
     let stage = otfcc_rust::logger::stage("Build");
     {
-        let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &options);
+        let otf: Buffer = match serialize_to_otf(font.as_mut().unwrap(), &options) {
+            Ok(otf) => otf,
+            Err(e) => {
+                tracing::error!("Cannot build the font: {e}");
+                return EXIT_FAILURE;
+            }
+        };
         let substage = otfcc_rust::logger::stage("Write to file");
         {
             // Always `Some` here -- the `output_path.is_none()` branch

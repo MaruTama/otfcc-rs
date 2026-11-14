@@ -81,7 +81,7 @@ pub fn build_to_otf(json_bytes: &[u8], options: &Options) -> Vec<u8> {
 
     consolidate_font(&mut font, options);
 
-    let otf = serialize_to_otf(&mut font, options);
+    let otf = serialize_to_otf(&mut font, options).expect("the benchmark fonts build");
     drop(font);
 
     otf.data

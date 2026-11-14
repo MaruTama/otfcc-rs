@@ -3,6 +3,7 @@ use otfcc_binary::Buffer;
 use crate::libcff::CffCharstringOperator;
 use crate::libcff::index::CffIndex;
 use crate::libcff::index::{build_index, new_index_by_callback};
+use crate::support::error::BuildError;
 use crate::libcff::writer::{
     merge_cs2_int, merge_cs2_operand, merge_cs2_operator, merge_cs2_special,
 };
@@ -756,7 +757,7 @@ fn serialize_node_to_buffer(
 }
 pub fn il_graph_to_buffers(
     g: &mut CffSubrGraph,
-) -> (Buffer, Buffer, Buffer) {
+) -> Result<(Buffer, Buffer, Buffer), BuildError> {
     let root = g.root;
     stat_height(g, root, 0);
     let max_subroutines: u32 = number_subroutines(g);
@@ -825,10 +826,10 @@ pub fn il_graph_to_buffers(
     for entry in lsubrs.iter_mut().take(max_l_subrs as usize) {
         entry.data = Vec::new();
     }
-    let s = build_index(&is);
-    let gs = build_index(&igs);
-    let ls = build_index(&ils);
-    (s, gs, ls)
+    let s = build_index(&is)?;
+    let gs = build_index(&igs)?;
+    let ls = build_index(&ils)?;
+    Ok((s, gs, ls))
 }
 
 // Coverage for the subroutinizer at the two entry points `table/cff.rs`
@@ -863,7 +864,7 @@ mod subr_graph_tests {
         for il in glyphs {
             insert_il_to_graph(&mut g, il);
         }
-        il_graph_to_buffers(&mut g)
+        il_graph_to_buffers(&mut g).unwrap()
     }
 
     #[test]

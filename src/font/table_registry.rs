@@ -24,6 +24,7 @@ use crate::font::sfnt_builder::{SfntBuilder, sfnt_builder_push_table};
 use crate::json_writer::DumpSink;
 use crate::logger::ByteStr;
 use otfcc_json::BuiltValue;
+use crate::support::error::BuildError;
 use crate::support::options::Options;
 use otfcc_json::ParsedValue;
 use crate::support::primitives::{GlyphId, ShapeId, count_u16};
@@ -101,7 +102,9 @@ pub trait FontTable: Sync {
         }
     }
     /// Writes this table into a binary font.
-    fn build(&self, _font: &mut Font, _builder: &mut SfntBuilder, _options: &Options) {}
+    fn build(&self, _font: &mut Font, _builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
+        Ok(())
+    }
     /// Resolves the glyph references in this table against the font's glyph
     /// order, and drops what does not resolve, before the font is written.
     fn consolidate(&self, _font: &mut Font, _options: &Options) {}
@@ -132,8 +135,9 @@ impl FontTable for Head {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_head(font.head.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_HEAD, build_head(font.head.as_deref()));
+        Ok(())
     }
 }
 
@@ -148,8 +152,9 @@ impl FontTable for Hhea {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_hhea(font.hhea.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_HHEA, build_hhea(font.hhea.as_deref()));
+        Ok(())
     }
 }
 
@@ -164,8 +169,9 @@ impl FontTable for Maxp {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_maxp(font.maxp.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_MAXP, build_maxp(font.maxp.as_deref()));
+        Ok(())
     }
 }
 
@@ -180,8 +186,9 @@ impl FontTable for Os2 {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_os_2(font.os_2.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_OS_2, build_os_2(font.os_2.as_deref()));
+        Ok(())
     }
 }
 
@@ -194,13 +201,13 @@ impl FontTable for Hmtx {
             font.hmtx = read_hmtx(packet, font.hhea.as_deref(), font.maxp.as_deref());
         }
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         let (Some(hhea), Some(maxp), Some(hmtx)) = (
             font.hhea.as_deref(),
             font.maxp.as_deref(),
             font.hmtx.as_deref(),
         ) else {
-            return;
+            return Ok(());
         };
         let count_a: u16 = hhea.number_of_metrics;
         let count_k: u16 = (maxp.num_glyphs as i32 - hhea.number_of_metrics as i32) as u16;
@@ -213,6 +220,7 @@ impl FontTable for Hmtx {
                 count_k as GlyphId,
             )),
         );
+        Ok(())
     }
 }
 
@@ -227,12 +235,13 @@ impl FontTable for Post {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_post(font.post.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(
             builder,
             TAG_POST,
             build_post(font.post.as_deref(), font.glyph_order.as_deref()),
         );
+        Ok(())
     }
 }
 
@@ -247,8 +256,9 @@ impl FontTable for Vhea {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_vhea(font.vhea.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_VHEA, build_vhea(font.vhea.as_deref()));
+        Ok(())
     }
 }
 
@@ -260,13 +270,13 @@ impl FontTable for Vmtx {
             font.vmtx = read_vmtx(packet, font.vhea.as_deref(), font.maxp.as_deref());
         }
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         let (Some(vhea), Some(maxp), Some(vmtx)) = (
             font.vhea.as_deref(),
             font.maxp.as_deref(),
             font.vmtx.as_deref(),
         ) else {
-            return;
+            return Ok(());
         };
         let count_a: u16 = vhea.num_of_long_ver_metrics;
         let count_k: u16 = (maxp.num_glyphs as i32 - vhea.num_of_long_ver_metrics as i32) as u16;
@@ -279,6 +289,7 @@ impl FontTable for Vmtx {
                 count_k as GlyphId,
             )),
         );
+        Ok(())
     }
 }
 
@@ -291,8 +302,9 @@ impl FontTable for Vorg {
             font.vorg = read_vorg(packet);
         }
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_VORG, build_vorg(font.vorg.as_deref()));
+        Ok(())
     }
 }
 
@@ -314,9 +326,9 @@ impl FontTable for Cff {
         dump_cff(font.cff.as_deref(), root);
     }
     /// Builds a CFF font's CFF table, outlines included.
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, options: &Options) -> Result<(), BuildError> {
         if is_ttf(font) {
-            return;
+            return Ok(());
         }
         // A CFF-subtype font is assumed to have a CFF table (the subtype
         // is decided by its presence).
@@ -327,7 +339,8 @@ impl FontTable for Cff {
                 .expect("a CFF-subtype font must have a CFF table to build"),
             glyphs: font.glyf.as_ref(),
         };
-        sfnt_builder_push_table(builder, TAG_CFF, Some(build_cff(r, options)));
+        sfnt_builder_push_table(builder, TAG_CFF, Some(build_cff(r, options)?));
+        Ok(())
     }
 }
 
@@ -381,13 +394,14 @@ impl FontTable for Glyf {
     }
     /// Builds a TrueType font's `glyf` and `loca`. This sets
     /// `head.indexToLocFormat`, so it has to come before `head` is built.
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         if !is_ttf(font) {
-            return;
+            return Ok(());
         }
         let pair: GlyfAndLocaBuffers = build_glyf(font.glyf.as_ref(), font.head.as_deref_mut());
         sfnt_builder_push_table(builder, TAG_GLYF, Some(pair.glyf));
         sfnt_builder_push_table(builder, TAG_LOCA, Some(pair.loca));
+        Ok(())
     }
     fn consolidate(&self, font: &mut Font, options: &Options) {
         let stage = crate::logger::stage("glyf");
@@ -409,8 +423,9 @@ impl FontTable for Cmap {
     fn dump_to(&self, font: &mut Font, sink: &mut dyn DumpSink, options: &Options) {
         dump_cmap(font.cmap.as_deref(), sink, options);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_CMAP, build_cmap(font.cmap.as_deref(), options));
+        Ok(())
     }
     fn consolidate(&self, font: &mut Font, _options: &Options) {
         let stage = crate::logger::stage("cmap");
@@ -430,8 +445,9 @@ impl FontTable for Name {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_name(font.name.as_ref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_NAME, build_name(font.name.as_ref()));
+        Ok(())
     }
 }
 
@@ -446,8 +462,9 @@ impl FontTable for Meta {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_meta(font.meta.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_META, build_meta(font.meta.as_deref()));
+        Ok(())
     }
 }
 
@@ -495,7 +512,7 @@ impl FontTable for Program {
             table_dump_table_fpgm_prep(self.slot(font).as_deref(), root, options, self.key());
         }
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         if is_ttf(font) {
             sfnt_builder_push_table(
                 builder,
@@ -503,6 +520,7 @@ impl FontTable for Program {
                 build_fpgm_prep(self.slot(font).as_deref()),
             );
         }
+        Ok(())
     }
 }
 
@@ -523,10 +541,11 @@ impl FontTable for Cvt {
             dump_cvt(font.cvt_.as_deref(), root, b"cvt_");
         }
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         if is_ttf(font) {
             sfnt_builder_push_table(builder, TAG_CVT, build_cvt(font.cvt_.as_deref()));
         }
+        Ok(())
     }
 }
 
@@ -548,8 +567,9 @@ impl FontTable for Gasp {
         }
     }
     /// Unlike the other hinting tables, written for CFF fonts too.
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_GASP, build_gasp(font.gasp.as_deref()));
+        Ok(())
     }
 }
 
@@ -567,10 +587,11 @@ impl FontTable for Vdmx {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_vdmx(font.vdmx.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         if is_ttf(font) {
             sfnt_builder_push_table(builder, TAG_VDMX, build_vdmx(font.vdmx.as_deref()));
         }
+        Ok(())
     }
 }
 
@@ -583,10 +604,11 @@ impl FontTable for Ltsh {
             font.ltsh = read_ltsh(packet);
         }
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         if is_ttf(font) {
             sfnt_builder_push_table(builder, TAG_LTSH, build_ltsh(font.ltsh.as_deref()));
         }
+        Ok(())
     }
 }
 
@@ -631,12 +653,13 @@ impl FontTable for Layout {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_otl(self.slot(font).as_deref(), root, self.key());
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(
             builder,
             self.tag(),
             build_otl(self.slot(font).as_deref(), self.key()),
         );
+        Ok(())
     }
     fn consolidate(&self, font: &mut Font, options: &Options) {
         if font.glyf.is_none() {
@@ -668,8 +691,9 @@ impl FontTable for Gdef {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_gdef(font.gdef.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_GDEF, build_gdef(font.gdef.as_deref()));
+        Ok(())
     }
     fn consolidate(&self, font: &mut Font, _options: &Options) {
         if font.glyf.is_none() {
@@ -692,8 +716,9 @@ impl FontTable for Base {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_base(font.base.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_BASE, build_base(font.base.as_deref()));
+        Ok(())
     }
 }
 
@@ -708,8 +733,9 @@ impl FontTable for Cpal {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_cpal(font.cpal.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_CPAL, build_cpal(font.cpal.as_deref()));
+        Ok(())
     }
 }
 
@@ -724,8 +750,9 @@ impl FontTable for Colr {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_colr(font.colr.as_ref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_COLR, build_colr(font.colr.as_ref()));
+        Ok(())
     }
     fn consolidate(&self, font: &mut Font, _options: &Options) {
         let stage = crate::logger::stage("COLR");
@@ -745,8 +772,9 @@ impl FontTable for Svg {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_svg(font.svg.as_ref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         sfnt_builder_push_table(builder, TAG_SVG, build_svg(font.svg.as_ref()));
+        Ok(())
     }
 }
 
@@ -787,11 +815,12 @@ impl FontTable for VttSource {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_tsi(self.slot(font).as_ref(), root, self.key());
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         let (index, text) = self.tags();
         let target: TsiBuildTarget = build_tsi(self.slot(font).as_ref());
         sfnt_builder_push_table(builder, index, target.index_part);
         sfnt_builder_push_table(builder, text, target.text_part);
+        Ok(())
     }
     fn consolidate(&self, font: &mut Font, _options: &Options) {
         let stage = crate::logger::stage(ByteStr(self.key()));
@@ -817,7 +846,7 @@ impl FontTable for Tsi5 {
     fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
         dump_tsi5(font.tsi5.as_deref(), root);
     }
-    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) {
+    fn build(&self, font: &mut Font, builder: &mut SfntBuilder, _options: &Options) -> Result<(), BuildError> {
         if let Some(glyf) = font.glyf.as_ref() {
             sfnt_builder_push_table(
                 builder,
@@ -825,6 +854,7 @@ impl FontTable for Tsi5 {
                 build_tsi5(font.tsi5.as_deref(), count_u16(glyf.len())),
             );
         }
+        Ok(())
     }
     fn consolidate(&self, font: &mut Font, _options: &Options) {
         let stage = crate::logger::stage("TSI5");

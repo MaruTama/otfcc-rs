@@ -38,6 +38,7 @@ use crate::libcff::codecs::encode_operator;
 use crate::libcff::dict::{build_dict, parse_to_callback};
 use crate::libcff::fdselect::build_fd_select;
 use crate::libcff::index::{build_index, new_index_by_callback};
+use crate::support::error::BuildError;
 use crate::libcff::parser::{open_stream, parse_outline, parse_subr};
 use crate::libcff::string::get_cff_sid;
 use crate::libcff::value::cffnum;
@@ -1077,13 +1078,13 @@ pub fn parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffTable>>
     stage.finish();
     Some(cff)
 }
-fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, Buffer, Buffer) {
+fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> Result<(Buffer, Buffer, Buffer), BuildError> {
     let glyf: &GlyfTable = context.glyf;
     if glyf.is_empty() {
         // With 0 glyphs, `il_graph_to_buffers` below never runs, so
         // the caller (`writecff_cid_keyed`) still needs three empty (but
         // real) `Buffer`s here.
-        return (Buffer::new(), Buffer::new(), Buffer::new());
+        return Ok((Buffer::new(), Buffer::new(), Buffer::new()));
     }
     let options: &Options = context.options;
     for entry in glyf.iter() {
@@ -1268,7 +1269,7 @@ fn cff_make_private_dict(pd: Option<&CffPrivateDict>) -> CffDict {
     cffdict_input_doubles(&mut dict, OP_NOMINAL_WIDTH_X, &[pd.nominal_width_x]);
     dict
 }
-fn cffstrings_to_indexblob(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> Buffer {
+fn cffstrings_to_indexblob(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> Result<Buffer, BuildError> {
     let n: u32 = h.len() as u32;
     // The `IndexMap` is in SID order (see `sidof`).
     let blobs: Vec<Buffer> = ::core::mem::take(h)
@@ -1278,7 +1279,7 @@ fn cffstrings_to_indexblob(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> Buff
     let strings: CffIndex = new_index_by_callback(n, blobs.into_iter());
     build_index(&strings)
 }
-fn cff_compile_nameindex(cff: &mut CffTable) -> Buffer {
+fn cff_compile_nameindex(cff: &mut CffTable) -> Result<Buffer, BuildError> {
     if cff.font_name.is_empty() {
         cff.font_name = b"Caryll-CFF-FONT".to_vec();
     }
@@ -1292,9 +1293,9 @@ fn cff_compile_nameindex(cff: &mut CffTable) -> Buffer {
         data: name_data,
         ..Default::default()
     };
-    let buf = build_index(&name_index);
+    let buf = build_index(&name_index)?;
     cff.font_name = Vec::new();
-    buf
+    Ok(buf)
 }
 fn cff_make_charset(
     cff: &CffTable,
@@ -1379,7 +1380,7 @@ fn cff_make_fdarray(
     let len = fd_array.len() as u32;
     new_index_by_callback(len, (0..len).map(|i| compile_fd_buffer(fd_array, string_hash, i)))
 }
-fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Options) -> Buffer {
+fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Options) -> Result<Buffer, BuildError> {
     // `glyf` is `None` when the font has a `CFF_` table but no `glyf`
     // table at all (e.g. `{"CFF_": {}}`) -- every function below this
     // point reads it unconditionally, assuming a present-but-possibly-
@@ -1391,7 +1392,7 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
     let mut blob = Buffer::new();
     let mut string_hash: indexmap::IndexMap<Vec<u8>, Vec<u8>> = indexmap::IndexMap::new();
     let h = build_header();
-    let n = cff_compile_nameindex(cff);
+    let n = cff_compile_nameindex(cff)?;
     let top: CffDict = cff_make_fd_dict(cff, &mut string_hash);
     let t = build_dict(&top);
     let top_pd: CffDict = cff_make_private_dict(cff.private_dict.as_deref());
@@ -1403,13 +1404,13 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
     let mut r: Buffer;
     if cff.is_cid {
         let idx = cff_make_fdarray(&cff.fd_array, &mut string_hash);
-        r = build_index(&idx);
+        r = build_index(&idx)?;
         fd_array_index = Some(idx);
     } else {
         r = Buffer::new();
     }
     let c = cff_make_charset(cff, glyf, &mut string_hash);
-    let i = cffstrings_to_indexblob(&mut string_hash);
+    let i = cffstrings_to_indexblob(&mut string_hash)?;
     let mut g2c_context: CffCharstringBuilderContext = CffCharstringBuilderContext {
         glyf,
         default_width: cff.private_dict.as_deref().unwrap().default_width_x as u16,
@@ -1417,7 +1418,7 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         options,
         graph: CffSubrGraph::new(options.cff_do_subroutinize),
     };
-    let (s, gs, ls) = cff_make_charstrings(&mut g2c_context);
+    let (s, gs, ls) = cff_make_charstrings(&mut g2c_context)?;
     // The top dict gets one offset operator per non-empty section that
     // follows it: 5 bytes for the offset plus the operator's 1 or 2.
     let mut additional_top_dict_ops_size: u32 = 0;
@@ -1499,7 +1500,7 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
             fd_array_privates_start_offset += private_dict.len() as u32;
             fd_array_privates.push(private_dict);
         }
-        r = build_index(idx);
+        r = build_index(idx)?;
         blob.write_buffer_owned(r);
         for (j, private_dict) in fd_array_privates.into_iter().enumerate() {
             starting_position_of_privates[j + 1] = blob.pos();
@@ -1524,9 +1525,9 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         let ptr_off: usize = end - 5;
         blob.data[ptr_off..ptr_off + 4].copy_from_slice(&ls_offset.to_be_bytes());
     }
-    return blob;
+    Ok(blob)
 }
-pub fn build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Buffer {
+pub fn build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Result<Buffer, BuildError> {
     writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options)
 }
 #[inline]
@@ -1612,7 +1613,7 @@ mod cff_matrix_no_head_regression_tests {
         let glyf: GlyfTable = vec![Some(glyph)];
 
         let options = Options::default();
-        let cff_bytes = writecff_cid_keyed(&mut cff, Some(&glyf), &options);
+        let cff_bytes = writecff_cid_keyed(&mut cff, Some(&glyf), &options).unwrap();
 
         let packet = Packet {
             sfnt_version: crate::tag::SFNT_VERSION_OTTO,
