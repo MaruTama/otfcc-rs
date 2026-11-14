@@ -93,32 +93,32 @@ pub fn decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let (value, advance): (CffValue, u32) = if b0 <= 27 {
         if b0 == 12 {
             let b1 = r.u8().ok()?;
-            (CffValue::Operator(((b0 as i32) << 8) | b1 as i32), 2)
+            (CffValue::Operator((i32::from(b0) << 8) | i32::from(b1)), 2)
         } else {
             // 0-11 and 13-27 are all one-byte operators.
-            (CffValue::Operator(b0 as i32), 1)
+            (CffValue::Operator(i32::from(b0)), 1)
         }
     } else if b0 == 28 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
-        let i = ((((b1 as i32) << 8) | b2 as i32) as i16) as i32;
-        (CffValue::Double(i as f64), 3)
+        let i = i32::from(((i32::from(b1) << 8) | i32::from(b2)) as i16);
+        (CffValue::Double(f64::from(i)), 3)
     } else if (29..=31).contains(&b0) {
-        (CffValue::Operator(b0 as i32), 1)
+        (CffValue::Operator(i32::from(b0)), 1)
     } else if (32..=254).contains(&b0) {
         if (32..=246).contains(&b0) {
-            (CffValue::Double((b0 as i32 - 139) as f64), 1)
+            (CffValue::Double(f64::from(i32::from(b0) - 139)), 1)
         } else if (247..=250).contains(&b0) {
             let b1 = r.u8().ok()?;
             (
-                CffValue::Double(((b0 as i32 - 247) * 256 + b1 as i32 + 108) as f64),
+                CffValue::Double(f64::from((i32::from(b0) - 247) * 256 + i32::from(b1) + 108)),
                 2,
             )
         } else {
             // 251-254
             let b1 = r.u8().ok()?;
             (
-                CffValue::Double((-((b0 as i32 - 251) * 256) - b1 as i32 - 108) as f64),
+                CffValue::Double(f64::from(-((i32::from(b0) - 251) * 256) - i32::from(b1) - 108)),
                 2,
             )
         }
@@ -128,10 +128,10 @@ pub fn decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
         let b2 = r.u8().ok()?;
         let b3 = r.u8().ok()?;
         let b4 = r.u8().ok()?;
-        let integer_part = ((((b1 as i32) << 8) | b2 as i32) as i16) as i32;
-        let fraction_part = ((((b3 as i32) << 8) | b4 as i32) as u16) as i32;
+        let integer_part = i32::from(((i32::from(b1) << 8) | i32::from(b2)) as i16);
+        let fraction_part = i32::from(((i32::from(b3) << 8) | i32::from(b4)) as u16);
         (
-            CffValue::Double(integer_part as f64 + fraction_part as f64 / 65536.0),
+            CffValue::Double(f64::from(integer_part) + f64::from(fraction_part) / 65536.0),
             5,
         )
     };
@@ -144,27 +144,27 @@ fn cff_dec_i(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let i: i32;
     let len: u32;
     if (32..=246).contains(&b0) {
-        i = b0 as i32 - 139;
+        i = i32::from(b0) - 139;
         len = 1;
     } else if (247..=250).contains(&b0) {
         let b1 = r.u8().ok()?;
-        i = (b0 as i32 - 247) * 256 + b1 as i32 + 108;
+        i = (i32::from(b0) - 247) * 256 + i32::from(b1) + 108;
         len = 2;
     } else if (251..=254).contains(&b0) {
         let b1 = r.u8().ok()?;
-        i = -(b0 as i32 - 251) * 256 - b1 as i32 - 108;
+        i = -(i32::from(b0) - 251) * 256 - i32::from(b1) - 108;
         len = 2;
     } else if b0 == 28 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
-        i = ((b1 as i32) << 8) | b2 as i32;
+        i = (i32::from(b1) << 8) | i32::from(b2);
         len = 3;
     } else if b0 == 29 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
         let b3 = r.u8().ok()?;
         let b4 = r.u8().ok()?;
-        i = ((b1 as i32) << 24) | ((b2 as i32) << 16) | ((b3 as i32) << 8) | b4 as i32;
+        i = (i32::from(b1) << 24) | (i32::from(b2) << 16) | (i32::from(b3) << 8) | i32::from(b4);
         len = 5;
     } else {
         // Not a recognized lead byte: a length of 0 means no token was
@@ -217,11 +217,11 @@ fn cff_dec_o(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let len: u32;
     if b0 <= 21 {
         if b0 != 12 {
-            op = b0 as i32;
+            op = i32::from(b0);
             len = 1;
         } else {
             let b1 = r.u8().ok()?;
-            op = b0 as i32 * 256 + b1 as i32;
+            op = i32::from(b0) * 256 + i32::from(b1);
             len = 2;
         }
     } else {
@@ -237,7 +237,7 @@ fn cff_dec_e(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let &b0 = slice.first()?;
     // Undefined bytes are decoded silently: one per byte of a charstring
     // made of them, so logging each made a fuzzed input take 588 seconds.
-    *val = CffValue::Integer(b0 as i32);
+    *val = CffValue::Integer(i32::from(b0));
     Some(1)
 }
 type CffDecoder = fn(&[u8], &mut CffValue) -> Option<u32>;

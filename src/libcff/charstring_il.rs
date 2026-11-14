@@ -92,7 +92,7 @@ pub fn il_push_op(il: &mut CffCharstringIl, op: CffCharstringOperator) {
     // in, not in the storage.
     il.instr.push(CffCharstringInstruction {
         kind: CffInstructionType::Operator,
-        arity: get_standard_arity(op) as Arity,
+        arity: Arity::from(get_standard_arity(op)),
         arg: CffCharstringArgument::I(op.0),
     });
 }
@@ -155,16 +155,16 @@ fn _il_push_maskgroup(
         let h_bits = (0..stems.h).map(|j| mask.mask_h.get(j as usize));
         let v_bits = (0..stems.v).map(|j| mask.mask_v.get(j as usize));
         for bit in h_bits.chain(v_bits) {
-            mask_byte = mask_byte << 1 | bit as u8;
+            mask_byte = mask_byte << 1 | u8::from(bit);
             bits += 1;
             if bits == 8 {
-                il_push_special(il, mask_byte as i32);
+                il_push_special(il, i32::from(mask_byte));
                 bits = 0;
             }
         }
         if bits != 0 {
             mask_byte <<= 8 - bits;
-            il_push_special(il, mask_byte as i32);
+            il_push_special(il, i32::from(mask_byte));
         }
         *jm += 1;
     }
@@ -212,16 +212,16 @@ fn _il_push_stemgroup(
         il_push_operand(il, stem.width);
         last_edge = stem.position + stem.width;
         nn += 1;
-        if nn as u32 >= TYPE2_ARGUMENT_STACK {
+        if u32::from(nn) >= TYPE2_ARGUMENT_STACK {
             il_push_op(il, if hasmask { OP_HSTEMHM } else { OP_HSTEM });
             let last_idx = il.instr.len() - 1;
-            il.instr[last_idx].arity = nn as Arity;
+            il.instr[last_idx].arity = Arity::from(nn);
             nn = 0;
         }
     }
     il_push_op(il, if hasmask { ophm } else { oph });
     let last_idx = il.instr.len() - 1;
-    il.instr[last_idx].arity = nn as Arity;
+    il.instr[last_idx].arity = Arity::from(nn);
 }
 fn il_push_stems(il: &mut CffCharstringIl, g: &Glyph, hasmask: bool, haswidth: bool) {
     _il_push_stemgroup(il, &g.stem_h, hasmask, haswidth, OP_HSTEMHM, OP_HSTEM);
@@ -256,14 +256,14 @@ pub fn compile_glyph_to_il(
     }
     let hasmask: bool = !g.hint_masks.is_empty() || !g.contour_masks.is_empty();
     let glyph_adw_const: Pos = vq_get_still(g.advance_width.clone());
-    let haswidth: bool = glyph_adw_const != default_width as Pos;
+    let haswidth: bool = glyph_adw_const != Pos::from(default_width);
     if haswidth {
         // `advanceWidth` comes from the JSON, so the cast can saturate to
         // `i32::MIN`/`MAX`; `saturating_sub` keeps the delta from
         // overflowing then.
         il_push_operand(
             &mut il,
-            (glyph_adw_const as i32).saturating_sub(nominal_width as i32) as f64,
+            f64::from((glyph_adw_const as i32).saturating_sub(i32::from(nominal_width))),
         );
     }
     il_push_stems(&mut il, g, hasmask, haswidth);
@@ -358,7 +358,7 @@ fn zroll(
     zeros: &[bool],
 ) -> u8 {
     let arity: u8 = get_standard_arity(op);
-    let end = j + arity as u32;
+    let end = j + u32::from(arity);
     if arity > 16 || end >= il.instr.len() as u32 {
         return 0;
     }
@@ -633,7 +633,7 @@ pub fn optimize_il(il: &mut CffCharstringIl, options: &Options) {
     }
     let mut j: u32 = 0;
     while j < il.instr.len() as u32 {
-        j += decide_advance(il, j, options.cff_roll_char_string as u8) as u32;
+        j += u32::from(decide_advance(il, j, u8::from(options.cff_roll_char_string)));
     }
 }
 #[cfg(test)]

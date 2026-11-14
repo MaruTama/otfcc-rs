@@ -23,7 +23,7 @@ pub(crate) fn get_index_length(i: &CffIndex) -> u32 {
         // Read from the font, so the arithmetic wraps rather than panics on
         // a corrupt offset.
         let data_len = i.offset[i.count as usize].wrapping_sub(1);
-        let offsets_len = i.count.wrapping_add(1).wrapping_mul(i.off_size as u32);
+        let offsets_len = i.count.wrapping_add(1).wrapping_mul(u32::from(i.off_size));
         3u32.wrapping_add(data_len).wrapping_add(offsets_len)
     } else {
         3
@@ -45,7 +45,7 @@ pub(crate) fn parse_index(data: &[u8], pos: u32) -> CffIndex {
 }
 fn read_index(data: &[u8], pos: u32) -> Option<CffIndex> {
     let mut r = FontReader::new(data).at(pos as usize).ok()?;
-    let count = r.u16().ok()? as Arity;
+    let count = Arity::from(r.u16().ok()?);
     let off_size = r.u8().ok()?;
     let mut index = CffIndex {
         count,
@@ -62,8 +62,8 @@ fn read_index(data: &[u8], pos: u32) -> Option<CffIndex> {
     let mut offset: Vec<u32> = Vec::with_capacity(count as usize + 1);
     for _ in 0..=count {
         offset.push(match off_size {
-            1 => r.u8().ok()? as u32,
-            2 => r.u16().ok()? as u32,
+            1 => u32::from(r.u8().ok()?),
+            2 => u32::from(r.u16().ok()?),
             3 => r.u24().ok()?,
             _ => r.u32().ok()?,
         });
