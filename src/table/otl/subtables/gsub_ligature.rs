@@ -15,19 +15,12 @@ use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage}
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable};
 use otfcc_json::JsonType;
-// `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
-// `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
-// per-element dtor needed anymore.
-pub(crate) fn dispose_gsub_ligature_subtable(arr: &mut GsubLigatureSubtable) {
-    *arr = Vec::new();
-}
 /// Replaces `*dst` with `src` (consolidation builds a fresh, filtered
 /// subtable and swaps it in).
 pub(crate) fn subtable_gsub_ligature_replace(
     dst: &mut GsubLigatureSubtable,
     src: GsubLigatureSubtable,
 ) {
-    dispose_gsub_ligature_subtable(dst);
     *dst = src;
 }
 pub fn otl_read_gsub_ligature(

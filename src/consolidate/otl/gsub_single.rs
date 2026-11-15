@@ -7,7 +7,6 @@ use crate::support::primitives::GlyphId;
 use crate::table::otl::{GsubSingleEntry, Subtable};
 
 use crate::support::glyph_order::{GlyphOrder, gord_consolidate_handle};
-use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
 pub fn consolidate_gsub_single(
     glyph_order: &GlyphOrder,
@@ -45,7 +44,7 @@ pub fn consolidate_gsub_single(
     if seen.len() != subtable.len() {
         tracing::warn!("[Consolidate] In this lookup, some mappings are ignored.\n");
     }
-    dispose_gsub_single_subtable(subtable);
+    subtable.clear();
     for (fromid, (fromname, toid, toname)) in seen {
         subtable.push(GsubSingleEntry {
             from: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,

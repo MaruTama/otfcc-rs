@@ -14,9 +14,6 @@ use crate::table::otl::{
 };
 
 use crate::support::glyph_order::gord_consolidate_handle;
-use crate::table::otl::subtables::gpos_common::dispose_mark_array;
-use crate::table::otl::subtables::gpos_mark_to_ligature::dispose_lig_array;
-use crate::table::otl::subtables::gpos_mark_to_single::dispose_base_array;
 
 #[derive(Debug)]
 struct MarkHashValue {
@@ -66,7 +63,7 @@ fn consolidate_mark_array(
             }
         }
     }
-    dispose_mark_array(mark_array);
+    mark_array.clear();
     for (gid, entry) in h.into_iter() {
         mark_array.push(MarkRecord {
             glyph: Handle::new(HandleState::Consolidated, gid, entry.name) as GlyphHandle,
@@ -101,7 +98,7 @@ fn consolidate_base_array(
             }
         }
     }
-    dispose_base_array(base_array);
+    base_array.clear();
     for (gid, entry) in h.into_iter() {
         base_array.push(BaseRecord {
             glyph: Handle::new(HandleState::Consolidated, gid, entry.name) as GlyphHandle,
@@ -140,7 +137,7 @@ fn consolidate_lig_array(
             }
         }
     }
-    dispose_lig_array(lig_array);
+    lig_array.clear();
     for (gid, entry) in h.into_iter() {
         lig_array.push(LigatureBaseRecord {
             glyph: Handle::new(HandleState::Consolidated, gid, entry.name) as GlyphHandle,

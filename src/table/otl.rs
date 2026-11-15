@@ -14,11 +14,6 @@ use crate::table::otl::classdef::ClassDef;
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
-use crate::table::otl::subtables::gpos_cursive::dispose_gpos_cursive_subtable;
-use crate::table::otl::subtables::gpos_single::dispose_gpos_single_subtable;
-use crate::table::otl::subtables::gsub_ligature::dispose_gsub_ligature_subtable;
-use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
-use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
 /// Which gsub/gpos subtable format a lookup is, in otfcc's own numbering: the
 /// file's 16-bit format number offset by the table's base, `otl_type_gsub_*`
@@ -133,43 +128,6 @@ pub enum Subtable {
     GposMarkToSingle(GposMarkToSingleSubtable),
     GposMarkToLigature(GposMarkToLigatureSubtable),
     Extend(ExtendSubtable),
-}
-impl Drop for Subtable {
-    fn drop(&mut self) {
-        match self {
-            Subtable::GsubSingle(x) => dispose_gsub_single_subtable(x),
-            Subtable::GsubMulti(x) => dispose_gsub_multi_subtable(x),
-            Subtable::GsubLigature(x) => dispose_gsub_ligature_subtable(x),
-            // `ChainingRule`'s and `ChainingRuleSet`'s fields (including
-            // `bc`/`ic`/`fc: Option<Box<ClassDef>>`, converted alongside
-            // this enum) all self-drop now -- no manual dispose left to
-            // call, same reasoning as `GposPair`/`GposMarkToSingle`
-            // above.
-            Subtable::Chaining(_) => {}
-            Subtable::GsubReverse(_) => {}
-            Subtable::GposSingle(x) => dispose_gpos_single_subtable(x),
-            // `first`/`second: Option<Box<ClassDef>>` and
-            // `first_values`/`second_values: Vec<Vec<PositionValue>>`
-            // all self-drop now -- no manual dispose left to call, same
-            // reasoning as `GposMarkToSingle` above.
-            Subtable::GposPair(_) => {}
-            Subtable::GposCursive(x) => dispose_gpos_cursive_subtable(x),
-            // `mark_array: MarkArray` and `base_array: BaseArray`
-            // (`Vec<BaseRecord>`, `BaseRecord.anchors` now a plain
-            // `Vec<Anchor>`) both self-drop -- no manual dispose left to
-            // call, same reasoning as `Extend` below.
-            Subtable::GposMarkToSingle(_) => {}
-            // `mark_array: MarkArray` and `lig_array: LigatureArray`
-            // (`Vec<LigatureBaseRecord>`, `LigatureBaseRecord.anchors`
-            // now a plain `Vec<Vec<Anchor>>`) both self-drop -- no
-            // manual dispose left to call, same reasoning as
-            // `GposMarkToSingle` above.
-            Subtable::GposMarkToLigature(_) => {}
-            // An `Extend` normally has its subtable taken by `read.rs` when
-            // extensions are resolved; one left here simply drops.
-            Subtable::Extend(_) => {}
-        }
-    }
 }
 #[derive(Debug)]
 pub struct ExtendSubtable {
@@ -288,9 +246,6 @@ pub struct ChainingRule {
     pub sequence: Vec<Coverage>,
     pub apply: Vec<ChainLookupApplication>,
 }
-/// `lookup: LookupHandle` (= `Handle`) already has a real `Drop`/`Clone`
-/// impl (the Handle pilot), so `Vec<ChainLookupApplication>`'s own drop
-/// glue disposes every element correctly with no extra `Drop` impl here.
 #[derive(Clone, Debug)]
 pub struct ChainLookupApplication {
     pub index: TableId,
@@ -439,9 +394,6 @@ pub(crate) fn otl_feature_list_punch_holes(arr: &mut FeatureList, mut pred: impl
             }
     }
     punched
-}
-pub(crate) fn otl_feature_ref_list_dispose(arr: &mut FeatureRefList) {
-    *arr = Vec::new();
 }
 // Keeps the indices whose feature passes `pred`, as
 // `otl_lookup_ref_list_filter_env` does for lookups.

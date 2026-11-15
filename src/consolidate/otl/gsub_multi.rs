@@ -11,7 +11,6 @@ use crate::table::otl::{GsubMultiEntry, Subtable};
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::gord_consolidate_handle;
-use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
 pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
     let Subtable::GsubMulti(subtable) = _subtable else {
@@ -46,7 +45,7 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
             }
         }
     }
-    dispose_gsub_multi_subtable(subtable);
+    subtable.clear();
     for (fromid, (fromname, to)) in seen {
         subtable.push(GsubMultiEntry {
             from: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,

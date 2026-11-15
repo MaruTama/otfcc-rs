@@ -17,12 +17,6 @@ use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, Subtable};
-// `to: Coverage` and `from: GlyphHandle` both self-drop now, so a
-// `GsubMultiSubtable` (`Vec<GsubMultiEntry>`) fully self-drops -- no
-// per-element dtor needed anymore.
-pub(crate) fn dispose_gsub_multi_subtable(arr: &mut GsubMultiSubtable) {
-    *arr = Vec::new();
-}
 // Each Sequence subtable (`seq_offset`, resolved from the per-entry
 // `sequenceOffsets[]` array) had *no* length guard at all before this
 // rewrite: neither `seq_offset` itself nor `n` (the Sequence's own

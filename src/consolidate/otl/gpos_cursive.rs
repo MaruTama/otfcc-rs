@@ -8,7 +8,6 @@ use crate::support::primitives::GlyphId;
 use crate::table::otl::{Anchor, GposCursiveEntry, Subtable};
 
 use crate::support::glyph_order::gord_consolidate_handle;
-use crate::table::otl::subtables::gpos_cursive::dispose_gpos_cursive_subtable;
 
 pub fn consolidate_gpos_cursive(
     glyph_order: &GlyphOrder,
@@ -41,7 +40,7 @@ pub fn consolidate_gpos_cursive(
             }
         }
     }
-    dispose_gpos_cursive_subtable(subtable);
+    subtable.clear();
     for (fromid, (fromname, enter, exit)) in seen {
         subtable.push(GposCursiveEntry {
             target: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,

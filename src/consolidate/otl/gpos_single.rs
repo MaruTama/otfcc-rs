@@ -8,7 +8,6 @@ use crate::support::primitives::GlyphId;
 use crate::table::otl::{GposSingleEntry, PositionValue, Subtable};
 
 use crate::support::glyph_order::gord_consolidate_handle;
-use crate::table::otl::subtables::gpos_single::dispose_gpos_single_subtable;
 
 pub fn consolidate_gpos_single(
     glyph_order: &GlyphOrder,
@@ -40,7 +39,7 @@ pub fn consolidate_gpos_single(
             }
         }
     }
-    dispose_gpos_single_subtable(subtable);
+    subtable.clear();
     for (fromid, (fromname, v)) in seen {
         subtable.push(GposSingleEntry {
             target: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,
