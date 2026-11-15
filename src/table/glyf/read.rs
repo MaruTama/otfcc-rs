@@ -138,15 +138,15 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
     current_contour = 0 as ShapeId;
     current_contour_point_index = 0 as ShapeId;
     for &f in flags.iter() {
-        let flag_0: PointFlags = PointFlags::from_bits_retain(f);
-        let x: i16 = if flag_0.contains(PointFlags::X_SHORT) {
+        let x_flags: PointFlags = PointFlags::from_bits_retain(f);
+        let x: i16 = if x_flags.contains(PointFlags::X_SHORT) {
             let mag = r.u8().ok()? as i16;
-            if flag_0.contains(PointFlags::POSITIVE_X) {
+            if x_flags.contains(PointFlags::POSITIVE_X) {
                 mag
             } else {
                 -mag
             }
-        } else if flag_0.contains(PointFlags::SAME_X) {
+        } else if x_flags.contains(PointFlags::SAME_X) {
             0
         } else {
             r.i16().ok()?
@@ -157,15 +157,15 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
     current_contour = 0 as ShapeId;
     current_contour_point_index = 0 as ShapeId;
     for &f in flags.iter() {
-        let flag_1: PointFlags = PointFlags::from_bits_retain(f);
-        let y: i16 = if flag_1.contains(PointFlags::Y_SHORT) {
+        let y_flags: PointFlags = PointFlags::from_bits_retain(f);
+        let y: i16 = if y_flags.contains(PointFlags::Y_SHORT) {
             let mag = r.u8().ok()? as i16;
-            if flag_1.contains(PointFlags::POSITIVE_Y) {
+            if y_flags.contains(PointFlags::POSITIVE_Y) {
                 mag
             } else {
                 -mag
             }
-        } else if flag_1.contains(PointFlags::SAME_Y) {
+        } else if y_flags.contains(PointFlags::SAME_Y) {
             0
         } else {
             r.i16().ok()?
@@ -185,8 +185,6 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         contour.shrink_to_fit();
     }
     g.contours.shrink_to_fit();
-    // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
-    // when this function returns -- no explicit dispose call is needed.
     Some(g)
 }
 fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
