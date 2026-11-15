@@ -1,7 +1,7 @@
 use super::*;
 use crate::libcff::index::parse_index;
 use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
-use crate::libcff::{OP_HLINETO, OP_RMOVETO};
+use crate::libcff::{OP_ENDCHAR, OP_HLINETO, OP_RMOVETO};
 
 fn simple_glyph_il(x: f64, y: f64) -> CffCharstringIl {
     let mut il = CffCharstringIl { instr: Vec::new() };
