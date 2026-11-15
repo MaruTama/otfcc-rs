@@ -126,9 +126,9 @@ fn read_format12(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut 
         return;
     }
     for _ in 0..n_groups {
-        let start_code = r.u32().unwrap();
-        let end_code = r.u32().unwrap();
-        let start_gid = r.u32().unwrap();
+        let start_code = r.u32().expect("require_room checked the remaining bytes");
+        let end_code = r.u32().expect("require_room checked the remaining bytes");
+        let start_gid = r.u32().expect("require_room checked the remaining bytes");
         // `startCharCode`/`endCharCode` are raw 32-bit fields with no
         // structural guard tying them to a sane range: a single 12-byte
         // group can claim `endCharCode = 0xFFFFFFFF`, which without a
@@ -266,8 +266,8 @@ fn read_uvs_default(
         return;
     }
     for _ in 0..num_ranges {
-        let start_unicode_value = r.u24().unwrap();
-        let additional_count = r.u8().unwrap();
+        let start_unicode_value = r.u24().expect("require_room checked the remaining bytes");
+        let additional_count = r.u8().expect("require_room checked the remaining bytes");
         let end = start_unicode_value.wrapping_add(additional_count as u32);
         // `start_unicode_value..=end`: `end` is fixed above (`u24` plus a
         // `u8` count, never wrapping in practice since both are far below
@@ -314,8 +314,8 @@ fn read_uvs_non_default(
             break;
         }
         *budget -= 1;
-        let unicode_value = r.u24().unwrap();
-        let glyph_id = r.u16().unwrap();
+        let unicode_value = r.u24().expect("require_room checked the remaining bytes");
+        let glyph_id = r.u16().expect("require_room checked the remaining bytes");
         encode_cmap_uvs_by_index(
             cmap,
             CmapUvsKey {
@@ -539,7 +539,7 @@ pub fn dump_cmap(
         sink.begin_field_object(b"cmap_uvs");
         for (key, glyph) in table.uvs.iter() {
             if !glyph.name.is_empty() {
-                let key_0: Vec<u8> = if options.decimal_cmap {
+                let field_name: Vec<u8> = if options.decimal_cmap {
                     crate::bytesbuild!(key.unicode, b" ", key.selector,)
                 } else {
                     crate::bytesbuild!(
@@ -549,7 +549,7 @@ pub fn dump_cmap(
                         Hex4Upper(key.selector),
                     )
                 };
-                sink.field(until_nul(&key_0), BuiltValue::str_truncated_at_nul(&glyph.name));
+                sink.field(until_nul(&field_name), BuiltValue::str_truncated_at_nul(&glyph.name));
             }
         }
         sink.end_object();
@@ -823,7 +823,7 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
     buf.write_u32be(buf.len() as u32);
     buf.seek(12);
     buf.write_u32be(n_groups);
-    return buf;
+    buf
 }
 pub const MAX_UNICODE: Unicode = 0x110001;
 pub const HAS_DEFAULT: u8 = 1;
@@ -907,7 +907,7 @@ fn build_format14_for_selector(
     if num_uvs_mappings != 0 {
         results |= HAS_NON_DEFAULT;
     }
-    return results;
+    results
 }
 fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
