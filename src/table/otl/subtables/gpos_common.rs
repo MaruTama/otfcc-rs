@@ -156,7 +156,7 @@ pub fn otl_anchor_absent() -> Anchor {
         x: 0 as Pos,
         y: 0 as Pos,
     };
-    return anchor;
+    anchor
 }
 pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
@@ -194,17 +194,17 @@ pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     anchor.present = true;
     anchor.x = v.get_num_or(b"x", 0.0) as Pos;
     anchor.y = v.get_num_or(b"y", 0.0) as Pos;
-    return anchor;
+    anchor
 }
 pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
     if !a.present {
         return None;
     }
-    return Some(bk_new_block(vec![
+    Some(bk_new_block(vec![
         bk_int(BkCellType::B16, 1),
         bk_int(BkCellType::B16, (a.x as i16 as i32) as u32),
         bk_int(BkCellType::B16, (a.y as i16 as i32) as u32),
-    ]));
+    ]))
 }
 pub const FORMAT_DX: u16 = 1;
 pub const FORMAT_DY: u16 = 2;
@@ -214,7 +214,7 @@ pub const FORMAT_DHEIGHT: u16 = 8;
 /// field whose bit is set among the low 8 bits (`XPlacement` through
 /// `YAdvDevice`); the reserved high bits never contribute a field.
 pub fn position_format_length(format: u16) -> u8 {
-    return ((format & 0xff).count_ones() << 1) as u8;
+    ((format & 0xff).count_ones() << 1) as u8
 }
 pub fn position_zero() -> PositionValue {
     let v: PositionValue = PositionValue {
@@ -223,7 +223,7 @@ pub fn position_zero() -> PositionValue {
         d_width: 0.0,
         d_height: 0.0,
     };
-    return v;
+    v
 }
 pub fn read_gpos_value(data: &[u8], offset: u32, format: u16) -> PositionValue {
     let mut v: PositionValue = PositionValue {
@@ -285,7 +285,7 @@ pub fn gpos_parse_value(pos: Option<&ParsedValue>) -> PositionValue {
     v.dy = pos.get_num(b"dy") as Pos;
     v.d_width = pos.get_num(b"dWidth") as Pos;
     v.d_height = pos.get_num(b"dHeight") as Pos;
-    return v;
+    v
 }
 pub fn required_position_format(v: PositionValue) -> u8 {
     let mut format: u16 = 0;
@@ -301,7 +301,7 @@ pub fn required_position_format(v: PositionValue) -> u8 {
     if v.d_height != 0. {
         format |= FORMAT_DHEIGHT;
     }
-    return format as u8;
+    format as u8
 }
 pub fn write_gpos_value(buf: &mut Buffer, v: PositionValue, format: u16) {
     if format & FORMAT_DX != 0 {
@@ -355,7 +355,7 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
             )],
         );
     }
-    return b;
+    b
 }
 
 #[cfg(test)]

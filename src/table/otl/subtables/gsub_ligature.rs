@@ -144,18 +144,18 @@ pub fn otl_gsub_parse_ligature(
         }
         Some(Subtable::GsubLigature(st))
     } else {
-        let mut st_0: GsubLigatureSubtable = Vec::new();
+        let mut entries: GsubLigatureSubtable = Vec::new();
         if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
             for (key, from) in fields {
                 if from.as_array().is_some() {
-                    st_0.push(GsubLigatureEntry {
+                    entries.push(GsubLigatureEntry {
                         from: parse_coverage(Some(from)),
                         to: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
                     });
                 }
             }
         }
-        Some(Subtable::GsubLigature(st_0))
+        Some(Subtable::GsubLigature(entries))
     }
 }
 // The ligature rules' starting glyph ids, sorted and deduplicated, form the
@@ -212,7 +212,7 @@ pub fn build_gsub_ligature_subtable(
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(ligset))]);
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 
 #[cfg(test)]

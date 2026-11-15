@@ -155,8 +155,8 @@ fn build_gsub_multi_subtable_range(
             (end as i32 - start as i32) as u32,
         ),
     ]);
-    for j_0 in start..end {
-        let to: &Coverage = &subtable[j_0 as usize].to;
+    for idx in start..end {
+        let to: &Coverage = &subtable[idx as usize].to;
         let mut b: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
             (to.len() as i32) as u32,
@@ -172,7 +172,7 @@ fn build_gsub_multi_subtable_range(
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(b))]);
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: usize = 0xff00;
 pub fn build_gsub_multi_subtable_split(

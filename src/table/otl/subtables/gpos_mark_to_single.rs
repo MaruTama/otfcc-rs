@@ -160,8 +160,8 @@ pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
                 let mut _anchor = BuiltValue::new_object(2);
                 _anchor.push_field(b"x", BuiltValue::Int(anchor.x as i64));
                 _anchor.push_field(b"y", BuiltValue::Int(anchor.y as i64));
-                let mark_class_name_0: Vec<u8> = crate::bytesbuild!(b"anchor", k as i32);
-                _base.push_field_bytes_key(&mark_class_name_0, _anchor);
+                let anchor_key: Vec<u8> = crate::bytesbuild!(b"anchor", k as i32);
+                _base.push_field_bytes_key(&anchor_key, _anchor);
             }
         }
         _bases.push_field_bytes_key(&base.glyph.name, _base.preserialize());
@@ -294,7 +294,7 @@ pub fn build_gpos_mark_to_single(
             bk_ptr(BkCellType::P16, Some(base_array)),
         ],
     );
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 
 #[cfg(test)]

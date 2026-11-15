@@ -145,21 +145,21 @@ pub fn build_gsub_single_subtable(
                     - subtable[0].from.index as i32) as u32,
             ),
         ]);
-        return bk_build_block(b);
+        bk_build_block(b)
     } else {
-        let mut b_0: BkBlock = bk_new_block(vec![
+        let mut sub_block: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 2),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, (subtable.len()) as u32),
         ]);
         for entry in subtable.iter() {
             bk_push(
-                &mut b_0,
+                &mut sub_block,
                 vec![bk_int(BkCellType::B16, (entry.to.index as i32) as u32)],
             );
         }
-        return bk_build_block(b_0);
-    };
+        bk_build_block(sub_block)
+    }
 }
 
 #[cfg(test)]

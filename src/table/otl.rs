@@ -211,7 +211,6 @@ pub struct GposSingleEntry {
     pub target: GlyphHandle,
     pub value: PositionValue,
 }
-// `Copy` dropped: `match_0`/`to` own `Vec`s now.
 #[derive(Clone, Debug)]
 pub struct GsubReverseSubtable {
     pub match_count: TableId,
@@ -313,11 +312,7 @@ pub struct Feature {
     pub name: Vec<u8>,
     pub lookups: LookupRefList,
 }
-/// `lookups: LookupRefList` (`Vec<LookupIdx>`) needs no help -- it holds
-/// only *borrowed* indices into `OtlTable.lookups`, so its own drop glue is
-/// enough. `name` (a `Vec<u8>` since the `sds` sweep reached this field) now
-/// also tears down for free, so `Feature` needs no manual `Drop` impl at all
-/// anymore.
+/// `lookups` holds only indices into `OtlTable.lookups`, not owned lookups.
 /// Same shape as `LookupIdx`, indexing `OtlTable.features`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FeatureIdx(pub u32);

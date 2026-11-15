@@ -83,12 +83,12 @@ pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
 // loop (not `parse_language`'s -- a different function, despite the
 // similar-sounding name): `feature_count` (raw `u16`, up to 65535) had no
 // cap at all, unlike `lookup_count` a few lines above it, and each
-// feature's own `lookup_count_0` (also up to 65535, bounds-checked only
+// feature's own `feature_lookup_count` (also up to 65535, bounds-checked only
 // against that one feature table's own bytes) is read independently. A
 // crafted table can point many different `feature_count` entries at
 // `feature_offset`s that overlap or repeat, each claiming a large
-// `lookup_count_0` -- the total inner-loop reads scale with
-// `feature_count * lookup_count_0`, not with the table's real size,
+// `feature_lookup_count` -- the total inner-loop reads scale with
+// `feature_count * feature_lookup_count`, not with the table's real size,
 // exactly the "per-factor caps still let the product explode" shape
 // `MAX_TOTAL_FEATURE_REFS_PER_TABLE` already closed one level up.
 // CI's fuzz job found a table whose Feature List alone hung
@@ -294,19 +294,19 @@ fn read_feature_list(
         }
         let mut fer = FontReader::new(data).at(feature_offset as usize)?;
         fer.skip(2)?; // featureParams, unused
-        let lookup_count_0 = fer.u16()?;
-        fer.require_room(lookup_count_0 as usize, 2)?;
-        for _ in 0..lookup_count_0.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
+        let feature_lookup_count = fer.u16()?;
+        fer.require_room(feature_lookup_count as usize, 2)?;
+        for _ in 0..feature_lookup_count.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
             let lookupid = fer.u16()?;
             if (lookupid as usize) < table.lookups.len() {
                 // Every slot is `Some` at this point in construction --
                 // holes only ever appear later, via consolidation.
-                let lookup_0 = table.lookups[lookupid as usize]
+                let feature_lookup = table.lookups[lookupid as usize]
                     .as_mut()
                     .expect("freshly read lookup slot should not be empty");
-                if lookup_0.name.is_empty() {
+                if feature_lookup.name.is_empty() {
                     if let Some(prefix) = &options.glyph_name_prefix {
-                        lookup_0.name = crate::bytesbuild!(
+                        feature_lookup.name = crate::bytesbuild!(
                             b"lookup_",
                             prefix,
                             b"_",
@@ -319,7 +319,7 @@ fn read_feature_list(
                         );
                         lnk = lnk.wrapping_add(1);
                     } else {
-                        lookup_0.name = crate::bytesbuild!(
+                        feature_lookup.name = crate::bytesbuild!(
                             b"lookup_",
                             Byte((tag >> 24 & 0xff) as u8),
                             Byte((tag >> 16 & 0xff) as u8),
@@ -357,28 +357,28 @@ fn read_script_list(
     let mut total_languages: u32 = 0;
     let mut total_feature_refs: u32 = MAX_TOTAL_FEATURE_REFS_PER_TABLE;
     'scripts: for _ in 0..script_count {
-        let tag_0 = sr.u32()?;
-        let script_offset_0 = script_list_offset.wrapping_add(sr.u16()? as u32);
-        let mut so = FontReader::new(data).at(script_offset_0 as usize)?;
-        let default_lang_system_0 = so.u16()?;
+        let script_tag = sr.u32()?;
+        let script_offset = script_list_offset.wrapping_add(sr.u16()? as u32);
+        let mut so = FontReader::new(data).at(script_offset as usize)?;
+        let default_lang_offset = so.u16()?;
         let lang_sys_count = so.u16()?;
-        if default_lang_system_0 != 0 {
+        if default_lang_offset != 0 {
             if total_languages >= MAX_TOTAL_LANGUAGES {
                 break 'scripts;
             }
             total_languages += 1;
             let mut lang: Box<LanguageSystem> = new_language();
             lang.name = crate::bytesbuild!(
-                Byte((tag_0 >> 24 & 0xff) as u8),
-                Byte((tag_0 >> 16 & 0xff) as u8),
-                Byte((tag_0 >> 8 & 0xff) as u8),
-                Byte((tag_0 & 0xff) as u8),
+                Byte((script_tag >> 24 & 0xff) as u8),
+                Byte((script_tag >> 16 & 0xff) as u8),
+                Byte((script_tag >> 8 & 0xff) as u8),
+                Byte((script_tag & 0xff) as u8),
                 Byte(SCRIPT_LANGUAGE_SEPARATOR),
                 b"DFLT",
             );
             parse_language(
                 data,
-                script_offset_0.wrapping_add(default_lang_system_0 as u32),
+                script_offset.wrapping_add(default_lang_offset as u32),
                 &mut lang,
                 &table.features,
                 &mut total_feature_refs,
@@ -395,12 +395,12 @@ fn read_script_list(
                 break 'scripts;
             }
             total_languages += 1;
-            let mut lang_0: Box<LanguageSystem> = new_language();
-            lang_0.name = crate::bytesbuild!(
-                Byte((tag_0 >> 24 & 0xff) as u8),
-                Byte((tag_0 >> 16 & 0xff) as u8),
-                Byte((tag_0 >> 8 & 0xff) as u8),
-                Byte((tag_0 & 0xff) as u8),
+            let mut language: Box<LanguageSystem> = new_language();
+            language.name = crate::bytesbuild!(
+                Byte((script_tag >> 24 & 0xff) as u8),
+                Byte((script_tag >> 16 & 0xff) as u8),
+                Byte((script_tag >> 8 & 0xff) as u8),
+                Byte((script_tag & 0xff) as u8),
                 Byte(SCRIPT_LANGUAGE_SEPARATOR),
                 Byte((lang_tag >> 24 & 0xff) as u8),
                 Byte((lang_tag >> 16 & 0xff) as u8),
@@ -409,12 +409,12 @@ fn read_script_list(
             );
             parse_language(
                 data,
-                script_offset_0.wrapping_add(lang_sys as u32),
-                &mut lang_0,
+                script_offset.wrapping_add(lang_sys as u32),
+                &mut language,
                 &table.features,
                 &mut total_feature_refs,
             );
-            table.languages.push(lang_0);
+            table.languages.push(language);
         }
     }
     if total_languages >= MAX_TOTAL_LANGUAGES {
