@@ -123,9 +123,7 @@ use crate::table::otl::{
     OTL_TYPE_GSUB_UNKNOWN,
     OTL_TYPE_UNKNOWN, OtlTable, Subtable,
 };
-use crate::table::otl::{
-    new_feature, new_language, new_lookup, otl_feature_ref_list_dispose,
-};
+use crate::table::otl::{new_feature, new_language, new_lookup};
 /// Reads one subtable of a lookup of type `lookup_type`. Context subtables
 /// are read straight into the chaining representation, and extension
 /// subtables are unwrapped into the subtable they point at, so neither type
@@ -202,7 +200,7 @@ fn parse_language(
             }
         }
         Err(_) => {
-            otl_feature_ref_list_dispose(&mut lang.features);
+            lang.features.clear();
             lang.required_feature = None;
         }
     }

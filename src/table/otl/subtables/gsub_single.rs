@@ -17,12 +17,6 @@ use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::build_coverage_format;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, Subtable};
-// `GsubSingleEntry` holds only two `GlyphHandle`s, so dropping the `Vec`
-// runs `Handle`'s own `Drop` for every entry -- no per-element dtor needed
-// anymore.
-pub(crate) fn dispose_gsub_single_subtable(arr: &mut GsubSingleSubtable) {
-    *arr = Vec::new();
-}
 pub fn otl_read_gsub_single(
     data: &[u8],
     subtable_offset: u32,

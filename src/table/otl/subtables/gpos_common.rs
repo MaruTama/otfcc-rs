@@ -12,12 +12,6 @@ use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, Pos, count_u16};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
 use otfcc_json::JsonType;
-// `MarkRecord` holds only a `GlyphHandle` plus a plain `Anchor`, so dropping
-// the `Vec` runs `Handle`'s own `Drop` for every entry -- no per-element
-// dtor needed anymore.
-pub(crate) fn dispose_mark_array(arr: &mut MarkArray) {
-    *arr = Vec::new();
-}
 /// Bounds mark-attachment anchor-slot construction (`gpos_mark_to_single.rs`'s
 /// BaseArray, `gpos_mark_to_ligature.rs`'s LigatureArray) across a WHOLE
 /// GSUB/GPOS table, the same "individually bounded per call, unbounded in

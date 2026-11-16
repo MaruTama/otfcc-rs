@@ -18,12 +18,6 @@ use crate::table::otl::subtables::gpos_common::{
     required_position_format,
 };
 use crate::table::otl::{GposSingleEntry, GposSingleSubtable, PositionValue, Subtable};
-// `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
-// so dropping the `Vec` runs `Handle`'s own `Drop` for every entry -- no
-// per-element dtor needed anymore.
-pub(crate) fn dispose_gpos_single_subtable(arr: &mut GposSingleSubtable) {
-    *arr = Vec::new();
-}
 pub fn otl_read_gpos_single(
     data: &[u8],
     offset: u32,

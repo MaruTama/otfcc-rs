@@ -23,14 +23,6 @@ use crate::table::otl::{
     Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
 };
 use otfcc_json::JsonType;
-// `LigatureBaseRecord.anchors` is a plain `Vec<Vec<Anchor>>` now and
-// `glyph: GlyphHandle` already has its own `Drop`, so a `LigatureArray`
-// (`Vec<LigatureBaseRecord>`) fully self-drops -- clearing it (still needed:
-// `consolidate/otl/mark.rs`'s dedup pass clears an in-place array
-// mid-function, not just at end of scope) is exactly `*arr = Vec::new()`.
-pub(crate) fn dispose_lig_array(arr: &mut LigatureArray) {
-    *arr = Vec::new();
-}
 // `2 * component_count * class_count` (the LigatureAttach's byte-length
 // guard) is the same overflow-defeats-guard shape as
 // `gpos_mark_to_single.rs`'s `bases.len() * class_count`, but sharper

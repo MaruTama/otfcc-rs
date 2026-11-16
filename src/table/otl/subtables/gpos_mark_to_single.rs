@@ -23,14 +23,6 @@ use crate::table::otl::{
     Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable,
 };
 use otfcc_json::JsonType;
-// `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
-// already has its own `Drop`, so a `BaseArray` (`Vec<BaseRecord>`) fully
-// self-drops -- clearing it (still needed: `consolidate/otl/mark.rs`'s dedup
-// pass clears an in-place array mid-function, not just at end of scope) is
-// exactly `*arr = Vec::new()`.
-pub(crate) fn dispose_base_array(arr: &mut BaseArray) {
-    *arr = Vec::new();
-}
 // `2 * bases.len() * class_count` (the BaseArray's byte-length guard) is a
 // real, previously-undocumented overflow-defeats-guard bug: `bases.len()`
 // can be as large as the glyph count (bounded by `GlyphId`, up to 65535)
