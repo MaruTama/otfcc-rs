@@ -212,7 +212,7 @@ pub fn format3_coverage(
     _max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Coverage {
-    return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2), budget);
+    read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2), budget)
 }
 // The `FontReader` reads and `require_room` checks below never reserve
 // bytes the following reads do not use.
@@ -554,8 +554,6 @@ pub fn otl_read_contextual(
         _ => {}
     }
     tracing::warn!("Unsupported format {}.\n", format as i32);
-    // `subtable` (still just a local `Box`, never adopted into anything)
-    // self-drops here -- no manual reclamation needed any more.
     None
 }
 pub fn general_read_chaining_rule(
@@ -951,8 +949,6 @@ pub fn otl_read_chaining(
         _ => {}
     }
     tracing::warn!("Unsupported format {}.\n", format as i32);
-    // `subtable` (still just a local `Box`, never adopted into anything)
-    // self-drops here -- no manual reclamation needed any more.
     None
 }
 #[inline]

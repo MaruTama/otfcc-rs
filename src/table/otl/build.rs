@@ -55,7 +55,7 @@ fn feature_name_to_tag(name: &[u8]) -> u32 {
     } else {
         tag |= (' ' as i32 as u8 as i32) as u32;
     }
-    return tag;
+    tag
 }
 /// What building one lookup's subtables updates besides producing them: the
 /// output buffer list, the running offset all lookups' subtables together
@@ -93,7 +93,7 @@ pub fn write_each_subtable(
         *ctx.last_offset += total_buf_size_short;
         *ctx.prefer_extension_for_this_lut = false;
     }
-    return lookup.subtables.len() as TableId;
+    lookup.subtables.len() as TableId
 }
 /// Builds each subtable of `lookup` with `build`, which may split one
 /// subtable into several buffers.
@@ -118,7 +118,7 @@ pub fn write_each_subtable_split(
         *ctx.last_offset += total_buf_size_short;
         *ctx.prefer_extension_for_this_lut = false;
     }
-    return total;
+    total
 }
 fn get_lookup_heuristics(table: &OtlTable, lut_idx: LookupIdx, lut: &Lookup) -> BuildHeuristics {
     let mut heu: BuildHeuristics = BuildHeuristics::empty();
@@ -137,7 +137,7 @@ fn get_lookup_heuristics(table: &OtlTable, lut_idx: LookupIdx, lut: &Lookup) -> 
             }
         }
     }
-    return heu;
+    heu
 }
 fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
     // Storage-space `(LookupIdx, &Lookup)` pairs, holes (consolidation-
@@ -188,36 +188,36 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
     let use_extended: bool = last_offset >= 0xff00_usize.wrapping_sub(header_size);
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (live.len()) as u32)]);
     for j_1 in 0..live.len() {
-        let (_, lookup_0) = live[j_1];
+        let (_, live_lookup) = live[j_1];
         if subtable_quantity[j_1] == 0 {
-            tracing::info!("Lookup {} is empty.\n", ByteStr(&lookup_0.name));
+            tracing::info!("Lookup {} is empty.\n", ByteStr(&live_lookup.name));
         }
-        let can_be_contextual: bool = chaining_lookup_is_contextual_lookup(lookup_0);
+        let can_be_contextual: bool = chaining_lookup_is_contextual_lookup(live_lookup);
         let use_extended_for_it: bool =
             use_extended as i32 != 0 || prefer_ext_for_this_lut[j_1] as i32 != 0;
         if use_extended_for_it {
-            tracing::info!("[OTFCC-fea] Using extended OpenType table layout for {}/{}.\n", ByteStr(tag), ByteStr(&lookup_0.name));
+            tracing::info!("[OTFCC-fea] Using extended OpenType table layout for {}/{}.\n", ByteStr(tag), ByteStr(&live_lookup.name));
         }
         // The format number the file wants, which is the lookup type with its
         // table's base taken back off -- `LookupType::file_format`, the
         // same nested comparison C spelled out here and again below.
         let lookup_type: u16 = (if use_extended_for_it {
-            if lookup_0.lookup_type > OTL_TYPE_GPOS_UNKNOWN {
+            if live_lookup.lookup_type > OTL_TYPE_GPOS_UNKNOWN {
                 OTL_TYPE_GPOS_EXTEND.file_format()
-            } else if lookup_0.lookup_type > OTL_TYPE_GSUB_UNKNOWN {
+            } else if live_lookup.lookup_type > OTL_TYPE_GSUB_UNKNOWN {
                 OTL_TYPE_GSUB_EXTEND.file_format()
             } else {
                 0
             }
         } else {
-            lookup_0
+            live_lookup
                 .lookup_type
                 .file_format()
                 .wrapping_sub(can_be_contextual as u32)
         }) as u16;
         let mut blk: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, (lookup_type as i32) as u32),
-            bk_int(BkCellType::B16, (lookup_0.flags as i32) as u32),
+            bk_int(BkCellType::B16, (live_lookup.flags as i32) as u32),
             bk_int(
                 BkCellType::B16,
                 (subtable_quantity[j_1] as i32) as u32,
@@ -229,7 +229,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         let quantity = subtable_quantity[j_1] as usize;
         for buf in subtables[j_1].iter_mut().take(quantity) {
             if use_extended_for_it {
-                let extension_lookup_type: u16 = lookup_0
+                let extension_lookup_type: u16 = live_lookup
                     .lookup_type
                     .file_format()
                     .wrapping_sub(can_be_contextual as u32)
@@ -256,7 +256,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         bk_push(&mut blk, vec![bk_int(BkCellType::B16, 0)]);
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(blk))]);
     }
-    return root;
+    root
 }
 fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock {
     // Same "storage index, holes skipped, dense position is the binary
@@ -288,7 +288,7 @@ fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock
             ],
         );
     }
-    return root;
+    root
 }
 // Resolves a `FeatureIdx` (storage index) to its dense binary position via
 // `feature_dense` -- `0xffff` (the binary format's own "no feature"
@@ -320,7 +320,7 @@ fn write_language(
             )],
         );
     }
-    return Some(root);
+    Some(root)
 }
 fn write_script(
     dl: Option<&LanguageSystem>,
@@ -341,7 +341,7 @@ fn write_script(
             ],
         );
     }
-    return root;
+    root
 }
 fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>]) -> BkBlock {
     // Groups languages by script tag (the first 4 bytes of `language.name`),
@@ -414,7 +414,7 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
             ],
         );
     }
-    return root;
+    root
 }
 pub fn build_otl(table: Option<&OtlTable>, tag: &[u8]) -> Option<Buffer> {
     let table: &OtlTable = table?;
@@ -435,5 +435,5 @@ pub fn build_otl(table: Option<&OtlTable>, tag: &[u8]) -> Option<Buffer> {
         buf = Some(bk_build_block(root));
         stage.finish();
     }
-    return buf;
+    buf
 }

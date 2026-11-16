@@ -111,7 +111,7 @@ pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
             ],
         );
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
@@ -159,9 +159,9 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
             for slot in ruleset.rules.iter() {
                 let rule: &ChainingRule =
                     slot.as_deref().expect("chaining rule slot should never be None at build time");
-                let start_class_0: GlyphClass =
+                let class_of_first_input: GlyphClass =
                     rule.sequence[rule.input_begins as usize][0].index as GlyphClass;
-                if start_class_0 as usize == j_1 {
+                if class_of_first_input as usize == j_1 {
                     // Same clone-then-reverse-locally treatment as
                     // `build_chaining_coverage` above.
                     let mut backtrack: Vec<Coverage> =
@@ -230,14 +230,14 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, None)]);
         }
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub fn build_chaining(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
-        return build_chaining_classes(_subtable);
+        build_chaining_classes(_subtable)
     } else {
-        return build_chaining_coverage(_subtable);
-    };
+        build_chaining_coverage(_subtable)
+    }
 }
 pub fn build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let ChainingSubtable::Canonical(rule) = _subtable else {
@@ -281,7 +281,7 @@ pub fn build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
             ],
         );
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
@@ -321,9 +321,9 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
             for slot in ruleset.rules.iter() {
                 let rule: &ChainingRule =
                     slot.as_deref().expect("chaining rule slot should never be None at build time");
-                let start_class_0: GlyphClass =
+                let class_of_first_input: GlyphClass =
                     rule.sequence[rule.input_begins as usize][0].index as GlyphClass;
-                if start_class_0 as usize == j_1 {
+                if class_of_first_input as usize == j_1 {
                     // Same "no observable effect" reasoning as
                     // `build_contextual_coverage` -- the loop below
                     // starts at `input_begins + 1`, never reading a
@@ -367,12 +367,12 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, None)]);
         }
     }
-    return bk_build_block(root);
+    bk_build_block(root)
 }
 pub fn build_contextual(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
-        return build_contextual_classes(_subtable);
+        build_contextual_classes(_subtable)
     } else {
-        return build_contextual_coverage(_subtable);
-    };
+        build_contextual_coverage(_subtable)
+    }
 }

@@ -184,7 +184,7 @@ fn _declare_lookup_parser(
         order_type: LookupOrderType::File,
         order_val,
     });
-    return true;
+    true
 }
 fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>) -> PendingLookups {
     let mut lh = PendingLookups {
@@ -229,7 +229,7 @@ fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>) -> PendingLookups
             }
         }
     }
-    return lh;
+    lh
 }
 /// Replicates `strncmp(a, b, 4) == 0` for two of `ParsedValue`'s own
 /// NUL-terminated key buffers (each carrying exactly one trailing NUL,
@@ -367,10 +367,10 @@ fn figure_out_features_from_json(
             }
         }
     }
-    return fh;
+    fh
 }
 pub fn is_valid_language_name(name: &[u8]) -> bool {
-    return name.len() == 9 && name[4] == SCRIPT_LANGUAGE_SEPARATOR;
+    name.len() == 9 && name[4] == SCRIPT_LANGUAGE_SEPARATOR
 }
 fn figure_out_languages_from_json(
     languages: Option<&ParsedValue>,
@@ -437,7 +437,7 @@ fn figure_out_languages_from_json(
             }
         }
     }
-    return sh;
+    sh
 }
 /// Reads the `tag` table (`"GSUB"`/`"GPOS"`) from `root`. `lookups` and
 /// `lookupOrder` are read first, into a `PendingLookups`; then `features`
@@ -510,16 +510,6 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
                     let taken = lh.lookups[entry.lookup_id.0 as usize]
                         .take()
                         .expect("non-alias LookupEntry's pending lookup should not have been taken yet");
-                    // `otl_box` is accessed directly here (and at the
-                    // `features`/`languages` push sites below) rather
-                    // than through a cached `otl: *mut OtlTable` local
-                    // re-derived at each site, the way the pre-M-33
-                    // code did: `otl_box` is now a plain owned
-                    // `Box<OtlTable>`, not reached through any
-                    // aliasing concern of its own, so there is nothing
-                    // a cached pointer (or a fresh reborrow standing
-                    // in for one) would buy here beyond what a plain
-                    // field access already gives for free.
                     let idx = LookupIdx(otl_box.lookups.len() as u32);
                     otl_box.lookups.push(Some(taken));
                     lookup_remap[entry.lookup_id.0 as usize] = Some(idx);

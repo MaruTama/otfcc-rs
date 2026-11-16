@@ -193,7 +193,7 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     }
     subtable.first = Some(Box::new(first_cd));
     subtable.second = Some(Box::new(second_cd));
-    return Some(Subtable::GposPair(subtable));
+    Some(Subtable::GposPair(subtable))
 }
 /// Format 2: a class-by-class matrix of values.
 fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Option<Subtable> {
@@ -214,11 +214,11 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     let len1_0 = position_format_length(format1_0);
     let len2_0 = position_format_length(format2_0);
 
-    let cov_0: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
+    let first_coverage: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
     // `expand_class_def` takes the class def it is given and returns a
     // new one.
     let first_cd = expand_class_def(
-        &cov_0,
+        &first_coverage,
         read_class_def(data, offset.wrapping_add(cd1_rel as u32)),
     );
     let second_cd = read_class_def(data, offset.wrapping_add(cd2_rel as u32));
@@ -278,7 +278,7 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     }
     subtable.first_values = first_values;
     subtable.second_values = second_values;
-    return Some(Subtable::GposPair(subtable));
+    Some(Subtable::GposPair(subtable))
 }
 pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposPair(subtable) = _subtable else {
@@ -363,16 +363,16 @@ pub fn otl_gpos_parse_pair(
     let mut second_values: Vec<Vec<PositionValue>> =
         vec![vec![position_zero(); class2_count]; class1_count];
     if let Some(rows) = mat.as_array() {
-        for (j_0, row) in rows.iter().enumerate().take(class1_count) {
+        for (row_i, row) in rows.iter().enumerate().take(class1_count) {
             if let Some(items) = row.as_array() {
-                for (k_0, item) in items.iter().enumerate().take(class2_count) {
+                for (col_i, item) in items.iter().enumerate().take(class2_count) {
                     if let Some(i) = item.as_int() {
-                        first_values[j_0][k_0].d_width = i as Pos;
+                        first_values[row_i][col_i].d_width = i as Pos;
                     } else if let Some(d) = item.as_double() {
-                        first_values[j_0][k_0].d_width = d as Pos;
+                        first_values[row_i][col_i].d_width = d as Pos;
                     } else if item.as_object().is_some() {
-                        first_values[j_0][k_0] = gpos_parse_value(item.get(b"first"));
-                        second_values[j_0][k_0] = gpos_parse_value(item.get(b"second"));
+                        first_values[row_i][col_i] = gpos_parse_value(item.get(b"first"));
+                        second_values[row_i][col_i] = gpos_parse_value(item.get(b"second"));
                     }
                 }
             }
@@ -390,7 +390,7 @@ fn cov_from_cd(cd: &ClassDef) -> Coverage {
     for glyph in cd.glyphs.iter() {
         push_to_coverage(&mut cov, glyph.clone());
     }
-    return cov;
+    cov
 }
 pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
@@ -487,7 +487,7 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(pair_set))]);
     }
-    return root;
+    root
 }
 pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
@@ -531,22 +531,22 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
         bk_int(BkCellType::B16, (class1_count as i32) as u32),
         bk_int(BkCellType::B16, (class2_count as i32) as u32),
     ]);
-    for j_0 in 0..class1_count {
-        for k_0 in 0..class2_count {
+    for row_i in 0..class1_count {
+        for col_i in 0..class2_count {
             bk_push(
                 &mut root,
                 vec![
                     bk_ptr(
                         BkCellType::Embed,
                         Some(bk_gpos_value(
-                            subtable.first_values[j_0 as usize][k_0 as usize],
+                            subtable.first_values[row_i as usize][col_i as usize],
                             format1,
                         )),
                     ),
                     bk_ptr(
                         BkCellType::Embed,
                         Some(bk_gpos_value(
-                            subtable.second_values[j_0 as usize][k_0 as usize],
+                            subtable.second_values[row_i as usize][col_i as usize],
                             format2,
                         )),
                     ),
@@ -554,7 +554,7 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
             );
         }
     }
-    return root;
+    root
 }
 pub fn build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let format1: BkBlock = build_gpos_pair_individual(_subtable);
@@ -565,11 +565,11 @@ pub fn build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -
     bk_minimize_graph(&mut g2);
     if bk_estimate_size_of_graph(&g1) > bk_estimate_size_of_graph(&g2) {
         bk_untangle_graph(&mut g2);
-        return bk_build_graph(&g2);
+        bk_build_graph(&g2)
     } else {
         bk_untangle_graph(&mut g1);
-        return bk_build_graph(&g1);
-    };
+        bk_build_graph(&g1)
+    }
 }
 
 #[cfg(test)]

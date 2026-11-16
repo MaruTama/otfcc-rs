@@ -78,7 +78,7 @@ pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
             // punched has nothing to dump.
             let live_features: Vec<&Feature> =
                 table.features.iter().filter_map(Option::as_deref).collect();
-            let mut features_0 = BuiltValue::new_object(live_features.len());
+            let mut features_obj = BuiltValue::new_object(live_features.len());
             for feature in &live_features {
                 let mut _feature = BuiltValue::new_array(feature.lookups.len());
                 for &lookup_idx in &feature.lookups {
@@ -89,9 +89,9 @@ pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
                         _feature.push_item(BuiltValue::str_truncated_at_nul(&lookup.name));
                     }
                 }
-                features_0.push_field_bytes_key(&feature.name, _feature.preserialize());
+                features_obj.push_field_bytes_key(&feature.name, _feature.preserialize());
             }
-            otl.push_field(b"features", features_0);
+            otl.push_field(b"features", features_obj);
             stage_2.finish();
         }
         let stage_2 = crate::logger::stage("Lookups");
