@@ -80,8 +80,8 @@ pub(crate) fn handle_empty<K>() -> Handle<K> {
     Handle::default()
 }
 pub(crate) fn handle_from_index<K>(id: GlyphId) -> Handle<K> {
-    let h = Handle::new(HandleState::Index, id, Vec::new());
-    return h;
+    
+    Handle::new(HandleState::Index, id, Vec::new())
 }
 /// NUL-truncating comparison for two `Vec<u8>`-shaped names (e.g. comparing
 /// a `Handle.name` against a `Lookup.name`, both moved off `sds`) --
@@ -107,7 +107,7 @@ pub(crate) fn handle_from_name<K>(s: Option<Vec<u8>>) -> Handle<K> {
         h.state = HandleState::Name;
         h.name = name;
     }
-    return h;
+    h
 }
 
 #[cfg(test)]

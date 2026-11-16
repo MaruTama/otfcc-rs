@@ -333,7 +333,7 @@ fn il_matchtype(il: &CffCharstringIl, j: u32, k: u32, t: CffInstructionType) -> 
             return false;
         }
     }
-    return true;
+    true
 }
 fn il_matchop(il: &CffCharstringIl, j: u32, op: CffCharstringOperator) -> bool {
     if il.instr[j as usize].kind != CffInstructionType::Operator {
@@ -342,7 +342,7 @@ fn il_matchop(il: &CffCharstringIl, j: u32, op: CffCharstringOperator) -> bool {
     if il.instr[j as usize].i() != op.0 {
         return false;
     }
-    return true;
+    true
 }
 /// Collapse `op` into `op2` when the operands flagged in `zeros` are all zero.
 ///
@@ -383,7 +383,7 @@ fn zroll(
     }
     il.instr[end as usize].set_i(op2.0);
     il.instr[end as usize].arity = result_arity as Arity;
-    return arity;
+    arity
 }
 fn opop_roll(
     il: &mut CffCharstringIl,
@@ -409,10 +409,10 @@ fn opop_roll(
         il.instr[j as usize].kind = CffInstructionType::PhantomOperator;
         il.instr[next_idx as usize].set_i(resultop.0);
         il.instr[next_idx as usize].arity = nextop.arity + current.arity;
-        return (arity + 1) as u8;
+        (arity + 1) as u8
     } else {
-        return 0;
-    };
+        0
+    }
 }
 fn hvlineto_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     if j + 3 >= il.instr.len() as u32 {
@@ -435,10 +435,10 @@ fn hvlineto_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
         let end_idx = (j + 3) as usize;
         il.instr[end_idx].set_i(current.i());
         il.instr[end_idx].arity = current.arity + 1;
-        return 3;
+        3
     } else {
-        return 0;
-    };
+        0
+    }
 }
 fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     if !il_matchop(il, j, OP_HVCURVETO) && !il_matchop(il, j, OP_VHCURVETO) {
@@ -464,7 +464,7 @@ fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
             il.instr[j as usize].kind = CffInstructionType::PhantomOperator;
             il.instr[end_idx].set_i(current.i());
             il.instr[end_idx].arity = current.arity + 4;
-            return 7;
+            7
         } else if current.arity + 5 <= TYPE2_ARGUMENT_STACK {
             il.instr[(j + checkdelta1) as usize].kind = CffInstructionType::PhantomOperand;
             il.instr[j as usize].kind = CffInstructionType::PhantomOperator;
@@ -473,13 +473,13 @@ fn hvvhcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
             if hvcase {
                 il.instr.swap((j + 5) as usize, (j + 6) as usize);
             }
-            return 7;
+            7
         } else {
-            return 0;
+            0
         }
     } else {
-        return 0;
-    };
+        0
+    }
 }
 fn hhvvcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     if !il_matchop(il, j, OP_HHCURVETO) && !il_matchop(il, j, OP_VVCURVETO) {
@@ -504,10 +504,10 @@ fn hhvvcurve_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
         let end_idx = (j + 7) as usize;
         il.instr[end_idx].set_i(current.i());
         il.instr[end_idx].arity = current.arity + 4;
-        return 7;
+        7
     } else {
-        return 0;
-    };
+        0
+    }
 }
 fn nextstop(il: &CffCharstringIl, j: u32) -> u32 {
     let operands = il
@@ -516,7 +516,7 @@ fn nextstop(il: &CffCharstringIl, j: u32) -> u32 {
         .skip(j as usize)
         .take_while(|instr| instr.kind == CffInstructionType::Operand)
         .count();
-    return operands as u32;
+    operands as u32
 }
 fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> u8 {
     let mut r: u8;
@@ -624,7 +624,7 @@ fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> 
     if r != 0 {
         return r;
     }
-    return 1;
+    1
 }
 pub fn optimize_il(il: &mut CffCharstringIl, options: &Options) {
     if !options.cff_roll_char_string {

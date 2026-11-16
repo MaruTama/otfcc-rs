@@ -12,8 +12,8 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
         open: Vec::new(),
     };
     dump_font(font, options, &mut tree);
-    let root = tree.root;
-    return root;
+    
+    tree.root
 }
 
 /// Writes a consolidated font as JSON straight into `out`, one member of

@@ -73,7 +73,7 @@ pub(crate) fn set_glyph_order_by_gid(
     let idx = go.entries.len() - 1;
     go.by_gid.insert(gid, idx);
     go.by_name.insert(final_bytes.clone(), idx);
-    return final_bytes;
+    final_bytes
 }
 // On the "already taken" path the caller's `name` is simply dropped.
 pub(crate) fn set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, gid: GlyphId) -> bool {
@@ -89,7 +89,7 @@ pub(crate) fn set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, gid: G
     let idx = go.entries.len() - 1;
     go.by_gid.insert(gid, idx);
     go.by_name.insert(name, idx);
-    return true;
+    true
 }
 pub(crate) fn gord_name_a_field_shared(
     go: &GlyphOrder,
@@ -145,7 +145,7 @@ pub(crate) fn gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle) -> b
             return true;
         }
     }
-    return false;
+    false
 }
 pub(crate) fn gord_lookup_name(go: &GlyphOrder, name: Vec<u8>) -> bool {
     go.by_name.contains_key(&name)

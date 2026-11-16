@@ -60,5 +60,5 @@ pub fn consolidate_gsub_reverse(
         subtable.sequence[input_index].push(Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle);
         subtable.to.push(Handle::new(HandleState::Consolidated, toid as GlyphId, toname) as GlyphHandle);
     }
-    return false;
+    false
 }

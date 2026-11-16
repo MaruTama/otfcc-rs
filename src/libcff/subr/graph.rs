@@ -116,18 +116,18 @@ fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
     let mn = g.node(m);
     let nn = g.node(n);
     if let Some(mr) = mn.rule {
-        return Some(mr) == nn.rule;
+        Some(mr) == nn.rule
     } else if nn.rule.is_some() {
-        return false;
+        false
     } else {
         let m_terminal = mn.terminal.as_ref().expect("a node without a rule holds bytes");
         let n_terminal = nn.terminal.as_ref().expect("a node without a rule holds bytes");
         // Compares as C's `strncmp` would, stopping at a NUL in either side
         // even though this is charstring bytecode: two sequences equal up to
         // a NUL compare equal. Kept so output does not change.
-        return m_terminal.data.len() == n_terminal.data.len()
-            && strncmp_eq(&m_terminal.data, &n_terminal.data, m_terminal.data.len());
-    };
+        m_terminal.data.len() == n_terminal.data.len()
+            && strncmp_eq(&m_terminal.data, &n_terminal.data, m_terminal.data.len())
+    }
 }
 fn join_nodes(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     if g.node(m).next.is_some() {

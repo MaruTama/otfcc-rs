@@ -266,7 +266,7 @@ fn build_palette_type(cpal: &CpalTable) -> Option<BkBlock> {
     for p in palettes.iter() {
         bk_push(&mut block, vec![bk_int(BkCellType::B32, p.palette_type)]);
     }
-    return Some(block);
+    Some(block)
 }
 #[inline]
 fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
@@ -278,7 +278,7 @@ fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
     for p in palettes.iter() {
         bk_push(&mut block, vec![bk_int(BkCellType::B16, p.label)]);
     }
-    return Some(block);
+    Some(block)
 }
 #[inline]
 fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
@@ -291,7 +291,7 @@ fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     for c in palette.colorset.iter() {
         bk_push(&mut block, vec![bk_int(BkCellType::B16, (c.label as i32) as u32)]);
     }
-    return Some(block);
+    Some(block)
 }
 pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     let cpal = cpal?;

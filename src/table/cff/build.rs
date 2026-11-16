@@ -66,7 +66,7 @@ fn sidof(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> i32 {
     }
     let idx = h.len();
     h.insert(key, s.to_vec());
-    return 391 + idx as i32;
+    391 + idx as i32
 }
 fn cffdict_givemeablank(dict: &mut CffDict) -> &mut CffDictEntry {
     dict.ents.push(CffDictEntry {
@@ -275,7 +275,7 @@ fn cff_make_charset(
     } else {
         CffCharset::IsoAdobe
     };
-    return build_charset(&charset);
+    build_charset(&charset)
 }
 // The `range3` array's final length isn't pre-counted anymore -- a `Vec`
 // absorbs the counting pass, same as `Coverage`/`ClassDef`/`gpos_pair.rs`'s
@@ -316,7 +316,7 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
     } else {
         CffFdSelect::Unspecified
     };
-    return build_fd_select(&fds);
+    build_fd_select(&fds)
 }
 fn compile_fd_buffer(
     fd_array: &[Box<CffTable>],

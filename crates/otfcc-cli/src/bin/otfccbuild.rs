@@ -286,7 +286,7 @@ fn run(args: Vec<String>) -> i32 {
         // free needed.
         stage.finish();
     }
-    return 0;
+    0
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();

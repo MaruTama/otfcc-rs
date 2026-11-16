@@ -66,7 +66,7 @@ pub fn read_svg(packet: &Packet) -> Option<SvgTable> {
     decode_svg(&table.data).ok()
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {
-    return doc.len() > 4
+    doc.len() > 4
         && doc[0] as i32 == '<' as i32
         && doc[1] as i32 == 's' as i32
         && doc[2] as i32 == 'v' as i32
@@ -76,7 +76,7 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && doc[1] as i32 == '?' as i32
             && doc[2] as i32 == 'x' as i32
             && doc[3] as i32 == 'm' as i32
-            && doc[4] as i32 == 'l' as i32;
+            && doc[4] as i32 == 'l' as i32
 }
 pub fn dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
     let svg = match svg {
@@ -131,7 +131,7 @@ pub fn parse_svg(root: &ParsedValue) -> Option<SvgTable> {
         }
         stage.finish();
     }
-    return Some(svg);
+    Some(svg)
 }
 pub fn build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     let _svg = match _svg {
