@@ -22,7 +22,7 @@ use crate::table::otl::kind::lookup_kind;
 
 use crate::table::vmtx::{VerticalMetric, VmtxTable};
 
-use crate::table::glyf::glyf_component_reference_init;
+use crate::table::glyf::glyf_component_reference_empty;
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_zero, vq_neutral};
 
@@ -100,27 +100,7 @@ pub fn stat_single_glyph(
     n_composite_points = n_points;
     n_composite_contours = g.contours.len() as u16;
     for rr in &g.references {
-        let mut glyph_ref: ComponentReference = ComponentReference {
-            x: std::cell::RefCell::new(VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            }),
-            y: std::cell::RefCell::new(VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            }),
-            round_to_grid: false,
-            use_my_metrics: false,
-            glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
-            a: 0.,
-            b: 0.,
-            c: 0.,
-            d: 0.,
-            is_anchored: std::cell::Cell::new(RefAnchorStatus::Xy),
-            inner: 0,
-            outer: 0,
-        };
-        glyf_component_reference_init(&mut glyph_ref);
+        let mut glyph_ref: ComponentReference = glyf_component_reference_empty();
         glyph_ref.glyph = handle_from_index(rr.glyph.index);
         glyph_ref.a = gr.a * rr.a + rr.b * gr.c;
         glyph_ref.b = rr.a * gr.b + rr.b * gr.d;

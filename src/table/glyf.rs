@@ -6,7 +6,7 @@ use crate::logger::ByteStr;
 use otfcc_binary::Buffer;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
 use crate::support::handle::{
-    FdHandle, GlyphHandle, Handle, HandleState, handle_from_name, handle_empty,
+    FdHandle, GlyphHandle, handle_from_name, handle_empty,
 };
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId, until_nul};
@@ -26,11 +26,7 @@ pub struct Point {
     pub y: VQ,
     pub on_curve: i8,
 }
-/// A single outline contour, owned point-by-point. Plain `Vec<Point>`: every
-/// point's `VQ` fields are themselves `Vec`s, so dropping a `Contour` already
-/// recursively frees everything it owns -- no element embeds a `Handle`, so
-/// unlike [`ReferenceList`] there is nothing that needs an explicit dispose
-/// loop before a container of these is torn down.
+/// A single outline contour.
 pub type Contour = Vec<Point>;
 pub type ContourList = Vec<Contour>;
 #[derive(Copy, Clone, Debug)]
@@ -126,10 +122,7 @@ pub struct ComponentReference {
     pub inner: ShapeId,
     pub outer: ShapeId,
 }
-/// A glyph's component references. Each [`ComponentReference`] embeds two
-/// `VQ`s and a `GlyphHandle`, all of which now own their allocations for
-/// real and auto-drop, so -- like [`Contour`] -- dropping/clearing this
-/// container needs no explicit per-element dispose pass.
+/// A glyph's component references.
 pub type ReferenceList = Vec<ComponentReference>;
 #[derive(Copy, Clone, Debug)]
 pub struct GlyphStat {
@@ -192,103 +185,38 @@ pub struct GlyfIOContext<'a> {
 /// down to bit 0 rather than trusting it -- so this is typed as the `i8` it is
 /// applied to, which is what lets the two sites drop their casts.
 pub const MASK_ON_CURVE: i8 = 1;
-fn create_point(p: &mut Point) {
-    p.x = vq_create_still(0.0);
-    p.y = vq_create_still(0.0);
-    p.on_curve = 1;
+/// The point a freshly grown contour is padded with: on the origin, on-curve.
+fn origin_point() -> Point {
+    Point {
+        x: vq_create_still(0.0),
+        y: vq_create_still(0.0),
+        on_curve: 1,
+    }
 }
-fn copy_point(dst: &mut Point, src: &Point) {
-    dst.x = src.x.clone();
-    dst.y = src.y.clone();
-    dst.on_curve = src.on_curve;
-}
-#[inline]
-pub fn glyf_point_init(x: &mut Point) {
-    create_point(x);
-}
-#[inline]
-pub fn glyf_point_dup(src: Point) -> Point {
-    let mut dst: Point = Point {
-        x: VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        },
-        y: VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        },
-        on_curve: 0,
-    };
-    glyf_point_copy(&mut dst, &src);
-    return dst;
-}
-#[inline]
-fn glyf_point_copy(dst: &mut Point, src: &Point) {
-    copy_point(dst, src);
-}
-/// Grows `arr` to `n` points, each a default point from
-/// [`glyf_point_init`].
+/// Grows `arr` to `n` points, padding with [`origin_point`].
 #[inline]
 fn glyf_contour_fill(arr: &mut Contour, n: usize) {
     for _ in arr.len()..n {
-        let mut x: Point = Point {
-            x: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            y: VQ {
-                kernel: 0.,
-                shift: Vec::new(),
-            },
-            on_curve: 0,
-        };
-        glyf_point_init(&mut x);
-        arr.push(x);
+        arr.push(origin_point());
     }
 }
-#[inline]
-fn init_glyf_reference(glyph_ref: &mut ComponentReference) {
-    glyph_ref.glyph = handle_empty() as GlyphHandle;
-    glyph_ref.x = std::cell::RefCell::new(vq_create_still(0 as Pos));
-    glyph_ref.y = std::cell::RefCell::new(vq_create_still(0 as Pos));
-    glyph_ref.a = 1 as Scale;
-    glyph_ref.b = 0 as Scale;
-    glyph_ref.c = 0 as Scale;
-    glyph_ref.d = 1 as Scale;
-    glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
-    glyph_ref.outer = 0 as ShapeId;
-    glyph_ref.inner = glyph_ref.outer;
-    glyph_ref.round_to_grid = false;
-    glyph_ref.use_my_metrics = false;
-}
+/// A reference to no glyph, with the identity transform and a zero offset.
 #[inline]
 pub fn glyf_component_reference_empty() -> ComponentReference {
-    let mut x: ComponentReference = ComponentReference {
-        x: std::cell::RefCell::new(VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        }),
-        y: std::cell::RefCell::new(VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        }),
+    ComponentReference {
+        glyph: handle_empty(),
+        x: std::cell::RefCell::new(vq_create_still(0 as Pos)),
+        y: std::cell::RefCell::new(vq_create_still(0 as Pos)),
+        a: 1 as Scale,
+        b: 0 as Scale,
+        c: 0 as Scale,
+        d: 1 as Scale,
+        is_anchored: std::cell::Cell::new(RefAnchorStatus::Xy),
+        outer: 0 as ShapeId,
+        inner: 0 as ShapeId,
         round_to_grid: false,
         use_my_metrics: false,
-        glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
-        a: 0.,
-        b: 0.,
-        c: 0.,
-        d: 0.,
-        is_anchored: std::cell::Cell::new(RefAnchorStatus::Xy),
-        inner: 0,
-        outer: 0,
-    };
-    glyf_component_reference_init(&mut x);
-    return x;
-}
-#[inline]
-pub fn glyf_component_reference_init(x: &mut ComponentReference) {
-    init_glyf_reference(x);
+    }
 }
 /// An empty glyph.
 pub fn new_glyf_glyph() -> Box<Glyph> {
@@ -347,9 +275,7 @@ fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCont
         let mut contour = BuiltValue::new_array(c.len());
         for p in c.iter() {
             let mut point = BuiltValue::new_object(4);
-            // `ctx.fvar` is a real `Option<&mut FvarTable>` now (Stage
-            // M-12); `.as_deref()` downgrades it to the `Option<&FvarTable>`
-            // `json_new_vq` wants, no `unsafe` needed.
+            // `json_new_vq` only reads the fvar table, so reborrow it shared.
             point.push_field(b"x", json_new_vq(p.x.clone(), ctx.fvar.as_deref()));
             point.push_field(b"y", json_new_vq(p.y.clone(), ctx.fvar.as_deref()));
             point.push_field(b"on", BuiltValue::Bool(p.on_curve & MASK_ON_CURVE != 0));
@@ -520,18 +446,7 @@ pub fn dump_glyf(
     stage.finish();
 }
 fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
-    let mut point: Point = Point {
-        x: VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        },
-        y: VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        },
-        on_curve: 0,
-    };
-    glyf_point_init(&mut point);
+    let mut point = origin_point();
     let Some(fields) = pointdump.as_object() else {
         return point;
     };
@@ -696,7 +611,7 @@ fn glyf_parse_glyph(
     if g.y_pel == 0 {
         g.y_pel = glyphdump.get_int(b"yPel") as u8;
     }
-    return g;
+    g
 }
 // Reads `glyf` from the JSON, taking each glyph's value out of `root` as it
 // goes. `glyph_order` is `None` when the JSON has none.

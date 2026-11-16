@@ -10,7 +10,6 @@ use crate::libcff::{
 use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
 
 use crate::libcff::opmean::get_standard_arity;
-use crate::table::glyf::glyf_point_dup;
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_minus, vq_neutral};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -240,10 +239,10 @@ pub fn compile_glyph_to_il(
     let mut x: VQ = vq_neutral();
     let mut y: VQ = vq_neutral();
     for contour in &g.contours {
-        let mut newcontour: Contour = contour.iter().map(|p| glyf_point_dup(p.clone())).collect();
+        let mut newcontour: Contour = contour.clone();
         if newcontour.len() > 2 && newcontour[newcontour.len() - 1].on_curve == 0 {
             let first = newcontour[0].clone();
-            newcontour.push(glyf_point_dup(first));
+            newcontour.push(first);
         }
         let n = point_count(&newcontour);
         for point in newcontour.iter_mut().take(n) {
