@@ -48,11 +48,11 @@ pub struct TsiBuildTarget {
 #[inline]
 fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
-        return gid as i32 != 0xfffe
-            && gid as i32 != 0xfffc;
+        gid as i32 != 0xfffe
+            && gid as i32 != 0xfffc
     } else {
-        return (gid as i32) < 0xfffa;
-    };
+        (gid as i32) < 0xfffa
+    }
 }
 // One 8-byte record: gid(u16) + text_length(u16, widened) + text_offset(u32).
 // `FontReader::at` + the three field reads only succeed together when the
@@ -148,7 +148,7 @@ pub fn read_tsi(
         }
         j = j.wrapping_add(1);
     }
-    return Some(tsi);
+    Some(tsi)
 }
 pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
     let tsi = match tsi {

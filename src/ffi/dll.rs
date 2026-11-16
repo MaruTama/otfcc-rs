@@ -61,7 +61,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_len(buf: *mut Buffer) -> usize {
     // SAFETY: the caller guarantees `buf` is a live `Buffer` from this library.
-    return unsafe { (*buf).data.len() };
+    unsafe { (*buf).data.len() }
 }
 /// # Safety
 /// Same contract as [`otfcc_get_buf_len`]: `buf` must be non-null and
@@ -72,7 +72,7 @@ pub unsafe extern "C" fn otfcc_get_buf_len(buf: *mut Buffer) -> usize {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
     // SAFETY: as for `otfcc_get_buf_len`.
-    return unsafe { (*buf).data.as_mut_ptr() };
+    unsafe { (*buf).data.as_mut_ptr() }
 }
 /// # Safety
 /// `buf` must either be null or point to a live `Buffer` obtained from

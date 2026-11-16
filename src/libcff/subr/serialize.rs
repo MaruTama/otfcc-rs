@@ -71,26 +71,26 @@ fn number_subroutines(g: &mut CffSubrGraph) -> u32 {
         }
         e = g.node(e).next.unwrap();
     }
-    return current;
+    current
 }
 #[inline]
 fn subroutine_bias(cnt: i32) -> i32 {
     if cnt < 1240 {
-        return 107;
+        107
     } else if cnt < 33900 {
-        return 1131;
+        1131
     } else {
-        return 32768;
-    };
+        32768
+    }
 }
 fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
     let node = last_node_of(g, rule);
     let n = g.node(node);
     if n.terminal.is_some() {
-        return n.last;
+        n.last
     } else {
-        return ends_with_end_char(g, n.rule.unwrap());
-    };
+        ends_with_end_char(g, n.rule.unwrap())
+    }
 }
 // Which buffer `serialize_node_to_buffer` writes to. It is resolved to a
 // `&mut Buffer` only where it is used (`resolve_subr_ref`), because the

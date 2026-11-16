@@ -248,7 +248,7 @@ pub fn get_point_coordinates(
             return true;
         }
     }
-    return false;
+    false
 }
 // The two branches below re-read `rr.is_anchored.get()` *after* both
 // recursive `get_point_coordinates` calls (`s1`/`s2`) have returned, rather
@@ -339,7 +339,7 @@ pub fn consolidate_anchor_ref(
     // `rr1`/`inner`/`outer` (and, in this branch, `rrx`/`rry`) are all plain
     // owned locals that were never moved out -- they auto-drop at the
     // `return false` below, so no explicit dispose calls are needed.
-    return false;
+    false
 }
 pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     if font.glyph_order.is_none() || font.glyf.is_none() {

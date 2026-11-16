@@ -18,14 +18,14 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
             return FontSubtype::Cff;
         }
     }
-    return FontSubtype::Ttf;
+    FontSubtype::Ttf
 }
 /// Reads one subfont out of an already-parsed sfnt container.
 ///
 /// `index` is bounds-checked against `sfnt.count` before use.
 pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Option<Box<Font>> {
     if sfnt.count.wrapping_sub(1) < index {
-        return None;
+        None
     } else {
         let mut font: Box<Font> = Box::default();
         let sfnt_packets = &sfnt.packets;
@@ -35,8 +35,8 @@ pub fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Op
             table.read(&mut font, packet, options);
         }
         unconsolidate_font(&mut font, options);
-        return Some(font);
-    };
+        Some(font)
+    }
 }
 
 #[cfg(test)]

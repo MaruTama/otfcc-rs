@@ -265,7 +265,7 @@ pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> f64 
     } else {
         1.0
     };
-    return f64::from_bits(bits) - q;
+    f64::from_bits(bits) - q
 }
 // `stack` is caller-owned and reused across every glyph in the font
 // (`read_cff_and_glyf_tables`'s per-glyph loop constructs it once,
@@ -407,7 +407,7 @@ fn build_outline(
     *seed = bc.randx;
 }
 fn form_cid_string(cid: CffSid) -> Vec<u8> {
-    return crate::bytesbuild!(b"CID", cid as i32);
+    crate::bytesbuild!(b"CID", cid as i32)
 }
 fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_file: &CffFile) {
     let is_cid = meta.is_cid;
@@ -447,7 +447,7 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
     }
 }
 fn qround(x: f64) -> f64 {
-    return from_fixed(to_fixed(x));
+    from_fixed(to_fixed(x))
 }
 // Applies the Top DICT's `FontMatrix`, scaled by `head.unitsPerEm`. Without
 // a `head` table there is nothing to scale by, so the outline stays as is.
@@ -618,5 +618,5 @@ pub fn read_cff_and_glyf_tables(
         // `cff_file`'s own `Drop` glue runs here, at the end of its scope
         // -- no explicit `Box::from_raw` + `drop` needed any more.
     }
-    return ret;
+    ret
 }

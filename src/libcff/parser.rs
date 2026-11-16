@@ -244,7 +244,7 @@ pub fn open_stream(data: &[u8]) -> Box<CffFile> {
     file.raw_data = data.to_vec();
     file.cnt_glyph = 0;
     parse_cff_bytecode(&mut file);
-    return file;
+    file
 }
 // Takes `&CffFdSelect` because both callers read it from a shared
 // `CffFile` once per glyph.
@@ -328,7 +328,7 @@ pub fn parse_subr(
     } else {
         empty_index(subr);
     }
-    return fd;
+    fd
 }
 #[inline]
 // The subroutine index comes from a charstring operand, so both offsets it
@@ -350,12 +350,12 @@ pub(crate) fn locate_subr(subr_index: &CffIndex, bias: u16, subr: i32) -> Option
 }
 pub(crate) fn compute_subr_bias(cnt: u16) -> u16 {
     if i32::from(cnt) < 1240 {
-        return 107;
+        107
     } else if i32::from(cnt) < 33900 {
-        return 1131;
+        1131
     } else {
-        return 32768;
-    };
+        32768
+    }
 }
 pub use crate::libcff::charstring_interp::parse_outline;
 
