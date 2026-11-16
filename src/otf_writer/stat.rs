@@ -61,7 +61,7 @@ pub fn stat_single_glyph(
         stated[j as usize] = StatStatus::Completed;
         return stat;
     }
-    let g: &Glyph = table[j as usize].as_deref().unwrap();
+    let g: &Glyph = table[j as usize].as_deref().expect("glyph slot is filled");
     stated[j as usize] = StatStatus::Doing;
     let mut xmin: Pos = POS_MAX as Pos;
     let mut xmax: Pos = -POS_MAX as Pos;
@@ -166,14 +166,12 @@ pub fn stat_single_glyph(
     stat.n_composite_points = n_composite_points;
     stat.n_composite_contours = n_composite_contours;
     stated[j as usize] = StatStatus::Completed;
-    return stat;
+    stat
 }
 pub fn stat_glyf(font: &mut Font) {
-    // Only ever called (from `stat_font`) under a `.head.is_some()`/
-    // `.glyf.is_some()` guard, so `.unwrap()` here just turns "this
-    // invariant broke" from a null-pointer dereference into a panic.
-    let head = font.head.as_deref_mut().unwrap();
-    let glyf = font.glyf.as_mut().unwrap();
+    // `stat_font` calls this only when both tables exist.
+    let head = font.head.as_deref_mut().expect("head table is present");
+    let glyf = font.glyf.as_mut().expect("glyf table is present");
     let mut stated: Vec<StatStatus> = vec![StatStatus::NotStarted; glyf.len()];
     let mut xmin: Pos = 0xffffffff_u32 as Pos;
     let mut xmax: Pos = 0xffffffff_u32.wrapping_neg() as Pos;
@@ -208,7 +206,7 @@ pub fn stat_glyf(font: &mut Font) {
         gr.c = 0 as Scale;
         gr.d = 1 as Scale;
         let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0, j);
-        glyf[j as usize].as_mut().unwrap().stat = thatstat;
+        glyf[j as usize].as_mut().expect("glyph slot is filled").stat = thatstat;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
         }
@@ -230,7 +228,7 @@ pub fn stat_glyf(font: &mut Font) {
 pub fn stat_maxp(font: &mut Font) {
     // Only ever called (from `stat_font`) under a `.maxp.is_some()`/
     // `.glyf.is_some()` guard.
-    let maxp = font.maxp.as_deref_mut().unwrap();
+    let maxp = font.maxp.as_deref_mut().expect("maxp table is present");
     let mut nest_depth: u16 = 0;
     let mut n_points: u16 = 0;
     let mut n_contours: u16 = 0;
@@ -238,9 +236,9 @@ pub fn stat_maxp(font: &mut Font) {
     let mut n_composite_points: u16 = 0;
     let mut n_composite_contours: u16 = 0;
     let mut inst_size: u16 = 0;
-    let glyf = font.glyf.as_ref().unwrap();
+    let glyf = font.glyf.as_ref().expect("glyf table is present");
     for g in glyf.iter() {
-        let g = g.as_deref().unwrap();
+        let g = g.as_deref().expect("glyph slot is filled");
         if !g.contours.is_empty() {
             if g.stat.n_points > n_points {
                 n_points = g.stat.n_points;
@@ -278,25 +276,25 @@ fn stat_hmtx(font: &mut Font) {
     if font.glyf.is_none() {
         return;
     }
-    let glyf = font.glyf.as_mut().unwrap();
+    let glyf = font.glyf.as_mut().expect("glyf table is present");
     // Only ever called (from `stat_font`) under a `.hhea.is_some()`
     // guard; `.head` is set unconditionally by the pipeline before this
     // point (used below to update `.flags`).
     let mut count_a: GlyphId = count_u16(glyf.len());
     let mut count_k: GlyphId = 0 as GlyphId;
-    let mut lsb_at_x_0: bool = true;
+    let mut lsb_at_x_zero: bool = true;
     if font.subtype != FontSubtype::Cff {
         while count_a as i32 > 2
             && vq_get_still(
                 glyf[(count_a as i32 - 1) as usize]
                     .as_deref()
-                    .unwrap()
+                    .expect("glyph slot is filled")
                     .advance_width
                     .clone(),
             ) == vq_get_still(
                 glyf[(count_a as i32 - 2) as usize]
                     .as_deref()
-                    .unwrap()
+                    .expect("glyph slot is filled")
                     .advance_width
                     .clone(),
             )
@@ -314,11 +312,11 @@ fn stat_hmtx(font: &mut Font) {
     let mut max_extent: Pos = -0x8000 as Pos;
     let mut max_width: Length = 0 as Length;
     for (j, slot) in glyf.iter_mut().enumerate() {
-        let g = slot.as_mut().unwrap();
+        let g = slot.as_mut().expect("glyph slot is filled");
         if vq_is_zero(g.horizontal_origin.clone(), 1.0 / 1000.0) {
             g.horizontal_origin = vq_neutral();
         } else {
-            lsb_at_x_0 = false;
+            lsb_at_x_zero = false;
         }
         let hori: Pos = vq_get_still(g.horizontal_origin.clone()) as Pos;
         let advw: Pos = vq_get_still(g.advance_width.clone()) as Pos;
@@ -345,7 +343,7 @@ fn stat_hmtx(font: &mut Font) {
             max_extent = g.stat.x_max - hori;
         }
     }
-    let hhea = font.hhea.as_deref_mut().unwrap();
+    let hhea = font.hhea.as_deref_mut().expect("hhea table is present");
     hhea.number_of_metrics = count_a as u16;
     hhea.min_left_side_bearing = min_lsb as i16;
     hhea.min_right_side_bearing = min_rsb as i16;
@@ -355,9 +353,9 @@ fn stat_hmtx(font: &mut Font) {
         metrics,
         left_side_bearing,
     }));
-    let head = font.head.as_deref_mut().unwrap();
+    let head = font.head.as_deref_mut().expect("head table is present");
     head.flags = (head.flags as i32 & !0x2
-        | (if lsb_at_x_0 {
+        | (if lsb_at_x_zero {
             0x2
         } else {
             0
@@ -367,7 +365,7 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
     if font.glyf.is_none() {
         return;
     }
-    let glyf = font.glyf.as_mut().unwrap();
+    let glyf = font.glyf.as_mut().expect("glyf table is present");
     let mut count_a: GlyphId = count_u16(glyf.len());
     let mut count_k: GlyphId = 0 as GlyphId;
     if !(font.subtype == FontSubtype::Cff && !options.cff_short_vmtx) {
@@ -375,13 +373,13 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
             && vq_get_still(
                 glyf[(count_a as i32 - 1) as usize]
                     .as_deref()
-                    .unwrap()
+                    .expect("glyph slot is filled")
                     .advance_height
                     .clone(),
             ) == vq_get_still(
                 glyf[(count_a as i32 - 2) as usize]
                     .as_deref()
-                    .unwrap()
+                    .expect("glyph slot is filled")
                     .advance_height
                     .clone(),
             )
@@ -399,7 +397,7 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
     let mut max_extent: Pos = -0x8000 as Pos;
     let mut max_height: Length = 0 as Length;
     for (j, slot) in glyf.iter().enumerate() {
-        let g = slot.as_deref().unwrap();
+        let g = slot.as_deref().expect("glyph slot is filled");
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
         let advh: Pos = vq_get_still(g.advance_height.clone()) as Pos;
         let tsb: Pos = vori - g.stat.y_max;
@@ -427,7 +425,7 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
     }
     // Only ever called (from `stat_font`) under a `.vhea.is_some()`
     // guard.
-    let vhea = font.vhea.as_deref_mut().unwrap();
+    let vhea = font.vhea.as_deref_mut().expect("vhea table is present");
     vhea.num_of_long_ver_metrics = count_a as u16;
     vhea.min_top = min_tsb as i16;
     vhea.min_bottom = min_bsb as i16;
@@ -582,7 +580,7 @@ fn stat_os_2_unicode_ranges(font: &mut Font, options: &Options) {
     let mut ranges = [0u32; 4];
     let mut min_unicode: i32 = 0xffff;
     let mut max_unicode: i32 = 0;
-    for &u in font.cmap.as_ref().unwrap().unicodes.keys() {
+    for &u in font.cmap.as_ref().expect("cmap table is present").unicodes.keys() {
         min_unicode = min_unicode.min(u);
         max_unicode = max_unicode.max(u);
         for (range, bits) in ranges.iter_mut().zip(unicode_range_bits(u)) {
@@ -590,7 +588,7 @@ fn stat_os_2_unicode_ranges(font: &mut Font, options: &Options) {
         }
     }
     let [u1, u2, u3, u4] = ranges;
-    let os_2 = font.os_2.as_deref_mut().unwrap();
+    let os_2 = font.os_2.as_deref_mut().expect("os_2 table is present");
     if !options.keep_unicode_ranges {
         os_2.ul_unicode_range1 = u1;
         os_2.ul_unicode_range2 = u2;
@@ -614,16 +612,16 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     }
     // Only ever called (from `stat_font`, via `stat_os_2`) under a
     // `.glyf.is_some()` guard.
-    let glyf = font.glyf.as_ref().unwrap();
+    let glyf = font.glyf.as_ref().expect("glyf table is present");
     let mut total_width: u32 = 0;
     for slot in glyf.iter() {
-        let adw: Pos = vq_get_still(slot.as_deref().unwrap().advance_width.clone()) as Pos;
+        let adw: Pos = vq_get_still(slot.as_deref().expect("glyph slot is filled").advance_width.clone()) as Pos;
         if adw > 0 as Pos {
             total_width = (total_width as Pos + adw) as u32;
         }
     }
     let glyf_len = glyf.len();
-    let os_2 = font.os_2.as_deref_mut().unwrap();
+    let os_2 = font.os_2.as_deref_mut().expect("os_2 table is present");
     // `glyf_len` is attacker-controlled (a JSON `glyf` table can declare
     // zero glyphs) and was fed straight into `wrapping_div` -- unlike
     // `MIN / -1`, division by zero always panics regardless of which
@@ -664,7 +662,7 @@ fn stat_max_context(font: &mut Font) {
             maxc = maxc_gpos;
         }
     }
-    font.os_2.as_deref_mut().unwrap().us_max_context = maxc;
+    font.os_2.as_deref_mut().expect("os_2 table is present").us_max_context = maxc;
 }
 fn stat_os_2(font: &mut Font, options: &Options) {
     stat_os_2_unicode_ranges(font, options);
@@ -676,7 +674,7 @@ fn stat_cff_widths(font: &mut Font) {
     if font.glyf.is_none() || font.cff.is_none() {
         return;
     }
-    let glyf = font.glyf.as_ref().unwrap();
+    let glyf = font.glyf.as_ref().expect("glyf table is present");
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for g in iter_glyphs(glyf) {
         let int_width: u16 = vq_get_still(g.advance_width.clone()) as u16;
@@ -705,7 +703,7 @@ fn stat_cff_widths(font: &mut Font) {
     if nn as i32 > 0 {
         nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
     }
-    let cff = font.cff.as_deref_mut().unwrap();
+    let cff = font.cff.as_deref_mut().expect("cff table is present");
     if let Some(pd) = cff.private_dict.as_deref_mut() {
         pd.default_width_x = maxj as f64;
         if nn as i32 != 0 {
@@ -713,7 +711,7 @@ fn stat_cff_widths(font: &mut Font) {
         }
     }
     for fd in cff.fd_array.iter_mut() {
-        let pd = fd.private_dict.as_deref_mut().unwrap();
+        let pd = fd.private_dict.as_deref_mut().expect("CFF font dict has a private dict");
         pd.default_width_x = maxj as f64;
         pd.nominal_width_x = nominal_width_x as f64;
     }
@@ -726,7 +724,7 @@ fn stat_vorg(font: &mut Font) {
     {
         return;
     }
-    let glyf = font.glyf.as_ref().unwrap();
+    let glyf = font.glyf.as_ref().expect("glyf table is present");
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for g in iter_glyphs(glyf) {
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
@@ -746,8 +744,8 @@ fn stat_vorg(font: &mut Font) {
     let default_vertical_origin = maxj as Pos;
     let mut n_vert_origs: GlyphId = 0 as GlyphId;
     for g in iter_glyphs(glyf) {
-        let vori_0: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
-        if vori_0 != maxj as i32 as Pos {
+        let vertical_origin: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
+        if vertical_origin != maxj as i32 as Pos {
             n_vert_origs =
                 (n_vert_origs as i32 + 1) as GlyphId;
         }
@@ -772,7 +770,7 @@ fn stat_ltsh(font: &mut Font) {
     if font.glyf.is_none() {
         return;
     }
-    let glyf = font.glyf.as_ref().unwrap();
+    let glyf = font.glyf.as_ref().expect("glyf table is present");
     if !iter_glyphs(glyf).any(|g| g.y_pel > 1) {
         return;
     }
@@ -794,17 +792,17 @@ pub fn stat_font(font: &mut Font, options: &Options) {
                 .duration_since(::std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
-            font.head.as_deref_mut().unwrap().modified = 2082844800 + now;
+            font.head.as_deref_mut().expect("head table is present").modified = 2082844800 + now;
         }
     }
     if font.head.is_some() && font.cff.is_some() {
-        let head_y_min = font.head.as_deref().unwrap().y_min;
-        let head_y_max = font.head.as_deref().unwrap().y_max;
-        let head_x_min = font.head.as_deref().unwrap().x_min;
-        let head_x_max = font.head.as_deref().unwrap().x_max;
-        let units_per_em = font.head.as_deref().unwrap().units_per_em;
+        let head_y_min = font.head.as_deref().expect("head table is present").y_min;
+        let head_y_max = font.head.as_deref().expect("head table is present").y_max;
+        let head_x_min = font.head.as_deref().expect("head table is present").x_min;
+        let head_x_max = font.head.as_deref().expect("head table is present").x_max;
+        let units_per_em = font.head.as_deref().expect("head table is present").units_per_em;
         let glyf_len = font.glyf.as_ref().map(|g| g.len() as u32);
-        let cff = font.cff.as_deref_mut().unwrap();
+        let cff = font.cff.as_deref_mut().expect("cff table is present");
         if cff.font_b_box_bottom > head_y_min as i32 as f64 {
             cff.font_b_box_bottom = head_y_min as i32 as f64;
         }
@@ -865,13 +863,13 @@ pub fn stat_font(font: &mut Font, options: &Options) {
     if font.glyf.is_some() && font.maxp.is_some() && maxp_version_is_10000 {
         stat_maxp(font);
         if let Some(fpgm_length) = font.fpgm.as_ref().map(|f| f.bytes.len() as u32) {
-            let maxp = font.maxp.as_deref_mut().unwrap();
+            let maxp = font.maxp.as_deref_mut().expect("maxp table is present");
             if fpgm_length > maxp.max_size_of_instructions as u32 {
                 maxp.max_size_of_instructions = fpgm_length as u16;
             }
         }
         if let Some(prep_length) = font.prep.as_ref().map(|p| p.bytes.len() as u32) {
-            let maxp = font.maxp.as_deref_mut().unwrap();
+            let maxp = font.maxp.as_deref_mut().expect("maxp table is present");
             if prep_length > maxp.max_size_of_instructions as u32 {
                 maxp.max_size_of_instructions = prep_length as u16;
             }
