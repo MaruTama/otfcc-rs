@@ -24,23 +24,23 @@ fuzz_target!(|data: &[u8]| {
     if data.is_empty() {
         return;
     }
-    unsafe {
-        let buf = otfccbuild_json_otf(
+    // SAFETY: `data` is a live slice of `data.len()` bytes.
+    let buf = unsafe {
+        otfccbuild_json_otf(
             data.len() as u32,
             data.as_ptr() as *const ::core::ffi::c_char,
             0,
             false,
-        );
-        if buf.is_null() {
-            return;
-        }
-        // Touch the returned bytes so a corrupt Buffer (wrong size vs.
-        // actual allocation) shows up as an ASan read, not silently.
-        let len = otfcc_get_buf_len(buf);
-        let data_ptr = otfcc_get_buf_data(buf);
-        if len > 0 && !data_ptr.is_null() {
-            std::hint::black_box(std::slice::from_raw_parts(data_ptr, len));
-        }
-        otfccbuild_free_otfbuf(buf);
+        )
+    };
+    let Some(mut buf) = buf else { return };
+    // Touch the returned bytes so a corrupt Buffer (wrong size vs.
+    // actual allocation) shows up as an ASan read, not silently.
+    let len = otfcc_get_buf_len(Some(&buf));
+    let data_ptr = otfcc_get_buf_data(Some(&mut buf));
+    if len > 0 && !data_ptr.is_null() {
+        // SAFETY: `data_ptr` points to `len` bytes owned by `buf`, still alive.
+        std::hint::black_box(unsafe { std::slice::from_raw_parts(data_ptr, len) });
     }
+    otfccbuild_free_otfbuf(Some(buf));
 });

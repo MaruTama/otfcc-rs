@@ -8,20 +8,9 @@ use crate::otf_writer::serialize_to_otf;
 use crate::support::options::options_optimize_to;
 use otfcc_json::parse_json;
 
-/// # Safety
-/// `injson` must be non-null and point to at least `inlen` readable bytes
-/// (they need not be NUL-terminated -- `inlen` alone bounds the slice this
-/// builds from them) for the duration of this call; the memory it points
-/// to must not be mutated concurrently. The returned pointer, when
-/// non-null, is an owned `Buffer` the caller must eventually pass to
-/// [`otfccbuild_free_otfbuf`] exactly once to avoid leaking it.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn otfccbuild_json_otf(
-    inlen: u32,
-    injson: *const ::core::ffi::c_char,
-    olevel: u8,
-    for_webfont: bool,
-) -> *mut Buffer {
+/// Builds an OTF from a JSON dump held in memory. `None` when the JSON does
+/// not parse or the font cannot be serialized.
+fn build_otf(input: &[u8], olevel: u8, for_webfont: bool) -> Option<Buffer> {
     let mut options: Box<Options> = Box::default();
     let _root_scope = crate::logger::indent("otfccbuild");
     options_optimize_to(&mut options, olevel);
@@ -29,64 +18,61 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         options.ignore_glyph_order = true;
         options.force_cid = true;
     }
-    // The one place the raw `(pointer, length)` pair from the C caller is
-    // turned into a slice; everything from here on is safe.
-    // SAFETY: the caller guarantees `injson` points to `inlen` readable bytes.
-    let input = unsafe { ::core::slice::from_raw_parts(injson as *const u8, inlen as usize) };
-    let Some(mut json_root) = parse_json(input)
-    else {
-        return ::core::ptr::null_mut::<Buffer>();
-    };
-    let Some(mut font) = read_json(&mut json_root, &options) else {
-        return ::core::ptr::null_mut::<Buffer>();
-    };
+    let mut json_root = parse_json(input)?;
+    let mut font = read_json(&mut json_root, &options)?;
     drop(json_root);
     consolidate_font(&mut font, &options);
-    // This is the one genuine `extern "C"` boundary in the crate, so it is
-    // also the one place that still needs to hand a `Buffer` back as a raw
-    // pointer -- `serialize_to_otf` returns the `Buffer` itself.
     let built = serialize_to_otf(&mut font, &options);
     drop(font);
-    match built {
-        Ok(otf) => Box::into_raw(Box::new(otf)),
-        Err(e) => {
-            tracing::error!("Cannot build the font: {e}");
-            ::core::ptr::null_mut::<Buffer>()
-        }
-    }
+    built
+        .inspect_err(|e| tracing::error!("Cannot build the font: {e}"))
+        .ok()
 }
+
+/// Builds an OTF from `injson` and returns an owned `Buffer`, or null on
+/// failure. Pass a non-null result to [`otfccbuild_free_otfbuf`] exactly once.
+///
 /// # Safety
-/// `buf` must be non-null and point to a live `Buffer` obtained from
-/// [`otfccbuild_json_otf`] and not yet freed.
+/// `injson` must be non-null and point to at least `inlen` readable bytes
+/// (they need not be NUL-terminated -- `inlen` alone bounds the slice this
+/// builds from them) for the duration of this call; the memory it points
+/// to must not be mutated concurrently.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn otfcc_get_buf_len(buf: *mut Buffer) -> usize {
-    // SAFETY: the caller guarantees `buf` is a live `Buffer` from this library.
-    unsafe { (*buf).data.len() }
+pub unsafe extern "C" fn otfccbuild_json_otf(
+    inlen: u32,
+    injson: *const ::core::ffi::c_char,
+    olevel: u8,
+    for_webfont: bool,
+) -> Option<Box<Buffer>> {
+    // The only unsafe operation in this file: turning the C caller's
+    // `(pointer, length)` pair into a slice.
+    // SAFETY: the caller guarantees `injson` points to `inlen` readable bytes.
+    let input = unsafe { ::core::slice::from_raw_parts(injson as *const u8, inlen as usize) };
+    build_otf(input, olevel, for_webfont).map(Box::new)
 }
-/// # Safety
-/// Same contract as [`otfcc_get_buf_len`]: `buf` must be non-null and
-/// point to a live, not-yet-freed `Buffer`. The returned pointer aliases
-/// `buf`'s own data and is only valid as long as `buf` itself is (and
-/// only until the next call that could reallocate its data), so it must
-/// not be used after `buf` is freed via [`otfccbuild_free_otfbuf`].
+
+/// Length in bytes of `buf`'s data; 0 for a null `buf`.
+///
+/// `Option<&Buffer>` has the same ABI as a nullable `const Buffer *`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
-    // SAFETY: as for `otfcc_get_buf_len`.
-    unsafe { (*buf).data.as_mut_ptr() }
+pub extern "C" fn otfcc_get_buf_len(buf: Option<&Buffer>) -> usize {
+    buf.map_or(0, |b| b.data.len())
 }
-/// # Safety
-/// `buf` must either be null or point to a live `Buffer` obtained from
-/// [`otfccbuild_json_otf`] and not already freed. Calling this
-/// twice on the same pointer, or using `buf` (or any pointer previously
-/// returned by [`otfcc_get_buf_data`] for it) afterward, is a
-/// use-after-free.
+
+/// Pointer to `buf`'s data, or null for a null `buf`. It aliases `buf`'s own
+/// data, so it is only valid until `buf` is freed via
+/// [`otfccbuild_free_otfbuf`].
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn otfccbuild_free_otfbuf(buf: *mut Buffer) {
-    if !buf.is_null() {
-        // SAFETY: a non-null `buf` came from `Box::into_raw` in
-        // `otfccbuild_json_otf` and has not been freed.
-        drop(unsafe { Box::from_raw(buf) });
-    }
+pub extern "C" fn otfcc_get_buf_data(buf: Option<&mut Buffer>) -> *mut u8 {
+    buf.map_or(::core::ptr::null_mut(), |b| b.data.as_mut_ptr())
+}
+
+/// Frees a `Buffer` returned by [`otfccbuild_json_otf`]; null is a no-op.
+/// `Option<Box<Buffer>>` has the same ABI as a nullable `Buffer *`. Passing
+/// the same pointer twice, or using it afterward, is a use-after-free.
+#[unsafe(no_mangle)]
+pub extern "C" fn otfccbuild_free_otfbuf(buf: Option<Box<Buffer>>) {
+    drop(buf);
 }
 
 #[cfg(test)]
@@ -113,7 +99,7 @@ mod tests {
     // makes `font.is_null()` at the second early return dead in practice,
     // not just untested; the fix still needed to cover it; a future
     // change that makes `read_json` fail for real should add a case here.
-    unsafe fn build(json: &[u8]) -> *mut Buffer {
+    fn build(json: &[u8]) -> Option<Box<Buffer>> {
         // SAFETY: `json` is a live slice of `json.len()` bytes.
         unsafe {
             otfccbuild_json_otf(
@@ -127,10 +113,7 @@ mod tests {
 
     #[test]
     fn invalid_json_returns_null_without_crashing() {
-        unsafe {
-            let buf = build(b"not json");
-            assert!(buf.is_null());
-        }
+        assert!(build(b"not json").is_none());
     }
 
     #[test]
@@ -138,15 +121,16 @@ mod tests {
     // run under Miri too, covering `Font` construction and
     // `font/sfnt_builder.rs`'s checksum computation.
     fn minimal_json_builds_and_frees_cleanly() {
-        unsafe {
+        {
             // Exercises the success path -- `read_json` on `{}` yields a fully-defaulted,
             // zero-glyph font (see the module doc comment above), which
             // consolidate_font/serialize_to_otf still happily turn
             // into a (tiny but valid) OTF Buffer.
             let buf = build(b"{}");
-            assert!(!buf.is_null());
-            assert!(otfcc_get_buf_len(buf) > 0);
-            assert!(!otfcc_get_buf_data(buf).is_null());
+            assert!(buf.is_some());
+            let mut buf = buf;
+            assert!(otfcc_get_buf_len(buf.as_deref()) > 0);
+            assert!(!otfcc_get_buf_data(buf.as_deref_mut()).is_null());
             otfccbuild_free_otfbuf(buf);
         }
     }
@@ -169,11 +153,11 @@ mod tests {
         // input, so more reps past the first few don't add real UB-
         // detection confidence, just wall-clock cost.
         let reps = if cfg!(miri) { 5 } else { 100 };
-        unsafe {
+        {
             for _ in 0..reps {
-                assert!(build(b"not json").is_null());
+                assert!(build(b"not json").is_none());
                 let buf = build(b"{}");
-                assert!(!buf.is_null());
+                assert!(buf.is_some());
                 otfccbuild_free_otfbuf(buf);
             }
         }
