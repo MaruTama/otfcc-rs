@@ -89,7 +89,7 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
     buf.write_u8('R' as i32 as u8);
     buf.write_u8('(' as i32 as u8);
     for r in &g.references {
-        let h: GlyphHash = name_glyph_by_hash(glyf[r.glyph.index as usize].as_deref().unwrap(), glyf);
+        let h: GlyphHash = name_glyph_by_hash(glyf[r.glyph.index as usize].as_deref().expect("glyph slot is filled"), glyf);
         buf.write_bytes(&h.hash);
         hash_vq(buf, r.x.borrow().clone());
         hash_vq(buf, r.y.borrow().clone());
@@ -147,7 +147,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
     };
     // Only ever called (from `unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
-    let num_glyphs: GlyphId = count_u16(font.glyf.as_ref().unwrap().len());
+    let num_glyphs: GlyphId = count_u16(font.glyf.as_ref().expect("glyf table is present").len());
     let prefix: Vec<u8> = options.glyph_name_prefix.clone().unwrap_or_default();
     for j in 0..num_glyphs {
         // Each iteration reads glyph `j` fully (`name_glyph_by_hash`/the
@@ -155,12 +155,12 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         // its `name` field -- never both at once -- so a fresh mutable
         // reborrow of the same slot for the write never overlaps the
         // read.
-        let glyf = font.glyf.as_ref().unwrap();
+        let glyf = font.glyf.as_ref().expect("glyf table is present");
         if options.name_glyphs_by_hash {
-            let h: GlyphHash = name_glyph_by_hash(glyf[j as usize].as_deref().unwrap(), glyf);
+            let h: GlyphHash = name_glyph_by_hash(glyf[j as usize].as_deref().expect("glyph slot is filled"), glyf);
             let mut gname: Vec<u8> = Vec::new();
-            for (j_0, &byte) in h.hash.iter().enumerate() {
-                if j_0 % 4 == 0 && j_0 != 0 {
+            for (byte_idx, &byte) in h.hash.iter().enumerate() {
+                if byte_idx % 4 == 0 && byte_idx != 0 {
                     gname.extend_from_slice(b"-");
                 }
                 Hex2Upper(byte as u32).append_to_vec(&mut gname);
@@ -179,25 +179,25 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
                         break;
                     }
                 }
-                let newname_0: Vec<u8> =
+                let unique_name: Vec<u8> =
                     crate::bytesbuild!(&gname, b"-", &prefix, n as i32);
-                set_glyph_order_by_gid(&mut glyph_order, j, newname_0)
+                set_glyph_order_by_gid(&mut glyph_order, j, unique_name)
             } else {
                 set_glyph_order_by_gid(&mut glyph_order, j, gname)
             };
-            font.glyf.as_mut().unwrap()[j as usize]
+            font.glyf.as_mut().expect("glyf table is present")[j as usize]
                 .as_mut()
-                .unwrap()
+                .expect("glyph slot is filled")
                 .name = shared_name;
         } else if !(options.ignore_glyph_order || options.name_glyphs_by_gid) {
-            let existing_name = glyf[j as usize].as_deref().unwrap().name.clone();
+            let existing_name = glyf[j as usize].as_deref().expect("glyph slot is filled").name.clone();
             if !existing_name.is_empty() {
-                let gname_0: Vec<u8> = crate::bytesbuild!(&prefix, &existing_name);
-                let shared_name_1 = set_glyph_order_by_gid(&mut glyph_order, j, gname_0);
-                font.glyf.as_mut().unwrap()[j as usize]
+                let prefixed_name: Vec<u8> = crate::bytesbuild!(&prefix, &existing_name);
+                let renamed = set_glyph_order_by_gid(&mut glyph_order, j, prefixed_name);
+                font.glyf.as_mut().expect("glyf table is present")[j as usize]
                     .as_mut()
-                    .unwrap()
-                    .name = shared_name_1;
+                    .expect("glyph slot is filled")
+                    .name = renamed;
             }
         }
     }
@@ -229,33 +229,32 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
             }
         }
     }
-    let glyf = font.glyf.as_ref().unwrap();
-    for j_1 in 0..num_glyphs {
-        let name_0: Vec<u8>;
-        if j_1 > 1 {
-            name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as i32);
-        } else if j_1 == 1 {
-            if glyf[1].is_some()
-                && glyf[1].as_deref().unwrap().contours.is_empty()
-                && glyf[1].as_deref().unwrap().references.is_empty()
+    let glyf = font.glyf.as_ref().expect("glyf table is present");
+    for gid in 0..num_glyphs {
+        let glyph_name: Vec<u8> = if gid > 1 {
+            crate::bytesbuild!(&prefix, b"glyph", gid as i32)
+        } else if gid == 1 {
+            if glyf[1]
+                .as_deref()
+                .is_some_and(|g| g.contours.is_empty() && g.references.is_empty())
             {
-                name_0 = crate::bytesbuild!(&prefix, b".null");
+                crate::bytesbuild!(&prefix, b".null")
             } else {
-                name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as i32);
+                crate::bytesbuild!(&prefix, b"glyph", gid as i32)
             }
         } else {
-            name_0 = crate::bytesbuild!(&prefix, b".notdef");
-        }
-        set_glyph_order_by_gid(&mut glyph_order, j_1, name_0);
+            crate::bytesbuild!(&prefix, b".notdef")
+        };
+        set_glyph_order_by_gid(&mut glyph_order, gid, glyph_name);
     }
     glyph_order
 }
 fn name_glyphs(font: &mut Font, gord: &GlyphOrder) {
     // Only ever called (from `unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
-    let glyf = font.glyf.as_mut().unwrap();
+    let glyf = font.glyf.as_mut().expect("glyf table is present");
     for (gid, slot) in glyf.iter_mut().enumerate() {
-        let g = slot.as_mut().unwrap();
+        let g = slot.as_mut().expect("glyph slot is filled");
         let mut glyph_name: Vec<u8> = Vec::new();
         gord_name_a_field_shared(gord, gid as GlyphId, &mut glyph_name);
         g.name = glyph_name;
@@ -331,9 +330,9 @@ pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
             ChainingSubtable::Classified(_) => {}
         }
     }
-    // Dropping the old list here disposes anything this loop left as
-    // `Some` (e.g. a `Classified` subtable, or every remaining slot once
-    // the budget above cuts the loop short).
+    // The old list still holds whatever this loop left as `Some` (e.g. a
+    // `Classified` subtable, or every remaining slot once the budget above
+    // cuts the loop short); assigning over it drops those.
     lookup.subtables = newsts;
 }
 fn expand_chain(lookup: &mut Lookup) {
@@ -360,12 +359,12 @@ fn merge_hmtx(font: &mut Font) {
     if !(font.hhea.is_some() && font.hmtx.is_some() && font.glyf.is_some()) {
         return;
     }
-    let count_a: u32 = font.hhea.as_deref().unwrap().number_of_metrics as u32;
-    let hmtx = font.hmtx.take().unwrap();
-    let glyf = font.glyf.as_mut().unwrap();
+    let count_a: u32 = font.hhea.as_deref().expect("hhea table is present").number_of_metrics as u32;
+    let hmtx = font.hmtx.take().expect("hmtx table is present");
+    let glyf = font.glyf.as_mut().expect("glyf table is present");
     let count_a = count_a as usize;
     for (j, slot) in glyf.iter_mut().enumerate() {
-        let g = slot.as_mut().unwrap();
+        let g = slot.as_mut().expect("glyph slot is filled");
         // The first `count_a` glyphs have a full metric each; every glyph
         // past them shares the last metric's advance width and takes its
         // left side bearing from the trailing `left_side_bearing` array.
@@ -388,11 +387,11 @@ fn merge_vmtx(font: &mut Font) {
     if !(font.vhea.is_some() && font.vmtx.is_some() && font.glyf.is_some()) {
         return;
     }
-    let count_a: u32 = font.vhea.as_deref().unwrap().num_of_long_ver_metrics as u32;
-    let vmtx = font.vmtx.take().unwrap();
+    let count_a: u32 = font.vhea.as_deref().expect("vhea table is present").num_of_long_ver_metrics as u32;
+    let vmtx = font.vmtx.take().expect("vmtx table is present");
     let mut vorgs: Option<Vec<Pos>> = None;
     if let Some(vorg) = font.vorg.take() {
-        let glyf_len = font.glyf.as_ref().unwrap().len();
+        let glyf_len = font.glyf.as_ref().expect("glyf table is present").len();
         let mut v: Vec<Pos> = vec![vorg.default_vertical_origin; glyf_len];
         for entry in &vorg.entries[..vorg.num_vert_origin_y_metrics as usize] {
             if (entry.gid as usize) < glyf_len {
@@ -401,10 +400,10 @@ fn merge_vmtx(font: &mut Font) {
         }
         vorgs = Some(v);
     }
-    let glyf = font.glyf.as_mut().unwrap();
+    let glyf = font.glyf.as_mut().expect("glyf table is present");
     let count_a = count_a as usize;
     for (j, slot) in glyf.iter_mut().enumerate() {
-        let g = slot.as_mut().unwrap();
+        let g = slot.as_mut().expect("glyph slot is filled");
         // Same long-metric / shared-last-metric split as `merge_hmtx`.
         let (adh, tsb): (Pos, Pos) = if j < count_a {
             (vmtx.metrics[j].advance_height as Pos, vmtx.metrics[j].tsb)
@@ -430,7 +429,7 @@ fn merge_ltsh(font: &mut Font) {
         && let Some(ltsh) = &font.ltsh {
             let n = (count_u16(glyf.len())).min(ltsh.num_glyphs) as usize;
             for (slot, &y_pel) in glyf.iter_mut().zip(&ltsh.y_pels[..n]) {
-                slot.as_mut().unwrap().y_pel = y_pel;
+                slot.as_mut().expect("glyph slot is filled").y_pel = y_pel;
             }
         }
 }
