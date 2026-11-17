@@ -149,15 +149,12 @@ fn join_nodes(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     g.node_mut(n).prev = Some(m);
 }
 fn x_insert_node_after(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
-    let m_next = g.node(m).next.unwrap();
+    let m_next = g.next_of(m);
     join_nodes(g, n, m_next);
     join_nodes(g, m, n);
 }
 fn remove_node_from_graph(g: &mut CffSubrGraph, a: NodeId) {
-    let (prev, next) = {
-        let an = g.node(a);
-        (an.prev.unwrap(), an.next.unwrap())
-    };
+    let (prev, next) = (g.prev_of(a), g.next_of(a));
     join_nodes(g, prev, next);
     if !g.node(a).guard {
         unlink_node(g, a);
@@ -165,12 +162,12 @@ fn remove_node_from_graph(g: &mut CffSubrGraph, a: NodeId) {
     }
 }
 fn expand_call(g: &mut CffSubrGraph, a: NodeId) {
-    let aprev = g.node(a).prev.unwrap();
-    let anext = g.node(a).next.unwrap();
-    let r = g.node(a).rule.unwrap();
+    let aprev = g.prev_of(a);
+    let anext = g.next_of(a);
+    let r = g.rule_of(a);
     let guard = g.rule(r).guard;
-    let r1 = g.node(guard).next.unwrap();
-    let r2 = g.node(guard).prev.unwrap();
+    let r1 = g.next_of(guard);
+    let r2 = g.prev_of(guard);
     unlink_node(g, a);
     join_nodes(g, aprev, r1);
     join_nodes(g, r2, anext);
@@ -181,10 +178,10 @@ fn expand_call(g: &mut CffSubrGraph, a: NodeId) {
     g.delete_node(a);
 }
 fn substitute_doublet_with_rule(g: &mut CffSubrGraph, m: NodeId, r: RuleId) {
-    let prev = g.node(m).prev.unwrap();
-    let first = g.node(prev).next.unwrap();
+    let prev = g.prev_of(m);
+    let first = g.next_of(prev);
     remove_node_from_graph(g, first);
-    let second = g.node(prev).next.unwrap();
+    let second = g.next_of(prev);
     remove_node_from_graph(g, second);
     let invoke = g.alloc_node();
     g.node_mut(invoke).rule = Some(r);
@@ -194,13 +191,13 @@ fn substitute_doublet_with_rule(g: &mut CffSubrGraph, m: NodeId, r: RuleId) {
     add_doublet(g, Some(invoke));
     add_singlet(g, Some(invoke));
     if !check_doublet_match(g, prev) {
-        let prev_next = g.node(prev).next.unwrap();
+        let prev_next = g.next_of(prev);
         check_doublet_match(g, prev_next);
     }
 }
 fn substitute_singlet_with_rule(g: &mut CffSubrGraph, m: NodeId, r: RuleId) {
-    let prev = g.node(m).prev.unwrap();
-    let first = g.node(prev).next.unwrap();
+    let prev = g.prev_of(m);
+    let first = g.next_of(prev);
     remove_node_from_graph(g, first);
     let invoke = g.alloc_node();
     g.node_mut(invoke).rule = Some(r);
@@ -211,12 +208,12 @@ fn substitute_singlet_with_rule(g: &mut CffSubrGraph, m: NodeId, r: RuleId) {
     add_singlet(g, Some(invoke));
 }
 fn process_match_doublet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
-    let m_prev = g.node(m).prev.unwrap();
-    let m_next = g.node(m).next.unwrap();
-    let m_next_next = g.node(m_next).next.unwrap();
+    let m_prev = g.prev_of(m);
+    let m_next = g.next_of(m);
+    let m_next_next = g.next_of(m_next);
     let rule: RuleId;
     if g.node(m_prev).guard && g.node(m_next_next).guard {
-        rule = g.node(m_prev).rule.unwrap();
+        rule = g.rule_of(m_prev);
         substitute_doublet_with_rule(g, n, rule);
     } else {
         rule = g.alloc_rule();
@@ -228,31 +225,31 @@ fn process_match_doublet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
         let cm = copy_node(g, m);
         x_insert_node_after(g, last_of_rule, cm);
         let last_of_rule = last_node_of(g, rule);
-        let m_next = g.node(m).next.unwrap();
+        let m_next = g.next_of(m);
         let cmn = copy_node(g, m_next);
         x_insert_node_after(g, last_of_rule, cmn);
         substitute_doublet_with_rule(g, m, rule);
         substitute_doublet_with_rule(g, n, rule);
         let guard = g.rule(rule).guard;
-        let first = g.node(guard).next.unwrap();
+        let first = g.next_of(guard);
         add_doublet(g, Some(first));
         add_singlet(g, Some(first));
-        let second = g.node(first).next.unwrap();
+        let second = g.next_of(first);
         add_singlet(g, Some(second));
     }
     let guard = g.rule(rule).guard;
-    let first = g.node(guard).next.unwrap();
+    let first = g.next_of(guard);
     if let Some(fr) = g.node(first).rule
         && g.rule(fr).refcount == 1 {
             expand_call(g, first);
         }
 }
 fn process_match_singlet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
-    let m_prev = g.node(m).prev.unwrap();
-    let m_next = g.node(m).next.unwrap();
+    let m_prev = g.prev_of(m);
+    let m_next = g.next_of(m);
     let rule: RuleId;
     if g.node(m_prev).guard && g.node(m_next).guard {
-        rule = g.node(m_prev).rule.unwrap();
+        rule = g.rule_of(m_prev);
         substitute_singlet_with_rule(g, n, rule);
     } else {
         rule = g.alloc_rule();
@@ -266,13 +263,13 @@ fn process_match_singlet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
         substitute_singlet_with_rule(g, m, rule);
         substitute_singlet_with_rule(g, n, rule);
         let guard = g.rule(rule).guard;
-        let first = g.node(guard).next.unwrap();
+        let first = g.next_of(guard);
         add_singlet(g, Some(first));
     };
 }
 fn check_doublet_match(g: &mut CffSubrGraph, n: NodeId) -> bool {
     // Every caller passes a linked node, so `next` is set.
-    let next = g.node(n).next.unwrap();
+    let next = g.next_of(n);
     if g.node(n).guard || g.node(next).guard || g.node(n).hard || g.node(next).hard {
         return false;
     }
@@ -284,7 +281,7 @@ fn check_doublet_match(g: &mut CffSubrGraph, n: NodeId) -> bool {
         }
         std::collections::hash_map::Entry::Occupied(o) => {
             let di = *o.get();
-            let start_next = g.node(di.start).next.unwrap();
+            let start_next = g.next_of(di.start);
             if di.arity == 2
                 && di.start != n
                 && !g.node(di.start).guard
@@ -326,7 +323,7 @@ fn append_node_to_graph(g: &mut CffSubrGraph, n: NodeId) {
     x_insert_node_after(g, last, n);
     if g.do_subroutinize
         && !check_doublet_match(g, last)
-            && g.node(n).terminal.as_ref().unwrap().len() > 15 {
+            && g.terminal_of(n).len() > 15 {
                 check_singlet_match(g, n);
             }
 }

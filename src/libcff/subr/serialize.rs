@@ -18,17 +18,17 @@ fn stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
     }
     let mut effective_length: u32 = 0;
     let guard = g.rule(r).guard;
-    let mut e = g.node(guard).next.unwrap();
+    let mut e = g.next_of(guard);
     while e != guard {
         let rule = g.node(e).rule;
         if let Some(er) = rule {
             stat_height(g, er, height + 1);
             effective_length += 4;
         } else {
-            let terminal_len = g.node(e).terminal.as_ref().unwrap().data.len();
+            let terminal_len = g.terminal_of(e).data.len();
             effective_length += terminal_len as u32;
         }
-        e = g.node(e).next.unwrap();
+        e = g.next_of(e);
     }
     g.rule_mut(r).effective_length = effective_length;
 }
@@ -52,24 +52,24 @@ fn number_a_subroutine(g: &mut CffSubrGraph, r: RuleId, current: &mut u32) {
     *current += 1;
     g.rule_mut(r).numbered = true;
     let guard = g.rule(r).guard;
-    let mut e = g.node(guard).next.unwrap();
+    let mut e = g.next_of(guard);
     while e != guard {
         if let Some(er) = g.node(e).rule {
             number_a_subroutine(g, er, current);
         }
-        e = g.node(e).next.unwrap();
+        e = g.next_of(e);
     }
 }
 fn number_subroutines(g: &mut CffSubrGraph) -> u32 {
     let mut current: u32 = 0;
     let root = g.root;
     let guard = g.rule(root).guard;
-    let mut e = g.node(guard).next.unwrap();
+    let mut e = g.next_of(guard);
     while e != guard {
         if let Some(er) = g.node(e).rule {
             number_a_subroutine(g, er, &mut current);
         }
-        e = g.node(e).next.unwrap();
+        e = g.next_of(e);
     }
     current
 }
@@ -89,7 +89,7 @@ fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
     if n.terminal.is_some() {
         n.last
     } else {
-        ends_with_end_char(g, n.rule.unwrap())
+        ends_with_end_char(g, g.rule_of(node))
     }
 }
 // Which buffer `serialize_node_to_buffer` writes to. It is resolved to a
@@ -149,9 +149,9 @@ fn serialize_node_to_buffer(
             if !g.rule(r).printed {
                 g.rule_mut(r).printed = true;
                 let guard = g.rule(r).guard;
-                let mut e = g.node(guard).next.unwrap();
+                let mut e = g.next_of(guard);
                 while e != guard {
-                    let next = g.node(e).next.unwrap();
+                    let next = g.next_of(e);
                     serialize_node_to_buffer(
                         g,
                         e,
@@ -173,9 +173,9 @@ fn serialize_node_to_buffer(
             }
         } else {
             let guard = g.rule(r).guard;
-            let mut e = g.node(guard).next.unwrap();
+            let mut e = g.next_of(guard);
             while e != guard {
-                let next = g.node(e).next.unwrap();
+                let next = g.next_of(e);
                 serialize_node_to_buffer(
                     g, e, buf, top, gsubrs, max_g_subrs, lsubrs, max_l_subrs,
                 );
@@ -184,7 +184,7 @@ fn serialize_node_to_buffer(
         }
     } else {
         resolve_subr_ref(buf, top, gsubrs, lsubrs)
-            .write_buffer(g.node(node).terminal.as_ref().unwrap());
+            .write_buffer(g.terminal_of(node));
     };
 }
 pub fn il_graph_to_buffers(
@@ -219,9 +219,9 @@ pub fn il_graph_to_buffers(
     let mut j: u32 = 0;
     let root = g.root;
     let guard = g.rule(root).guard;
-    let mut e = g.node(guard).next.unwrap();
+    let mut e = g.next_of(guard);
     while e != guard {
-        let next = g.node(e).next.unwrap();
+        let next = g.next_of(e);
         let (e_rule, e_terminal_is_some, e_hard) = {
             let en = g.node(e);
             (en.rule, en.terminal.is_some(), en.hard)

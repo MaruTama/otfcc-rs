@@ -95,6 +95,23 @@ impl CffSubrGraph {
         debug_assert!(!n.dead, "use of a deleted CffSubrNode");
         n
     }
+    /// The node after `id`. Every node of a live rule is linked on both
+    /// sides (the rule's guard node closes the ring), so a missing link is a
+    /// bug in the graph code, not an input problem.
+    fn next_of(&self, id: NodeId) -> NodeId {
+        self.node(id).next.expect("a linked node has a successor")
+    }
+    fn prev_of(&self, id: NodeId) -> NodeId {
+        self.node(id).prev.expect("a linked node has a predecessor")
+    }
+    /// The rule a call node refers to; only call nodes have one.
+    fn rule_of(&self, id: NodeId) -> RuleId {
+        self.node(id).rule.expect("a call node refers to a rule")
+    }
+    /// The bytes of a literal node; only nodes without a rule hold bytes.
+    fn terminal_of(&self, id: NodeId) -> &Buffer {
+        self.node(id).terminal.as_ref().expect("a node without a rule holds bytes")
+    }
     fn rule(&self, id: RuleId) -> &CffSubrRule {
         &self.rules[id.0]
     }
