@@ -5,12 +5,13 @@ name: Rust build & compatibility
 # RUST_MIGRATION.md) stays green: it builds, its unit and integration tests
 # pass, and it's clippy-clean. See RUST_MIGRATION.md.
 #
-# Runs on Linux (amd64) for every trigger, and additionally on macOS (arm64,
-# GitHub's hosted macos-latest runners are native Apple Silicon) for pushes to
-# master only -- not for PRs, to save macOS runner cost. The crate is
+# Runs on Linux (amd64) for every trigger. macOS (arm64) lives in its own
+# workflow, macos.yml, so that GitHub's macOS runner capacity problems (jobs
+# never get a runner and are cancelled after 15 minutes) can't turn this
+# workflow's runs red. The crate is
 # hand-maintained cross-platform code with a real platform-conditional split
 # (vendor/sds.rs's ctype externs differ under `#[cfg(target_os = "macos")]`),
-# and until this matrix existed the arm64/native-macOS half of "verified on
+# and until the macOS workflow existed the arm64/native-macOS half of "verified on
 # both OSes" (RUST_MIGRATION.md's own stated bar for every PR) depended on
 # someone running the pipeline by hand locally.
 #
@@ -82,21 +83,7 @@ jobs:
   # and the otfccdll cdylib FFI boundary (tests/dll_abi.rs). See
   # RUST_MIGRATION.md's "Everyday use" section and each file's own doc comment.
   build-test-compare:
-    strategy:
-      fail-fast: false
-      matrix:
-        # macOS runners are costly (and were recently unobtainable, leaving
-        # master runs cancelled), so macOS only runs on pushes to master;
-        # pull requests and manual runs get ubuntu only.
-        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
-    runs-on: ${{ matrix.os }}
-    # GitHub's macOS arm64 pool is sometimes out of capacity: the job is never
-    # assigned a runner ("not acquired by Runner of type hosted even after
-    # multiple attempts") and GitHub cancels it after exactly 15 minutes, which
-    # would otherwise mark the whole master run as failed. Keep macOS advisory
-    # so that doesn't hide the (blocking) ubuntu result; a real macOS failure
-    # still shows on the job, and a cancelled one can be re-run by hand.
-    continue-on-error: ${{ matrix.os == 'macos-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -140,7 +127,7 @@ jobs:
   # are known-but-untriaged would just permanently red every unrelated PR;
   # revisit once Stage 7-1/7-3 of the Phase 5 plan address them. Single OS
   # (ubuntu-latest) is enough -- this isn't verifying platform-specific
-  # behavior the way build-test-compare's matrix is.
+  # behavior the way macos.yml is.
   fuzz:
     runs-on: ubuntu-latest
     continue-on-error: true
