@@ -90,6 +90,13 @@ jobs:
         # pull requests and manual runs get ubuntu only.
         os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
+    # GitHub's macOS arm64 pool is sometimes out of capacity: the job is never
+    # assigned a runner ("not acquired by Runner of type hosted even after
+    # multiple attempts") and GitHub cancels it after exactly 15 minutes, which
+    # would otherwise mark the whole master run as failed. Keep macOS advisory
+    # so that doesn't hide the (blocking) ubuntu result; a real macOS failure
+    # still shows on the job, and a cancelled one can be re-run by hand.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     steps:
       - uses: actions/checkout@v4
 
