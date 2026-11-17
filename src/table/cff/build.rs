@@ -337,6 +337,90 @@ fn cff_make_fdarray(
     let len = fd_array.len() as u32;
     new_index_by_callback(len, (0..len).map(|i| compile_fd_buffer(fd_array, string_hash, i)))
 }
+/// Writes the `<offset> <operator>` pairs the top dict ends with: one per
+/// non-empty section that follows it. `off` is where the first of those
+/// sections starts, and moves past each one written.
+fn write_top_dict_offsets(
+    blob: &mut Buffer,
+    off: &mut u32,
+    charset: &Buffer,
+    fd_select: &Buffer,
+    char_strings: &Buffer,
+    private_dict: &Buffer,
+    fd_array: &Buffer,
+) {
+    if !charset.is_empty() {
+        blob.write_buffer_owned(build_offset(*off as i32));
+        blob.write_buffer_owned(encode_operator(OP_CHARSET));
+        *off += charset.len() as u32;
+    }
+    if !fd_select.is_empty() {
+        blob.write_buffer_owned(build_offset(*off as i32));
+        blob.write_buffer_owned(encode_operator(OP_FD_SELECT));
+        *off += fd_select.len() as u32;
+    }
+    if !char_strings.is_empty() {
+        blob.write_buffer_owned(build_offset(*off as i32));
+        blob.write_buffer_owned(encode_operator(OP_CHAR_STRINGS));
+        *off += char_strings.len() as u32;
+    }
+    if !private_dict.is_empty() {
+        blob.write_buffer_owned(build_offset(private_dict.len() as i32));
+        blob.write_buffer_owned(build_offset(*off as i32));
+        blob.write_buffer_owned(encode_operator(OP_PRIVATE));
+        *off += private_dict.len() as u32;
+    }
+    if !fd_array.is_empty() {
+        blob.write_buffer_owned(build_offset(*off as i32));
+        blob.write_buffer_owned(encode_operator(OP_FD_ARRAY));
+        *off += fd_array.len() as u32;
+    }
+}
+/// Builds each font dict's private dict and patches its size and offset into
+/// the font dict's `Private` operands inside `idx`. `first_offset` is where
+/// the first of those private dicts will land in the file.
+fn patch_fd_array_privates(fd_array: &[Box<CffTable>], idx: &mut CffIndex, first_offset: u32) -> Vec<Buffer> {
+    let mut fd_array_privates_start_offset: u32 = first_offset;
+    let mut fd_array_privates: Vec<Buffer> = Vec::with_capacity(fd_array.len());
+    for (j, fd) in fd_array.iter().enumerate() {
+        let pd: CffDict = cff_make_private_dict(fd.private_dict.as_deref());
+        let mut private_dict = build_dict(&pd);
+        // Placeholder for the local subroutines' offset, patched below.
+        private_dict.write_buffer_owned(build_offset(-1));
+        private_dict.write_buffer_owned(encode_operator(OP_SUBRS));
+        // Each font dict ends with `<size> <offset> Private`, two 5-byte
+        // operands and a 1-byte operator; patch both operands in place.
+        let dict_end = idx.offset[j + 1] as usize;
+        let size_at = dict_end - 11;
+        idx.data[size_at..size_at + 4].copy_from_slice(&(private_dict.len() as u32).to_be_bytes());
+        let offset_at = dict_end - 6;
+        idx.data[offset_at..offset_at + 4]
+            .copy_from_slice(&fd_array_privates_start_offset.to_be_bytes());
+        fd_array_privates_start_offset += private_dict.len() as u32;
+        fd_array_privates.push(private_dict);
+    }
+    fd_array_privates
+}
+/// Points every private dict's `Subrs` operand at the local subroutines.
+fn patch_local_subrs_offsets(
+    blob: &mut Buffer,
+    starting_position_of_privates: &[usize],
+    ending_position_of_privates: &[usize],
+    position_of_local_subroutines: usize,
+) {
+    // One start/end pair per private dict: the top dict's, then each font
+    // dict's.
+    for (&start, &end) in starting_position_of_privates
+        .iter()
+        .zip(ending_position_of_privates.iter())
+    {
+        // Patch the `Subrs` placeholder at the end of each private dict:
+        // the offset operand is the last 5 bytes before the operator.
+        let ls_offset = (position_of_local_subroutines - start) as u32;
+        let ptr_off: usize = end - 5;
+        blob.data[ptr_off..ptr_off + 4].copy_from_slice(&ls_offset.to_be_bytes());
+    }
+}
 pub(super) fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Options) -> Result<Buffer, BuildError> {
     // `glyf` is `None` when the font has a `CFF_` table but no `glyf`
     // table at all (e.g. `{"CFF_": {}}`) -- every function below this
@@ -397,32 +481,7 @@ pub(super) fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, o
     blob.write_buffer_owned(Buffer::from_bytes(&top_dict_index_header));
     blob.write_buffer_owned(t);
     off += additional_top_dict_ops_size + (i.len() + gs.len()) as u32;
-    if !c.is_empty() {
-        blob.write_buffer_owned(build_offset(off as i32));
-        blob.write_buffer_owned(encode_operator(OP_CHARSET));
-        off += c.len() as u32;
-    }
-    if !e.is_empty() {
-        blob.write_buffer_owned(build_offset(off as i32));
-        blob.write_buffer_owned(encode_operator(OP_FD_SELECT));
-        off += e.len() as u32;
-    }
-    if !s.is_empty() {
-        blob.write_buffer_owned(build_offset(off as i32));
-        blob.write_buffer_owned(encode_operator(OP_CHAR_STRINGS));
-        off += s.len() as u32;
-    }
-    if !p.is_empty() {
-        blob.write_buffer_owned(build_offset(p.len() as i32));
-        blob.write_buffer_owned(build_offset(off as i32));
-        blob.write_buffer_owned(encode_operator(OP_PRIVATE));
-        off += p.len() as u32;
-    }
-    if !r.is_empty() {
-        blob.write_buffer_owned(build_offset(off as i32));
-        blob.write_buffer_owned(encode_operator(OP_FD_ARRAY));
-        off += r.len() as u32;
-    }
+    write_top_dict_offsets(&mut blob, &mut off, &c, &e, &s, &p, &r);
     blob.write_buffer_owned(i);
     blob.write_buffer_owned(gs);
     blob.write_buffer_owned(c);
@@ -438,25 +497,7 @@ pub(super) fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, o
         // false, so this `.unwrap()` can't fail -- same invariant the old
         // `*mut CffIndex` (null unless `is_cid`) encoded implicitly.
         let idx: &mut CffIndex = fd_array_index.as_mut().unwrap();
-        let mut fd_array_privates_start_offset: u32 = off;
-        let mut fd_array_privates: Vec<Buffer> = Vec::with_capacity(cff.fd_array.len());
-        for (j, fd) in cff.fd_array.iter().enumerate() {
-            let pd: CffDict = cff_make_private_dict(fd.private_dict.as_deref());
-            let mut private_dict = build_dict(&pd);
-            // Placeholder for the local subroutines' offset, patched below.
-            private_dict.write_buffer_owned(build_offset(-1));
-            private_dict.write_buffer_owned(encode_operator(OP_SUBRS));
-            // Each font dict ends with `<size> <offset> Private`, two 5-byte
-            // operands and a 1-byte operator; patch both operands in place.
-            let dict_end = idx.offset[j + 1] as usize;
-            let size_at = dict_end - 11;
-            idx.data[size_at..size_at + 4].copy_from_slice(&(private_dict.len() as u32).to_be_bytes());
-            let offset_at = dict_end - 6;
-            idx.data[offset_at..offset_at + 4]
-                .copy_from_slice(&fd_array_privates_start_offset.to_be_bytes());
-            fd_array_privates_start_offset += private_dict.len() as u32;
-            fd_array_privates.push(private_dict);
-        }
+        let fd_array_privates = patch_fd_array_privates(&cff.fd_array, idx, off);
         r = build_index(idx)?;
         blob.write_buffer_owned(r);
         for (j, private_dict) in fd_array_privates.into_iter().enumerate() {
@@ -469,19 +510,7 @@ pub(super) fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, o
     }
     let position_of_local_subroutines: usize = blob.pos();
     blob.write_buffer_owned(ls);
-    // Both Vecs were built to the same length (`1 + (*cff).fd_array.len()`)
-    // above and never resized since -- zipping them needs no further
-    // dereference of `cff` for a bound, unlike the loop this replaces.
-    for (&start, &end) in starting_position_of_privates
-        .iter()
-        .zip(ending_position_of_privates.iter())
-    {
-        // Patch the `Subrs` placeholder at the end of each private dict:
-        // the offset operand is the last 5 bytes before the operator.
-        let ls_offset = (position_of_local_subroutines - start) as u32;
-        let ptr_off: usize = end - 5;
-        blob.data[ptr_off..ptr_off + 4].copy_from_slice(&ls_offset.to_be_bytes());
-    }
+    patch_local_subrs_offsets(&mut blob, &starting_position_of_privates, &ending_position_of_privates, position_of_local_subroutines);
     Ok(blob)
 }
 pub fn build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Result<Buffer, BuildError> {
