@@ -46,7 +46,7 @@ fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> Result<(Bu
     let options: &Options = context.options;
     for entry in glyf.iter() {
         let mut il: CffCharstringIl = compile_glyph_to_il(
-            entry.as_deref().unwrap(),
+            entry.as_deref().expect("every glyph slot is filled by the time the CFF table is built"),
             context.default_width,
             context.nominal_width_x,
         );
@@ -73,7 +73,7 @@ fn cffdict_givemeablank(dict: &mut CffDict) -> &mut CffDictEntry {
         op: CffDictOperator(0),
         vals: Vec::new(),
     });
-    dict.ents.last_mut().unwrap()
+    dict.ents.last_mut().expect("an entry was pushed just above")
 }
 /// Append a DICT entry whose operands are numbers. See also
 /// [`cffdict_input_ints`].
@@ -264,10 +264,10 @@ fn cff_make_charset(
             (1, (glyf.len() - 2) as u16)
         } else {
             for entry in glyf.iter().skip(1) {
-                sidof(string_hash, &entry.as_deref().unwrap().name);
+                sidof(string_hash, &entry.as_deref().expect("every glyph slot is filled by the time the CFF table is built").name);
             }
             (
-                sidof(string_hash, &glyf[1].as_deref().unwrap().name) as u16,
+                sidof(string_hash, &glyf[1].as_deref().expect("every glyph slot is filled by the time the CFF table is built").name) as u16,
                 (glyf.len() - 2) as u16,
             )
         };
@@ -287,7 +287,7 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
         return Buffer::new();
     }
     let fds: CffFdSelect = if !glyf.is_empty() {
-        let mut fdi0: u8 = glyf[0].as_deref().unwrap().fd_select.index as u8;
+        let mut fdi0: u8 = glyf[0].as_deref().expect("every glyph slot is filled by the time the CFF table is built").fd_select.index as u8;
         if fdi0 as usize > cff.fd_array.len() {
             fdi0 = 0;
         }
@@ -297,7 +297,7 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
             fd: current,
         }];
         for (j, entry) in glyf.iter().enumerate().skip(1) {
-            let mut fdi: u8 = entry.as_deref().unwrap().fd_select.index as u8;
+            let mut fdi: u8 = entry.as_deref().expect("every glyph slot is filled by the time the CFF table is built").fd_select.index as u8;
             if fdi as usize > cff.fd_array.len() {
                 fdi = 0;
             }
@@ -454,8 +454,8 @@ pub(super) fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, o
     let i = cffstrings_to_indexblob(&mut string_hash)?;
     let mut g2c_context: CffCharstringBuilderContext = CffCharstringBuilderContext {
         glyf,
-        default_width: cff.private_dict.as_deref().unwrap().default_width_x as u16,
-        nominal_width_x: cff.private_dict.as_deref().unwrap().nominal_width_x as u16,
+        default_width: cff.private_dict.as_deref().expect("the top-level CFF table always has a private dict (parse_cff adds one)").default_width_x as u16,
+        nominal_width_x: cff.private_dict.as_deref().expect("the top-level CFF table always has a private dict (parse_cff adds one)").nominal_width_x as u16,
         options,
         graph: CffSubrGraph::new(options.cff_do_subroutinize),
     };
@@ -493,10 +493,8 @@ pub(super) fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, o
     let mut ending_position_of_privates: Vec<usize> = vec![0; 1 + cff.fd_array.len()];
     ending_position_of_privates[0] = blob.pos();
     if cff.is_cid {
-        // `fd_array_index` is only ever `None` here when `cff.is_cid` is
-        // false, so this `.unwrap()` can't fail -- same invariant the old
-        // `*mut CffIndex` (null unless `is_cid`) encoded implicitly.
-        let idx: &mut CffIndex = fd_array_index.as_mut().unwrap();
+        // `fd_array_index` is set above exactly when `cff.is_cid` is true.
+        let idx: &mut CffIndex = fd_array_index.as_mut().expect("a CID font has an FDArray index");
         let fd_array_privates = patch_fd_array_privates(&cff.fd_array, idx, off);
         r = build_index(idx)?;
         blob.write_buffer_owned(r);
