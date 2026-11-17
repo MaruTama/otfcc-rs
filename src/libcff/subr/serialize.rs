@@ -93,36 +93,39 @@ fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
     }
 }
 // Which buffer `serialize_node_to_buffer` writes to. It is resolved to a
-// `&mut Buffer` only where it is used (`resolve_subr_ref`), because the
-// recursive call also takes `lsubrs`/`gsubrs`.
+// `&mut Buffer` only where it is used (`SubrOutput::buffer`), because the
+// recursive call also takes the subroutine buffers.
 #[derive(Clone, Copy, Debug)]
 enum SubrRef {
     Top,
     LSubr(usize),
     GSubr(usize),
 }
-fn resolve_subr_ref<'a>(
-    r: SubrRef,
+/// The buffers one charstring is serialized into: the charstring itself
+/// plus the shared local and global subroutine buffers and their sizes.
+struct SubrOutput<'a> {
     top: &'a mut Buffer,
     gsubrs: &'a mut [Buffer],
     lsubrs: &'a mut [Buffer],
-) -> &'a mut Buffer {
-    match r {
-        SubrRef::Top => top,
-        SubrRef::LSubr(i) => &mut lsubrs[i],
-        SubrRef::GSubr(i) => &mut gsubrs[i],
+    max_g_subrs: u32,
+    max_l_subrs: u32,
+}
+impl SubrOutput<'_> {
+    fn buffer(&mut self, r: SubrRef) -> &mut Buffer {
+        match r {
+            SubrRef::Top => self.top,
+            SubrRef::LSubr(i) => &mut self.lsubrs[i],
+            SubrRef::GSubr(i) => &mut self.gsubrs[i],
+        }
     }
 }
 fn serialize_node_to_buffer(
     g: &mut CffSubrGraph,
     node: NodeId,
     buf: SubrRef,
-    top: &mut Buffer,
-    gsubrs: &mut [Buffer],
-    max_g_subrs: u32,
-    lsubrs: &mut [Buffer],
-    max_l_subrs: u32,
+    out: &mut SubrOutput<'_>,
 ) {
+    let (max_g_subrs, max_l_subrs) = (out.max_g_subrs, out.max_l_subrs);
     let rule = g.node(node).rule;
     if let Some(r) = rule {
         let (numbered, number, r_height) = {
@@ -137,14 +140,14 @@ fn serialize_node_to_buffer(
             if number < max_l_subrs {
                 let stacknum: i32 = number as i32 - subroutine_bias(max_l_subrs as i32);
                 target = SubrRef::LSubr(number as usize);
-                merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
-                merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLSUBR);
+                merge_cs2_int(out.buffer(buf), stacknum);
+                merge_cs2_operator(out.buffer(buf), OP_CALLSUBR);
             } else {
                 let gsubr = number - max_l_subrs;
                 let stacknum: i32 = gsubr as i32 - subroutine_bias(max_g_subrs as i32);
                 target = SubrRef::GSubr(gsubr as usize);
-                merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
-                merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLGSUBR);
+                merge_cs2_int(out.buffer(buf), stacknum);
+                merge_cs2_operator(out.buffer(buf), OP_CALLGSUBR);
             }
             if !g.rule(r).printed {
                 g.rule_mut(r).printed = true;
@@ -152,21 +155,12 @@ fn serialize_node_to_buffer(
                 let mut e = g.next_of(guard);
                 while e != guard {
                     let next = g.next_of(e);
-                    serialize_node_to_buffer(
-                        g,
-                        e,
-                        target,
-                        top,
-                        gsubrs,
-                        max_g_subrs,
-                        lsubrs,
-                        max_l_subrs,
-                    );
+                    serialize_node_to_buffer(g, e, target, out);
                     e = next;
                 }
                 if !ends_with_end_char(g, r) {
                     merge_cs2_operator(
-                        resolve_subr_ref(target, top, gsubrs, lsubrs),
+                        out.buffer(target),
                         OP_RETURN,
                     );
                 }
@@ -176,14 +170,12 @@ fn serialize_node_to_buffer(
             let mut e = g.next_of(guard);
             while e != guard {
                 let next = g.next_of(e);
-                serialize_node_to_buffer(
-                    g, e, buf, top, gsubrs, max_g_subrs, lsubrs, max_l_subrs,
-                );
+                serialize_node_to_buffer(g, e, buf, out);
                 e = next;
             }
         }
     } else {
-        resolve_subr_ref(buf, top, gsubrs, lsubrs)
+        out.buffer(buf)
             .write_buffer(g.terminal_of(node));
     };
 }
@@ -226,16 +218,14 @@ pub fn il_graph_to_buffers(
             let en = g.node(e);
             (en.rule, en.terminal.is_some(), en.hard)
         };
-        serialize_node_to_buffer(
-            g,
-            e,
-            SubrRef::Top,
-            &mut char_strings[j as usize],
-            &mut gsubrs[..],
+        let mut out = SubrOutput {
+            top: &mut char_strings[j as usize],
+            gsubrs: &mut gsubrs[..],
+            lsubrs: &mut lsubrs[..],
             max_g_subrs,
-            &mut lsubrs[..],
             max_l_subrs,
-        );
+        };
+        serialize_node_to_buffer(g, e, SubrRef::Top, &mut out);
         if e_rule.is_none() && e_terminal_is_some && e_hard {
             j += 1;
         }
