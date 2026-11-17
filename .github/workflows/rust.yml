@@ -5,8 +5,9 @@ name: Rust build & compatibility
 # RUST_MIGRATION.md) stays green: it builds, its unit and integration tests
 # pass, and it's clippy-clean. See RUST_MIGRATION.md.
 #
-# Runs on both Linux (amd64) and macOS (arm64, GitHub's hosted macos-latest
-# runners are native Apple Silicon) -- not just Linux. The crate is
+# Runs on Linux (amd64) for every trigger, and additionally on macOS (arm64,
+# GitHub's hosted macos-latest runners are native Apple Silicon) for pushes to
+# master only -- not for PRs, to save macOS runner cost. The crate is
 # hand-maintained cross-platform code with a real platform-conditional split
 # (vendor/sds.rs's ctype externs differ under `#[cfg(target_os = "macos")]`),
 # and until this matrix existed the arm64/native-macOS half of "verified on
@@ -84,7 +85,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # macOS runners are costly (and were recently unobtainable, leaving
+        # master runs cancelled), so macOS only runs on pushes to master;
+        # pull requests and manual runs get ubuntu only.
+        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
