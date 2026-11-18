@@ -224,13 +224,16 @@ fn parse_args(args: &[String]) -> DumpArgs {
                 OPT_IGNORE_GLYPH_ORDER => options.ignore_glyph_order = true,
                 OPT_OUTPUT => {
                     output_path = Some(
-                        ::std::ffi::CString::new(arg.unwrap())
-                            .expect("output path must not contain a NUL byte"),
+                        ::std::ffi::CString::new(
+                            arg.expect("getopt yields this option only with its required argument"),
+                        )
+                        .expect("output path must not contain a NUL byte"),
                     );
                 }
                 OPT_QUIET => options.quiet = true,
                 OPT_TTC_INDEX => {
-                    let arg = arg.unwrap();
+                    let arg =
+                        arg.expect("getopt yields this option only with its required argument");
                     match arg.parse::<u32>() {
                         Ok(index) => ttcindex = index,
                         Err(_) => {
@@ -251,7 +254,10 @@ fn parse_args(args: &[String]) -> DumpArgs {
                 OPT_NAME_BY_GID => options.name_glyphs_by_gid = true,
                 OPT_INSTR_AS_BYTES => options.instr_as_bytes = true,
                 OPT_GLYPH_NAME_PREFIX => {
-                    options.glyph_name_prefix = Some(arg.unwrap().into_bytes());
+                    options.glyph_name_prefix = Some(
+                        arg.expect("getopt yields this option only with its required argument")
+                            .into_bytes(),
+                    );
                 }
                 OPT_DEBUG_WAIT_ON_START => options.debug_wait_on_start = true,
                 _ => {}
@@ -330,7 +336,10 @@ fn run(args: Vec<String>) -> i32 {
             );
             return EXIT_FAILURE;
         }
-        let subfonts = sfnt.as_ref().unwrap().count;
+        let subfonts = sfnt
+            .as_ref()
+            .expect("an unreadable or empty SFNT has already returned")
+            .count;
         if ttcindex >= subfonts {
             tracing::error!(
                 "Subfont index {} out of range for \"{}\" (0 -- {}). Exit.\n",
@@ -346,7 +355,12 @@ fn run(args: Vec<String>) -> i32 {
     let mut font: Option<Box<Font>>;
     let stage = otfcc_rust::logger::stage("Read Font");
     {
-        font = read_otf(sfnt.as_ref().unwrap(), ttcindex, &options);
+        font = read_otf(
+            sfnt.as_ref()
+                .expect("an unreadable or empty SFNT has already returned"),
+            ttcindex,
+            &options,
+        );
         if font.is_none() {
             tracing::error!(
                 "Font structure broken or corrupted \"{}\". Exit.\n",
@@ -360,7 +374,11 @@ fn run(args: Vec<String>) -> i32 {
     }
     let stage = otfcc_rust::logger::stage("Consolidate");
     {
-        consolidate_font(font.as_mut().unwrap(), &options);
+        consolidate_font(
+            font.as_mut()
+                .expect("a font that failed to read has already returned"),
+            &options,
+        );
         log_step_time(&mut begin);
         stage.finish();
     }
@@ -378,7 +396,12 @@ fn run(args: Vec<String>) -> i32 {
     let mut writer = JsonStreamWriter::new(out, json_options);
     let stage = otfcc_rust::logger::stage("Dump");
     {
-        stream_json(font.as_mut().unwrap(), &options, &mut writer);
+        stream_json(
+            font.as_mut()
+                .expect("a font that failed to read has already returned"),
+            &options,
+            &mut writer,
+        );
         log_step_time(&mut begin);
         stage.finish();
     }

@@ -217,14 +217,17 @@ fn parse_args(args: &[String]) -> BuildArgs {
                 OPT_IGNORE_GLYPH_ORDER => options.ignore_glyph_order = true,
                 OPT_OUTPUT => {
                     output_path = Some(
-                        ::std::ffi::CString::new(arg.unwrap())
-                            .expect("output path must not contain a NUL byte"),
+                        ::std::ffi::CString::new(
+                            arg.expect("getopt yields this option only with its required argument"),
+                        )
+                        .expect("output path must not contain a NUL byte"),
                     );
                 }
                 OPT_DUMMY_DSIG => options.dummy_dsig = true,
                 OPT_QUIET => options.quiet = true,
                 OPT_OPTIMIZE => {
-                    let arg = arg.unwrap();
+                    let arg =
+                        arg.expect("getopt yields this option only with its required argument");
                     match arg.parse::<u8>() {
                         Ok(level) => options_optimize_to(&mut options, level),
                         Err(_) => {
@@ -347,7 +350,12 @@ fn run(args: Vec<String>) -> i32 {
     let mut font: Option<Box<Font>>;
     let stage = otfcc_rust::logger::stage("Parse");
     {
-        font = read_json(json_root.as_mut().unwrap(), &options);
+        font = read_json(
+            json_root
+                .as_mut()
+                .expect("a JSON parse failure has already returned"),
+            &options,
+        );
         if font.is_none() {
             tracing::error!(
                 "Cannot parse JSON file \"{}\" as a font. Exit.\n",
@@ -366,13 +374,21 @@ fn run(args: Vec<String>) -> i32 {
     }
     let stage = otfcc_rust::logger::stage("Consolidate");
     {
-        consolidate_font(font.as_mut().unwrap(), &options);
+        consolidate_font(
+            font.as_mut()
+                .expect("a font that failed to read has already returned"),
+            &options,
+        );
         log_step_time(&mut begin);
         stage.finish();
     }
     let stage = otfcc_rust::logger::stage("Build");
     {
-        let otf: Buffer = match serialize_to_otf(font.as_mut().unwrap(), &options) {
+        let otf: Buffer = match serialize_to_otf(
+            font.as_mut()
+                .expect("a font that failed to read has already returned"),
+            &options,
+        ) {
             Ok(otf) => otf,
             Err(e) => {
                 tracing::error!("Cannot build the font: {e}");
@@ -383,7 +399,9 @@ fn run(args: Vec<String>) -> i32 {
         {
             // Always `Some` here -- the `output_path.is_none()` branch
             // above already exited.
-            let output_path = output_path.as_ref().unwrap();
+            let output_path = output_path
+                .as_ref()
+                .expect("a missing output path has already returned");
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
             if std::fs::write(std::path::Path::new(os_path), &otf.data).is_err() {
                 tracing::error!(

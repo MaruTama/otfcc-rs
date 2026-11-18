@@ -197,7 +197,7 @@ pub fn build_glyf(table: Option<&GlyfTable>, head: Option<&mut HeadTable>) -> Gl
         let mut loca: Vec<u32> = vec![0; table.len().wrapping_add(1)];
         for (j, slot) in table.iter().enumerate() {
             loca[j] = bufglyf.pos() as u32;
-            let g: &Glyph = slot.as_deref().unwrap();
+            let g: &Glyph = slot.as_deref().expect(crate::table::glyf::GLYF_SLOT_FILLED);
             gbuf.clear();
             if !g.contours.is_empty() {
                 glyf_build_simple(g, &mut gbuf);

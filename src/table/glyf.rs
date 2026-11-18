@@ -162,8 +162,14 @@ pub type GlyfTable = Vec<Option<Box<Glyph>>>;
 /// `glyf[j].as_deref().unwrap()` loops this replaces). For the passes that
 /// run after `consolidate_glyf` has patched every hole -- not for a
 /// hole-tolerant scan, which wants `.iter().flatten()` instead.
+/// Message for the `expect` on a `glyf` slot: `read_glyf` pushes `Some` for
+/// every GID and `consolidate_glyf` fills any hole, so a slot reached by a
+/// pass that runs after either is never empty.
+pub(crate) const GLYF_SLOT_FILLED: &str =
+    "glyf slots are filled by read_glyf or consolidate_glyf before dump/build/stat passes";
 pub(crate) fn iter_glyphs(glyf: &GlyfTable) -> impl Iterator<Item = &Glyph> {
-    glyf.iter().map(|slot| slot.as_deref().unwrap())
+    glyf.iter()
+        .map(|slot| slot.as_deref().expect(GLYF_SLOT_FILLED))
 }
 #[derive(Debug)]
 pub struct GlyfIOContext<'a> {
@@ -416,7 +422,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
 fn dump_glyphorder(table: &GlyfTable) -> BuiltValue {
     let mut order = BuiltValue::new_array(table.len());
     for slot in table {
-        let g = slot.as_deref().unwrap();
+        let g = slot.as_deref().expect(GLYF_SLOT_FILLED);
         order.push_item(BuiltValue::str_truncated_at_nul(&g.name));
     }
     order.preserialize()
@@ -436,7 +442,7 @@ pub fn dump_glyf(
     let stage = crate::logger::stage("glyf");
     sink.begin_field_object(b"glyf");
     for slot in table {
-        let g = slot.as_deref().unwrap();
+        let g = slot.as_deref().expect(GLYF_SLOT_FILLED);
         sink.field(until_nul(&g.name), glyf_dump_glyph(g, options, ctx));
     }
     sink.end_object();

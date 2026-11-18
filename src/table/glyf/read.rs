@@ -864,11 +864,17 @@ fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'
             shared_tuple_count,
             shared_tuples_offset: shared_tuples_offset as usize,
             coord_dimensions: 2,
-            allow_iup: !glyph_slot.as_deref().unwrap().contours.is_empty(),
+            allow_iup: !glyph_slot
+                .as_deref()
+                .expect("read_glyf pushes Some for every glyph before polymorphize runs")
+                .contours
+                .is_empty(),
             n_phantom_points: ctx.n_phantom_points,
         };
         polymorphize_glyph(
-            glyph_slot.as_deref_mut().unwrap(),
+            glyph_slot
+                .as_deref_mut()
+                .expect("read_glyf pushes Some for every glyph before polymorphize runs"),
             &mut tpctx,
             gvar,
             gvd_offset,
