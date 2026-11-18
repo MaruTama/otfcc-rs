@@ -511,6 +511,12 @@ pub(super) fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, o
     patch_local_subrs_offsets(&mut blob, &starting_position_of_privates, &ending_position_of_privates, position_of_local_subroutines);
     Ok(blob)
 }
+/// Builds the `CFF ` table for `cff_and_glyf`: the glyphs' charstrings
+/// (subroutinized according to `options`), the Top/Font/Private DICTs and the
+/// charset (see `writecff_cid_keyed`).
+///
+/// Fails with `BuildError::TooManyEntries` when an INDEX would hold more than
+/// 65535 entries (the CFF 1 limit on its 16-bit count).
 pub fn build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Result<Buffer, BuildError> {
     writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options)
 }

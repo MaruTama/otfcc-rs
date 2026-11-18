@@ -6,12 +6,15 @@ use otfcc_binary::FontReader;
 use otfcc_json::ParsedValue;
 use otfcc_json::JsonType;
 
+/// The `cvt ` table: a list of 16-bit control values (FWord units) used by
+/// TrueType instructions.
 #[derive(Debug)]
 pub struct CvtTable {
     pub words: Vec<u16>,
 }
-// The word count is `length / 2` and the read loop is bounded by it, so no
-// read can go past the end.
+/// Reads the table tagged `tag` in `packet`; `None` if absent. An odd
+/// trailing byte is dropped. The word count is `length / 2` and the read loop
+/// is bounded by it, so no read can go past the end.
 pub fn read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
     let table_length = (table.data.len() / 2) as u32;
@@ -24,6 +27,7 @@ pub fn read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
     }
     Some(Box::new(CvtTable { words }))
 }
+/// Writes the words as a JSON array under `tag`; does nothing for `None`.
 pub fn dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, tag: &[u8]) {
     let table = match table {
         Some(t) => t,
@@ -39,6 +43,10 @@ pub fn dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, tag: &[u8]) {
         stage.finish();
     }
 }
+/// Reads `root[tag]`: either an array of numbers or a base64 string of
+/// big-endian words (an odd trailing byte is dropped). Array items that are
+/// not numbers become 0, and numbers outside 0..=65535 wrap (`as u16`), as in
+/// the original otfcc. Returns `None` if the key is absent or of another type.
 pub fn parse_cvt(root: &ParsedValue, tag: &[u8]) -> Option<Box<CvtTable>> {
     let key = tag;
     if let Some(items) = root
@@ -73,6 +81,7 @@ pub fn parse_cvt(root: &ParsedValue, tag: &[u8]) -> Option<Box<CvtTable>> {
     }
     None
 }
+/// Serializes the words as big-endian 16-bit values; `None` in, `None` out.
 pub fn build_cvt(table: Option<&CvtTable>) -> Option<Buffer> {
     let table = table?;
     let mut buf = Buffer::new();

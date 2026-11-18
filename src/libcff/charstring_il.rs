@@ -12,6 +12,9 @@ use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
 use crate::libcff::opmean::get_standard_arity;
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_minus, vq_neutral};
+/// What a `CffCharstringInstruction` is. The two `Phantom` kinds are set by
+/// the roll-up optimizer on instructions it has merged into an earlier
+/// combined operator (see `optimize_il`).
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum CffInstructionType {
@@ -26,6 +29,9 @@ pub enum CffInstructionType {
 // `PhantomOperator` an opcode -- so `kind` stays a separate field: it also
 // distinguishes a real operator from a `Special` non-operator byte, and
 // the "Phantom" variants from their non-phantom counterparts.
+/// One step of the intermediate language (IL) a glyph is compiled to before
+/// it is rolled up and encoded as a Type 2 charstring. `arity` is how many
+/// operands an operator consumes (0 for operands and specials).
 #[derive(Copy, Clone, Debug)]
 pub struct CffCharstringInstruction {
     pub kind: CffInstructionType,
@@ -64,10 +70,13 @@ impl CffCharstringInstruction {
         self.arg = CffCharstringArgument::I(v);
     }
 }
+/// A glyph's charstring as a flat list of instructions: operands come before
+/// the operator that uses them, in the order they appear in the charstring.
 #[derive(Clone, Debug)]
 pub struct CffCharstringIl {
     pub instr: Vec<CffCharstringInstruction>,
 }
+/// Appends a numeric operand (stored as a double).
 pub fn il_push_operand(il: &mut CffCharstringIl, x: f64) {
     il.instr.push(CffCharstringInstruction {
         kind: CffInstructionType::Operand,
@@ -75,9 +84,13 @@ pub fn il_push_operand(il: &mut CffCharstringIl, x: f64) {
         arg: CffCharstringArgument::D(x),
     });
 }
+/// Appends the fixed (non-variable) value of `x` as an operand; any variation
+/// is dropped, because a CFF1 charstring cannot express it.
 pub fn il_push_vq(il: &mut CffCharstringIl, x: VQ) {
     il_push_operand(il, vq_get_still(x) as f64);
 }
+/// Appends a non-operator byte, such as a hint-mask data byte, that sits in
+/// the instruction stream without taking operands.
 pub fn il_push_special(il: &mut CffCharstringIl, s: i32) {
     il.instr.push(CffCharstringInstruction {
         kind: CffInstructionType::Special,
@@ -85,6 +98,9 @@ pub fn il_push_special(il: &mut CffCharstringIl, s: i32) {
         arg: CffCharstringArgument::I(s),
     });
 }
+/// Appends operator `op`, with its standard arity (how many operands it
+/// takes). Operators with a variable operand count get their arity set by
+/// the caller afterwards (see the stem operators).
 pub fn il_push_op(il: &mut CffCharstringIl, op: CffCharstringOperator) {
     // The `.i` arm stays a bare `i32`: `CffInstructionType::Special` stores
     // non-operator bytes in the very same field, so the type lives on the way
@@ -226,6 +242,11 @@ fn il_push_stems(il: &mut CffCharstringIl, g: &Glyph, hasmask: bool, haswidth: b
     _il_push_stemgroup(il, &g.stem_h, hasmask, haswidth, OP_HSTEMHM, OP_HSTEM);
     _il_push_stemgroup(il, &g.stem_v, hasmask, haswidth, OP_VSTEMHM, OP_VSTEM);
 }
+/// Compiles `g` to IL: hints first, then each contour as a moveto followed by
+/// line/curve operators, with coordinates as deltas from the previous point.
+/// The glyph's width is emitted only when it differs from `default_width`
+/// and is then written relative to `nominal_width`. The result is not yet
+/// optimized; see `optimize_il`.
 pub fn compile_glyph_to_il(
     g: &Glyph,
     default_width: u16,
@@ -626,6 +647,11 @@ fn decide_advance(il: &mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> 
     }
     1
 }
+/// Rolls runs of instructions into the shorter combined operators of the
+/// Type 2 charstring format (alternating horizontal/vertical lines or curves,
+/// repeated stem and mask operators), in place. Does nothing unless
+/// `options.cff_roll_char_string` is set. The drawn glyph stays the same; only
+/// the encoding gets shorter.
 pub fn optimize_il(il: &mut CffCharstringIl, options: &Options) {
     if !options.cff_roll_char_string {
         return;
