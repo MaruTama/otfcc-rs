@@ -137,7 +137,7 @@ impl TreeFormatter {
     }
 
     fn progress_verbosity(&self) -> u8 {
-        (LOG_VL_PROGRESS as i32 + self.level as i32) as u8
+        (i32::from(LOG_VL_PROGRESS) + i32::from(self.level)) as u8
     }
 
     /// Renders one message at the current depth, or returns `None` if
@@ -148,9 +148,9 @@ impl TreeFormatter {
         }
         let mut line: Vec<u8> = Vec::new();
         for (level, indent) in self.indents.iter().enumerate() {
-            if (level as i32) < self.last_logged_level as i32 - 1 {
+            if (level as i32) < i32::from(self.last_logged_level) - 1 {
                 line.resize(line.len() + indent.len(), b' ');
-                if (level as i32) < self.last_logged_level as i32 - 2 {
+                if (level as i32) < i32::from(self.last_logged_level) - 2 {
                     line.extend_from_slice(b" | ");
                 } else {
                     line.extend_from_slice(b" |-");
@@ -404,27 +404,27 @@ mod tests {
                 return;
             }
             self.indents.pop();
-            self.level = (self.level as i32 - 1) as u16;
-            if (self.level as i32) < self.last_logged_level as i32 {
+            self.level = (i32::from(self.level) - 1) as u16;
+            if i32::from(self.level) < i32::from(self.last_logged_level) {
                 self.last_logged_level = self.level;
             }
         }
         fn start(&mut self, segment: &[u8]) {
             self.indent(segment);
-            let v = (LOG_VL_PROGRESS as i32 + self.level as i32) as u8;
+            let v = (i32::from(LOG_VL_PROGRESS) + i32::from(self.level)) as u8;
             self.log(v, LoggerType::Progress, b"Begin");
         }
         fn finish(&mut self) {
-            let v = (LOG_VL_PROGRESS as i32 + self.level as i32) as u8;
+            let v = (i32::from(LOG_VL_PROGRESS) + i32::from(self.level)) as u8;
             self.log(v, LoggerType::Progress, b"Finish");
             self.dedent();
         }
         fn log(&mut self, verbosity: u8, kind: LoggerType, data: &[u8]) {
             let mut demand: Vec<u8> = Vec::new();
             for (level, indent) in self.indents.iter().enumerate() {
-                if (level as i32) < self.last_logged_level as i32 - 1 {
+                if (level as i32) < i32::from(self.last_logged_level) - 1 {
                     demand.resize(demand.len() + indent.len(), b' ');
-                    if (level as i32) < self.last_logged_level as i32 - 2 {
+                    if (level as i32) < i32::from(self.last_logged_level) - 2 {
                         demand.extend_from_slice(b" | ");
                     } else {
                         demand.extend_from_slice(b" |-");
@@ -439,7 +439,7 @@ mod tests {
                 demand.extend_from_slice(b" ");
             }
             demand.extend_from_slice(data);
-            if verbosity as i32 <= self.verbosity_limit as i32 {
+            if i32::from(verbosity) <= i32::from(self.verbosity_limit) {
                 self.out.extend_from_slice(&demand);
                 if demand.last() != Some(&b'\n') {
                     self.out.push(b'\n');

@@ -49,7 +49,7 @@ fn order_glyphs(go: &mut GlyphOrder) {
     for &idx in idxs.iter() {
         go.entries[idx].gid = gid;
         go.by_gid.insert(gid, idx);
-        gid = (gid as i32 + 1) as GlyphId;
+        gid = (i32::from(gid) + 1) as GlyphId;
     }
 }
 // `name` is a borrowed `&[u8]` now, not `SdsRaw` -- this function only

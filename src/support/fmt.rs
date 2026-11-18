@@ -289,7 +289,7 @@ mod tests {
     )]
     fn byte_is_one_byte_not_a_char() {
         unsafe {
-            for v in [b'A' as i32, 0, 0x7f, 0x80, 0xe9, 0xff] {
+            for v in [i32::from(b'A'), 0, 0x7f, 0x80, 0xe9, 0xff] {
                 assert_matches_printf!("%c", v, bytesbuild!(Byte(v as u8)));
             }
             let got = bytesbuild!(Byte(0xe9));

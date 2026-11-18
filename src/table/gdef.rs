@@ -51,7 +51,7 @@ fn read_caret_value(data: &[u8], offset: usize) -> CaretValue {
         if format == 2 {
             v.point_index = value as i16;
         } else {
-            v.coordiante = value as Pos;
+            v.coordiante = Pos::from(value);
         }
     }
     v
@@ -119,7 +119,7 @@ pub fn read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     let classdef_offset = FontReader::new(data).at(4).ok()?.u16().ok()?;
     // is purely a narrow bridge.
     let glyph_class_def = if classdef_offset != 0 {
-        Some(Box::new(read_class_def(data, classdef_offset as u32)))
+        Some(Box::new(read_class_def(data, u32::from(classdef_offset))))
     } else {
         None
     };
@@ -129,7 +129,7 @@ pub fn read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
 
     let mark_attach_def_offset = FontReader::new(data).at(10).ok()?.u16().ok()?;
     let mark_attach_class_def = if mark_attach_def_offset != 0 {
-        Some(Box::new(read_class_def(data, mark_attach_def_offset as u32)))
+        Some(Box::new(read_class_def(data, u32::from(mark_attach_def_offset))))
     } else {
         None
     };
@@ -148,7 +148,7 @@ fn dump_gdef_lig_carets(gdef: &GdefTable) -> BuiltValue {
         for caret in &record.carets {
             let mut _cv = BuiltValue::new_object(1);
             if caret.format == 2 {
-                _cv.push_field(b"atPoint", BuiltValue::Int(caret.point_index as i64));
+                _cv.push_field(b"atPoint", BuiltValue::Int(i64::from(caret.point_index)));
             } else {
                 _cv.push_field(b"at", BuiltValue::Int(caret.coordiante as i64));
             }
@@ -192,7 +192,7 @@ fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
         for _caret in items {
             let mut caret: CaretValue = CaretValue {
                 format: 1,
-                coordiante: 0_i32 as Pos,
+                coordiante: Pos::from(0_i32),
                 point_index: 0xffff_i32 as i16,
             };
             if _caret.as_object().is_some() {
@@ -234,13 +234,13 @@ fn write_lig_caret_rec(cr: &CaretValueRecord) -> BkBlock {
             vec![bk_ptr(
                 BkCellType::P16,
                 Some(bk_new_block(vec![
-                    bk_int(BkCellType::B16, (caret.format as i32) as u32),
+                    bk_int(BkCellType::B16, i32::from(caret.format) as u32),
                     bk_int(
                         BkCellType::B16,
                         (if caret.format == 2 {
-                            caret.point_index as i32
+                            i32::from(caret.point_index)
                         } else {
-                            caret.coordiante as i16 as i32
+                            i32::from(caret.coordiante as i16)
                         }) as u32,
                     ),
                 ])),

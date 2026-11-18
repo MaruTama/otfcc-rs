@@ -42,7 +42,7 @@ fn pd_to_json(pd: &CffPrivateDict) -> BuiltValue {
     if pd.language_group != 0 {
         _pd.push_field(
             b"languageGroup",
-            BuiltValue::Double(pd.language_group as f64),
+            BuiltValue::Double(f64::from(pd.language_group)),
         );
     }
     if pd.expansion_factor != DEFAULT_EXPANSION_FACTOR {
@@ -144,7 +144,7 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
         _cff.push_field(b"cidOrdering", json_from_sds(&table.cid_ordering));
         _cff.push_field(
             b"cidSupplement",
-            BuiltValue::Int(table.cid_supplement as i64),
+            BuiltValue::Int(i64::from(table.cid_supplement)),
         );
     }
     if !table.fd_array.is_empty() {

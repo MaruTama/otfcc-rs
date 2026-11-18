@@ -50,7 +50,7 @@ pub fn build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffe
     let tsi5 = tsi5?;
     let mut tsi5cls: Vec<u16> = vec![0; num_glyphs as usize];
     for j in 0..tsi5.glyphs.len() {
-        if (tsi5.glyphs[j].index as i32) < num_glyphs as i32 {
+        if i32::from(tsi5.glyphs[j].index) < i32::from(num_glyphs) {
             tsi5cls[tsi5.glyphs[j].index as usize] = tsi5.classes[j];
         }
     }

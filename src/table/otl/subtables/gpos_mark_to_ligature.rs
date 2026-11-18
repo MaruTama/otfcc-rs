@@ -67,17 +67,17 @@ pub fn otl_read_gpos_mark_to_ligature(
             break 'parse;
         };
 
-        let marks: Coverage = read_coverage(data, offset.wrapping_add(marks_rel as u32), budget);
-        let bases: Coverage = read_coverage(data, offset.wrapping_add(bases_rel as u32), budget);
+        let marks: Coverage = read_coverage(data, offset.wrapping_add(u32::from(marks_rel)), budget);
+        let bases: Coverage = read_coverage(data, offset.wrapping_add(u32::from(bases_rel)), budget);
         if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
 
         subtable.class_count = class_count as GlyphClass;
-        let mark_array_offset = offset.wrapping_add(mark_array_rel as u32);
+        let mark_array_offset = offset.wrapping_add(u32::from(mark_array_rel));
         otl_read_mark_array(&mut subtable.mark_array, &marks, data, mark_array_offset);
 
-        let lig_array_offset = offset.wrapping_add(lig_array_rel as u32);
+        let lig_array_offset = offset.wrapping_add(u32::from(lig_array_rel));
         let Ok(mut lr) = FontReader::new(data).at(lig_array_offset as usize) else {
             break 'parse;
         };
@@ -92,7 +92,7 @@ pub fn otl_read_gpos_mark_to_ligature(
         }
         let mut lig_attach_offsets = Vec::with_capacity(lig_count as usize);
         for _ in 0..lig_count {
-            lig_attach_offsets.push(lig_array_offset.wrapping_add(lr.u16().unwrap() as u32));
+            lig_attach_offsets.push(lig_array_offset.wrapping_add(u32::from(lr.u16().unwrap())));
         }
 
         for (j, &lig_attach_offset) in lig_attach_offsets.iter().enumerate() {
@@ -137,7 +137,7 @@ pub fn otl_read_gpos_mark_to_ligature(
                     if anchor_rel != 0 {
                         component.push(otl_read_anchor(
                             data,
-                            lig_attach_offset.wrapping_add(anchor_rel as u32),
+                            lig_attach_offset.wrapping_add(u32::from(anchor_rel)),
                         ));
                     } else {
                         component.push(otl_anchor_absent());
@@ -161,7 +161,7 @@ pub fn otl_gpos_dump_mark_to_ligature(st: &Subtable) -> BuiltValue {
     let mut _bases = BuiltValue::new_object(subtable.lig_array.len());
     for mark in subtable.mark_array.iter() {
         let mut _mark = BuiltValue::new_object(3);
-        let mark_class_name: Vec<u8> = crate::bytesbuild!(b"ac_", mark.mark_class as i32,);
+        let mark_class_name: Vec<u8> = crate::bytesbuild!(b"ac_", i32::from(mark.mark_class),);
         _mark.push_field(b"class", BuiltValue::str_truncated_at_nul(&mark_class_name));
         _mark.push_field(b"x", BuiltValue::Int(mark.anchor.x as i64));
         _mark.push_field(b"y", BuiltValue::Int(mark.anchor.y as i64));
@@ -195,7 +195,7 @@ pub fn otl_gpos_dump_mark_to_ligature(st: &Subtable) -> BuiltValue {
         }
         _bases.push_field_bytes_key(&base.glyph.name, _base.preserialize());
     }
-    _subtable.push_field(b"classCount", BuiltValue::Int(subtable.class_count as i64));
+    _subtable.push_field(b"classCount", BuiltValue::Int(i64::from(subtable.class_count)));
     _subtable.push_field(b"marks", _marks);
     _subtable.push_field(b"bases", _bases);
     _subtable
@@ -301,7 +301,7 @@ pub fn build_gpos_mark_to_ligature(
         ),
         bk_int(
             BkCellType::B16,
-            (subtable.class_count as i32) as u32,
+            i32::from(subtable.class_count) as u32,
         ),
     ]);
     let mut mark_array: BkBlock = bk_new_block(vec![bk_int(
@@ -312,7 +312,7 @@ pub fn build_gpos_mark_to_ligature(
         bk_push(
             &mut mark_array,
             vec![
-                bk_int(BkCellType::B16, (mark.mark_class as i32) as u32),
+                bk_int(BkCellType::B16, i32::from(mark.mark_class) as u32),
                 bk_ptr(BkCellType::P16, bk_from_anchor(mark.anchor)),
             ],
         );
@@ -324,7 +324,7 @@ pub fn build_gpos_mark_to_ligature(
     for lig in subtable.lig_array.iter() {
         let mut attach: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
-            (lig.component_count as i32) as u32,
+            i32::from(lig.component_count) as u32,
         )]);
         // Same count-vs-length caution as the dump side above:
         // `.take()` on the field, not an assumption about `.len()`.
@@ -454,7 +454,7 @@ mod otl_read_gpos_mark_to_ligature_tests {
         // pointing at one shared blob right after this header.
         let lig_array_offset: u32 = 30;
         d.extend_from_slice(&n.to_be_bytes());
-        let blob_offset = d.len() as u32 + 2 * n as u32;
+        let blob_offset = d.len() as u32 + 2 * u32::from(n);
         let blob_rel = (blob_offset - lig_array_offset) as u16;
         for _ in 0..n {
             d.extend_from_slice(&blob_rel.to_be_bytes());
@@ -513,7 +513,7 @@ mod otl_read_gpos_mark_to_ligature_tests {
         // real, fully-formed record -- the budget stops further entries
         // from being built at all, it never truncates one mid-flight.
         assert!(!subtable.lig_array.is_empty());
-        assert!((subtable.lig_array.len() as u32) < n as u32);
+        assert!((subtable.lig_array.len() as u32) < u32::from(n));
         for lig in &subtable.lig_array {
             assert_eq!(lig.component_count, component_count);
             assert_eq!(lig.anchors.len(), component_count as usize);
@@ -524,6 +524,6 @@ mod otl_read_gpos_mark_to_ligature_tests {
             .iter()
             .map(|lig| lig.anchors.len() as u64)
             .sum();
-        assert!(total_anchors <= MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE as u64);
+        assert!(total_anchors <= u64::from(MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE));
     }
 }

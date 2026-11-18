@@ -210,7 +210,7 @@ impl FontTable for Hmtx {
             return Ok(());
         };
         let count_a: u16 = hhea.number_of_metrics;
-        let count_k: u16 = (maxp.num_glyphs as i32 - hhea.number_of_metrics as i32) as u16;
+        let count_k: u16 = (i32::from(maxp.num_glyphs) - i32::from(hhea.number_of_metrics)) as u16;
         sfnt_builder_push_table(
             builder,
             TAG_HMTX,
@@ -279,7 +279,7 @@ impl FontTable for Vmtx {
             return Ok(());
         };
         let count_a: u16 = vhea.num_of_long_ver_metrics;
-        let count_k: u16 = (maxp.num_glyphs as i32 - vhea.num_of_long_ver_metrics as i32) as u16;
+        let count_k: u16 = (i32::from(maxp.num_glyphs) - i32::from(vhea.num_of_long_ver_metrics)) as u16;
         sfnt_builder_push_table(
             builder,
             TAG_VMTX,

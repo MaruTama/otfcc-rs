@@ -75,7 +75,7 @@ pub fn otl_read_mark_array(array: &mut MarkArray, cov: &Coverage, data: &[u8], o
         let mark_class = r.u16().unwrap() as GlyphClass;
         let delta = r.u16().unwrap();
         let anchor = if delta != 0 {
-            otl_read_anchor(data, offset.wrapping_add(delta as u32))
+            otl_read_anchor(data, offset.wrapping_add(u32::from(delta)))
         } else {
             otl_anchor_absent()
         };
@@ -153,23 +153,23 @@ pub fn otl_parse_mark_array(
 pub fn otl_anchor_absent() -> Anchor {
     let anchor: Anchor = Anchor {
         present: false,
-        x: 0 as Pos,
-        y: 0 as Pos,
+        x: Pos::from(0),
+        y: Pos::from(0),
     };
     anchor
 }
 pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
-        x: 0 as Pos,
-        y: 0 as Pos,
+        x: Pos::from(0),
+        y: Pos::from(0),
     };
     let Ok(bytes) = FontReader::new(data).at(offset as usize).and_then(|mut r| r.bytes(6)) else {
         return anchor;
     };
     anchor.present = true;
-    anchor.x = i16::from_be_bytes([bytes[2], bytes[3]]) as Pos;
-    anchor.y = i16::from_be_bytes([bytes[4], bytes[5]]) as Pos;
+    anchor.x = Pos::from(i16::from_be_bytes([bytes[2], bytes[3]]));
+    anchor.y = Pos::from(i16::from_be_bytes([bytes[4], bytes[5]]));
     anchor
 }
 pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
@@ -185,8 +185,8 @@ pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
 pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
-        x: 0 as Pos,
-        y: 0 as Pos,
+        x: Pos::from(0),
+        y: Pos::from(0),
     };
     let Some(v) = v.filter(|v| v.as_object().is_some()) else {
         return anchor;
@@ -202,8 +202,8 @@ pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
     }
     Some(bk_new_block(vec![
         bk_int(BkCellType::B16, 1),
-        bk_int(BkCellType::B16, (a.x as i16 as i32) as u32),
-        bk_int(BkCellType::B16, (a.y as i16 as i32) as u32),
+        bk_int(BkCellType::B16, i32::from(a.x as i16) as u32),
+        bk_int(BkCellType::B16, i32::from(a.y as i16) as u32),
     ]))
 }
 pub const FORMAT_DX: u16 = 1;
@@ -239,19 +239,19 @@ pub fn read_gpos_value(data: &[u8], offset: u32, format: u16) -> PositionValue {
     };
     let mut pos = 0;
     if format & FORMAT_DX != 0 {
-        v.dx = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
+        v.dx = Pos::from(i16::from_be_bytes([bytes[pos], bytes[pos + 1]]));
         pos += 2;
     }
     if format & FORMAT_DY != 0 {
-        v.dy = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
+        v.dy = Pos::from(i16::from_be_bytes([bytes[pos], bytes[pos + 1]]));
         pos += 2;
     }
     if format & FORMAT_DWIDTH != 0 {
-        v.d_width = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
+        v.d_width = Pos::from(i16::from_be_bytes([bytes[pos], bytes[pos + 1]]));
         pos += 2;
     }
     if format & FORMAT_DHEIGHT != 0 {
-        v.d_height = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
+        v.d_height = Pos::from(i16::from_be_bytes([bytes[pos], bytes[pos + 1]]));
     }
     v
 }
@@ -324,7 +324,7 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
             &mut b,
             vec![bk_int(
                 BkCellType::B16,
-                (v.dx as i16 as i32) as u32,
+                i32::from(v.dx as i16) as u32,
             )],
         );
     }
@@ -333,7 +333,7 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
             &mut b,
             vec![bk_int(
                 BkCellType::B16,
-                (v.dy as i16 as i32) as u32,
+                i32::from(v.dy as i16) as u32,
             )],
         );
     }
@@ -342,7 +342,7 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
             &mut b,
             vec![bk_int(
                 BkCellType::B16,
-                (v.d_width as i16 as i32) as u32,
+                i32::from(v.d_width as i16) as u32,
             )],
         );
     }
@@ -351,7 +351,7 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
             &mut b,
             vec![bk_int(
                 BkCellType::B16,
-                (v.d_height as i16 as i32) as u32,
+                i32::from(v.d_height as i16) as u32,
             )],
         );
     }

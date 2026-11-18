@@ -88,25 +88,25 @@ pub fn dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
         b"version",
         BuiltValue::Double(from_fixed(table.version)),
     );
-    vhea.push_field(b"ascent", BuiltValue::Int(table.ascent as i64));
-    vhea.push_field(b"descent", BuiltValue::Int(table.descent as i64));
-    vhea.push_field(b"lineGap", BuiltValue::Int(table.line_gap as i64));
+    vhea.push_field(b"ascent", BuiltValue::Int(i64::from(table.ascent)));
+    vhea.push_field(b"descent", BuiltValue::Int(i64::from(table.descent)));
+    vhea.push_field(b"lineGap", BuiltValue::Int(i64::from(table.line_gap)));
     vhea.push_field(
         b"advanceHeightMax",
-        BuiltValue::Int(table.advance_height_max as i64),
+        BuiltValue::Int(i64::from(table.advance_height_max)),
     );
-    vhea.push_field(b"minTop", BuiltValue::Int(table.min_top as i64));
-    vhea.push_field(b"minBottom", BuiltValue::Int(table.min_bottom as i64));
-    vhea.push_field(b"yMaxExtent", BuiltValue::Int(table.y_max_extent as i64));
+    vhea.push_field(b"minTop", BuiltValue::Int(i64::from(table.min_top)));
+    vhea.push_field(b"minBottom", BuiltValue::Int(i64::from(table.min_bottom)));
+    vhea.push_field(b"yMaxExtent", BuiltValue::Int(i64::from(table.y_max_extent)));
     vhea.push_field(
         b"caretSlopeRise",
-        BuiltValue::Int(table.caret_slope_rise as i64),
+        BuiltValue::Int(i64::from(table.caret_slope_rise)),
     );
     vhea.push_field(
         b"caretSlopeRun",
-        BuiltValue::Int(table.caret_slope_run as i64),
+        BuiltValue::Int(i64::from(table.caret_slope_run)),
     );
-    vhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
+    vhea.push_field(b"caretOffset", BuiltValue::Int(i64::from(table.caret_offset)));
     root.push_field(b"vhea", vhea);
     stage.finish();
 }

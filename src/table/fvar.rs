@@ -209,8 +209,8 @@ pub fn dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
         _axis.push_field(b"minValue", BuiltValue::Double(axis.min_value));
         _axis.push_field(b"defaultValue", BuiltValue::Double(axis.default_value));
         _axis.push_field(b"maxValue", BuiltValue::Double(axis.max_value));
-        _axis.push_field(b"flags", BuiltValue::Int(axis.flags as i64));
-        _axis.push_field(b"axisNameID", BuiltValue::Int(axis.axis_name_id as i64));
+        _axis.push_field(b"flags", BuiltValue::Int(i64::from(axis.flags)));
+        _axis.push_field(b"axisNameID", BuiltValue::Int(i64::from(axis.axis_name_id)));
         _axes.push_tag(axis.tag, _axis);
     }
     t.push_field(b"axes", _axes);
@@ -219,15 +219,15 @@ pub fn dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
         let mut _instance = BuiltValue::new_object(4);
         _instance.push_field(
             b"subfamilyNameID",
-            BuiltValue::Int(instance.subfamily_name_id as i64),
+            BuiltValue::Int(i64::from(instance.subfamily_name_id)),
         );
         if instance.post_script_name_id != 0 {
             _instance.push_field(
                 b"postScriptNameID",
-                BuiltValue::Int(instance.post_script_name_id as i64),
+                BuiltValue::Int(i64::from(instance.post_script_name_id)),
             );
         }
-        _instance.push_field(b"flags", BuiltValue::Int(instance.flags as i64));
+        _instance.push_field(b"flags", BuiltValue::Int(i64::from(instance.flags)));
         _instance.push_field(
             b"coordinates",
             json_new_v_vp(&instance.coordinates, table),

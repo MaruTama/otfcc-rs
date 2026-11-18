@@ -325,7 +325,7 @@ fn strtol_base0(s: &[u8]) -> (i64, usize) {
         let mut j = i + 2;
         let mut val: i64 = 0;
         while let Some(d) = s.get(j).and_then(|&b| (b as char).to_digit(16)) {
-            val = val.saturating_mul(16).saturating_add(d as i64);
+            val = val.saturating_mul(16).saturating_add(i64::from(d));
             j += 1;
         }
         return (if neg { -val } else { val }, j);
@@ -334,7 +334,7 @@ fn strtol_base0(s: &[u8]) -> (i64, usize) {
         let mut j = i + 1;
         let mut val: i64 = 0;
         while s.get(j).is_some_and(|&b| (b'0'..=b'7').contains(&b)) {
-            val = val.saturating_mul(8).saturating_add((s[j] - b'0') as i64);
+            val = val.saturating_mul(8).saturating_add(i64::from(s[j] - b'0'));
             j += 1;
         }
         return (if neg { -val } else { val }, j);
@@ -342,7 +342,7 @@ fn strtol_base0(s: &[u8]) -> (i64, usize) {
     let mut j = i;
     let mut val: i64 = 0;
     while s.get(j).is_some_and(u8::is_ascii_digit) {
-        val = val.saturating_mul(10).saturating_add((s[j] - b'0') as i64);
+        val = val.saturating_mul(10).saturating_add(i64::from(s[j] - b'0'));
         j += 1;
     }
     (if neg { -val } else { val }, j)
@@ -360,7 +360,7 @@ fn strtol_base2(s: &[u8]) -> (i64, usize) {
     let mut j = i;
     let mut val: i64 = 0;
     while matches!(s.get(j), Some(b'0') | Some(b'1')) {
-        val = val * 2 + (s[j] - b'0') as i64;
+        val = val * 2 + i64::from(s[j] - b'0');
         j += 1;
     }
     (if neg { -val } else { val }, j)
@@ -423,15 +423,15 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
             if push_left == -1 {
                 if npos == 0 {
                     iv_error(b"Expected a number for a push count", pt as i32);
-                } else if numberstack[0_usize] as i32 > 255
-                    || numberstack[0_usize] as i32 <= 0
+                } else if i32::from(numberstack[0_usize]) > 255
+                    || i32::from(numberstack[0_usize]) <= 0
                 {
                     iv_error(b"The push count must be a number between 0 and 255", pt as i32);
                     return None;
                 } else {
                     nread = 1;
                     instrs.push(numberstack[0_usize] as u8);
-                    push_left = numberstack[0_usize] as i32;
+                    push_left = i32::from(numberstack[0_usize]);
                 }
             }
             let c = peek(text, pt);
@@ -441,11 +441,11 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
             }
             while push_left > 0 && nread < npos {
                 if push_size == 2 {
-                    instrs.push((numberstack[nread as usize] as i32 >> 8) as u8);
-                    instrs.push((numberstack[nread as usize] as i32 & 0xff) as u8);
+                    instrs.push((i32::from(numberstack[nread as usize]) >> 8) as u8);
+                    instrs.push((i32::from(numberstack[nread as usize]) & 0xff) as u8);
                     nread += 1;
-                } else if numberstack[0_usize] as i32 > 255
-                    || (numberstack[0_usize] as i32) < 0
+                } else if i32::from(numberstack[0_usize]) > 255
+                    || i32::from(numberstack[0_usize]) < 0
                 {
                     iv_error(
                         b"A value to be pushed by a byte push must be between 0 and 255",
@@ -471,12 +471,12 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                 }
                 while nread < npos {
                     i = nread;
-                    if numberstack[nread as usize] as i32 >= 0 && numberstack[nread as usize] as i32 <= 255 {
-                        while i < npos && numberstack[i as usize] as i32 >= 0 && numberstack[i as usize] as i32 <= 255 {
+                    if i32::from(numberstack[nread as usize]) >= 0 && i32::from(numberstack[nread as usize]) <= 255 {
+                        while i < npos && i32::from(numberstack[i as usize]) >= 0 && i32::from(numberstack[i as usize]) <= 255 {
                             i += 1;
                         }
                         if i - nread <= 8 {
-                            instrs.push((TTF_PUSHB as i32 + (i - nread) - 1) as u8);
+                            instrs.push((i32::from(TTF_PUSHB) + (i - nread) - 1) as u8);
                         } else {
                             instrs.push(TTF_NPUSHB);
                             instrs.push((i - nread) as u8);
@@ -486,18 +486,18 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                             nread += 1;
                         }
                     } else {
-                        while i < npos && ((numberstack[i as usize] as i32) < 0 || numberstack[i as usize] as i32 > 255) {
+                        while i < npos && (i32::from(numberstack[i as usize]) < 0 || i32::from(numberstack[i as usize]) > 255) {
                             i += 1;
                         }
                         if i - nread <= 8 {
-                            instrs.push((TTF_PUSHW as i32 + (i - nread) - 1) as u8);
+                            instrs.push((i32::from(TTF_PUSHW) + (i - nread) - 1) as u8);
                         } else {
                             instrs.push(TTF_NPUSHW);
                             instrs.push((i - nread) as u8);
                         }
                         while nread < i {
-                            instrs.push((numberstack[nread as usize] as i32 >> 8) as u8);
-                            instrs.push((numberstack[nread as usize] as i32 & 0xff) as u8);
+                            instrs.push((i32::from(numberstack[nread as usize]) >> 8) as u8);
+                            instrs.push((i32::from(numberstack[nread as usize]) & 0xff) as u8);
                             nread += 1;
                         }
                     }
@@ -547,18 +547,18 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
                     }
                 pt = end;
                 instrs.push(i as u8);
-                if i == TTF_NPUSHB as i32 || i == TTF_NPUSHW as i32 || i >= TTF_PUSHB as i32 && i <= TTF_PUSHW as i32 + 7 {
-                    push_size = if i == TTF_NPUSHB as i32 || i >= TTF_PUSHB as i32 && i <= TTF_PUSHB as i32 + 7 {
+                if i == i32::from(TTF_NPUSHB) || i == i32::from(TTF_NPUSHW) || i >= i32::from(TTF_PUSHB) && i <= i32::from(TTF_PUSHW) + 7 {
+                    push_size = if i == i32::from(TTF_NPUSHB) || i >= i32::from(TTF_PUSHB) && i <= i32::from(TTF_PUSHB) + 7 {
                         1
                     } else {
                         2
                     };
-                    if i == TTF_NPUSHB as i32 || i == TTF_NPUSHW as i32 {
+                    if i == i32::from(TTF_NPUSHB) || i == i32::from(TTF_NPUSHW) {
                         push_left = -1;
-                    } else if i >= TTF_PUSHB as i32 && i <= TTF_PUSHB as i32 + 7 {
-                        push_left = i - TTF_PUSHB as i32 + 1;
+                    } else if i >= i32::from(TTF_PUSHB) && i <= i32::from(TTF_PUSHB) + 7 {
+                        push_left = i - i32::from(TTF_PUSHB) + 1;
                     } else {
-                        push_left = i - TTF_PUSHW as i32 + 1;
+                        push_left = i - i32::from(TTF_PUSHW) + 1;
                     }
                 }
                 if peek(text, pt) == 0 {
@@ -607,7 +607,7 @@ fn instr_typify(id: &mut InstrData) -> i32 {
                 break 'outer;
             }
             id.bts[i as usize] = ByteType::Cnt;
-            cnt = id.instrs[i as usize] as i32;
+            cnt = i32::from(id.instrs[i as usize]);
             j = 0;
             while j < cnt {
                 i += 1;
@@ -625,7 +625,7 @@ fn instr_typify(id: &mut InstrData) -> i32 {
             }
             id.bts[i as usize] = ByteType::Cnt;
             lh += 1;
-            cnt = id.instrs[i as usize] as i32;
+            cnt = i32::from(id.instrs[i as usize]);
             j = 0;
             while j < cnt {
                 i += 1;
@@ -661,8 +661,8 @@ fn instr_typify(id: &mut InstrData) -> i32 {
                 j += 1;
             }
             lh += 1 + cnt;
-        } else if id.instrs[i as usize] as i32 & 0xf8 == 0xb0 {
-            cnt = (id.instrs[i as usize] as i32 & 7) + 1;
+        } else if i32::from(id.instrs[i as usize]) & 0xf8 == 0xb0 {
+            cnt = (i32::from(id.instrs[i as usize]) & 7) + 1;
             j = 0;
             while j < cnt {
                 i += 1;
@@ -673,8 +673,8 @@ fn instr_typify(id: &mut InstrData) -> i32 {
                 j += 1;
             }
             lh += cnt;
-        } else if id.instrs[i as usize] as i32 & 0xf8 == 0xb8 {
-            cnt = (id.instrs[i as usize] as i32 & 7) + 1;
+        } else if i32::from(id.instrs[i as usize]) & 0xf8 == 0xb8 {
+            cnt = (i32::from(id.instrs[i as usize]) & 7) + 1;
             j = 0;
             while j < cnt {
                 i += 1;
@@ -722,11 +722,11 @@ pub fn dump_ttinstr(instructions: &[u8], options: &Options) -> BuiltValue {
         while i < id.instr_cnt {
             if id.bts[i as usize] == ByteType::WordHi {
                 ret.push_item(BuiltValue::Int(
-                    ((id.instrs[i as usize] as i32) << 8 | id.instrs[i.wrapping_add(1) as usize] as i32) as i16 as i64,
+                    i64::from((i32::from(id.instrs[i as usize]) << 8 | i32::from(id.instrs[i.wrapping_add(1) as usize])) as i16),
                 ));
                 i = i.wrapping_add(1);
             } else if id.bts[i as usize] == ByteType::Cnt || id.bts[i as usize] == ByteType::Byte {
-                ret.push_item(BuiltValue::Int(id.instrs[i as usize] as i64));
+                ret.push_item(BuiltValue::Int(i64::from(id.instrs[i as usize])));
             } else {
                 ret.push_item(BuiltValue::Str(FF_TTF_INSTRNAMES[id.instrs[i as usize] as usize].to_vec()));
             }

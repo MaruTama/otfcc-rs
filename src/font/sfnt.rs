@@ -35,7 +35,7 @@ fn read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) ->
     };
     for count in 0..font.count {
         let offset = font.offsets[count as usize];
-        if file.seek(SeekFrom::Start(offset as u64)).is_err() {
+        if file.seek(SeekFrom::Start(u64::from(offset))).is_err() {
             return false;
         }
         let Some(sfnt_version) = get32u(file) else {
@@ -60,7 +60,7 @@ fn read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) ->
             packet.search_range = search_range;
             packet.entry_selector = entry_selector;
             packet.range_shift = range_shift;
-            for _ in 0..packet.num_tables as u32 {
+            for _ in 0..u32::from(packet.num_tables) {
                 let Some(tag) = get32u(file) else {
                     return false;
                 };
@@ -73,7 +73,7 @@ fn read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) ->
                 let Some(length) = get32u(file) else {
                     return false;
                 };
-                if offset as u64 + length as u64 > total_len {
+                if u64::from(offset) + u64::from(length) > total_len {
                     return false;
                 }
                 packet.pieces.push(PacketPiece {
@@ -91,7 +91,7 @@ fn read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) ->
             // different numbers of tables.
             for i_0 in 0..packet.pieces.len() as u32 {
                 let piece = &mut packet.pieces[i_0 as usize];
-                if file.seek(SeekFrom::Start(piece.offset as u64)).is_err() {
+                if file.seek(SeekFrom::Start(u64::from(piece.offset))).is_err() {
                     return false;
                 }
                 if file.read_exact(&mut piece.data).is_err() {
@@ -151,7 +151,7 @@ fn read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) 
             if file.seek(SeekFrom::Start(current_pos)).is_err() {
                 return false;
             }
-            if count as u64 > total_len.saturating_sub(current_pos) / 4 {
+            if u64::from(count) > total_len.saturating_sub(current_pos) / 4 {
                 return false;
             }
             font.count = count;

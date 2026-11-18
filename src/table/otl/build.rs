@@ -36,24 +36,24 @@ pub const LARGE_SUBTABLE_LIMIT: usize = 4096;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0;
     if !name.is_empty() {
-        tag |= ((name[0] as i32) << 24) as u32;
+        tag |= (i32::from(name[0]) << 24) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as i32) << 24) as u32;
+        tag |= (i32::from(' ' as i32 as u8) << 24) as u32;
     }
     if name.len() > 1 {
-        tag |= ((name[1] as i32) << 16) as u32;
+        tag |= (i32::from(name[1]) << 16) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as i32) << 16) as u32;
+        tag |= (i32::from(' ' as i32 as u8) << 16) as u32;
     }
     if name.len() > 2 {
-        tag |= ((name[2] as i32) << 8) as u32;
+        tag |= (i32::from(name[2]) << 8) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as i32) << 8) as u32;
+        tag |= (i32::from(' ' as i32 as u8) << 8) as u32;
     }
     if name.len() > 3 {
-        tag |= (name[3] as i32) as u32;
+        tag |= i32::from(name[3]) as u32;
     } else {
-        tag |= (' ' as i32 as u8 as i32) as u32;
+        tag |= i32::from(' ' as i32 as u8) as u32;
     }
     tag
 }
@@ -194,7 +194,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         }
         let can_be_contextual: bool = chaining_lookup_is_contextual_lookup(live_lookup);
         let use_extended_for_it: bool =
-            use_extended as i32 != 0 || prefer_ext_for_this_lut[j_1] as i32 != 0;
+            i32::from(use_extended) != 0 || i32::from(prefer_ext_for_this_lut[j_1]) != 0;
         if use_extended_for_it {
             tracing::info!("[OTFCC-fea] Using extended OpenType table layout for {}/{}.\n", ByteStr(tag), ByteStr(&live_lookup.name));
         }
@@ -213,14 +213,14 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
             live_lookup
                 .lookup_type
                 .file_format()
-                .wrapping_sub(can_be_contextual as u32)
+                .wrapping_sub(u32::from(can_be_contextual))
         }) as u16;
         let mut blk: BkBlock = bk_new_block(vec![
-            bk_int(BkCellType::B16, (lookup_type as i32) as u32),
-            bk_int(BkCellType::B16, (live_lookup.flags as i32) as u32),
+            bk_int(BkCellType::B16, i32::from(lookup_type) as u32),
+            bk_int(BkCellType::B16, i32::from(live_lookup.flags) as u32),
             bk_int(
                 BkCellType::B16,
-                (subtable_quantity[j_1] as i32) as u32,
+                i32::from(subtable_quantity[j_1]) as u32,
             ),
         ]);
         // Bounded by `subtable_quantity[j_1]` rather than assumed equal
@@ -232,11 +232,11 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
                 let extension_lookup_type: u16 = live_lookup
                     .lookup_type
                     .file_format()
-                    .wrapping_sub(can_be_contextual as u32)
+                    .wrapping_sub(u32::from(can_be_contextual))
                     as u16;
                 let stub: BkBlock = bk_new_block(vec![
                     bk_int(BkCellType::B16, 1),
-                    bk_int(BkCellType::B16, (extension_lookup_type as i32) as u32),
+                    bk_int(BkCellType::B16, i32::from(extension_lookup_type) as u32),
                     bk_ptr(
                         BkCellType::P32,
                         bk_new_block_from_buffer(Some(::core::mem::take(buf))),
@@ -278,7 +278,7 @@ fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock
             // into a loud panic rather than a silently wrong binary index.
             let dense = lookup_dense[lookup_ref.0 as usize]
                 .expect("Feature.lookups should only ever reference a live lookup");
-            bk_push(&mut fea, vec![bk_int(BkCellType::B16, dense as u32)]);
+            bk_push(&mut fea, vec![bk_int(BkCellType::B16, u32::from(dense))]);
         }
         bk_push(
             &mut root,
@@ -307,7 +307,7 @@ fn write_language(
         bk_ptr(BkCellType::P16, None),
         bk_int(
             BkCellType::B16,
-            (feature_index(lang.required_feature, feature_dense) as i32) as u32,
+            i32::from(feature_index(lang.required_feature, feature_dense)) as u32,
         ),
         bk_int(BkCellType::B16, (lang.features.len()) as u32),
     ]);
@@ -316,7 +316,7 @@ fn write_language(
             &mut root,
             vec![bk_int(
                 BkCellType::B16,
-                (feature_index(Some(feature), feature_dense) as i32) as u32,
+                i32::from(feature_index(Some(feature), feature_dense)) as u32,
             )],
         );
     }

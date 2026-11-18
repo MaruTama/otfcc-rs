@@ -42,10 +42,10 @@ pub fn stat_single_glyph(
     topj: GlyphId,
 ) -> GlyphStat {
     let mut stat: GlyphStat = GlyphStat {
-        x_min: 0 as Pos,
-        x_max: 0 as Pos,
-        y_min: 0 as Pos,
-        y_max: 0 as Pos,
+        x_min: Pos::from(0),
+        x_max: Pos::from(0),
+        y_min: Pos::from(0),
+        y_max: Pos::from(0),
         nest_depth: 0,
         n_points: 0,
         n_contours: 0,
@@ -53,20 +53,20 @@ pub fn stat_single_glyph(
         n_composite_contours: 0,
     };
     let j: GlyphId = gr.glyph.index;
-    if depth as i32 >= 0xff {
+    if i32::from(depth) >= 0xff {
         return stat;
     }
     if stated[j as usize] == StatStatus::Doing {
-        tracing::warn!("[Stat] Circular glyph reference found in gid {} to gid {}. The reference will be dropped.\n", topj as i32, j as i32);
+        tracing::warn!("[Stat] Circular glyph reference found in gid {} to gid {}. The reference will be dropped.\n", i32::from(topj), i32::from(j));
         stated[j as usize] = StatStatus::Completed;
         return stat;
     }
     let g: &Glyph = table[j as usize].as_deref().expect("glyph slot is filled");
     stated[j as usize] = StatStatus::Doing;
-    let mut xmin: Pos = POS_MAX as Pos;
-    let mut xmax: Pos = -POS_MAX as Pos;
-    let mut ymin: Pos = POS_MAX as Pos;
-    let mut ymax: Pos = -POS_MAX as Pos;
+    let mut xmin: Pos = Pos::from(POS_MAX);
+    let mut xmax: Pos = Pos::from(-POS_MAX);
+    let mut ymin: Pos = Pos::from(POS_MAX);
+    let mut ymax: Pos = Pos::from(-POS_MAX);
     let mut nest_depth: u16 = 0;
     let mut n_points: u16 = 0;
     let mut n_composite_points: u16;
@@ -94,7 +94,7 @@ pub fn stat_single_glyph(
             if y > ymax {
                 ymax = y;
             }
-            n_points = (n_points as i32 + 1) as u16;
+            n_points = (i32::from(n_points) + 1) as u16;
         }
     }
     n_composite_points = n_points;
@@ -120,7 +120,7 @@ pub fn stat_single_glyph(
             table,
             &mut glyph_ref,
             stated,
-            (depth as i32 + 1) as u8,
+            (i32::from(depth) + 1) as u8,
             topj,
         );
         if thatstat.x_min < xmin {
@@ -135,25 +135,25 @@ pub fn stat_single_glyph(
         if thatstat.y_max > ymax {
             ymax = thatstat.y_max;
         }
-        if thatstat.nest_depth as i32 + 1
-            > nest_depth as i32
+        if i32::from(thatstat.nest_depth) + 1
+            > i32::from(nest_depth)
         {
             nest_depth =
-                (thatstat.nest_depth as i32 + 1) as u16;
+                (i32::from(thatstat.nest_depth) + 1) as u16;
         }
-        n_composite_points = (n_composite_points as i32
-            + thatstat.n_composite_points as i32)
+        n_composite_points = (i32::from(n_composite_points)
+            + i32::from(thatstat.n_composite_points))
             as u16;
-        n_composite_contours = (n_composite_contours as i32
-            + thatstat.n_composite_contours as i32)
+        n_composite_contours = (i32::from(n_composite_contours)
+            + i32::from(thatstat.n_composite_contours))
             as u16;
     }
     if xmin > xmax {
-        xmax = 0 as Pos;
+        xmax = Pos::from(0);
         xmin = xmax;
     }
     if ymin > ymax {
-        ymax = 0 as Pos;
+        ymax = Pos::from(0);
         ymin = ymax;
     }
     stat.x_min = xmin;
@@ -173,10 +173,10 @@ pub fn stat_glyf(font: &mut Font) {
     let head = font.head.as_deref_mut().expect("head table is present");
     let glyf = font.glyf.as_mut().expect("glyf table is present");
     let mut stated: Vec<StatStatus> = vec![StatStatus::NotStarted; glyf.len()];
-    let mut xmin: Pos = 0xffffffff_u32 as Pos;
-    let mut xmax: Pos = 0xffffffff_u32.wrapping_neg() as Pos;
-    let mut ymin: Pos = 0xffffffff_u32 as Pos;
-    let mut ymax: Pos = 0xffffffff_u32.wrapping_neg() as Pos;
+    let mut xmin: Pos = Pos::from(0xffffffff_u32);
+    let mut xmax: Pos = Pos::from(0xffffffff_u32.wrapping_neg());
+    let mut ymin: Pos = Pos::from(0xffffffff_u32);
+    let mut ymax: Pos = Pos::from(0xffffffff_u32.wrapping_neg());
     for j in 0..count_u16(glyf.len()) {
         let mut gr: ComponentReference = ComponentReference {
             x: std::cell::RefCell::new(VQ {
@@ -199,12 +199,12 @@ pub fn stat_glyf(font: &mut Font) {
             outer: 0,
         };
         gr.glyph = handle_from_index(j);
-        gr.x = std::cell::RefCell::new(vq_create_still(0 as Pos));
-        gr.y = std::cell::RefCell::new(vq_create_still(0 as Pos));
-        gr.a = 1 as Scale;
-        gr.b = 0 as Scale;
-        gr.c = 0 as Scale;
-        gr.d = 1 as Scale;
+        gr.x = std::cell::RefCell::new(vq_create_still(Pos::from(0)));
+        gr.y = std::cell::RefCell::new(vq_create_still(Pos::from(0)));
+        gr.a = Scale::from(1);
+        gr.b = Scale::from(0);
+        gr.c = Scale::from(0);
+        gr.d = Scale::from(1);
         let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0, j);
         glyf[j as usize].as_mut().expect("glyph slot is filled").stat = thatstat;
         if thatstat.x_min < xmin {
@@ -260,7 +260,7 @@ pub fn stat_maxp(font: &mut Font) {
                 n_components = g.references.len() as u16;
             }
         }
-        if g.instructions.len() as i32 > inst_size as i32 {
+        if g.instructions.len() as i32 > i32::from(inst_size) {
             inst_size = g.instructions.len() as u16;
         }
     }
@@ -284,15 +284,15 @@ fn stat_hmtx(font: &mut Font) {
     let mut count_k: GlyphId = 0 as GlyphId;
     let mut lsb_at_x_zero: bool = true;
     if font.subtype != FontSubtype::Cff {
-        while count_a as i32 > 2
+        while i32::from(count_a) > 2
             && vq_get_still(
-                glyf[(count_a as i32 - 1) as usize]
+                glyf[(i32::from(count_a) - 1) as usize]
                     .as_deref()
                     .expect("glyph slot is filled")
                     .advance_width
                     .clone(),
             ) == vq_get_still(
-                glyf[(count_a as i32 - 2) as usize]
+                glyf[(i32::from(count_a) - 2) as usize]
                     .as_deref()
                     .expect("glyph slot is filled")
                     .advance_width
@@ -307,10 +307,10 @@ fn stat_hmtx(font: &mut Font) {
     // covers `metrics`, the rest covers `left_side_bearing` in order).
     let mut metrics: Vec<HorizontalMetric> = Vec::with_capacity(count_a as usize);
     let mut left_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
-    let mut min_lsb: Pos = 0x7fff as Pos;
-    let mut min_rsb: Pos = 0x7fff as Pos;
-    let mut max_extent: Pos = -0x8000 as Pos;
-    let mut max_width: Length = 0 as Length;
+    let mut min_lsb: Pos = Pos::from(0x7fff);
+    let mut min_rsb: Pos = Pos::from(0x7fff);
+    let mut max_extent: Pos = Pos::from(-0x8000);
+    let mut max_width: Length = Length::from(0);
     for (j, slot) in glyf.iter_mut().enumerate() {
         let g = slot.as_mut().expect("glyph slot is filled");
         if vq_is_zero(g.horizontal_origin.clone(), 1.0 / 1000.0) {
@@ -354,7 +354,7 @@ fn stat_hmtx(font: &mut Font) {
         left_side_bearing,
     }));
     let head = font.head.as_deref_mut().expect("head table is present");
-    head.flags = (head.flags as i32 & !0x2
+    head.flags = (i32::from(head.flags) & !0x2
         | (if lsb_at_x_zero {
             0x2
         } else {
@@ -369,15 +369,15 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
     let mut count_a: GlyphId = count_u16(glyf.len());
     let mut count_k: GlyphId = 0 as GlyphId;
     if !(font.subtype == FontSubtype::Cff && !options.cff_short_vmtx) {
-        while count_a as i32 > 2
+        while i32::from(count_a) > 2
             && vq_get_still(
-                glyf[(count_a as i32 - 1) as usize]
+                glyf[(i32::from(count_a) - 1) as usize]
                     .as_deref()
                     .expect("glyph slot is filled")
                     .advance_height
                     .clone(),
             ) == vq_get_still(
-                glyf[(count_a as i32 - 2) as usize]
+                glyf[(i32::from(count_a) - 2) as usize]
                     .as_deref()
                     .expect("glyph slot is filled")
                     .advance_height
@@ -392,10 +392,10 @@ fn stat_vmtx(font: &mut Font, options: &Options) {
     // `stat_hmtx`'s `metrics`/`left_side_bearing`.
     let mut metrics: Vec<VerticalMetric> = Vec::with_capacity(count_a as usize);
     let mut top_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
-    let mut min_tsb: Pos = 0x7fff as Pos;
-    let mut min_bsb: Pos = 0x7fff as Pos;
-    let mut max_extent: Pos = -0x8000 as Pos;
-    let mut max_height: Length = 0 as Length;
+    let mut min_tsb: Pos = Pos::from(0x7fff);
+    let mut min_bsb: Pos = Pos::from(0x7fff);
+    let mut max_extent: Pos = Pos::from(-0x8000);
+    let mut max_height: Length = Length::from(0);
     for (j, slot) in glyf.iter().enumerate() {
         let g = slot.as_deref().expect("glyph slot is filled");
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
@@ -616,8 +616,8 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     let mut total_width: u32 = 0;
     for slot in glyf.iter() {
         let adw: Pos = vq_get_still(slot.as_deref().expect("glyph slot is filled").advance_width.clone()) as Pos;
-        if adw > 0 as Pos {
-            total_width = (total_width as Pos + adw) as u32;
+        if adw > Pos::from(0) {
+            total_width = (Pos::from(total_width) + adw) as u32;
         }
     }
     let glyf_len = glyf.len();
@@ -652,13 +652,13 @@ fn stat_max_context(font: &mut Font) {
     let mut maxc: u16 = 1;
     if let Some(gsub) = font.gsub.as_deref() {
         let maxc_gsub: u16 = stat_max_context_otl(gsub);
-        if maxc_gsub as i32 > maxc as i32 {
+        if i32::from(maxc_gsub) > i32::from(maxc) {
             maxc = maxc_gsub;
         }
     }
     if let Some(gpos) = font.gpos.as_deref() {
         let maxc_gpos: u16 = stat_max_context_otl(gpos);
-        if maxc_gpos as i32 > maxc as i32 {
+        if i32::from(maxc_gpos) > i32::from(maxc) {
             maxc = maxc_gpos;
         }
     }
@@ -678,14 +678,14 @@ fn stat_cff_widths(font: &mut Font) {
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for g in iter_glyphs(glyf) {
         let int_width: u16 = vq_get_still(g.advance_width.clone()) as u16;
-        if (int_width as i32) < MAX_STAT_METRIC {
+        if i32::from(int_width) < MAX_STAT_METRIC {
             frequency[int_width as usize] = frequency[int_width as usize].wrapping_add(1);
         }
     }
     let mut maxfreq: u16 = 0;
     let mut maxj: u16 = 0;
     for (width, &count) in frequency.iter().enumerate() {
-        if count > maxfreq as u32 {
+        if count > u32::from(maxfreq) {
             maxfreq = count as u16;
             maxj = width as u16;
         }
@@ -694,26 +694,26 @@ fn stat_cff_widths(font: &mut Font) {
     let mut nnsum: u32 = 0;
     for g in iter_glyphs(glyf) {
         let adw: Pos = vq_get_still(g.advance_width.clone()) as Pos;
-        if adw != maxj as i32 as Pos {
-            nn = (nn as i32 + 1) as u16;
-            nnsum = (nnsum as Pos + adw) as u32;
+        if adw != Pos::from(i32::from(maxj)) {
+            nn = (i32::from(nn) + 1) as u16;
+            nnsum = (Pos::from(nnsum) + adw) as u32;
         }
     }
     let mut nominal_width_x: i16 = 0;
-    if nn as i32 > 0 {
-        nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
+    if i32::from(nn) > 0 {
+        nominal_width_x = nnsum.wrapping_div(u32::from(nn)) as i16;
     }
     let cff = font.cff.as_deref_mut().expect("cff table is present");
     if let Some(pd) = cff.private_dict.as_deref_mut() {
-        pd.default_width_x = maxj as f64;
-        if nn as i32 != 0 {
-            pd.nominal_width_x = nominal_width_x as f64;
+        pd.default_width_x = f64::from(maxj);
+        if i32::from(nn) != 0 {
+            pd.nominal_width_x = f64::from(nominal_width_x);
         }
     }
     for fd in cff.fd_array.iter_mut() {
         let pd = fd.private_dict.as_deref_mut().expect("CFF font dict has a private dict");
-        pd.default_width_x = maxj as f64;
-        pd.nominal_width_x = nominal_width_x as f64;
+        pd.default_width_x = f64::from(maxj);
+        pd.nominal_width_x = f64::from(nominal_width_x);
     }
 }
 fn stat_vorg(font: &mut Font) {
@@ -728,7 +728,7 @@ fn stat_vorg(font: &mut Font) {
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for g in iter_glyphs(glyf) {
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
-        if vori >= 0 as Pos && vori < MAX_STAT_METRIC as Pos {
+        if vori >= Pos::from(0) && vori < Pos::from(MAX_STAT_METRIC) {
             frequency[vori as u16 as usize] =
                 frequency[vori as u16 as usize].wrapping_add(1);
         }
@@ -741,19 +741,19 @@ fn stat_vorg(font: &mut Font) {
             maxj = origin as GlyphId;
         }
     }
-    let default_vertical_origin = maxj as Pos;
+    let default_vertical_origin = Pos::from(maxj);
     let mut n_vert_origs: GlyphId = 0 as GlyphId;
     for g in iter_glyphs(glyf) {
         let vertical_origin: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
-        if vertical_origin != maxj as i32 as Pos {
+        if vertical_origin != Pos::from(i32::from(maxj)) {
             n_vert_origs =
-                (n_vert_origs as i32 + 1) as GlyphId;
+                (i32::from(n_vert_origs) + 1) as GlyphId;
         }
     }
     let mut entries: Vec<VorgEntry> = Vec::with_capacity(n_vert_origs as usize);
     for (gid, g) in iter_glyphs(glyf).enumerate() {
         let vori_1: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
-        if vori_1 != maxj as i32 as Pos {
+        if vori_1 != Pos::from(i32::from(maxj)) {
             entries.push(VorgEntry {
                 gid: gid as GlyphId,
                 vertical_origin: vori_1 as i16,
@@ -803,17 +803,17 @@ pub fn stat_font(font: &mut Font, options: &Options) {
         let units_per_em = font.head.as_deref().expect("head table is present").units_per_em;
         let glyf_len = font.glyf.as_ref().map(|g| g.len() as u32);
         let cff = font.cff.as_deref_mut().expect("cff table is present");
-        if cff.font_b_box_bottom > head_y_min as i32 as f64 {
-            cff.font_b_box_bottom = head_y_min as i32 as f64;
+        if cff.font_b_box_bottom > f64::from(i32::from(head_y_min)) {
+            cff.font_b_box_bottom = f64::from(i32::from(head_y_min));
         }
-        if cff.font_b_box_top < head_y_max as i32 as f64 {
-            cff.font_b_box_top = head_y_max as i32 as f64;
+        if cff.font_b_box_top < f64::from(i32::from(head_y_max)) {
+            cff.font_b_box_top = f64::from(i32::from(head_y_max));
         }
-        if cff.font_b_box_left < head_x_min as i32 as f64 {
-            cff.font_b_box_left = head_x_min as i32 as f64;
+        if cff.font_b_box_left < f64::from(i32::from(head_x_min)) {
+            cff.font_b_box_left = f64::from(i32::from(head_x_min));
         }
-        if cff.font_b_box_right < head_x_max as i32 as f64 {
-            cff.font_b_box_right = head_x_max as i32 as f64;
+        if cff.font_b_box_right < f64::from(i32::from(head_x_max)) {
+            cff.font_b_box_right = f64::from(i32::from(head_x_max));
         }
         if let Some(len) = glyf_len
             && cff.is_cid {
@@ -823,27 +823,27 @@ pub fn stat_font(font: &mut Font, options: &Options) {
             cff.font_matrix = None;
             for fd in cff.fd_array.iter_mut() {
                 fd.font_matrix = None;
-                if units_per_em as i32 == 1000 {
+                if i32::from(units_per_em) == 1000 {
                     fd.font_matrix = None;
                 } else {
                     fd.font_matrix = Some(Box::new(CffFontMatrix {
-                        a: (1.0 / units_per_em as i32 as f64) as Scale,
+                        a: (1.0 / f64::from(i32::from(units_per_em))) as Scale,
                         b: 0.0 as Scale,
                         c: 0.0 as Scale,
-                        d: (1.0 / units_per_em as i32 as f64) as Scale,
+                        d: (1.0 / f64::from(i32::from(units_per_em))) as Scale,
                         x: vq_neutral(),
                         y: vq_neutral(),
                     }));
                 }
             }
-        } else if units_per_em as i32 == 1000 {
+        } else if i32::from(units_per_em) == 1000 {
             cff.font_matrix = None;
         } else {
             cff.font_matrix = Some(Box::new(CffFontMatrix {
-                a: (1.0 / units_per_em as i32 as f64) as Scale,
+                a: (1.0 / f64::from(i32::from(units_per_em))) as Scale,
                 b: 0.0 as Scale,
                 c: 0.0 as Scale,
-                d: (1.0 / units_per_em as i32 as f64) as Scale,
+                d: (1.0 / f64::from(i32::from(units_per_em))) as Scale,
                 x: vq_neutral(),
                 y: vq_neutral(),
             }));
@@ -864,13 +864,13 @@ pub fn stat_font(font: &mut Font, options: &Options) {
         stat_maxp(font);
         if let Some(fpgm_length) = font.fpgm.as_ref().map(|f| f.bytes.len() as u32) {
             let maxp = font.maxp.as_deref_mut().expect("maxp table is present");
-            if fpgm_length > maxp.max_size_of_instructions as u32 {
+            if fpgm_length > u32::from(maxp.max_size_of_instructions) {
                 maxp.max_size_of_instructions = fpgm_length as u16;
             }
         }
         if let Some(prep_length) = font.prep.as_ref().map(|p| p.bytes.len() as u32) {
             let maxp = font.maxp.as_deref_mut().expect("maxp table is present");
-            if prep_length > maxp.max_size_of_instructions as u32 {
+            if prep_length > u32::from(maxp.max_size_of_instructions) {
                 maxp.max_size_of_instructions = prep_length as u16;
             }
         }

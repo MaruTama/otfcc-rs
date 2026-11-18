@@ -86,7 +86,7 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
 
     // Built as a local and moved into `subtable` once the branch has
     // succeeded; every early `return None` drops it.
-    let cov: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
+    let cov: Coverage = read_coverage(data, offset.wrapping_add(u32::from(cov_rel)), budget);
     let first_cd = ClassDef {
         maxclass: (cov.len() as i32 - 1) as GlyphClass,
         classes: (0..cov.len()).map(|j| j as GlyphClass).collect(),
@@ -106,7 +106,7 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     }
     let mut pair_set_offsets = Vec::with_capacity(pair_set_count as usize);
     for _ in 0..pair_set_count {
-        pair_set_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+        pair_set_offsets.push(offset.wrapping_add(u32::from(header.u16().unwrap())));
     }
 
     // Check every PairSet's header and record array first.
@@ -132,11 +132,11 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
         for k in 0..pair_counts[i] {
             let second_offset = pso as usize + 2 + stride * k as usize;
             // Already validated by the pass above.
-            let second = FontReader::new(data)
+            let second = i32::from(FontReader::new(data)
                 .at(second_offset)
                 .unwrap()
                 .u16()
-                .unwrap() as i32;
+                .unwrap());
             h.insert(second);
         }
     }
@@ -168,11 +168,11 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     for (j3, &pso) in pair_set_offsets.iter().enumerate() {
         for k1 in 0..pair_counts[j3] {
             let second_offset = pso as usize + 2 + stride * k1 as usize;
-            let second = FontReader::new(data)
+            let second = i32::from(FontReader::new(data)
                 .at(second_offset)
                 .unwrap()
                 .u16()
-                .unwrap() as i32;
+                .unwrap());
             if let Some(idx) = h.get_index_of(&second) {
                 let cid = idx + 1;
                 first_values[j3][cid] =
@@ -214,14 +214,14 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     let len1_0 = position_format_length(format1_0);
     let len2_0 = position_format_length(format2_0);
 
-    let first_coverage: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
+    let first_coverage: Coverage = read_coverage(data, offset.wrapping_add(u32::from(cov_rel)), budget);
     // `expand_class_def` takes the class def it is given and returns a
     // new one.
     let first_cd = expand_class_def(
         &first_coverage,
-        read_class_def(data, offset.wrapping_add(cd1_rel as u32)),
+        read_class_def(data, offset.wrapping_add(u32::from(cd1_rel))),
     );
-    let second_cd = read_class_def(data, offset.wrapping_add(cd2_rel as u32));
+    let second_cd = read_class_def(data, offset.wrapping_add(u32::from(cd2_rel)));
     if first_cd.maxclass as usize + 1 != class1_count as usize {
         return None;
     }
@@ -258,10 +258,10 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
         Vec::with_capacity(class1_count as usize);
     let mut second_values: Vec<Vec<PositionValue>> =
         Vec::with_capacity(class1_count as usize);
-    for j4 in 0..class1_count as u32 {
+    for j4 in 0..u32::from(class1_count) {
         let mut row1 = Vec::with_capacity(class2_count as usize);
         let mut row2 = Vec::with_capacity(class2_count as usize);
-        for k2 in 0..class2_count as u32 {
+        for k2 in 0..u32::from(class2_count) {
             // Safe from u32 overflow: `require_room` above already
             // rejected any input where `total_cells * stride`
             // wouldn't fit in `data`'s own length (itself bounded
@@ -269,9 +269,9 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
             // here is bounded by that.
             let cell_offset = offset
                 .wrapping_add(16)
-                .wrapping_add((j4 * class2_count as u32 + k2) * stride as u32);
+                .wrapping_add((j4 * u32::from(class2_count) + k2) * stride as u32);
             row1.push(read_gpos_value(data, cell_offset, format1_0));
-            row2.push(read_gpos_value(data, cell_offset + len1_0 as u32, format2_0));
+            row2.push(read_gpos_value(data, cell_offset + u32::from(len1_0), format2_0));
         }
         first_values.push(row1);
         second_values.push(row2);
@@ -289,14 +289,14 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     let mut st = BuiltValue::new_object(3);
     st.push_field(b"first", dump_class_def(first_cd));
     st.push_field(b"second", dump_class_def(second_cd));
-    let mut mat = BuiltValue::new_array((first_cd.maxclass as i32 + 1) as usize);
+    let mut mat = BuiltValue::new_array((i32::from(first_cd.maxclass) + 1) as usize);
     for j in 0..=first_cd.maxclass {
-        let mut row = BuiltValue::new_array((second_cd.maxclass as i32 + 1) as usize);
+        let mut row = BuiltValue::new_array((i32::from(second_cd.maxclass) + 1) as usize);
         for k in 0..=second_cd.maxclass {
             let f1: u8 = required_position_format(subtable.first_values[j as usize][k as usize]);
             let f2: u8 = required_position_format(subtable.second_values[j as usize][k as usize]);
             if f1 | f2 != 0 {
-                if f1 as u16 == FORMAT_DWIDTH && f2 == 0 {
+                if u16::from(f1) == FORMAT_DWIDTH && f2 == 0 {
                     row.push_item(BuiltValue::position(
                         subtable.first_values[j as usize][k as usize].d_width,
                     ));
@@ -317,7 +317,7 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
                     row.push_item(pair);
                 }
             } else {
-                row.push_item(BuiltValue::position(0 as Pos));
+                row.push_item(BuiltValue::position(Pos::from(0)));
             }
         }
         mat.push_item(row.preserialize());
@@ -401,26 +401,22 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let mut format1: u16 = 0;
     let mut format2: u16 = 0;
     let class1_count: GlyphClass =
-        (first_cd.maxclass as i32 + 1) as GlyphClass;
+        (i32::from(first_cd.maxclass) + 1) as GlyphClass;
     let class2_count: GlyphClass =
-        (second_cd.maxclass as i32 + 1) as GlyphClass;
+        (i32::from(second_cd.maxclass) + 1) as GlyphClass;
     for j in 0..class1_count {
         for k in 0..class2_count {
-            format1 = (format1 as i32
-                | required_position_format(subtable.first_values[j as usize][k as usize])
-                    as i32) as u16;
-            format2 = (format2 as i32
-                | required_position_format(subtable.second_values[j as usize][k as usize])
-                    as i32) as u16;
+            format1 = (i32::from(format1)
+                | i32::from(required_position_format(subtable.first_values[j as usize][k as usize]))) as u16;
+            format2 = (i32::from(format2)
+                | i32::from(required_position_format(subtable.second_values[j as usize][k as usize]))) as u16;
         }
     }
     let mut pair_counts: Vec<GlyphId> = vec![0 as GlyphId; first_cd.glyphs.len()];
     for (count, &c1) in pair_counts.iter_mut().zip(first_cd.classes.iter()) {
         for &c2 in second_cd.classes.iter() {
-            if required_position_format(subtable.first_values[c1 as usize][c2 as usize])
-                as i32
-                | required_position_format(subtable.second_values[c1 as usize][c2 as usize])
-                    as i32
+            if i32::from(required_position_format(subtable.first_values[c1 as usize][c2 as usize]))
+                | i32::from(required_position_format(subtable.second_values[c1 as usize][c2 as usize]))
                 != 0
             {
                 *count = count.wrapping_add(1);
@@ -435,8 +431,8 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),
         ),
-        bk_int(BkCellType::B16, (format1 as i32) as u32),
-        bk_int(BkCellType::B16, (format2 as i32) as u32),
+        bk_int(BkCellType::B16, i32::from(format1) as u32),
+        bk_int(BkCellType::B16, i32::from(format2) as u32),
         bk_int(
             BkCellType::B16,
             (first_cd.glyphs.len() as i32) as u32,
@@ -446,25 +442,24 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
         let mut current_pair_count: TableId = 0 as TableId;
         let mut c1_0: GlyphClass = 0 as GlyphClass;
         for ((glyph, &c1), &count) in first_cd.glyphs.iter().zip(first_cd.classes.iter()).zip(pair_counts.iter()) {
-            if glyph.index as i32 == cov_entry.index as i32 {
+            if i32::from(glyph.index) == i32::from(cov_entry.index) {
                 c1_0 = c1;
                 current_pair_count = count as TableId;
             }
         }
         let mut pair_set: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
-            (current_pair_count as i32) as u32,
+            i32::from(current_pair_count) as u32,
         )]);
         // Exactly `current_pair_count` entries (the counting pass used the
         // same test), sorted stably.
         let mut pairs: Vec<IndividualGposPair> = Vec::with_capacity(current_pair_count as usize);
         for k_2 in 0..second_cd.glyphs.len() {
             let c2_0: GlyphClass = second_cd.classes[k_2];
-            if required_position_format(subtable.first_values[c1_0 as usize][c2_0 as usize])
-                as i32
-                | required_position_format(
+            if i32::from(required_position_format(subtable.first_values[c1_0 as usize][c2_0 as usize]))
+                | i32::from(required_position_format(
                     subtable.second_values[c1_0 as usize][c2_0 as usize],
-                ) as i32
+                ))
                 != 0
             {
                 pairs.push(IndividualGposPair {
@@ -479,7 +474,7 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
             bk_push(
                 &mut pair_set,
                 vec![
-                    bk_int(BkCellType::B16, (pair.gid as i32) as u32),
+                    bk_int(BkCellType::B16, i32::from(pair.gid) as u32),
                     bk_ptr(BkCellType::Embed, Some(bk_gpos_value(pair.fv, format1))),
                     bk_ptr(BkCellType::Embed, Some(bk_gpos_value(pair.sv, format2))),
                 ],
@@ -498,17 +493,15 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     let mut format1: u16 = 0;
     let mut format2: u16 = 0;
     let class1_count: GlyphClass =
-        (first_cd.maxclass as i32 + 1) as GlyphClass;
+        (i32::from(first_cd.maxclass) + 1) as GlyphClass;
     let class2_count: GlyphClass =
-        (second_cd.maxclass as i32 + 1) as GlyphClass;
+        (i32::from(second_cd.maxclass) + 1) as GlyphClass;
     for j in 0..class1_count {
         for k in 0..class2_count {
-            format1 = (format1 as i32
-                | required_position_format(subtable.first_values[j as usize][k as usize])
-                    as i32) as u16;
-            format2 = (format2 as i32
-                | required_position_format(subtable.second_values[j as usize][k as usize])
-                    as i32) as u16;
+            format1 = (i32::from(format1)
+                | i32::from(required_position_format(subtable.first_values[j as usize][k as usize]))) as u16;
+            format2 = (i32::from(format2)
+                | i32::from(required_position_format(subtable.second_values[j as usize][k as usize]))) as u16;
         }
     }
     let cov: Coverage = cov_from_cd(first_cd);
@@ -518,8 +511,8 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),
         ),
-        bk_int(BkCellType::B16, (format1 as i32) as u32),
-        bk_int(BkCellType::B16, (format2 as i32) as u32),
+        bk_int(BkCellType::B16, i32::from(format1) as u32),
+        bk_int(BkCellType::B16, i32::from(format2) as u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_class_def(first_cd))),
@@ -528,8 +521,8 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_class_def(second_cd))),
         ),
-        bk_int(BkCellType::B16, (class1_count as i32) as u32),
-        bk_int(BkCellType::B16, (class2_count as i32) as u32),
+        bk_int(BkCellType::B16, i32::from(class1_count) as u32),
+        bk_int(BkCellType::B16, i32::from(class2_count) as u32),
     ]);
     for row_i in 0..class1_count {
         for col_i in 0..class2_count {

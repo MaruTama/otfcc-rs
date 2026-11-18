@@ -37,7 +37,7 @@ pub fn otl_read_gsub_single(
             break 'parse;
         };
 
-        let from: Coverage = read_coverage(data, subtable_offset.wrapping_add(from_rel as u32), budget);
+        let from: Coverage = read_coverage(data, subtable_offset.wrapping_add(u32::from(from_rel)), budget);
         if from.is_empty() {
             break 'parse;
         }
@@ -48,7 +48,7 @@ pub fn otl_read_gsub_single(
                 break 'parse;
             };
             from.iter()
-                .map(|h| handle_from_index((h.index as i32 + delta as i32) as GlyphId) as GlyphHandle)
+                .map(|h| handle_from_index((i32::from(h.index) + i32::from(delta)) as GlyphId) as GlyphHandle)
                 .collect()
         } else {
             let Ok(toglyphs) = header.u16() else {
@@ -115,12 +115,12 @@ pub fn build_gsub_single_subtable(
     let mut is_constant_difference: bool = !subtable.is_empty();
     if is_constant_difference {
         let difference: i32 =
-            subtable[0].to.index as i32 - subtable[0].from.index as i32;
-        is_constant_difference = is_constant_difference as i32 != 0
+            i32::from(subtable[0].to.index) - i32::from(subtable[0].from.index);
+        is_constant_difference = i32::from(is_constant_difference) != 0
             && difference < 0x8000
             && difference > -0x8000;
         for entry in subtable.iter().skip(1) {
-            let diff_j: i32 = entry.to.index as i32 - entry.from.index as i32;
+            let diff_j: i32 = i32::from(entry.to.index) - i32::from(entry.from.index);
             is_constant_difference = is_constant_difference
                 && diff_j == difference
                 && diff_j < 0x8000
@@ -132,8 +132,8 @@ pub fn build_gsub_single_subtable(
         push_to_coverage(&mut cov, entry.from.clone());
     }
     let coverage_buf: Buffer =
-        build_coverage_format(&cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16);
-    if is_constant_difference as i32 != 0
+        build_coverage_format(&cov, u16::from(heuristics.contains(BuildHeuristics::GSUB_VERT)));
+    if i32::from(is_constant_difference) != 0
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {
         let b: BkBlock = bk_new_block(vec![
@@ -141,8 +141,8 @@ pub fn build_gsub_single_subtable(
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(
                 BkCellType::B16,
-                (subtable[0].to.index as i32
-                    - subtable[0].from.index as i32) as u32,
+                (i32::from(subtable[0].to.index)
+                    - i32::from(subtable[0].from.index)) as u32,
             ),
         ]);
         bk_build_block(b)
@@ -155,7 +155,7 @@ pub fn build_gsub_single_subtable(
         for entry in subtable.iter() {
             bk_push(
                 &mut sub_block,
-                vec![bk_int(BkCellType::B16, (entry.to.index as i32) as u32)],
+                vec![bk_int(BkCellType::B16, i32::from(entry.to.index) as u32)],
             );
         }
         bk_build_block(sub_block)

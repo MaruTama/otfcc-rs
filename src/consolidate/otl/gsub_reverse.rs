@@ -25,8 +25,8 @@ pub fn consolidate_gsub_reverse(
         fontop_consolidate_coverage(glyph_order, cov);
     }
     fontop_consolidate_coverage(glyph_order, &mut subtable.to);
-    if subtable.input_index as i32 >= subtable.match_count as i32 {
-        subtable.input_index = (subtable.match_count as i32 - 1) as TableId;
+    if i32::from(subtable.input_index) >= i32::from(subtable.match_count) {
+        subtable.input_index = (i32::from(subtable.match_count) - 1) as TableId;
     }
     let input_index = subtable.input_index as usize;
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later
@@ -40,9 +40,9 @@ pub fn consolidate_gsub_reverse(
     // `.zip()` stops at the shorter side on its own, the same bound `n =
     // min(...)` computed by hand.
     for (from, to) in subtable.sequence[input_index].iter().zip(subtable.to.iter()) {
-        let fromid: i32 = from.index as i32;
+        let fromid: i32 = i32::from(from.index);
         if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
-            let toid: i32 = to.index as i32;
+            let toid: i32 = i32::from(to.index);
             let fromname: Vec<u8> = from.name.clone();
             let toname: Vec<u8> = to.name.clone();
             e.insert((fromname, toid, toname));

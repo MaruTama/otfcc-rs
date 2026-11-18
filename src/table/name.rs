@@ -47,8 +47,8 @@ fn should_decode_as_bytes(record: &NameRecord) -> bool {
 fn decode_name(data: &[u8]) -> Result<NameTable, ReadError> {
     let mut header = FontReader::new(data);
     header.skip(2)?; // format, unused
-    let count = header.u16()? as u32;
-    let string_offset = header.u16()? as u32;
+    let count = u32::from(header.u16()?);
+    let string_offset = u32::from(header.u16()?);
     // The record array itself must fit (`6 + 12 * count`, via
     // `checked_mul`/`checked_add`, so an overflowing `count` fails the
     // check instead of wrapping past it).
@@ -111,10 +111,10 @@ pub fn dump_name(name: Option<&NameTable>, root: &mut BuiltValue) {
         let mut _name = BuiltValue::new_array(records.len());
         for r in records.iter() {
             let mut record = BuiltValue::new_object(5);
-            record.push_field(b"platformID", BuiltValue::Int(r.platform_id as i64));
-            record.push_field(b"encodingID", BuiltValue::Int(r.encoding_id as i64));
-            record.push_field(b"languageID", BuiltValue::Int(r.language_id as i64));
-            record.push_field(b"nameID", BuiltValue::Int(r.name_id as i64));
+            record.push_field(b"platformID", BuiltValue::Int(i64::from(r.platform_id)));
+            record.push_field(b"encodingID", BuiltValue::Int(i64::from(r.encoding_id)));
+            record.push_field(b"languageID", BuiltValue::Int(i64::from(r.language_id)));
+            record.push_field(b"nameID", BuiltValue::Int(i64::from(r.name_id)));
             record.push_field(b"nameString", BuiltValue::Str(r.name_string.clone()));
             _name.push_item(record);
         }

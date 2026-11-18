@@ -66,31 +66,31 @@ pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
         b"version",
         BuiltValue::Double(from_fixed(table.version)),
     );
-    hhea.push_field(b"ascender", BuiltValue::Int(table.ascender as i64));
-    hhea.push_field(b"descender", BuiltValue::Int(table.descender as i64));
-    hhea.push_field(b"lineGap", BuiltValue::Int(table.line_gap as i64));
+    hhea.push_field(b"ascender", BuiltValue::Int(i64::from(table.ascender)));
+    hhea.push_field(b"descender", BuiltValue::Int(i64::from(table.descender)));
+    hhea.push_field(b"lineGap", BuiltValue::Int(i64::from(table.line_gap)));
     hhea.push_field(
         b"advanceWidthMax",
-        BuiltValue::Int(table.advance_width_max as i64),
+        BuiltValue::Int(i64::from(table.advance_width_max)),
     );
     hhea.push_field(
         b"minLeftSideBearing",
-        BuiltValue::Int(table.min_left_side_bearing as i64),
+        BuiltValue::Int(i64::from(table.min_left_side_bearing)),
     );
     hhea.push_field(
         b"minRightSideBearing",
-        BuiltValue::Int(table.min_right_side_bearing as i64),
+        BuiltValue::Int(i64::from(table.min_right_side_bearing)),
     );
-    hhea.push_field(b"xMaxExtent", BuiltValue::Int(table.x_max_extent as i64));
+    hhea.push_field(b"xMaxExtent", BuiltValue::Int(i64::from(table.x_max_extent)));
     hhea.push_field(
         b"caretSlopeRise",
-        BuiltValue::Int(table.caret_slope_rise as i64),
+        BuiltValue::Int(i64::from(table.caret_slope_rise)),
     );
     hhea.push_field(
         b"caretSlopeRun",
-        BuiltValue::Int(table.caret_slope_run as i64),
+        BuiltValue::Int(i64::from(table.caret_slope_run)),
     );
-    hhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
+    hhea.push_field(b"caretOffset", BuiltValue::Int(i64::from(table.caret_offset)));
     root.push_field(b"hhea", hhea);
     stage.finish();
 }

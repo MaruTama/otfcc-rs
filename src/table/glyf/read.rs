@@ -75,7 +75,7 @@ fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut Shap
     // are, before indexing.
     while *cp as usize >= contours[*cc as usize].len() {
         *cp = 0 as ShapeId;
-        *cc = (*cc as i32 + 1) as ShapeId;
+        *cc = (i32::from(*cc) + 1) as ShapeId;
     }
     let point = &mut contours[*cc as usize][*cp as usize];
     *cp = (*cp).wrapping_add(1);
@@ -101,14 +101,14 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         let last_point_in_current_contour: ShapeId = r.u16().unwrap(); // room already validated above
         // A non-monotonic `endPtsOfContours` gives a negative length; reject
         // it rather than turn it into a huge point count.
-        let n = last_point_in_current_contour as i64 - points_in_glyph as i64 + 1;
+        let n = i64::from(last_point_in_current_contour) - i64::from(points_in_glyph) + 1;
         if n < 0 {
             return None;
         }
         let mut contour: Contour = Vec::new();
         glyf_contour_fill(&mut contour, n as usize);
         g.contours.push(contour);
-        points_in_glyph = last_point_in_current_contour as u32 + 1;
+        points_in_glyph = u32::from(last_point_in_current_contour) + 1;
     }
     let instruction_length: u16 = r.u16().ok()?;
     let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
@@ -121,7 +121,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         let flag: PointFlags = PointFlags::from_bits_retain(r.u8().ok()?);
         flags[flags_read_sofar] = flag.bits();
         flags_read_sofar += 1;
-        next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
+        next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = i8::from(flag.contains(PointFlags::ON_CURVE));
         if flag.contains(PointFlags::REPEAT) {
             let repeat: u8 = r.u8().ok()?;
             // A repeat run must not go past the declared point count.
@@ -130,7 +130,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
             }
             for _ in 0..repeat {
                 flags[flags_read_sofar] = flag.bits();
-                next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
+                next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = i8::from(flag.contains(PointFlags::ON_CURVE));
                 flags_read_sofar += 1;
             }
         }
@@ -140,7 +140,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
     for &f in flags.iter() {
         let x_flags: PointFlags = PointFlags::from_bits_retain(f);
         let x: i16 = if x_flags.contains(PointFlags::X_SHORT) {
-            let mag = r.u8().ok()? as i16;
+            let mag = i16::from(r.u8().ok()?);
             if x_flags.contains(PointFlags::POSITIVE_X) {
                 mag
             } else {
@@ -152,14 +152,14 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
             r.i16().ok()?
         };
         next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).x =
-            vq_create_still(x as Pos);
+            vq_create_still(Pos::from(x));
     }
     current_contour = 0 as ShapeId;
     current_contour_point_index = 0 as ShapeId;
     for &f in flags.iter() {
         let y_flags: PointFlags = PointFlags::from_bits_retain(f);
         let y: i16 = if y_flags.contains(PointFlags::Y_SHORT) {
-            let mag = r.u8().ok()? as i16;
+            let mag = i16::from(r.u8().ok()?);
             if y_flags.contains(PointFlags::POSITIVE_Y) {
                 mag
             } else {
@@ -171,7 +171,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
             r.i16().ok()?
         };
         next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).y =
-            vq_create_still(y as Pos);
+            vq_create_still(Pos::from(y));
     }
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
@@ -201,11 +201,11 @@ fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
             glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::Xy);
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                glyph_ref.x = std::cell::RefCell::new(vq_create_still(r.i16().ok()? as Pos));
-                glyph_ref.y = std::cell::RefCell::new(vq_create_still(r.i16().ok()? as Pos));
+                glyph_ref.x = std::cell::RefCell::new(vq_create_still(Pos::from(r.i16().ok()?)));
+                glyph_ref.y = std::cell::RefCell::new(vq_create_still(Pos::from(r.i16().ok()?)));
             } else {
-                glyph_ref.x = std::cell::RefCell::new(vq_create_still(r.i8().ok()? as Pos));
-                glyph_ref.y = std::cell::RefCell::new(vq_create_still(r.i8().ok()? as Pos));
+                glyph_ref.x = std::cell::RefCell::new(vq_create_still(Pos::from(r.i8().ok()?)));
+                glyph_ref.y = std::cell::RefCell::new(vq_create_still(Pos::from(r.i8().ok()?)));
             }
         } else {
             glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorAnchor);
@@ -213,8 +213,8 @@ fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
                 glyph_ref.outer = r.u16().ok()? as ShapeId;
                 glyph_ref.inner = r.u16().ok()? as ShapeId;
             } else {
-                glyph_ref.outer = r.u8().ok()? as ShapeId;
-                glyph_ref.inner = r.u8().ok()? as ShapeId;
+                glyph_ref.outer = ShapeId::from(r.u8().ok()?);
+                glyph_ref.inner = ShapeId::from(r.u8().ok()?);
             }
         }
         if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
@@ -258,10 +258,10 @@ fn read_glyph(body: &[u8], offset: usize, length: usize) -> Option<Box<Glyph>> {
     let glyph_bytes = body.get(offset..)?.get(..length)?;
     let mut r = FontReader::new(glyph_bytes);
     let number_of_contours: i16 = r.i16().ok()?;
-    let x_min = r.i16().ok()? as Pos;
-    let y_min = r.i16().ok()? as Pos;
-    let x_max = r.i16().ok()? as Pos;
-    let y_max = r.i16().ok()? as Pos;
+    let x_min = Pos::from(r.i16().ok()?);
+    let y_min = Pos::from(r.i16().ok()?);
+    let x_max = Pos::from(r.i16().ok()?);
+    let y_max = Pos::from(r.i16().ok()?);
     // Every one of the 5 header reads above succeeded, so at least 10
     // bytes exist -- slicing the body here can't panic.
     let body = &glyph_bytes[10..];
@@ -316,9 +316,9 @@ fn parse_point_numbers(
     let first_byte: u8 = r.u8().ok()?;
     let n_points: u16 = if first_byte & POINT_COUNT_IS_WORD != 0 {
         let second_byte: u8 = r.u8().ok()?;
-        ((first_byte as u16) << 8 | second_byte as u16) & POINT_COUNT_LONG_MASK
+        (u16::from(first_byte) << 8 | u16::from(second_byte)) & POINT_COUNT_LONG_MASK
     } else {
-        first_byte as u16
+        u16::from(first_byte)
     };
     let mut point_indeces: Vec<ShapeId>;
     if n_points > 0 {
@@ -332,7 +332,7 @@ fn parse_point_numbers(
             if run.length == 0 {
                 let run_header: u8 = r.u8().ok()?;
                 run.wide = run_header & POINTS_ARE_WORDS != 0;
-                run.length = (run_header & POINT_RUN_COUNT_MASK) as ShapeId + 1;
+                run.length = ShapeId::from(run_header & POINT_RUN_COUNT_MASK) + 1;
             }
             let mut point_number: i16 = j_point as i16;
             if run.wide {
@@ -343,9 +343,9 @@ fn parse_point_numbers(
                 let b = r.bytes(2).ok()?;
                 let raw = u16::from_ne_bytes([b[0], b[1]]);
                 point_number =
-                    (point_number as i32 + raw as i32) as i16;
+                    (i32::from(point_number) + i32::from(raw)) as i16;
             } else {
-                point_number = (point_number as i32 + r.u8().ok()? as i32) as i16;
+                point_number = (i32::from(point_number) + i32::from(r.u8().ok()?)) as i16;
             }
             point_indeces.push(point_number as ShapeId);
             j_point = point_number as ShapeId;
@@ -378,16 +378,16 @@ fn read_packed_delta(
             let run_header: u8 = r.u8().ok()?;
             run.zero = run_header & DELTAS_ARE_ZERO != 0;
             run.wide = run_header & DELTAS_ARE_WORDS != 0;
-            run.length = (run_header & DELTA_RUN_COUNT_MASK) as ShapeId + 1;
+            run.length = ShapeId::from(run_header & DELTA_RUN_COUNT_MASK) + 1;
         }
         if !run.zero {
             if run.wide {
                 delta = r.i16().ok()?;
             } else {
-                delta = r.i8().ok()? as i16;
+                delta = i16::from(r.i8().ok()?);
             }
         }
-        deltas[filled as usize] = delta as Pos;
+        deltas[filled as usize] = Pos::from(delta);
         run.length = run.length.wrapping_sub(1);
     }
     Some(r.pos())
@@ -401,25 +401,25 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
         if !nudges[j as usize].is_touched() {
             let mut j_next: ShapeId = j;
             while !nudges[j_next as usize].is_touched() {
-                if j_next as i32
-                    == j_max as i32 - 1
+                if i32::from(j_next)
+                    == i32::from(j_max) - 1
                 {
                     j_next = j_min;
                 } else {
-                    j_next = (j_next as i32 + 1) as ShapeId;
+                    j_next = (i32::from(j_next) + 1) as ShapeId;
                 }
-                if j_next as i32 == j as i32 {
+                if i32::from(j_next) == i32::from(j) {
                     break;
                 }
             }
             let mut j_prev: ShapeId = j;
             while !nudges[j_prev as usize].is_touched() {
-                if j_prev as i32 == j_min as i32 {
-                    j_prev = (j_max as i32 - 1) as ShapeId;
+                if i32::from(j_prev) == i32::from(j_min) {
+                    j_prev = (i32::from(j_max) - 1) as ShapeId;
                 } else {
-                    j_prev = (j_prev as i32 - 1) as ShapeId;
+                    j_prev = (i32::from(j_prev) - 1) as ShapeId;
                 }
-                if j_prev as i32 == j as i32 {
+                if i32::from(j_prev) == i32::from(j) {
                     break;
                 }
             }
@@ -477,7 +477,7 @@ fn apply_coords(
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     for _ in 0..total_points {
         nudges.push(VqSegment::Delta(VqSegmentDelta {
-            quantity: 0 as Pos,
+            quantity: Pos::from(0),
             touched: false,
             region: Rc::clone(r),
         }));
@@ -488,7 +488,7 @@ fn apply_coords(
         .zip(tuple_delta.iter())
         .take(n_touched_points as usize)
     {
-        if (idx as i32) < total_points as i32 {
+        if i32::from(idx) < i32::from(total_points) {
             let d = nudges[idx as usize].delta_mut();
             d.touched = true;
             d.quantity += delta;
@@ -585,7 +585,7 @@ fn apply_polymorphism(
         j += 1;
     }
 
-    if (total_points as i32 + 1) < n_touched_points as i32 {
+    if (i32::from(total_points) + 1) < i32::from(n_touched_points) {
         vq_add_delta(
             &mut glyph.horizontal_origin,
             true,
@@ -596,22 +596,22 @@ fn apply_polymorphism(
             &mut glyph.advance_width,
             true,
             r,
-            delta_x[(total_points as i32 + 1) as usize] - delta_x[total_points as usize],
+            delta_x[(i32::from(total_points) + 1) as usize] - delta_x[total_points as usize],
         );
     }
-    if (total_points as i32 + 3) < n_touched_points as i32 {
+    if (i32::from(total_points) + 3) < i32::from(n_touched_points) {
         vq_add_delta(
             &mut glyph.vertical_origin,
             true,
             r,
-            delta_y[(total_points as i32 + 2) as usize],
+            delta_y[(i32::from(total_points) + 2) as usize],
         );
         vq_add_delta(
             &mut glyph.advance_height,
             true,
             r,
-            delta_y[(total_points as i32 + 2) as usize]
-                - delta_y[(total_points as i32 + 3) as usize],
+            delta_y[(i32::from(total_points) + 2) as usize]
+                - delta_y[(i32::from(total_points) + 3) as usize],
         );
     }
 }
@@ -634,17 +634,17 @@ fn create_region_from_tuples(
         };
         let peak_val: Pos = from_f2dot14(peak_raw as F2Dot14) as Pos;
         let mut span: VqAxisSpan = VqAxisSpan {
-            start: (if peak_val <= 0 as Pos {
+            start: Pos::from(if peak_val <= Pos::from(0) {
                 -1
             } else {
                 0
-            }) as Pos,
+            } ),
             peak: peak_val,
-            end: (if peak_val >= 0 as Pos {
+            end: Pos::from(if peak_val >= Pos::from(0) {
                 1
             } else {
                 0
-            }) as Pos,
+            } ),
         };
         if let Some(start_offset) = range_offset {
             let end_offset = start_offset + dimensions as usize * 2;
@@ -687,8 +687,8 @@ fn polymorphize_glyph(
         total_points = (total_points as usize).wrapping_add(c.len()) as ShapeId;
     }
     total_points = (total_points as usize).wrapping_add(glyph.references.len()) as ShapeId;
-    let total_delta_entries: ShapeId = (total_points as i32
-        + ctx.n_phantom_points as i32)
+    let total_delta_entries: ShapeId = (i32::from(total_points)
+        + i32::from(ctx.n_phantom_points))
         as ShapeId;
 
     let mut header = FontReader::new(gvar).at(gvd_offset).ok()?;
@@ -757,8 +757,8 @@ fn polymorphize_glyph(
             point_indeces = ::std::borrow::Cow::Borrowed(&shared_point_indeces);
         }
         if !point_indeces.is_empty() {
-            let mut delta_x: Vec<Pos> = vec![0 as Pos; n_points as usize];
-            let mut delta_y: Vec<Pos> = vec![0 as Pos; n_points as usize];
+            let mut delta_x: Vec<Pos> = vec![Pos::from(0); n_points as usize];
+            let mut delta_y: Vec<Pos> = vec![Pos::from(0); n_points as usize];
             let after_x = read_packed_delta(gvar, after_points, n_points, &mut delta_x)?;
             read_packed_delta(gvar, after_x, n_points, &mut delta_y)?;
             // `apply_polymorphism` is a safe `fn` now; `glyph` reborrows
@@ -830,7 +830,7 @@ fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'
                 .at(OFFSET_ARRAY_BASE + j * 2)
                 .ok()
                 .and_then(|mut r| r.u16().ok())
-                .map(|v| v as u32 * 2)
+                .map(|v| u32::from(v) * 2)
         }) else {
             continue;
         };
@@ -874,7 +874,7 @@ pub fn read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTab
     // the table uses.
     let mut loca_r = FontReader::new(&loca.data);
     let mut found_loca = true;
-    for j in 0..=(num_glyphs as u32) {
+    for j in 0..=u32::from(num_glyphs) {
         let v = if ctx.loca_is_long {
             match loca_r.u32() {
                 Ok(v) => v,
@@ -885,7 +885,7 @@ pub fn read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTab
             }
         } else {
             match loca_r.u16() {
-                Ok(v) => (v as u32) * 2,
+                Ok(v) => u32::from(v) * 2,
                 Err(_) => {
                     found_loca = false;
                     break;

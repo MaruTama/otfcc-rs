@@ -87,21 +87,21 @@ pub fn dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue) {
     };
     let stage = crate::logger::stage("VDMX");
     let mut _vdmx = BuiltValue::new_object(2);
-    _vdmx.push_field(b"version", BuiltValue::Int(vdmx.version as i64));
+    _vdmx.push_field(b"version", BuiltValue::Int(i64::from(vdmx.version)));
     let ratios = &vdmx.ratios;
     let mut _ratios = BuiltValue::new_array(ratios.len());
     for rr in ratios.iter() {
         let mut _rr = BuiltValue::new_object(5);
-        _rr.push_field(b"bCharset", BuiltValue::Int(rr.b_charset as i64));
-        _rr.push_field(b"xRatio", BuiltValue::Int(rr.x_ratio as i64));
-        _rr.push_field(b"yStartRatio", BuiltValue::Int(rr.y_start_ratio as i64));
-        _rr.push_field(b"yEndRatio", BuiltValue::Int(rr.y_end_ratio as i64));
+        _rr.push_field(b"bCharset", BuiltValue::Int(i64::from(rr.b_charset)));
+        _rr.push_field(b"xRatio", BuiltValue::Int(i64::from(rr.x_ratio)));
+        _rr.push_field(b"yStartRatio", BuiltValue::Int(i64::from(rr.y_start_ratio)));
+        _rr.push_field(b"yEndRatio", BuiltValue::Int(i64::from(rr.y_end_ratio)));
         let mut _records = BuiltValue::new_array(rr.records.len());
         for r in rr.records.iter() {
             let mut _r = BuiltValue::new_object(3);
-            _r.push_field(b"yPelHeight", BuiltValue::Int(r.y_pel_height as i64));
-            _r.push_field(b"yMax", BuiltValue::Int(r.y_max as i64));
-            _r.push_field(b"yMin", BuiltValue::Int(r.y_min as i64));
+            _r.push_field(b"yPelHeight", BuiltValue::Int(i64::from(r.y_pel_height)));
+            _r.push_field(b"yMax", BuiltValue::Int(i64::from(r.y_max)));
+            _r.push_field(b"yMin", BuiltValue::Int(i64::from(r.y_min)));
             _records.push_item(_r);
         }
         _rr.push_field(b"records", _records);
@@ -166,7 +166,7 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
         return None;
     }
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, (vdmx.version as i32) as u32),
+        bk_int(BkCellType::B16, i32::from(vdmx.version) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
     ]);
@@ -174,15 +174,15 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
         bk_push(
             &mut root,
             vec![
-                bk_int(BkCellType::B8, (rr.b_charset as i32) as u32),
-                bk_int(BkCellType::B8, (rr.x_ratio as i32) as u32),
+                bk_int(BkCellType::B8, i32::from(rr.b_charset) as u32),
+                bk_int(BkCellType::B8, i32::from(rr.x_ratio) as u32),
                 bk_int(
                     BkCellType::B8,
-                    (rr.y_start_ratio as i32) as u32,
+                    i32::from(rr.y_start_ratio) as u32,
                 ),
                 bk_int(
                     BkCellType::B8,
-                    (rr.y_end_ratio as i32) as u32,
+                    i32::from(rr.y_end_ratio) as u32,
                 ),
             ],
         );
@@ -191,17 +191,17 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
         let mut startsz: u16 = 0xffff;
         let mut endsz: u16 = 0;
         for r in rr_0.records.iter() {
-            if startsz as i32 > r.y_pel_height as i32 {
+            if i32::from(startsz) > i32::from(r.y_pel_height) {
                 startsz = r.y_pel_height;
             }
-            if (endsz as i32) < r.y_pel_height as i32 {
+            if i32::from(endsz) < i32::from(r.y_pel_height) {
                 endsz = r.y_pel_height;
             }
         }
         let mut group: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, (rr_0.records.len()) as u32),
-            bk_int(BkCellType::B8, (startsz as i32) as u32),
-            bk_int(BkCellType::B8, (endsz as i32) as u32),
+            bk_int(BkCellType::B8, i32::from(startsz) as u32),
+            bk_int(BkCellType::B8, i32::from(endsz) as u32),
         ]);
         for r_0 in rr_0.records.iter() {
             bk_push(
@@ -209,10 +209,10 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
                 vec![
                     bk_int(
                         BkCellType::B16,
-                        (r_0.y_pel_height as i32) as u32,
+                        i32::from(r_0.y_pel_height) as u32,
                     ),
-                    bk_int(BkCellType::B16, (r_0.y_max as i32) as u32),
-                    bk_int(BkCellType::B16, (r_0.y_min as i32) as u32),
+                    bk_int(BkCellType::B16, i32::from(r_0.y_max) as u32),
+                    bk_int(BkCellType::B16, i32::from(r_0.y_min) as u32),
                 ],
             );
         }

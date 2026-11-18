@@ -112,34 +112,34 @@ pub fn dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     );
     head.push_field(
         b"flags",
-        BuiltValue::dump_flags(table.flags as i32, &HEAD_FLAGS_LABELS),
+        BuiltValue::dump_flags(i32::from(table.flags), &HEAD_FLAGS_LABELS),
     );
-    head.push_field(b"unitsPerEm", BuiltValue::Int(table.units_per_em as i64));
+    head.push_field(b"unitsPerEm", BuiltValue::Int(i64::from(table.units_per_em)));
     head.push_field(b"created", BuiltValue::Int(table.created));
     head.push_field(b"modified", BuiltValue::Int(table.modified));
-    head.push_field(b"xMin", BuiltValue::Int(table.x_min as i64));
-    head.push_field(b"xMax", BuiltValue::Int(table.x_max as i64));
-    head.push_field(b"yMin", BuiltValue::Int(table.y_min as i64));
-    head.push_field(b"yMax", BuiltValue::Int(table.y_max as i64));
+    head.push_field(b"xMin", BuiltValue::Int(i64::from(table.x_min)));
+    head.push_field(b"xMax", BuiltValue::Int(i64::from(table.x_max)));
+    head.push_field(b"yMin", BuiltValue::Int(i64::from(table.y_min)));
+    head.push_field(b"yMax", BuiltValue::Int(i64::from(table.y_max)));
     head.push_field(
         b"macStyle",
-        BuiltValue::dump_flags(table.mac_style as i32, &MAC_STYLE_LABELS),
+        BuiltValue::dump_flags(i32::from(table.mac_style), &MAC_STYLE_LABELS),
     );
     head.push_field(
         b"lowestRecPPEM",
-        BuiltValue::Int(table.lowest_rec_ppem as i64),
+        BuiltValue::Int(i64::from(table.lowest_rec_ppem)),
     );
     head.push_field(
         b"fontDirectoryHint",
-        BuiltValue::Int(table.font_directory_hint as i64),
+        BuiltValue::Int(i64::from(table.font_directory_hint)),
     );
     head.push_field(
         b"indexToLocFormat",
-        BuiltValue::Int(table.index_to_loc_format as i64),
+        BuiltValue::Int(i64::from(table.index_to_loc_format)),
     );
     head.push_field(
         b"glyphDataFormat",
-        BuiltValue::Int(table.glyph_data_format as i64),
+        BuiltValue::Int(i64::from(table.glyph_data_format)),
     );
     root.push_field(b"head", head);
     stage.finish();

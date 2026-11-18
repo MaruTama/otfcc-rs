@@ -128,7 +128,7 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
                 && let Ok(mut lr) = FontReader::new(data).at(offset_palette_label_array)
                     && lr.require_room(num_palettes, 2).is_ok() {
                         for p in palettes.iter_mut() {
-                            p.label = lr.u16().unwrap() as u32;
+                            p.label = u32::from(lr.u16().unwrap());
                         }
                     }
         }
@@ -159,14 +159,14 @@ pub fn read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
 #[inline]
 fn dump_color(color: &CpalColor) -> BuiltValue {
     let mut _color = BuiltValue::new_object(5);
-    _color.push_field(b"red", BuiltValue::Int(color.red as i64));
-    _color.push_field(b"green", BuiltValue::Int(color.green as i64));
-    _color.push_field(b"blue", BuiltValue::Int(color.blue as i64));
-    if color.alpha as i32 != 0xff {
-        _color.push_field(b"alpha", BuiltValue::Int(color.alpha as i64));
+    _color.push_field(b"red", BuiltValue::Int(i64::from(color.red)));
+    _color.push_field(b"green", BuiltValue::Int(i64::from(color.green)));
+    _color.push_field(b"blue", BuiltValue::Int(i64::from(color.blue)));
+    if i32::from(color.alpha) != 0xff {
+        _color.push_field(b"alpha", BuiltValue::Int(i64::from(color.alpha)));
     }
-    if color.label as i32 != 0xffff {
-        _color.push_field(b"label", BuiltValue::Int(color.label as i64));
+    if i32::from(color.label) != 0xffff {
+        _color.push_field(b"label", BuiltValue::Int(i64::from(color.label)));
     }
     _color.preserialize()
 }
@@ -174,10 +174,10 @@ fn dump_color(color: &CpalColor) -> BuiltValue {
 fn dump_palette(palette: &CpalPalette) -> BuiltValue {
     let mut _palette = BuiltValue::new_object(3);
     if palette.palette_type != 0 {
-        _palette.push_field(b"type", BuiltValue::Int(palette.palette_type as i64));
+        _palette.push_field(b"type", BuiltValue::Int(i64::from(palette.palette_type)));
     }
     if palette.label != 0xffff {
-        _palette.push_field(b"label", BuiltValue::Int(palette.label as i64));
+        _palette.push_field(b"label", BuiltValue::Int(i64::from(palette.label)));
     }
     let colorset: &Vec<CpalColor> = &palette.colorset;
     let mut a = BuiltValue::new_array(colorset.len());
@@ -196,7 +196,7 @@ pub fn dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue) {
     let palettes: &Vec<CpalPalette> = &table.palettes;
     {
         let mut _t = BuiltValue::new_object(2);
-        _t.push_field(b"version", BuiltValue::Int(table.version as i64));
+        _t.push_field(b"version", BuiltValue::Int(i64::from(table.version)));
         let mut _a = BuiltValue::new_array(palettes.len());
         for p in palettes.iter() {
             _a.push_item(dump_palette(p));
@@ -284,12 +284,12 @@ fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
 fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
     let palette: &CpalPalette = &palettes[0];
-    if !palette.colorset.iter().any(|c| c.label as i32 != 0xffff) {
+    if !palette.colorset.iter().any(|c| i32::from(c.label) != 0xffff) {
         return None;
     }
     let mut block: BkBlock = bk_new_block(Vec::new());
     for c in palette.colorset.iter() {
-        bk_push(&mut block, vec![bk_int(BkCellType::B16, (c.label as i32) as u32)]);
+        bk_push(&mut block, vec![bk_int(BkCellType::B16, i32::from(c.label) as u32)]);
     }
     Some(block)
 }
@@ -302,12 +302,12 @@ pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     let num_palettes: u16 = palettes.len() as u16;
     let num_palettes_entries: u16 = palettes[0].colorset.len() as u16;
     let num_color_records: u16 =
-        (num_palettes as i32 * num_palettes_entries as i32) as u16;
+        (i32::from(num_palettes) * i32::from(num_palettes_entries)) as u16;
     let mut color_records: BkBlock = bk_new_block(Vec::new());
     for palette in palettes.iter().take(num_palettes as usize) {
         let total_colors: ColorId = palette.colorset.len() as ColorId;
         for k in 0..num_palettes_entries {
-            let color: &CpalColor = if (k as i32) < total_colors as i32 {
+            let color: &CpalColor = if i32::from(k) < i32::from(total_colors) {
                 &palette.colorset[k as usize]
             } else {
                 &WHITE
@@ -315,15 +315,15 @@ pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
             bk_push(
                 &mut color_records,
                 vec![
-                    bk_int(BkCellType::B8, (color.blue as i32) as u32),
+                    bk_int(BkCellType::B8, i32::from(color.blue) as u32),
                     bk_int(
                         BkCellType::B8,
-                        (color.green as i32) as u32,
+                        i32::from(color.green) as u32,
                     ),
-                    bk_int(BkCellType::B8, (color.red as i32) as u32),
+                    bk_int(BkCellType::B8, i32::from(color.red) as u32),
                     bk_int(
                         BkCellType::B8,
-                        (color.alpha as i32) as u32,
+                        i32::from(color.alpha) as u32,
                     ),
                 ],
             );
@@ -332,16 +332,16 @@ pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(
             BkCellType::B16,
-            (cpal.version as i32) as u32,
+            i32::from(cpal.version) as u32,
         ),
         bk_int(
             BkCellType::B16,
-            (num_palettes_entries as i32) as u32,
+            i32::from(num_palettes_entries) as u32,
         ),
-        bk_int(BkCellType::B16, (num_palettes as i32) as u32),
+        bk_int(BkCellType::B16, i32::from(num_palettes) as u32),
         bk_int(
             BkCellType::B16,
-            (num_color_records as i32) as u32,
+            i32::from(num_color_records) as u32,
         ),
         bk_ptr(BkCellType::P32, Some(color_records)),
     ]);
@@ -350,11 +350,11 @@ pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
             &mut root,
             vec![bk_int(
                 BkCellType::B16,
-                (num_palettes_entries as i32 * j_0 as i32) as u32,
+                (i32::from(num_palettes_entries) * i32::from(j_0)) as u32,
             )],
         );
     }
-    if cpal.version as i32 > 0 {
+    if i32::from(cpal.version) > 0 {
         bk_push(
             &mut root,
             vec![

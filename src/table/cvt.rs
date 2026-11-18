@@ -37,7 +37,7 @@ pub fn dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, tag: &[u8]) {
     {
         let mut arr = BuiltValue::new_array(table.words.len());
         for &w in &table.words {
-            arr.push_item(BuiltValue::Int(w as i64));
+            arr.push_item(BuiltValue::Int(i64::from(w)));
         }
         root.push_field(tag, arr);
         stage.finish();

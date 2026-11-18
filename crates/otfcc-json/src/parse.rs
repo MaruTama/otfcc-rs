@@ -473,12 +473,12 @@ impl<'a> Parser<'a> {
                         b'r' => out.push(b'\r'),
                         b't' => out.push(b'\t'),
                         b'u' => {
-                            let mut cp = self.parse_hex4()? as u32;
+                            let mut cp = u32::from(self.parse_hex4()?);
                             if (0xd800..=0xdbff).contains(&cp) {
                                 // High surrogate: a low surrogate must follow.
                                 self.expect(b'\\')?;
                                 self.expect(b'u')?;
-                                let lo = self.parse_hex4()? as u32;
+                                let lo = u32::from(self.parse_hex4()?);
                                 if !(0xdc00..=0xdfff).contains(&lo) {
                                     return None;
                                 }
@@ -514,7 +514,7 @@ impl<'a> Parser<'a> {
                 b'A'..=b'F' => b - b'A' + 10,
                 _ => return None,
             };
-            v = v.wrapping_mul(16).wrapping_add(digit as u16);
+            v = v.wrapping_mul(16).wrapping_add(u16::from(digit));
         }
         Some(v)
     }
@@ -547,7 +547,7 @@ impl<'a> Parser<'a> {
             if digits == 0 && b == b'0' {
                 leading_zero = true;
             }
-            int_val = int_val.wrapping_mul(10).wrapping_add((b - b'0') as i64);
+            int_val = int_val.wrapping_mul(10).wrapping_add(i64::from(b - b'0'));
             digits += 1;
             self.pos += 1;
         }
@@ -566,14 +566,14 @@ impl<'a> Parser<'a> {
             let mut frac: i64 = 0;
             let mut frac_digits = 0u32;
             while let Some(b @ b'0'..=b'9') = self.peek() {
-                frac = frac.wrapping_mul(10).wrapping_add((b - b'0') as i64);
+                frac = frac.wrapping_mul(10).wrapping_add(i64::from(b - b'0'));
                 frac_digits += 1;
                 self.pos += 1;
             }
             if frac_digits == 0 {
                 return None; // "5." with no digit after the dot
             }
-            dbl += frac as f64 / 10.0_f64.powf(frac_digits as f64);
+            dbl += frac as f64 / 10.0_f64.powf(f64::from(frac_digits));
         }
 
         if matches!(self.peek(), Some(b'e' | b'E')) {
@@ -596,7 +596,7 @@ impl<'a> Parser<'a> {
             let mut exp: i64 = 0;
             let mut exp_digits = 0u32;
             while let Some(b @ b'0'..=b'9') = self.peek() {
-                exp = exp.wrapping_mul(10).wrapping_add((b - b'0') as i64);
+                exp = exp.wrapping_mul(10).wrapping_add(i64::from(b - b'0'));
                 exp_digits += 1;
                 self.pos += 1;
             }

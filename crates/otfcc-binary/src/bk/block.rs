@@ -130,7 +130,7 @@ pub fn bk_ptr(t: BkCellType, p: Option<BkBlock>) -> BkCell {
 pub fn bk_new_block_from_bytes(data: &[u8]) -> BkBlock {
     let mut b = bk_new_block(Vec::new());
     for &byte in data {
-        b.cells.push(bk_int(BkCellType::B8, byte as u32));
+        b.cells.push(bk_int(BkCellType::B8, u32::from(byte)));
     }
     b
 }

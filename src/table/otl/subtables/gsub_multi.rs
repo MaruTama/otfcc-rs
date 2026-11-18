@@ -66,7 +66,7 @@ pub fn otl_read_gsub_multi(
             break 'parse;
         };
 
-        let from: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32), budget);
+        let from: Coverage = read_coverage(data, offset.wrapping_add(u32::from(from_rel)), budget);
         if seq_count as usize != from.len() {
             break 'parse;
         }
@@ -76,7 +76,7 @@ pub fn otl_read_gsub_multi(
 
         let mut total_outputs: u32 = 0;
         for j in 0..seq_count {
-            let seq_offset = offset.wrapping_add(header.u16().unwrap() as u32);
+            let seq_offset = offset.wrapping_add(u32::from(header.u16().unwrap()));
             let Ok(mut sr) = FontReader::new(data).at(seq_offset as usize) else {
                 break 'parse;
             };
@@ -84,7 +84,7 @@ pub fn otl_read_gsub_multi(
             if sr.require_room(n as usize, 2).is_err() {
                 break 'parse;
             }
-            total_outputs = total_outputs.saturating_add(n as u32);
+            total_outputs = total_outputs.saturating_add(u32::from(n));
             if total_outputs > MAX_TOTAL_GSUB_MULTI_OUTPUTS {
                 break 'parse;
             }
@@ -152,7 +152,7 @@ fn build_gsub_multi_subtable_range(
         ),
         bk_int(
             BkCellType::B16,
-            (end as i32 - start as i32) as u32,
+            (i32::from(end) - i32::from(start)) as u32,
         ),
     ]);
     for idx in start..end {
@@ -166,7 +166,7 @@ fn build_gsub_multi_subtable_range(
                 &mut b,
                 vec![bk_int(
                     BkCellType::B16,
-                    (entry.index as i32) as u32,
+                    i32::from(entry.index) as u32,
                 )],
             );
         }
@@ -192,7 +192,7 @@ pub fn build_gsub_multi_subtable_split(
                 + 2
                 + 2) as usize)
                 .wrapping_add((subtable[end as usize].to.len()).wrapping_mul(2));
-            if end as i32 > start as i32
+            if i32::from(end) > i32::from(start)
                 && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT
             {
                 break;

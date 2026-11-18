@@ -18,7 +18,7 @@ use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm};
 
 fn by_stem_pos(a: &PostscriptStemDef, b: &PostscriptStemDef) -> i32 {
     if a.position == b.position {
-        a.map as i32 - b.map as i32
+        i32::from(a.map) - i32::from(b.map)
     } else if a.position > b.position {
         1
     } else {
@@ -26,10 +26,10 @@ fn by_stem_pos(a: &PostscriptStemDef, b: &PostscriptStemDef) -> i32 {
     }
 }
 fn by_mask_pointindex(a: &PostscriptHintMask, b: &PostscriptHintMask) -> i32 {
-    if a.contours_before as i32 == b.contours_before as i32 {
-        a.points_before as i32 - b.points_before as i32
+    if i32::from(a.contours_before) == i32::from(b.contours_before) {
+        i32::from(a.points_before) - i32::from(b.points_before)
     } else {
-        a.contours_before as i32 - b.contours_before as i32
+        i32::from(a.contours_before) - i32::from(b.contours_before)
     }
 }
 fn consolidate_glyph_contours(g: &mut Glyph) {
@@ -43,7 +43,7 @@ fn consolidate_glyph_contours(g: &mut Glyph) {
     g.contours.retain(|contour| {
         let keep = !contour.is_empty();
         if !keep {
-            tracing::warn!("[Consolidate] Removed empty contour #{} in glyph {}.\n", j as i32, ByteStr(name));
+            tracing::warn!("[Consolidate] Removed empty contour #{} in glyph {}.\n", i32::from(j), ByteStr(name));
         }
         j = j.wrapping_add(1);
         keep
@@ -199,7 +199,7 @@ pub fn get_point_coordinates(
     // is not bounded to 16 bits here, and a counter that wraps at 65,536 can
     // never reach a length of 65,536 (the same shape as the `glyf` hang).
     for p in g.contours.iter().flatten() {
-        if search.stated as i32 == n as i32 {
+        if i32::from(search.stated) == i32::from(n) {
             search.x = vq_point_linear_tfm(
                 gr.x.borrow().clone(),
                 gr.a as Pos,
@@ -216,7 +216,7 @@ pub fn get_point_coordinates(
             );
             return true;
         }
-        search.stated = (search.stated as i32 + 1) as ShapeId;
+        search.stated = (i32::from(search.stated) + 1) as ShapeId;
     }
     for rr in &g.references {
         consolidate_anchor_ref(table, gr, rr, options, depth + 1);
@@ -299,10 +299,10 @@ pub fn consolidate_anchor_ref(
     let s1: bool = get_point_coordinates(table, gr, rr.outer, &mut outer, options, depth + 1);
     let s2: bool = get_point_coordinates(table, &rr1, rr.inner, &mut inner, options, depth + 1);
     if !s1 {
-        tracing::warn!("Failed to access point {} in outer glyph.", rr.outer as i32);
+        tracing::warn!("Failed to access point {} in outer glyph.", i32::from(rr.outer));
     }
     if !s2 {
-        tracing::warn!("Failed to access point {} in reference to {}.", rr.outer as i32, ByteStr(&rr.glyph.name));
+        tracing::warn!("Failed to access point {} in reference to {}.", i32::from(rr.outer), ByteStr(&rr.glyph.name));
     }
     let rrx: VQ = vq_point_linear_tfm(
         outer.x.clone(),

@@ -182,7 +182,7 @@ fn parse_language(
             // JSON-parse path's `figure_out_languages_from_json`, see
             // `table/otl/parse.rs`).
             if (rid as usize) < features.len() {
-                lang.required_feature = Some(FeatureIdx(rid as u32));
+                lang.required_feature = Some(FeatureIdx(u32::from(rid)));
             } else {
                 lang.required_feature = None;
             }
@@ -195,7 +195,7 @@ fn parse_language(
                 }
                 *feature_ref_budget -= 1;
                 if (feature_index as usize) < features.len() {
-                    lang.features.push(FeatureIdx(feature_index as u32));
+                    lang.features.push(FeatureIdx(u32::from(feature_index)));
                 }
             }
         }
@@ -219,9 +219,9 @@ fn parse_otl_common(
         languages: Vec::new(),
     });
 
-    let script_list_offset = FontReader::new(data).at(4)?.u16()? as u32;
-    let feature_list_offset = FontReader::new(data).at(6)?.u16()? as u32;
-    let lookup_list_offset = FontReader::new(data).at(8)?.u16()? as u32;
+    let script_list_offset = u32::from(FontReader::new(data).at(4)?.u16()?);
+    let feature_list_offset = u32::from(FontReader::new(data).at(6)?.u16()?);
+    let lookup_list_offset = u32::from(FontReader::new(data).at(8)?.u16()?);
 
     read_lookup_list(data, lookup_list_offset, lookup_type_base, &mut table_box)?;
     read_feature_list(data, feature_list_offset, &mut table_box, options)?;
@@ -242,7 +242,7 @@ fn read_lookup_list(
     lr.require_room(lookup_count as usize, 2)?;
     for _ in 0..lookup_count.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
         let mut lookup: Box<Lookup> = new_lookup();
-        let lookup_offset = lookup_list_offset.wrapping_add(lr.u16()? as u32);
+        let lookup_offset = lookup_list_offset.wrapping_add(u32::from(lr.u16()?));
         // Needs 6 bytes at `lookup_offset` (lookupType/lookupFlag/
         // subtableCount): only the first 2 are read here, but the
         // original required all 6 up front, before the lookup was even
@@ -269,7 +269,7 @@ fn read_feature_list(
     let mut lnk: TableId = 0;
     for j in 0..feature_count.min(MAX_TOTAL_FEATURES_PER_TABLE) {
         let tag = fr.u32()?;
-        let feature_offset = feature_list_offset.wrapping_add(fr.u16()? as u32);
+        let feature_offset = feature_list_offset.wrapping_add(u32::from(fr.u16()?));
         let mut feature: Box<Feature> = new_feature();
         if let Some(prefix) = &options.glyph_name_prefix {
             feature.name = crate::bytesbuild!(
@@ -280,7 +280,7 @@ fn read_feature_list(
                 b"_",
                 prefix,
                 b"_",
-                Dec5(j as i32),
+                Dec5(i32::from(j)),
             );
         } else {
             feature.name = crate::bytesbuild!(
@@ -289,7 +289,7 @@ fn read_feature_list(
                 Byte((tag >> 8 & 0xff) as u8),
                 Byte((tag & 0xff) as u8),
                 b"_",
-                Dec5(j as i32),
+                Dec5(i32::from(j)),
             );
         }
         let mut fer = FontReader::new(data).at(feature_offset as usize)?;
@@ -315,7 +315,7 @@ fn read_feature_list(
                             Byte((tag >> 8 & 0xff) as u8),
                             Byte((tag & 0xff) as u8),
                             b"_",
-                            lnk as i32,
+                            i32::from(lnk),
                         );
                         lnk = lnk.wrapping_add(1);
                     } else {
@@ -326,7 +326,7 @@ fn read_feature_list(
                             Byte((tag >> 8 & 0xff) as u8),
                             Byte((tag & 0xff) as u8),
                             b"_",
-                            lnk as i32,
+                            i32::from(lnk),
                         );
                         lnk = lnk.wrapping_add(1);
                     }
@@ -337,7 +337,7 @@ fn read_feature_list(
                 // `lookupid` already *is* the final `LookupIdx`, no remap
                 // needed (unlike the JSON-parse path, see
                 // `table/otl/parse.rs`).
-                feature.lookups.push(LookupIdx(lookupid as u32));
+                feature.lookups.push(LookupIdx(u32::from(lookupid)));
             }
         }
         table.features.push(Some(feature));
@@ -358,7 +358,7 @@ fn read_script_list(
     let mut total_feature_refs: u32 = MAX_TOTAL_FEATURE_REFS_PER_TABLE;
     'scripts: for _ in 0..script_count {
         let script_tag = sr.u32()?;
-        let script_offset = script_list_offset.wrapping_add(sr.u16()? as u32);
+        let script_offset = script_list_offset.wrapping_add(u32::from(sr.u16()?));
         let mut so = FontReader::new(data).at(script_offset as usize)?;
         let default_lang_offset = so.u16()?;
         let lang_sys_count = so.u16()?;
@@ -378,7 +378,7 @@ fn read_script_list(
             );
             parse_language(
                 data,
-                script_offset.wrapping_add(default_lang_offset as u32),
+                script_offset.wrapping_add(u32::from(default_lang_offset)),
                 &mut lang,
                 &table.features,
                 &mut total_feature_refs,
@@ -409,7 +409,7 @@ fn read_script_list(
             );
             parse_language(
                 data,
-                script_offset.wrapping_add(lang_sys as u32),
+                script_offset.wrapping_add(u32::from(lang_sys)),
                 &mut language,
                 &table.features,
                 &mut total_feature_refs,
@@ -465,7 +465,7 @@ fn read_otl_lookup(
             let capped_count = subtable_count.min(MAX_TOTAL_SUBTABLES_PER_LOOKUP);
             let mut subtable_offsets = Vec::with_capacity(capped_count as usize);
             for _ in 0..capped_count {
-                subtable_offsets.push(lookup._offset.wrapping_add(r.u16()? as u32));
+                subtable_offsets.push(lookup._offset.wrapping_add(u32::from(r.u16()?)));
             }
             if subtable_count == 0 {
                 return Err(ReadError {

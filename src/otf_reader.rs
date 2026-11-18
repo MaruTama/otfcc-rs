@@ -12,7 +12,7 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
     // The first 'cff ' tag makes it a CFF font; otherwise it is TrueType.
     let sfnt_packets = &sfnt.packets;
     let packet: &Packet = &sfnt_packets[index as usize];
-    for i in 0..packet.num_tables as i32 {
+    for i in 0..i32::from(packet.num_tables) {
         let table: &PacketPiece = &packet.pieces[i as usize];
         if table.tag == crate::tag::TAG_CFF {
             return FontSubtype::Cff;

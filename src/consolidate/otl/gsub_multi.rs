@@ -36,7 +36,7 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
             if entry.to.is_empty() {
                 tracing::warn!("[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /{}.\n", ByteStr(&entry.from.name));
             } else {
-                let fromid: i32 = entry.from.index as i32;
+                let fromid: i32 = i32::from(entry.from.index);
                 if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
                     let fromname: Vec<u8> = entry.from.name.clone();
                     let to: Coverage = ::core::mem::take(&mut entry.to);

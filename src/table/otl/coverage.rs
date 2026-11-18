@@ -102,11 +102,11 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget
                 // still `break 'ranges` (the *outer* per-range loop, not
                 // just this expanded range) on exhaustion, unchanged by
                 // this loop's own shape becoming a `for`.
-                for k in start as i32..=end as i32 {
+                for k in i32::from(start)..=i32::from(end) {
                     if !budget.take_coverage_entry() {
                         break 'ranges;
                     }
-                    let cov_index = start_coverage_index as i32 + k;
+                    let cov_index = i32::from(start_coverage_index) + k;
                     h.entry(k as GlyphId).or_insert(cov_index);
                 }
             }
@@ -156,7 +156,7 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     for &gid in &r {
         format1.write_u16be(gid);
     }
-    if (jj as i32) < 2 {
+    if i32::from(jj) < 2 {
         return format1;
     }
     let mut format2 = Buffer::new();
@@ -167,14 +167,14 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     let mut last_gid: GlyphId = start_gid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
     for (j_1, &current) in r.iter().enumerate().skip(1) {
-        if !(current as i32 <= last_gid as i32) {
-            if current as i32 == end_gid as i32 + 1 {
+        if !(i32::from(current) <= i32::from(last_gid)) {
+            if i32::from(current) == i32::from(end_gid) + 1 {
                 end_gid = current;
             } else {
                 ranges.write_u16be(start_gid as u16);
                 ranges.write_u16be(end_gid as u16);
-                ranges.write_u16be((j_1 as i32 + start_gid as i32 - end_gid as i32 - 1) as u16);
-                n_ranges = (n_ranges as i32 + 1) as GlyphId;
+                ranges.write_u16be((j_1 as i32 + i32::from(start_gid) - i32::from(end_gid) - 1) as u16);
+                n_ranges = (i32::from(n_ranges) + 1) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
             }
@@ -184,11 +184,11 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     ranges.write_u16be(start_gid as u16);
     ranges.write_u16be(end_gid as u16);
     ranges.write_u16be(
-        (jj as i32 + start_gid as i32
-            - end_gid as i32
+        (i32::from(jj) + i32::from(start_gid)
+            - i32::from(end_gid)
             - 1) as u16,
     );
-    n_ranges = (n_ranges as i32 + 1) as GlyphId;
+    n_ranges = (i32::from(n_ranges) + 1) as GlyphId;
     format2.write_u16be(n_ranges as u16);
     format2.write_buffer_owned(ranges);
     match format {

@@ -23,8 +23,8 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
     let mut r = FontReader::new(data);
     let mut metrics = Vec::with_capacity(count_a);
     for _ in 0..count_a {
-        let advance_height = r.u16()? as Length;
-        let tsb = r.i16()? as Pos;
+        let advance_height = Length::from(r.u16()?);
+        let tsb = Pos::from(r.i16()?);
         metrics.push(VerticalMetric {
             advance_height,
             tsb,
@@ -32,7 +32,7 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
     }
     let mut top_side_bearing = Vec::with_capacity(count_k);
     for _ in 0..count_k {
-        top_side_bearing.push(r.i16()? as Pos);
+        top_side_bearing.push(Pos::from(r.i16()?));
     }
     Ok(VmtxTable {
         metrics,
