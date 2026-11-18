@@ -37,6 +37,17 @@ use crate::vf::vq::{
     vq_scale,
 };
 
+/// Handles one operator of a Private DICT, storing it in the Private DICT of
+/// the table that `context` currently points at (the Top DICT when
+/// `fd_array_index` is -1 or out of range, otherwise that Font DICT).
+///
+/// `stack` holds exactly the `top` operands of the operator. Scalar operators are ignored when
+/// `top == 0`, and otherwise take the last operand (`stack[top - 1]`); the
+/// array operators (BlueValues, StemSnapH, ...) take all `top` operands.
+///
+/// Panics if the selected table has no `private_dict`:
+/// `callback_extract_fd` creates it when it sees `Private`, before it parses
+/// the Private DICT with this function.
 fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], context: &mut CffFdExtractContext) {
     let meta: &mut CffTable = if context.fd_array_index >= 0
         && (context.fd_array_index as usize) < context.meta.fd_array.len()
@@ -71,6 +82,16 @@ fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], co
         _ => {}
     };
 }
+/// Handles one operator of a Top DICT or Font DICT, storing it in the table
+/// that `context` points at (see `callback_extract_private`; `-1` selects the
+/// Top DICT).
+///
+/// Operators whose operands are missing (`top` smaller than the operator
+/// needs) are ignored, so a truncated or corrupt DICT leaves the defaults.
+/// String-valued operators are resolved against the String INDEX; an
+/// unknown string id yields an empty string. `Private` also parses the
+/// Private DICT it points to, but only if its offset and length lie inside
+/// the table's raw data; otherwise the Private DICT keeps its defaults.
 fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context: &mut CffFdExtractContext) {
     let file: &CffFile = context.cff_file;
     let meta: &mut CffTable = if context.fd_array_index >= 0
@@ -141,14 +162,20 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
         _ => {}
     };
 }
+/// Records the glyph's advance width. A charstring stores the width relative
+/// to the Private DICT's `nominalWidthX`, so that is added back here.
 pub(crate) fn callback_draw_setwidth(context: &mut OutlineBuilderContext, width: f64) {
     context.g.advance_width = vq_create_still(width as Pos + context.nominal_width_x as Pos);
 }
+/// Starts a new, empty contour; later points go into it.
 pub(crate) fn callback_draw_next_contour(context: &mut OutlineBuilderContext) {
     context.g.contours.push(Vec::new());
     context.j_contour = context.g.contours.len() as ShapeId;
     context.j_point = 0;
 }
+/// Appends an on-curve point to the current contour. Silently ignored before
+/// the first contour starts (`j_contour == 0`), which a malformed charstring
+/// can cause.
 pub(crate) fn callback_draw_lineto(
     context: &mut OutlineBuilderContext,
     x1: f64,
@@ -168,6 +195,9 @@ fn still_point(x: f64, y: f64, on_curve: bool) -> Point {
         on_curve: on_curve as i8,
     }
 }
+/// Appends a cubic Bezier segment to the current contour: two off-curve
+/// control points then the on-curve end point. Ignored before the first
+/// contour, like `callback_draw_lineto`.
 pub(crate) fn callback_draw_curveto(
     context: &mut OutlineBuilderContext,
     x1: f64,
@@ -185,6 +215,7 @@ pub(crate) fn callback_draw_curveto(
         context.j_point = context.j_point.wrapping_add(3);
     }
 }
+/// Adds a horizontal or vertical stem hint to the glyph.
 pub(crate) fn callback_draw_sethint(
     context: &mut OutlineBuilderContext,
     is_vertical: bool,
@@ -202,6 +233,13 @@ pub(crate) fn callback_draw_sethint(
         map: 0,
     });
 }
+/// Records a hint mask (or a contour mask when `is_contour_mask`) at the
+/// current position, given as the contours and points drawn so far.
+///
+/// `mask_array` holds one flag per stem: the horizontal stems first, then the
+/// vertical ones. It must have at least `stem_h + stem_v` entries, and no
+/// more than `StemMask::LEN` stems of each direction are used. A second mask
+/// at the same position replaces the first rather than adding a new entry.
 pub(crate) fn callback_draw_setmask(
     context: &mut OutlineBuilderContext,
     is_contour_mask: bool,
@@ -250,6 +288,10 @@ pub(crate) fn callback_draw_setmask(
         }
     };
 }
+/// Source of the charstring `random` operator: a 64-bit xorshift generator
+/// seeded from the Private DICT (`initial_random_seed`), returning a value in
+/// [0, 1). It only has to be deterministic, because the output must not vary
+/// between runs.
 pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> f64 {
     let mut x: u64 = context.randx;
     x ^= x >> 12;
@@ -499,6 +541,16 @@ pub(super) fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Optio
         }
     }
 }
+/// Reads the `CFF ` table of `packet` into a `CffTable` (names, FontMatrix,
+/// Private DICTs, per-FD data) and a `GlyfTable` of outlines named from the
+/// charset.
+///
+/// Returns the empty `CffAndGlyfOwned` when there is no `CFF ` table or its Top
+/// DICT INDEX is empty. Only the first `CFF ` table is read. Input from the
+/// font is not trusted: out-of-range DICT offsets are skipped rather than
+/// reported, so a damaged table yields defaults instead of an error.
+/// `head` supplies `unitsPerEm` to scale outlines by the FontMatrix; without it
+/// the outlines are left unscaled.
 pub fn read_cff_and_glyf_tables(
     packet: &Packet,
     head: Option<&HeadTable>,
