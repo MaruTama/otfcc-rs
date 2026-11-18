@@ -1,5 +1,5 @@
 use otfcc_binary::Buffer;
-use otfcc_binary::FontReader;
+use otfcc_binary::{FontReader, ReadError};
 
 /// The Top DICT's Charset offset is overloaded by spec: values 0/1/2 select
 /// one of the three predefined charsets (ISOAdobe/Expert/ExpertSubset)
@@ -48,87 +48,60 @@ pub fn extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset {
     if offset < 0 {
         return CffCharset::IsoAdobe;
     }
-    let offset = offset as usize;
-    let result: Option<CffCharset> = 'parse: {
-        let Ok(mut r) = FontReader::new(slice).at(offset) else {
-            break 'parse None;
-        };
-        let Ok(format) = r.u8() else {
-            break 'parse None;
-        };
-        match format {
-            0 => {
-                let count = (nchars as usize).saturating_sub(1);
-                let mut glyph: Vec<u16> = Vec::with_capacity(count);
-                let Ok(mut r2) = FontReader::new(slice).at(offset + 1) else {
-                    break 'parse None;
-                };
-                for _ in 0..count {
-                    let Ok(v) = r2.u16() else { break 'parse None };
-                    glyph.push(v);
-                }
-                break 'parse Some(CffCharset::Format0(glyph));
+    read_charset(slice, offset as usize, nchars).unwrap_or(CffCharset::IsoAdobe)
+}
+fn read_charset(slice: &[u8], offset: usize, nchars: u16) -> Result<CffCharset, ReadError> {
+    let mut r = FontReader::new(slice).at(offset)?;
+    match r.u8()? {
+        0 => {
+            let count = (nchars as usize).saturating_sub(1);
+            let mut glyph: Vec<u16> = Vec::with_capacity(count);
+            let mut r2 = FontReader::new(slice).at(offset + 1)?;
+            for _ in 0..count {
+                glyph.push(r2.u16()?);
             }
-            1 => {
-                let mut size: usize = 0;
-                let mut glyphs_encoded_sofar: u32 = 1;
-                while glyphs_encoded_sofar < u32::from(nchars) {
-                    let Ok(nleft) = FontReader::new(slice)
-                        .at(offset + 3 + 3 * size)
-                        .and_then(|mut x| x.u8())
-                    else {
-                        break 'parse None;
-                    };
-                    glyphs_encoded_sofar = glyphs_encoded_sofar.saturating_add(1 + u32::from(nleft));
-                    size += 1;
-                }
-                let mut range1: Vec<CffCharsetRangeFormat1> = Vec::with_capacity(size);
-                let Ok(mut r2) = FontReader::new(slice).at(offset + 1) else {
-                    break 'parse None;
-                };
-                for _ in 0..size {
-                    let Ok(first) = r2.u16() else {
-                        break 'parse None;
-                    };
-                    let Ok(nleft) = r2.u8() else {
-                        break 'parse None;
-                    };
-                    range1.push(CffCharsetRangeFormat1 { first, nleft });
-                }
-                break 'parse Some(CffCharset::Format1(range1));
-            }
-            2 => {
-                let mut size: usize = 0;
-                let mut glyphs_encoded_sofar: u32 = 1;
-                while glyphs_encoded_sofar < u32::from(nchars) {
-                    let Ok(nleft) = FontReader::new(slice)
-                        .at(offset + 3 + 4 * size)
-                        .and_then(|mut x| x.u16())
-                    else {
-                        break 'parse None;
-                    };
-                    glyphs_encoded_sofar = glyphs_encoded_sofar.saturating_add(1 + u32::from(nleft));
-                    size += 1;
-                }
-                let mut range2: Vec<CffCharsetRangeFormat2> = Vec::with_capacity(size);
-                let Ok(mut r2) = FontReader::new(slice).at(offset + 1) else {
-                    break 'parse None;
-                };
-                for _ in 0..size {
-                    let Ok(first) = r2.u16() else {
-                        break 'parse None;
-                    };
-                    let Ok(nleft) = r2.u16() else {
-                        break 'parse None;
-                    };
-                    range2.push(CffCharsetRangeFormat2 { first, nleft });
-                }
-                break 'parse Some(CffCharset::Format2(range2));
-            }
-            _ => break 'parse Some(CffCharset::IsoAdobe),
+            Ok(CffCharset::Format0(glyph))
         }
-    };
-    result.unwrap_or(CffCharset::IsoAdobe)
+        1 => {
+            let size = count_ranges(slice, offset, nchars, 1)?;
+            let mut range1: Vec<CffCharsetRangeFormat1> = Vec::with_capacity(size);
+            let mut r2 = FontReader::new(slice).at(offset + 1)?;
+            for _ in 0..size {
+                let first = r2.u16()?;
+                let nleft = r2.u8()?;
+                range1.push(CffCharsetRangeFormat1 { first, nleft });
+            }
+            Ok(CffCharset::Format1(range1))
+        }
+        2 => {
+            let size = count_ranges(slice, offset, nchars, 2)?;
+            let mut range2: Vec<CffCharsetRangeFormat2> = Vec::with_capacity(size);
+            let mut r2 = FontReader::new(slice).at(offset + 1)?;
+            for _ in 0..size {
+                let first = r2.u16()?;
+                let nleft = r2.u16()?;
+                range2.push(CffCharsetRangeFormat2 { first, nleft });
+            }
+            Ok(CffCharset::Format2(range2))
+        }
+        _ => Ok(CffCharset::IsoAdobe),
+    }
+}
+/// How many ranges a format 1 or 2 charset needs to cover `nchars` glyphs
+/// (glyph 0, `.notdef`, is implicit). Each range is a 2-byte first SID and an
+/// `nleft` of `nleft_size` bytes (1 for format 1, 2 for format 2); this reads
+/// each `nleft` until the glyphs are covered and fails if the data ends first.
+fn count_ranges(slice: &[u8], offset: usize, nchars: u16, nleft_size: usize) -> Result<usize, ReadError> {
+    let range_size = 2 + nleft_size;
+    let mut size: usize = 0;
+    let mut glyphs_encoded_sofar: u32 = 1;
+    while glyphs_encoded_sofar < u32::from(nchars) {
+        let mut r = FontReader::new(slice).at(offset + 3 + range_size * size)?;
+        let nleft = if nleft_size == 1 { u16::from(r.u8()?) } else { r.u16()? };
+        glyphs_encoded_sofar = glyphs_encoded_sofar.saturating_add(1 + u32::from(nleft));
+        size += 1;
+    }
+    Ok(size)
 }
 // Takes `&CffCharset` instead of by value -- it only ever reads the data,
 // same reasoning as every other builder function in this migration that
