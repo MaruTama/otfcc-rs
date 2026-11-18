@@ -230,4 +230,23 @@ mod cff_extract_charset_tests {
         let result = extract_charset(&data, 3, 3);
         assert!(matches!(result, CffCharset::IsoAdobe));
     }
+
+    #[test]
+    fn format2_reads_a_single_range_with_a_two_byte_nleft() {
+        // format=2 at offset 3: first=100, nleft=1 reaches nchars=3.
+        let data = [0u8, 0, 0, 0x02, 0x00, 0x64, 0x00, 0x01];
+        let CffCharset::Format2(range2) = extract_charset(&data, 3, 3) else {
+            panic!("expected Format2");
+        };
+        assert_eq!(range2.len(), 1);
+        assert_eq!(range2[0].first, 100);
+        assert_eq!(range2[0].nleft, 1);
+    }
+
+    #[test]
+    fn format2_truncated_during_the_counting_pass_falls_back_to_iso_adobe() {
+        let data = [0u8, 0, 0, 0x02, 0x00, 0x64, 0x00]; // the second nleft byte is missing
+        let result = extract_charset(&data, 3, 3);
+        assert!(matches!(result, CffCharset::IsoAdobe));
+    }
 }

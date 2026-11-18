@@ -455,6 +455,31 @@ mod cff_header_and_encoding_tests {
     }
 
     #[test]
+    fn parse_encoding_format1_reads_the_ranges() {
+        let data = [0u8, 0, 0x01, 0x01, 10, 3]; // format=1, one range: first=10, nleft=3
+        let cff = cff_file_over(&data);
+        let CffEncoding::Format1(range1) = parse_encoding(&cff, 2) else {
+            panic!("expected Format1");
+        };
+        assert_eq!(range1.len(), 1);
+        assert_eq!((range1[0].first, range1[0].nleft), (10, 3));
+    }
+
+    #[test]
+    fn parse_encoding_any_other_format_byte_is_read_as_the_supplement_count() {
+        // The byte 2 is neither format 0 nor 1, so it is also the count of
+        // (code, glyph) supplements that follow.
+        let data = [0u8, 0, 0x02, 7, 0x00, 0x09, 8, 0x00, 0x0A];
+        let cff = cff_file_over(&data);
+        let CffEncoding::FormatSupplement(sup) = parse_encoding(&cff, 2) else {
+            panic!("expected FormatSupplement");
+        };
+        assert_eq!(sup.len(), 2);
+        assert_eq!((sup[0].code, sup[0].glyph), (7, 9));
+        assert_eq!((sup[1].code, sup[1].glyph), (8, 10));
+    }
+
+    #[test]
     fn parse_encoding_negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer()
      {
         let data = [0u8; 8];
