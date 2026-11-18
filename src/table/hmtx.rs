@@ -5,19 +5,19 @@ use otfcc_binary::{FontReader, ReadError};
 
 use crate::table::hhea::HheaTable;
 use crate::table::maxp::MaxpTable;
+/// One long `hmtx` record: advance width and left side bearing.
 #[derive(Copy, Clone, Debug)]
 pub struct HorizontalMetric {
     pub advance_width: Length,
     pub lsb: Pos,
 }
-// Both fields are now plain `Vec`s, so `HmtxTable` needs no custom `Drop`
-// impl -- ordinary field-by-field drop glue reaches both allocations.
-// `HmtxTable` never appears in JSON dump/parse (glyph-level metrics live on
-// `Glyph.advance_width`/`.horizontal_origin` instead; this table exists
-// purely as an `hmtx`-binary-serialization intermediate, confirmed by grep:
-// its only touch points are this file's own read/build functions and
-// `otf_writer/stat.rs`'s `stat_hmtx`, which constructs it), so there is no
-// JSON-side fallout from this field type change.
+/// `metrics` holds one record per glyph up to `hhea.number_of_metrics`; the
+/// glyphs after that share the last advance and only have an entry in
+/// `left_side_bearing`.
+///
+/// This table never appears in JSON: glyph-level metrics live on `Glyph`
+/// (`advance_width`, `horizontal_origin`), and `otf_writer::stat` builds this
+/// table only as the intermediate for serialisation.
 #[derive(Debug)]
 pub struct HmtxTable {
     pub metrics: Vec<HorizontalMetric>,
@@ -40,6 +40,10 @@ fn parse_hmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<HmtxTable, 
         left_side_bearing,
     })
 }
+/// Reads `hmtx`, using `hhea` and `maxp` for the record counts. Returns
+/// `None` if either is missing, if `number_of_metrics` is 0 or exceeds
+/// `maxp.num_glyphs`, if the table is absent, or if it is shorter than those
+/// counts imply (after logging "corrupted").
 pub fn read_hmtx(
     packet: &Packet,
     hhea: Option<&HheaTable>,
@@ -65,6 +69,9 @@ pub fn read_hmtx(
         }
     }
 }
+/// Serialises the first `count_a` long metrics and `count_k` trailing left
+/// side bearings (`number_of_metrics` and the rest of `num_glyphs`). Entries
+/// beyond those counts are dropped, and a `None` table gives an empty buffer.
 pub fn build_hmtx(hmtx: Option<&HmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
     let mut buf = Buffer::new();
     let hmtx = match hmtx {

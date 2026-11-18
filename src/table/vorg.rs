@@ -3,11 +3,15 @@ use crate::support::primitives::{GlyphId, Pos};
 use otfcc_binary::Buffer;
 use otfcc_binary::{FontReader, ReadError};
 
+/// A glyph whose vertical origin differs from the table default.
 #[derive(Copy, Clone, Debug)]
 pub struct VorgEntry {
     pub gid: GlyphId,
     pub vertical_origin: i16,
 }
+/// The `VORG` table. It never appears in JSON: vertical origins live on each
+/// glyph, and `otf_writer::stat` derives this table from them (the most
+/// common origin becomes `default_vertical_origin`) before it is built.
 #[derive(Debug)]
 pub struct VorgTable {
     pub num_vert_origin_y_metrics: GlyphId,
@@ -37,6 +41,9 @@ fn parse_vorg(data: &[u8]) -> Result<(GlyphId, Pos, Vec<VorgEntry>), ReadError> 
     Ok((num_vert_origin_y_metrics, default_vertical_origin, entries))
 }
 
+/// Reads the `VORG` table from `packet`. Returns `None` if it is absent or
+/// too short for its declared entry count (after logging "corrupted"). The
+/// version field is skipped without being checked.
 pub fn read_vorg(packet: &Packet) -> Option<Box<VorgTable>> {
     let table = packet
         .pieces
@@ -56,6 +63,8 @@ pub fn read_vorg(packet: &Packet) -> Option<Box<VorgTable>> {
         entries,
     }))
 }
+/// Serialises `VORG` as version 1.0, or `None` for no table. At most
+/// `num_vert_origin_y_metrics` entries are written.
 pub fn build_vorg(table: Option<&VorgTable>) -> Option<Buffer> {
     let table = table?;
     let mut buf = Buffer::new();

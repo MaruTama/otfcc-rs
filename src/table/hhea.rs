@@ -7,6 +7,9 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// The `hhea` table. `number_of_metrics` is the count of long `hmtx` records;
+/// it is not taken from JSON but recomputed from the glyphs when building
+/// (`otf_writer::stat`), and `reserved` is read but never dumped.
 #[derive(Copy, Clone, Debug)]
 pub struct HheaTable {
     pub version: F16Dot16,
@@ -43,6 +46,8 @@ fn decode_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
         number_of_metrics: r.u16()?,
     })
 }
+/// Reads the `hhea` table from `packet`. Returns `None` if the table is
+/// absent, or shorter than its 36 bytes (after logging "corrupted").
 pub fn read_hhea(packet: &Packet) -> Option<Box<HheaTable>> {
     let table = packet
         .pieces
@@ -56,6 +61,8 @@ pub fn read_hhea(packet: &Packet) -> Option<Box<HheaTable>> {
         }
     }
 }
+/// Adds an `hhea` object to `root`; does nothing if `table` is `None`. The
+/// `reserved`, `metricDataFormat` and `numberOfMetrics` fields are not dumped.
 pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -97,6 +104,9 @@ pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     root.push_field(b"hhea", hhea);
     stage.finish();
 }
+/// Reads `hhea` from JSON. Always returns `Some`: a missing `hhea` object or
+/// key leaves the default (`version` 1.0, everything else 0). Numbers go
+/// through `as`, so out-of-range values saturate instead of failing.
 pub fn parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     let mut hhea = HheaTable {
         version: 0x10000 as F16Dot16,
@@ -131,6 +141,9 @@ pub fn parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     }
     Some(Box::new(hhea))
 }
+/// Serialises `hhea` as its 36-byte binary form, or `None` for no table.
+/// `metricDataFormat` is always written as 0; `numberOfMetrics` is written
+/// as stored, so the caller must have set it first.
 pub fn build_hhea(hhea: Option<&HheaTable>) -> Option<Buffer> {
     let hhea = hhea?;
     let mut buf = Buffer::new();

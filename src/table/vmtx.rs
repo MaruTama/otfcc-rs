@@ -5,15 +5,18 @@ use otfcc_binary::{FontReader, ReadError};
 
 use crate::table::maxp::MaxpTable;
 use crate::table::vhea::VheaTable;
+/// One long `vmtx` record: advance height and top side bearing.
 #[derive(Copy, Clone, Debug)]
 pub struct VerticalMetric {
     pub advance_height: Length,
     pub tsb: Pos,
 }
-// Both fields are now plain `Vec`s, its horizontal-axis mirror `HmtxTable`'s
-// own comment explains why there's no JSON-side fallout: this table is a
-// pure `vmtx`-binary-serialization intermediate, never touched by dump/
-// parse.
+/// `metrics` holds one record per glyph up to `vhea.num_of_long_ver_metrics`;
+/// the glyphs after that only have an entry in `top_side_bearing`.
+///
+/// This table never appears in JSON: glyph-level metrics live on `Glyph`
+/// (`advance_height`, `vertical_origin`), and `otf_writer::stat` builds this
+/// table only as the intermediate for serialisation.
 #[derive(Debug)]
 pub struct VmtxTable {
     pub metrics: Vec<VerticalMetric>,
@@ -39,6 +42,10 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
         top_side_bearing,
     })
 }
+/// Reads `vmtx`, using `vhea` and `maxp` for the record counts. Returns
+/// `None` if either is missing, if `num_of_long_ver_metrics` is 0 or exceeds
+/// `maxp.num_glyphs`, if the table is absent, or if it is shorter than those
+/// counts imply (after logging "corrupted").
 pub fn read_vmtx(
     packet: &Packet,
     vhea: Option<&VheaTable>,
@@ -63,6 +70,10 @@ pub fn read_vmtx(
         }
     }
 }
+/// Serialises the first `count_a` long metrics and `count_k` trailing top
+/// side bearings (`num_of_long_ver_metrics` and the rest of `num_glyphs`).
+/// Entries beyond those counts are dropped, and a `None` table gives an empty
+/// buffer.
 pub fn build_vmtx(vmtx: Option<&VmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
     let mut buf = Buffer::new();
     let vmtx = match vmtx {

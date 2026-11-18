@@ -6,6 +6,8 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// One `gasp` range: it applies to sizes up to `range_max_ppem`
+/// (0xFFFF for the last range), with the behaviour flags unpacked into bools.
 #[derive(Copy, Clone, Debug)]
 pub struct GaspRecord {
     pub range_max_ppem: GlyphSize,
@@ -14,6 +16,8 @@ pub struct GaspRecord {
     pub symmetric_smoothing: bool,
     pub symmetric_gridfit: bool,
 }
+/// The `gasp` table. `version` is kept from the binary but is not dumped, and
+/// building always writes version 1.
 #[derive(Clone, Debug)]
 pub struct GaspTable {
     pub version: u16,
@@ -42,6 +46,8 @@ fn decode_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
     }
     Ok(GaspTable { version, records })
 }
+/// Reads the `gasp` table from `packet`. Returns `None` if it is absent or
+/// too short for its declared range count (after logging "corrupted").
 pub fn read_gasp(packet: &Packet) -> Option<Box<GaspTable>> {
     let table = packet
         .pieces
@@ -55,6 +61,8 @@ pub fn read_gasp(packet: &Packet) -> Option<Box<GaspTable>> {
         }
     }
 }
+/// Adds a `gasp` array to `root`, one object per range; does nothing if
+/// `table` is `None`.
 pub fn dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -79,6 +87,9 @@ pub fn dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
     root.push_field(b"gasp", t);
     stage.finish();
 }
+/// Reads `gasp` from a JSON array, or returns `None` if the key is not an
+/// array. Non-object entries are skipped, and a missing `rangeMaxPPEM`
+/// defaults to 0xFFFF.
 pub fn parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
     let table = root.get_typed(b"gasp", JsonType::Array)?;
     let stage = crate::logger::stage("gasp");
@@ -102,6 +113,8 @@ pub fn parse_gasp(root: &ParsedValue) -> Option<Box<GaspTable>> {
     stage.finish();
     Some(Box::new(gasp))
 }
+/// Serialises `gasp` as version 1, or `None` for no table. The range count is
+/// written as a `u16`, so more than 65,535 ranges would wrap.
 pub fn build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {
     let gasp = gasp?;
     let mut buf = Buffer::new();
