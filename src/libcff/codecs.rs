@@ -196,7 +196,9 @@ fn cff_dec_i(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     } else if b0 == LEAD_INT16 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
-        i = (i32::from(b1) << 8) | i32::from(b2);
+        // A 16-bit *signed* integer, like the charstring decoder and
+        // `encode_integer` treat it.
+        i = i32::from(((i32::from(b1) << 8) | i32::from(b2)) as i16);
         len = 3;
     } else if b0 == LEAD_INT32 {
         let b1 = r.u8().ok()?;
@@ -580,13 +582,12 @@ mod integer_encoding_boundary_tests {
     }
 
     // The DICT and charstring decoders read back what `encode_integer`
-    // wrote across the same boundaries. The DICT decoder reads the 3-byte
-    // form as unsigned, so negative values in that form are left out here.
+    // wrote across the same boundaries.
     #[test]
     fn encoded_integers_decode_back_to_themselves() {
         let vals = [
-            0, 1, -1, 107, -107, 108, -108, 1131, -1131, 1132, 32767, 32768, -32769,
-            i32::MAX, i32::MIN,
+            0, 1, -1, 107, -107, 108, -108, 1131, -1131, 1132, -1132, 32767, -32768, 32768,
+            -32769, i32::MAX, i32::MIN,
         ];
         for val in vals {
             let data = bytes(val);
