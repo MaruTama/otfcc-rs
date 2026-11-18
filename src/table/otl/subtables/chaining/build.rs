@@ -117,12 +117,14 @@ pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     }
     bk_build_block(root)
 }
+const CLASSIFIED_HAS_ALL_CLASS_DEFS: &str =
+    "only the classifier builds a Classified ruleset, and it sets bc, ic and fc";
 pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
     else {
         unreachable!()
     };
-    let ic: &ClassDef = ruleset.ic.as_deref().unwrap();
+    let ic: &ClassDef = ruleset.ic.as_deref().expect(CLASSIFIED_HAS_ALL_CLASS_DEFS);
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 2),
         bk_ptr(
@@ -131,7 +133,9 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_class_def(ruleset.bc.as_deref().unwrap()))),
+            bk_new_block_from_buffer(Some(build_class_def(
+                ruleset.bc.as_deref().expect(CLASSIFIED_HAS_ALL_CLASS_DEFS),
+            ))),
         ),
         bk_ptr(
             BkCellType::P16,
@@ -139,7 +143,9 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_class_def(ruleset.fc.as_deref().unwrap()))),
+            bk_new_block_from_buffer(Some(build_class_def(
+                ruleset.fc.as_deref().expect(CLASSIFIED_HAS_ALL_CLASS_DEFS),
+            ))),
         ),
         bk_int(BkCellType::B16, (i32::from(ic.maxclass) + 1) as u32),
     ]);
@@ -285,7 +291,7 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     else {
         unreachable!()
     };
-    let ic: &ClassDef = ruleset.ic.as_deref().unwrap();
+    let ic: &ClassDef = ruleset.ic.as_deref().expect(CLASSIFIED_HAS_ALL_CLASS_DEFS);
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 2),
         bk_ptr(

@@ -211,7 +211,9 @@ pub fn get_point_coordinates(
         return false;
     }
     let j: GlyphId = gr.glyph.index;
-    let g: &Glyph = table[j as usize].as_deref().unwrap();
+    let g: &Glyph = table[j as usize]
+        .as_deref()
+        .expect(FILLED_BY_CONSOLIDATE_GLYF);
     // Plain iteration, not `u16` index counters: a contour or reference list
     // is not bounded to 16 bits here, and a counter that wraps at 65,536 can
     // never reach a length of 65,536 (the same shape as the `glyf` hang).
@@ -367,6 +369,9 @@ pub fn consolidate_anchor_ref(
     // `return false` below, so no explicit dispose calls are needed.
     false
 }
+/// `consolidate_glyf` fills every empty `glyf` slot before it resolves any
+/// reference, so the reference walkers below never meet a hole.
+const FILLED_BY_CONSOLIDATE_GLYF: &str = "consolidate_glyf filled every empty glyf slot first";
 pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     if font.glyph_order.is_none() || font.glyf.is_none() {
         return;
@@ -395,7 +400,9 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     let table: &GlyfTable = glyf;
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < table.len() {
-        let g: &Glyph = table[j_0 as usize].as_deref().unwrap();
+        let g: &Glyph = table[j_0 as usize]
+            .as_deref()
+            .expect(FILLED_BY_CONSOLIDATE_GLYF);
         let stage = crate::logger::stage(ByteStr(&g.name));
         let mut gr: ComponentReference = (glyf_component_reference_empty)();
         gr.glyph = handle_from_index(j_0) as GlyphHandle;

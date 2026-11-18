@@ -35,7 +35,7 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
         });
         let go: &mut GlyphOrder = go_box.as_mut();
         for (gid, slot) in glyf.iter_mut().enumerate() {
-            let g = slot.as_mut().unwrap();
+            let g = slot.as_mut().expect("the binary reader fills every glyf slot, and a JSON glyf table exists only with a glyph order");
             let gid = gid as GlyphId;
             let name: Vec<u8> = if g.name.is_empty() {
                 let name = crate::bytesbuild!(b"$$gid", i32::from(gid));
