@@ -1,3 +1,25 @@
+//! Subroutine discovery, in the style of the Sequitur grammar-inference
+//! algorithm. Charstrings are appended to one root rule, and a diagram (a
+//! node, or a node and its successor) that occurs a second time is replaced by
+//! a call to a rule. After a two-node match, a call at the start of the rule
+//! that is the only call to its rule is inlined again (`expand_call`).
+//!
+//! - **Rules** are circular doubly linked lists of nodes around a `guard`
+//!   node. The root rule holds every charstring back to back; a new rule is
+//!   made when a diagram repeats, and each occurrence becomes a call to it.
+//! - **Nodes** are either a call (`rule` is set) or literal charstring bytes
+//!   (`terminal`). `refcount` on a rule counts the calls to it: `copy_node`
+//!   and the `substitute_*` functions add one, `expand_call` inlines a call
+//!   and takes one off.
+//! - **`hard`** nodes (an empty sentinel after each charstring) and guards
+//!   never take part in a diagram, so no rule spans two charstrings.
+//! - **`diagram_index`** maps a diagram's key (see `node_flag`) to its first
+//!   occurrence. `unlink_node` drops an entry only while it still points at
+//!   the node being removed. Only single lookups are made, so its order
+//!   never reaches the output.
+//! - Single-node diagrams are matched only when subroutinizing and the node's
+//!   bytes are longer than 15, and only if no two-node diagram matched.
+
 use super::*;
 use otfcc_binary::Buffer;
 
