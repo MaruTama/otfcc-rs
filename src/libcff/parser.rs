@@ -1,4 +1,4 @@
-use otfcc_binary::FontReader;
+use otfcc_binary::{FontReader, ReadError};
 
 use crate::libcff::charset::CffCharset;
 use crate::libcff::charset::extract_charset;
@@ -62,54 +62,41 @@ fn parse_encoding(cff: &CffFile, offset: i32) -> CffEncoding {
     if offset < 0 {
         return CffEncoding::Unspecified;
     }
-    let slice = cff.raw_data.as_slice();
-    let result: Option<CffEncoding> = 'parse: {
-        let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
-            break 'parse None;
-        };
-        let Ok(format) = r.u8() else {
-            break 'parse None;
-        };
-        match format {
-            0 => {
-                let Ok(ncodes) = r.u8() else {
-                    break 'parse None;
-                };
-                let mut code: Vec<u8> = Vec::with_capacity(ncodes as usize);
-                for _ in 0..ncodes {
-                    let Ok(v) = r.u8() else { break 'parse None };
-                    code.push(v);
-                }
-                break 'parse Some(CffEncoding::Format0(code));
+    read_encoding(cff.raw_data.as_slice(), offset as usize).unwrap_or(CffEncoding::Unspecified)
+}
+fn read_encoding(slice: &[u8], offset: usize) -> Result<CffEncoding, ReadError> {
+    let mut r = FontReader::new(slice).at(offset)?;
+    match r.u8()? {
+        0 => {
+            let ncodes = r.u8()?;
+            let mut code: Vec<u8> = Vec::with_capacity(ncodes as usize);
+            for _ in 0..ncodes {
+                code.push(r.u8()?);
             }
-            1 => {
-                let Ok(nranges) = r.u8() else {
-                    break 'parse None;
-                };
-                let mut range1: Vec<CffEncodingRangeFormat1> = Vec::with_capacity(nranges as usize);
-                for _ in 0..nranges {
-                    let Ok(first) = r.u8() else { break 'parse None };
-                    let Ok(nleft) = r.u8() else { break 'parse None };
-                    range1.push(CffEncodingRangeFormat1 { first, nleft });
-                }
-                break 'parse Some(CffEncoding::Format1(range1));
-            }
-            _ => {
-                // `nsup` re-reads the format byte, as the C code did.
-                let nsup = format;
-                let mut supplement: Vec<CffEncodingSupplement> = Vec::with_capacity(nsup as usize);
-                for _ in 0..nsup {
-                    let Ok(code) = r.u8() else { break 'parse None };
-                    let Ok(glyph) = r.u16() else {
-                        break 'parse None;
-                    };
-                    supplement.push(CffEncodingSupplement { code, glyph });
-                }
-                break 'parse Some(CffEncoding::FormatSupplement(supplement));
-            }
+            Ok(CffEncoding::Format0(code))
         }
-    };
-    result.unwrap_or(CffEncoding::Unspecified)
+        1 => {
+            let nranges = r.u8()?;
+            let mut range1: Vec<CffEncodingRangeFormat1> = Vec::with_capacity(nranges as usize);
+            for _ in 0..nranges {
+                let first = r.u8()?;
+                let nleft = r.u8()?;
+                range1.push(CffEncodingRangeFormat1 { first, nleft });
+            }
+            Ok(CffEncoding::Format1(range1))
+        }
+        nsup => {
+            // Any other format byte is read as the supplement count `nsup`,
+            // as the C code did.
+            let mut supplement: Vec<CffEncodingSupplement> = Vec::with_capacity(nsup as usize);
+            for _ in 0..nsup {
+                let code = r.u8()?;
+                let glyph = r.u16()?;
+                supplement.push(CffEncodingSupplement { code, glyph });
+            }
+            Ok(CffEncoding::FormatSupplement(supplement))
+        }
+    }
 }
 fn parse_cff_bytecode(cff: &mut CffFile) {
     let mut pos: u32;
@@ -452,6 +439,31 @@ mod cff_header_and_encoding_tests {
         let cff = cff_file_over(&data);
         let result = parse_encoding(&cff, 2);
         assert!(matches!(result, CffEncoding::Unspecified));
+    }
+
+    #[test]
+    fn parse_encoding_format1_reads_the_ranges() {
+        let data = [0u8, 0, 0x01, 0x01, 10, 3]; // format=1, one range: first=10, nleft=3
+        let cff = cff_file_over(&data);
+        let CffEncoding::Format1(range1) = parse_encoding(&cff, 2) else {
+            panic!("expected Format1");
+        };
+        assert_eq!(range1.len(), 1);
+        assert_eq!((range1[0].first, range1[0].nleft), (10, 3));
+    }
+
+    #[test]
+    fn parse_encoding_any_other_format_byte_is_read_as_the_supplement_count() {
+        // The byte 2 is neither format 0 nor 1, so it is also the count of
+        // (code, glyph) supplements that follow.
+        let data = [0u8, 0, 0x02, 7, 0x00, 0x09, 8, 0x00, 0x0A];
+        let cff = cff_file_over(&data);
+        let CffEncoding::FormatSupplement(sup) = parse_encoding(&cff, 2) else {
+            panic!("expected FormatSupplement");
+        };
+        assert_eq!(sup.len(), 2);
+        assert_eq!((sup[0].code, sup[0].glyph), (7, 9));
+        assert_eq!((sup[1].code, sup[1].glyph), (8, 10));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 
 use otfcc_binary::Buffer;
-use otfcc_binary::FontReader;
+use otfcc_binary::{FontReader, ReadError};
 
 #[derive(Copy, Clone, Debug)]
 pub struct CffFdSelectRangeFormat3 {
@@ -56,43 +56,31 @@ pub fn extract_fd_select(slice: &[u8], offset: i32, nchars: u16) -> CffFdSelect 
     if offset < 0 {
         return CffFdSelect::Unspecified;
     }
-    let result: Option<CffFdSelect> = 'parse: {
-        let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
-            break 'parse None;
-        };
-        let Ok(format) = r.u8() else {
-            break 'parse None;
-        };
-        match format {
-            0 => {
-                let mut fds: Vec<u8> = Vec::with_capacity(nchars as usize);
-                for _ in 0..nchars {
-                    let Ok(v) = r.u8() else { break 'parse None };
-                    fds.push(v);
-                }
-                break 'parse Some(CffFdSelect::Format0(fds));
+    read_fd_select(slice, offset as usize, nchars).unwrap_or(CffFdSelect::Unspecified)
+}
+fn read_fd_select(slice: &[u8], offset: usize, nchars: u16) -> Result<CffFdSelect, ReadError> {
+    let mut r = FontReader::new(slice).at(offset)?;
+    match r.u8()? {
+        0 => {
+            let mut fds: Vec<u8> = Vec::with_capacity(nchars as usize);
+            for _ in 0..nchars {
+                fds.push(r.u8()?);
             }
-            3 => {
-                let Ok(nranges) = r.u16() else {
-                    break 'parse None;
-                };
-                let mut range3: Vec<CffFdSelectRangeFormat3> = Vec::with_capacity(nranges as usize);
-                for _ in 0..nranges {
-                    let Ok(first) = r.u16() else {
-                        break 'parse None;
-                    };
-                    let Ok(fd) = r.u8() else { break 'parse None };
-                    range3.push(CffFdSelectRangeFormat3 { first, fd });
-                }
-                let Ok(sentinel) = r.u16() else {
-                    break 'parse None;
-                };
-                break 'parse Some(CffFdSelect::Format3 { range3, sentinel });
-            }
-            _ => break 'parse Some(CffFdSelect::Unspecified),
+            Ok(CffFdSelect::Format0(fds))
         }
-    };
-    result.unwrap_or(CffFdSelect::Unspecified)
+        3 => {
+            let nranges = r.u16()?;
+            let mut range3: Vec<CffFdSelectRangeFormat3> = Vec::with_capacity(nranges as usize);
+            for _ in 0..nranges {
+                let first = r.u16()?;
+                let fd = r.u8()?;
+                range3.push(CffFdSelectRangeFormat3 { first, fd });
+            }
+            let sentinel = r.u16()?;
+            Ok(CffFdSelect::Format3 { range3, sentinel })
+        }
+        _ => Ok(CffFdSelect::Unspecified),
+    }
 }
 
 #[cfg(test)]
