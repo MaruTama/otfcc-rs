@@ -9,9 +9,9 @@ pub(crate) fn consolidate_colr(font: &mut Font) {
         return;
     }
     // Guaranteed `Some` by the early return above.
-    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().unwrap();
+    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().expect("the early return above checked glyph_order");
     let mut consolidated: ColrTable = Vec::new();
-    let source: &mut Vec<ColrMapping> = font.colr.as_mut().unwrap();
+    let source: &mut Vec<ColrMapping> = font.colr.as_mut().expect("the early return above checked colr");
     for mapping in source.iter_mut() {
         if !gord_consolidate_handle(glyph_order, &mut mapping.glyph) {
             tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&mapping.glyph.name));

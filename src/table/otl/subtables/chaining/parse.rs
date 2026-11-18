@@ -13,9 +13,9 @@ pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let (Some(match_val), Some(apply_val)) = (match_val, apply_val) else {
         return None;
     };
-    let sv = sv.unwrap();
-    let match_items = match_val.as_array().unwrap();
-    let apply_items = apply_val.as_array().unwrap();
+    let sv = sv.expect("match_val and apply_val came from sv");
+    let match_items = match_val.as_array().expect("get_typed returned an Array");
+    let apply_items = apply_val.as_array().expect("get_typed returned an Array");
     let mut rule = ChainingRule {
         match_count: match_items.len() as TableId,
         sequence: Vec::with_capacity(match_items.len()),

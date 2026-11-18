@@ -118,7 +118,7 @@ pub fn otl_read_gsub_reverse(
         for _ in 0..n_replacement {
             push_to_coverage(
                 &mut subtable.to,
-                handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle,
+                handle_from_index(header.u16().expect("require_room above covered one u16 per replacement glyph") as GlyphId) as GlyphHandle,
             );
         }
         reverse_backtracks(&mut subtable.sequence, subtable.input_index);
@@ -150,7 +150,7 @@ pub fn otl_gsub_parse_reverse(
     let sv = _subtable?;
     let _match = sv.get_typed(b"match", JsonType::Array)?;
     let _to = sv.get_typed(b"to", JsonType::Array)?;
-    let match_items = _match.as_array().unwrap();
+    let match_items = _match.as_array().expect("get_typed returned an Array");
     let match_count = match_items.len() as TableId;
     let mut sequence: Vec<Coverage> = Vec::with_capacity(match_count as usize);
     for item in match_items {

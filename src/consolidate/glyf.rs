@@ -345,9 +345,9 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     if font.glyph_order.is_none() || font.glyf.is_none() {
         return;
     }
-    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().unwrap();
+    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().expect("the early return above checked glyph_order");
     let cff: Option<&CffTable> = font.cff.as_deref();
-    let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
+    let glyf: &mut GlyfTable = font.glyf.as_mut().expect("the early return above checked glyf");
     for slot in glyf.iter_mut() {
         if let Some(glyph) = slot {
             consolidate_glyph(glyph, glyph_order, cff);

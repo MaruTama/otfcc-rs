@@ -638,7 +638,7 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
         os_2.us_lower_optical_point_size = table.get_num(b"usLowerOpticalPointSize") as u16;
         os_2.us_upper_optical_point_size = table.get_num(b"usUpperOpticalPointSize") as u16;
         if let Some(panose) = table.get_typed(b"panose", JsonType::Array) {
-            let items = panose.as_array().unwrap();
+            let items = panose.as_array().expect("get_typed returned an Array");
             for (j, term) in items.iter().enumerate().take(10) {
                 if let Some(i) = term.as_int() {
                     os_2.panose[j] = i as u8;

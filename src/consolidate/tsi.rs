@@ -26,7 +26,7 @@ pub(crate) fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &
     // `None` = "no entry yet for this GID", `Some` = has content, even if
     // empty.
     let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; glyf.len()];
-    let entries: &mut Vec<TsiEntry> = tsi.as_mut().unwrap();
+    let entries: &mut Vec<TsiEntry> = tsi.as_mut().expect("the early return above checked tsi");
     for entry in entries.iter_mut() {
         if entry.kind == TsiEntryType::Glyph {
             if gord_consolidate_handle(glyph_order, &mut entry.glyph) {

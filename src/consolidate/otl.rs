@@ -47,7 +47,7 @@ pub fn consolidate_lookup(
         if slot.is_none() {
             tracing::warn!("[Consolidate] Ignored empty subtable {} of lookup {}.\n", j as i32, ByteStr(&lookup.name));
         } else {
-            let sub = slot.as_deref_mut().unwrap();
+            let sub = slot.as_deref_mut().expect("the slot was just checked to be non-empty");
             let subtable_removed = kind.consolidate_subtable(sub, &ctx);
             if subtable_removed {
                 // Dropping the `Box` disposes the subtable.
