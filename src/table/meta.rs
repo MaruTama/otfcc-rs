@@ -129,7 +129,7 @@ fn str2tag(tags: Option<&[u8]>) -> u32 {
     let mut tag: u32 = 0;
     let mut len: u8 = 0;
     for &b in tags.iter().take(4) {
-        tag = tag << 8 | b as u32;
+        tag = tag << 8 | u32::from(b);
         len = len.wrapping_add(1);
     }
     for _ in len..4_u8 {
@@ -148,8 +148,8 @@ pub fn dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue) {
     };
     let stage = crate::logger::stage("meta");
     let mut _meta = BuiltValue::new_object(3);
-    _meta.push_field(b"version", BuiltValue::Int(meta.version as i64));
-    _meta.push_field(b"flags", BuiltValue::Int(meta.flags as i64));
+    _meta.push_field(b"version", BuiltValue::Int(i64::from(meta.version)));
+    _meta.push_field(b"flags", BuiltValue::Int(i64::from(meta.flags)));
     let entries: &Vec<MetaEntry> = &meta.entries;
     let mut _entries = BuiltValue::new_array(entries.len());
     for e in entries.iter() {

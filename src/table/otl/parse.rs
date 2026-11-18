@@ -156,7 +156,7 @@ fn _declare_lookup_parser(
         .map_or(0, |v| v.flags(&LOOKUP_FLAGS_LABELS)) as u16;
     let mark_attachment_type: u16 = lv.map_or(0, |v| v.get_int(b"markAttachmentType")) as u16;
     if mark_attachment_type != 0 {
-        lookup.flags = (lookup.flags as i32 | (mark_attachment_type as i32) << 8) as u16;
+        lookup.flags = (i32::from(lookup.flags) | i32::from(mark_attachment_type) << 8) as u16;
     }
     let subtable_items = subtables.as_array().unwrap();
     let stage = crate::logger::stage(ByteStr(lookup_name));

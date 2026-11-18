@@ -29,7 +29,7 @@ pub fn consolidate_gpos_cursive(
         if !gord_consolidate_handle(glyph_order, &mut entry.target) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.target.name));
         } else {
-            let fromid: i32 = entry.target.index as i32;
+            let fromid: i32 = i32::from(entry.target.index);
             if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
                 let fromname: Vec<u8> = entry.target.name.clone();
                 let enter: Anchor = entry.enter;

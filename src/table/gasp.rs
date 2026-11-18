@@ -63,7 +63,7 @@ pub fn dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
     let mut t = BuiltValue::new_array(table.records.len());
     for r in &table.records {
         let mut rec = BuiltValue::new_object(5);
-        rec.push_field(b"rangeMaxPPEM", BuiltValue::Int(r.range_max_ppem as i64));
+        rec.push_field(b"rangeMaxPPEM", BuiltValue::Int(i64::from(r.range_max_ppem)));
         rec.push_field(b"dogray", BuiltValue::Bool(r.dogray));
         rec.push_field(b"gridfit", BuiltValue::Bool(r.gridfit));
         rec.push_field(

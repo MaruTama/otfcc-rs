@@ -40,7 +40,7 @@ pub fn otl_read_gpos_cursive(
             break 'parse;
         };
 
-        let targets: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32), budget);
+        let targets: Coverage = read_coverage(data, offset.wrapping_add(u32::from(from_rel)), budget);
         if targets.is_empty() {
             break 'parse;
         }
@@ -59,12 +59,12 @@ pub fn otl_read_gpos_cursive(
                 break 'parse;
             };
             let enter = if enter_offset != 0 {
-                otl_read_anchor(data, offset.wrapping_add(enter_offset as u32))
+                otl_read_anchor(data, offset.wrapping_add(u32::from(enter_offset)))
             } else {
                 otl_anchor_absent()
             };
             let exit = if exit_offset != 0 {
-                otl_read_anchor(data, offset.wrapping_add(exit_offset as u32))
+                otl_read_anchor(data, offset.wrapping_add(u32::from(exit_offset)))
             } else {
                 otl_anchor_absent()
             };

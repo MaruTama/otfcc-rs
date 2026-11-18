@@ -70,13 +70,13 @@ pub fn sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer: Opti
 pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
     let mut buffer = Buffer::new();
     let n_tables: u16 = builder.tables.len() as u16;
-    let search_range: u16 = ((if (n_tables as i32) < 16 {
+    let search_range: u16 = ((if i32::from(n_tables) < 16 {
         8
     } else {
-        if (n_tables as i32) < 32 {
+        if i32::from(n_tables) < 32 {
             16
         } else {
-            if (n_tables as i32) < 64 {
+            if i32::from(n_tables) < 64 {
                 32
             } else {
                 64
@@ -87,22 +87,22 @@ pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
     buffer.write_u16be(n_tables);
     buffer.write_u16be(search_range);
     buffer.write_u16be(
-        (if (n_tables as i32) < 16 {
+        (if i32::from(n_tables) < 16 {
             3
-        } else if (n_tables as i32) < 32 {
+        } else if i32::from(n_tables) < 32 {
             4
-        } else if (n_tables as i32) < 64 {
+        } else if i32::from(n_tables) < 64 {
             5
         } else {
             6
         }) as u16,
     );
     buffer.write_u16be(
-        (n_tables as i32 * 16
-            - search_range as i32) as u16,
+        (i32::from(n_tables) * 16
+            - i32::from(search_range)) as u16,
     );
     let mut offset: usize = (12
-        + n_tables as i32 * 16)
+        + i32::from(n_tables) * 16)
         as usize;
     let mut head_offset: usize = offset;
     for (tag, table) in builder.tables.iter() {

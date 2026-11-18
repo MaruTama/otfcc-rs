@@ -12,12 +12,12 @@ fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
     dump.push_field(b"type", BuiltValue::str_truncated_at_nul(lookup.lookup_type.name().as_bytes()));
     dump.push_field(
         b"flags",
-        BuiltValue::dump_flags(lookup.flags as i32, &LOOKUP_FLAGS_LABELS),
+        BuiltValue::dump_flags(i32::from(lookup.flags), &LOOKUP_FLAGS_LABELS),
     );
-    if lookup.flags as i32 >> 8 != 0 {
+    if i32::from(lookup.flags) >> 8 != 0 {
         dump.push_field(
             b"markAttachmentType",
-            BuiltValue::Int((lookup.flags as i32 >> 8) as i64),
+            BuiltValue::Int(i64::from(i32::from(lookup.flags) >> 8)),
         );
     }
     let mut subtables = BuiltValue::new_array(lookup.subtables.len());

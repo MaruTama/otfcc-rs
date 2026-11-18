@@ -63,7 +63,7 @@ pub const F16DOT16_K: i32 = 1 << (F16DOT16_PRECISION - 1);
 pub const F16DOT16_INFINITY: F16Dot16 = F16Dot16::MAX;
 pub const F16DOT16_NEGATIVE_INFINITY: F16Dot16 = F16Dot16::MIN;
 pub fn from_f2dot14(x: F2Dot14) -> f64 {
-    x as i32 as f64 / 16384.0
+    f64::from(i32::from(x)) / 16384.0
 }
 // `f64::round`, not libm's `round` through an `extern "C"` block: the two
 // agree bit-for-bit (both round half away from zero, per IEEE 754 / C99),
@@ -78,14 +78,14 @@ pub fn to_f2dot14(x: f64) -> i16 {
     (x * 16384.0).round() as i16
 }
 pub fn from_fixed(x: F16Dot16) -> f64 {
-    x as f64 / 65536.0
+    f64::from(x) / 65536.0
 }
 pub fn to_fixed(x: f64) -> F16Dot16 {
     (x * 65536.0).round() as F16Dot16
 }
 #[inline]
 fn clamp(value: i64) -> F16Dot16 {
-    value.clamp(F16DOT16_NEGATIVE_INFINITY as i64, F16DOT16_INFINITY as i64) as F16Dot16
+    value.clamp(i64::from(F16DOT16_NEGATIVE_INFINITY), i64::from(F16DOT16_INFINITY)) as F16Dot16
 }
 pub fn f1616_add(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     a + b
@@ -94,7 +94,7 @@ pub fn f1616_minus(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     a - b
 }
 pub fn f1616_multiply(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
-    let tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
+    let tmp: i64 = i64::from(a) * i64::from(b) + i64::from(F16DOT16_K);
     let product: F16Dot16 = clamp(tmp >> F16DOT16_PRECISION);
     product
 }
@@ -108,18 +108,18 @@ fn divide(mut a: i64, b: i32) -> F16Dot16 {
         };
     }
     if (a < 0) != (b < 0) {
-        a -= (b / 2) as i64;
+        a -= i64::from(b / 2);
     } else {
-        a += (b / 2) as i64;
+        a += i64::from(b / 2);
     }
-    clamp(a / b as i64)
+    clamp(a / i64::from(b))
 }
 pub fn f1616_muldiv(a: F16Dot16, b: F16Dot16, c: F16Dot16) -> F16Dot16 {
-    let tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
+    let tmp: i64 = i64::from(a) * i64::from(b) + i64::from(F16DOT16_K);
     divide(tmp, c)
 }
 pub fn f1616_divide(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
-    divide((a as i64) << F16DOT16_PRECISION, b)
+    divide(i64::from(a) << F16DOT16_PRECISION, b)
 }
 
 /// `bytes` up to its first NUL, or all of it if it has none: how glyph

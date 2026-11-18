@@ -38,7 +38,7 @@ pub fn otl_read_gpos_single(
             break 'parse;
         };
 
-        let targets: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32), budget);
+        let targets: Coverage = read_coverage(data, offset.wrapping_add(u32::from(from_rel)), budget);
         if targets.is_empty() {
             break 'parse;
         }
@@ -127,7 +127,7 @@ pub fn build_gpos_single(
                 && entry.value.dy == subtable[0].value.dy
                 && entry.value.d_width == subtable[0].value.d_width
                 && entry.value.d_height == subtable[0].value.d_height;
-            format |= required_position_format(entry.value) as u16;
+            format |= u16::from(required_position_format(entry.value));
         }
     }
     let mut cov: Coverage = Vec::new();
@@ -139,7 +139,7 @@ pub fn build_gpos_single(
         let b: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 1),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
-            bk_int(BkCellType::B16, (format as i32) as u32),
+            bk_int(BkCellType::B16, i32::from(format) as u32),
             bk_ptr(
                 BkCellType::Embed,
                 Some(bk_gpos_value(subtable[0].value, format)),
@@ -150,7 +150,7 @@ pub fn build_gpos_single(
         let mut sub_block: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 2),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
-            bk_int(BkCellType::B16, (format as i32) as u32),
+            bk_int(BkCellType::B16, i32::from(format) as u32),
             bk_int(BkCellType::B16, (subtable.len()) as u32),
         ]);
         for entry in subtable.iter() {

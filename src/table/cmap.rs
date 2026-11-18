@@ -220,9 +220,9 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
         // `budget` only ever causes an early `break`, checked first in the
         // body, the same position the `while`'s `&& *budget > 0` checked
         // it in.
-        let upper = (end_code as u32).min(0xfffe);
+        let upper = u32::from(end_code).min(0xfffe);
         if id_range_offset == 0 {
-            for c in (start_code as u32)..=upper {
+            for c in u32::from(start_code)..=upper {
                 if *budget == 0 {
                     break;
                 }
@@ -231,7 +231,7 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
                 encode_cmap_by_index(cmap, c as i32, gid);
             }
         } else {
-            for c in (start_code as u32)..=upper {
+            for c in u32::from(start_code)..=upper {
                 if *budget == 0 {
                     break;
                 }
@@ -239,11 +239,11 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
                 // idRangeOffset's value is a byte distance measured from the
                 // idRangeOffset array *entry itself* -- matches the
                 // original's `.wrapping_add(id_range_offset_offset)`.
-                let glyph_offset_rel = (id_range_offset as u32)
-                    .wrapping_add(c.wrapping_sub(start_code as u32).wrapping_mul(2))
+                let glyph_offset_rel = u32::from(id_range_offset)
+                    .wrapping_add(c.wrapping_sub(u32::from(start_code)).wrapping_mul(2))
                     .wrapping_add(id_range_offset_entry_rel as u32);
                 if let Some(raw) = read_u16(glyph_offset_rel as usize) {
-                    let gid = ((raw as i32 + id_delta as i32) & 0xffff) as u16;
+                    let gid = ((i32::from(raw) + i32::from(id_delta)) & 0xffff) as u16;
                     encode_cmap_by_index(cmap, c as i32, gid);
                 }
             }
@@ -268,7 +268,7 @@ fn read_uvs_default(
     for _ in 0..num_ranges {
         let start_unicode_value = r.u24().expect("require_room checked the remaining bytes");
         let additional_count = r.u8().expect("require_room checked the remaining bytes");
-        let end = start_unicode_value.wrapping_add(additional_count as u32);
+        let end = start_unicode_value.wrapping_add(u32::from(additional_count));
         // `start_unicode_value..=end`: `end` is fixed above (`u24` plus a
         // `u8` count, never wrapping in practice since both are far below
         // `u32::MAX`), and doesn't depend on `budget` -- an empty range
@@ -673,16 +673,16 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
                 started = true;
                 last_unicode_end = unicode;
                 last_unicode_start = last_unicode_end;
-                last_gid_end = glyph.index as i32;
+                last_gid_end = i32::from(glyph.index);
                 last_gid_start = last_gid_end;
                 is_sequencial = true;
             } else if unicode == last_unicode_end + 1
-                && !(glyph.index as i32 != last_gid_end + 1
-                    && is_sequencial as i32 != 0
+                && !(i32::from(glyph.index) != last_gid_end + 1
+                    && i32::from(is_sequencial) != 0
                     && last_gid_end - last_gid_start >= 4)
             {
-                if is_sequencial as i32 != 0
-                    && !(glyph.index as i32
+                if i32::from(is_sequencial) != 0
+                    && !(i32::from(glyph.index)
                         == last_gid_end + 1)
                 {
                     last_glyph_id_array_offset = glyph_id_array.cursor;
@@ -691,9 +691,9 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
                     }
                 }
                 last_unicode_end = unicode;
-                is_sequencial = is_sequencial as i32 != 0
-                    && glyph.index as i32 == last_gid_end + 1;
-                last_gid_end = glyph.index as i32;
+                is_sequencial = i32::from(is_sequencial) != 0
+                    && i32::from(glyph.index) == last_gid_end + 1;
+                last_gid_end = i32::from(glyph.index);
                 if !is_sequencial {
                     glyph_id_array.write_u16be(last_gid_end as u16);
                 }
@@ -710,7 +710,7 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
                 segments_count = segments_count.wrapping_add(1);
                 last_unicode_end = unicode;
                 last_unicode_start = last_unicode_end;
-                last_gid_end = glyph.index as i32;
+                last_gid_end = i32::from(glyph.index);
                 last_gid_start = last_gid_end;
                 is_sequencial = true;
             }
@@ -741,7 +741,7 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
         let at = j * 2;
         let ro = u16::from_be_bytes([id_range_offset.data[at], id_range_offset.data[at + 1]]);
         if ro != 0 {
-            let distance = 2 * (segments_count as u32 - j as u32);
+            let distance = 2 * (u32::from(segments_count) - j as u32);
             id_range_offset.seek(at);
             id_range_offset.write_u16be((ro - 1).wrapping_add(distance as u16));
         }
@@ -754,13 +754,13 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
     // entrySelector the log2 of that power, and rangeShift what remains.
     let mut search_range: u32 = 1;
     let mut entry_selector: u32 = 0;
-    while search_range <= segments_count as u32 {
+    while search_range <= u32::from(segments_count) {
         search_range <<= 1;
         entry_selector += 1;
     }
     buf.write_u16be(search_range as u16);
     buf.write_u16be((entry_selector - 1) as u16);
-    buf.write_u16be((2 * segments_count as u32 - search_range) as u16);
+    buf.write_u16be((2 * u32::from(segments_count) - search_range) as u16);
     buf.write_buffer(&end_count);
     buf.write_u16be(0); // reservedPad
     buf.write_buffer(&start_count);
@@ -797,13 +797,13 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
             started = true;
             last_unicode_end = unicode;
             last_unicode_start = last_unicode_end;
-            last_gid_end = glyph.index as i32;
+            last_gid_end = i32::from(glyph.index);
             last_gid_start = last_gid_end;
         } else if unicode == last_unicode_end + 1
-            && glyph.index as i32 == last_gid_end + 1
+            && i32::from(glyph.index) == last_gid_end + 1
         {
             last_unicode_end = unicode;
-            last_gid_end = glyph.index as i32;
+            last_gid_end = i32::from(glyph.index);
         } else {
             buf.write_u32be(last_unicode_start as u32);
             buf.write_u32be(last_unicode_end as u32);
@@ -811,7 +811,7 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
             n_groups += 1;
             last_unicode_end = unicode;
             last_unicode_start = last_unicode_end;
-            last_gid_end = glyph.index as i32;
+            last_gid_end = i32::from(glyph.index);
             last_gid_start = last_gid_end;
         }
     }
@@ -861,7 +861,7 @@ fn build_format14_for_selector(
                     None => {
                         non_defaults[u as usize] = uvs_gid;
                     }
-                    Some(g) if uvs_gid as i32 == g.index as i32 => {
+                    Some(g) if i32::from(uvs_gid) == i32::from(g.index) => {
                         defaults[u as usize] = uvs_gid;
                     }
                     Some(_) => {
@@ -974,13 +974,13 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
             requires_format12 = true;
         }
     }
-    let mut n_tables: u8 = (if requires_format12 as i32 != 0 {
+    let mut n_tables: u8 = (if i32::from(requires_format12) != 0 {
         4
     } else {
         2
     }) as u8;
     if has_uvs {
-        n_tables = (n_tables as i32 + 1) as u8;
+        n_tables = (i32::from(n_tables) + 1) as u8;
     }
     let format4: Buffer = format4.unwrap_or_else(|| {
         let mut stub = Buffer::new();
@@ -1005,7 +1005,7 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
     let format12 = build_cmap_format12(cmap);
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0),
-        bk_int(BkCellType::B16, (n_tables as i32) as u32),
+        bk_int(BkCellType::B16, i32::from(n_tables) as u32),
     ]);
     bk_push(
         &mut root,

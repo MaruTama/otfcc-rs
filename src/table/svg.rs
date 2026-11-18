@@ -67,16 +67,16 @@ pub fn read_svg(packet: &Packet) -> Option<SvgTable> {
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {
     doc.len() > 4
-        && doc[0] as i32 == '<' as i32
-        && doc[1] as i32 == 's' as i32
-        && doc[2] as i32 == 'v' as i32
-        && doc[3] as i32 == 'g' as i32
+        && i32::from(doc[0]) == '<' as i32
+        && i32::from(doc[1]) == 's' as i32
+        && i32::from(doc[2]) == 'v' as i32
+        && i32::from(doc[3]) == 'g' as i32
         || doc.len() > 5
-            && doc[0] as i32 == '<' as i32
-            && doc[1] as i32 == '?' as i32
-            && doc[2] as i32 == 'x' as i32
-            && doc[3] as i32 == 'm' as i32
-            && doc[4] as i32 == 'l' as i32
+            && i32::from(doc[0]) == '<' as i32
+            && i32::from(doc[1]) == '?' as i32
+            && i32::from(doc[2]) == 'x' as i32
+            && i32::from(doc[3]) == 'm' as i32
+            && i32::from(doc[4]) == 'l' as i32
 }
 pub fn dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
     let svg = match svg {
@@ -89,8 +89,8 @@ pub fn dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
         let mut _svg = BuiltValue::new_array(entries.len());
         for a in entries.iter() {
             let mut _a = BuiltValue::new_object(4);
-            _a.push_field(b"start", BuiltValue::Int(a.start as i64));
-            _a.push_field(b"end", BuiltValue::Int(a.end as i64));
+            _a.push_field(b"start", BuiltValue::Int(i64::from(a.start)));
+            _a.push_field(b"end", BuiltValue::Int(i64::from(a.end)));
             if can_use_plain_format(&a.document) {
                 _a.push_field(b"format", BuiltValue::Str(b"plain".to_vec()));
                 _a.push_field(b"document", BuiltValue::Str(a.document.clone()));
@@ -148,8 +148,8 @@ pub fn build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
         bk_push(
             &mut major,
             vec![
-                bk_int(BkCellType::B16, (a.start as i32) as u32),
-                bk_int(BkCellType::B16, (a.end as i32) as u32),
+                bk_int(BkCellType::B16, i32::from(a.start) as u32),
+                bk_int(BkCellType::B16, i32::from(a.end) as u32),
                 bk_ptr(
                     BkCellType::P32,
                     bk_new_block_from_buffer_copy(Some(&doc_buf)),

@@ -60,7 +60,7 @@ pub(crate) fn set_glyph_order_by_gid(
         return go.entries[idx].name.clone();
     }
     let final_bytes: Vec<u8> = if go.by_name.contains_key(&name) {
-        crate::bytesbuild!(b"$$gid", gid as i32)
+        crate::bytesbuild!(b"$$gid", i32::from(gid))
     } else {
         ::core::mem::take(&mut name)
     };

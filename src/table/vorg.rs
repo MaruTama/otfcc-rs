@@ -23,7 +23,7 @@ pub struct VorgTable {
 fn parse_vorg(data: &[u8]) -> Result<(GlyphId, Pos, Vec<VorgEntry>), ReadError> {
     let mut r = FontReader::new(data);
     r.skip(4)?;
-    let default_vertical_origin = r.i16()? as Pos;
+    let default_vertical_origin = Pos::from(r.i16()?);
     let num_vert_origin_y_metrics = r.u16()? as GlyphId;
     r.require_room(num_vert_origin_y_metrics as usize, 4)?;
     let mut entries = Vec::with_capacity(num_vert_origin_y_metrics as usize);

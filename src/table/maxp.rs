@@ -97,46 +97,46 @@ pub fn dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
         b"version",
         BuiltValue::Double(from_fixed(table.version)),
     );
-    maxp.push_field(b"numGlyphs", BuiltValue::Int(table.num_glyphs as i64));
-    maxp.push_field(b"maxPoints", BuiltValue::Int(table.max_points as i64));
-    maxp.push_field(b"maxContours", BuiltValue::Int(table.max_contours as i64));
+    maxp.push_field(b"numGlyphs", BuiltValue::Int(i64::from(table.num_glyphs)));
+    maxp.push_field(b"maxPoints", BuiltValue::Int(i64::from(table.max_points)));
+    maxp.push_field(b"maxContours", BuiltValue::Int(i64::from(table.max_contours)));
     maxp.push_field(
         b"maxCompositePoints",
-        BuiltValue::Int(table.max_composite_points as i64),
+        BuiltValue::Int(i64::from(table.max_composite_points)),
     );
     maxp.push_field(
         b"maxCompositeContours",
-        BuiltValue::Int(table.max_composite_contours as i64),
+        BuiltValue::Int(i64::from(table.max_composite_contours)),
     );
-    maxp.push_field(b"maxZones", BuiltValue::Int(table.max_zones as i64));
+    maxp.push_field(b"maxZones", BuiltValue::Int(i64::from(table.max_zones)));
     maxp.push_field(
         b"maxTwilightPoints",
-        BuiltValue::Int(table.max_twilight_points as i64),
+        BuiltValue::Int(i64::from(table.max_twilight_points)),
     );
-    maxp.push_field(b"maxStorage", BuiltValue::Int(table.max_storage as i64));
+    maxp.push_field(b"maxStorage", BuiltValue::Int(i64::from(table.max_storage)));
     maxp.push_field(
         b"maxFunctionDefs",
-        BuiltValue::Int(table.max_function_defs as i64),
+        BuiltValue::Int(i64::from(table.max_function_defs)),
     );
     maxp.push_field(
         b"maxInstructionDefs",
-        BuiltValue::Int(table.max_instruction_defs as i64),
+        BuiltValue::Int(i64::from(table.max_instruction_defs)),
     );
     maxp.push_field(
         b"maxStackElements",
-        BuiltValue::Int(table.max_stack_elements as i64),
+        BuiltValue::Int(i64::from(table.max_stack_elements)),
     );
     maxp.push_field(
         b"maxSizeOfInstructions",
-        BuiltValue::Int(table.max_size_of_instructions as i64),
+        BuiltValue::Int(i64::from(table.max_size_of_instructions)),
     );
     maxp.push_field(
         b"maxComponentElements",
-        BuiltValue::Int(table.max_component_elements as i64),
+        BuiltValue::Int(i64::from(table.max_component_elements)),
     );
     maxp.push_field(
         b"maxComponentDepth",
-        BuiltValue::Int(table.max_component_depth as i64),
+        BuiltValue::Int(i64::from(table.max_component_depth)),
     );
     root.push_field(b"maxp", maxp);
     stage.finish();

@@ -22,7 +22,7 @@ pub fn otl_dump_chaining(_subtable: &Subtable) -> BuiltValue {
     let mut _apply = BuiltValue::new_array(rule.apply.len());
     for application in rule.apply.iter() {
         let mut _application = BuiltValue::new_object(2);
-        _application.push_field(b"at", BuiltValue::Int(application.index as i64));
+        _application.push_field(b"at", BuiltValue::Int(i64::from(application.index)));
         _application.push_field(
             b"lookup",
             BuiltValue::str_truncated_at_nul(&application.lookup.name),
@@ -30,7 +30,7 @@ pub fn otl_dump_chaining(_subtable: &Subtable) -> BuiltValue {
         _apply.push_item(_application);
     }
     _st.push_field(b"apply", _apply.preserialize());
-    _st.push_field(b"inputBegins", BuiltValue::Int(rule.input_begins as i64));
-    _st.push_field(b"inputEnds", BuiltValue::Int(rule.input_ends as i64));
+    _st.push_field(b"inputBegins", BuiltValue::Int(i64::from(rule.input_begins)));
+    _st.push_field(b"inputEnds", BuiltValue::Int(i64::from(rule.input_ends)));
     _st
 }

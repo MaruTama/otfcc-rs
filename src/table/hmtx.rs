@@ -27,13 +27,13 @@ fn parse_hmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<HmtxTable, 
     let mut r = FontReader::new(data);
     let mut metrics = Vec::with_capacity(count_a);
     for _ in 0..count_a {
-        let advance_width = r.u16()? as Length;
-        let lsb = r.i16()? as Pos;
+        let advance_width = Length::from(r.u16()?);
+        let lsb = Pos::from(r.i16()?);
         metrics.push(HorizontalMetric { advance_width, lsb });
     }
     let mut left_side_bearing = Vec::with_capacity(count_k);
     for _ in 0..count_k {
-        left_side_bearing.push(r.i16()? as Pos);
+        left_side_bearing.push(Pos::from(r.i16()?));
     }
     Ok(HmtxTable {
         metrics,
@@ -47,7 +47,7 @@ pub fn read_hmtx(
 ) -> Option<Box<HmtxTable>> {
     let hhea = hhea?;
     let maxp = maxp?;
-    if hhea.number_of_metrics == 0 || (maxp.num_glyphs as i32) < hhea.number_of_metrics as i32 {
+    if hhea.number_of_metrics == 0 || i32::from(maxp.num_glyphs) < i32::from(hhea.number_of_metrics) {
         return None;
     }
     let table = packet

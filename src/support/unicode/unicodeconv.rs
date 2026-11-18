@@ -7,7 +7,7 @@
 pub fn utf16be_to_utf8(inb: &[u8]) -> Vec<u8> {
     let inlen = inb.len() & !1;
     let inb = &inb[..inlen];
-    let read_u16 = |i: usize| u16::from_be_bytes([inb[i], inb[i + 1]]) as u32;
+    let read_u16 = |i: usize| u32::from(u16::from_be_bytes([inb[i], inb[i + 1]]));
     let mut out: Vec<u8> = Vec::with_capacity(inlen);
     let mut i = 0;
     while i < inlen {
@@ -63,19 +63,19 @@ pub fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
         i += 1;
         let mut c: u32;
         let mut trailing: u8;
-        if (d as i32) < 0x80 {
-            c = d as u32;
+        if i32::from(d) < 0x80 {
+            c = u32::from(d);
             trailing = 0;
-        } else if (d as i32) < 0xc0 {
+        } else if i32::from(d) < 0xc0 {
             break;
-        } else if (d as i32) < 0xe0 {
-            c = (d as u32) & 0x1f;
+        } else if i32::from(d) < 0xe0 {
+            c = u32::from(d) & 0x1f;
             trailing = 1;
-        } else if (d as i32) < 0xf0 {
-            c = (d as u32) & 0xf;
+        } else if i32::from(d) < 0xf0 {
+            c = u32::from(d) & 0xf;
             trailing = 2;
-        } else if (d as i32) < 0xf8 {
-            c = (d as u32) & 0x7;
+        } else if i32::from(d) < 0xf8 {
+            c = u32::from(d) & 0x7;
             trailing = 3;
         } else {
             break;
@@ -89,10 +89,10 @@ pub fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
             }
             let d = _in[i];
             i += 1;
-            if (d as i32) & 0xc0 != 0x80 {
+            if i32::from(d) & 0xc0 != 0x80 {
                 break;
             }
-            c = c << 6 | (d as u32 & 0x3f);
+            c = c << 6 | (u32::from(d) & 0x3f);
             trailing -= 1;
         }
         if c < 0x10000 {

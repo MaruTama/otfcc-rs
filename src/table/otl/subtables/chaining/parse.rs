@@ -22,7 +22,7 @@ pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
         ..ChainingRule::default()
     };
     rule.input_begins = sv.get_num_or(b"inputBegins", 0.0) as TableId;
-    rule.input_ends = sv.get_num_or(b"inputEnds", rule.match_count as f64) as TableId;
+    rule.input_ends = sv.get_num_or(b"inputEnds", f64::from(rule.match_count)) as TableId;
     for item in match_items {
         rule.sequence.push(parse_coverage(Some(item)));
     }

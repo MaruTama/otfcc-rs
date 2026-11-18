@@ -50,7 +50,7 @@ fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     let mut tmp: u64 = (bd >> 32)
         .wrapping_add(ad & m32)
         .wrapping_add(bc & m32);
-    tmp = tmp.wrapping_add((1_u32 << 31) as u64);
+    tmp = tmp.wrapping_add(u64::from(1_u32 << 31));
     diy_fp_from_parts(
         ac.wrapping_add(ad >> 32)
             .wrapping_add(bc >> 32)
@@ -276,11 +276,11 @@ fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
         1039,
         1066,
     ];
-    let dk: f64 = (-61 - e) as f64
+    let dk: f64 = f64::from(-61 - e)
         * 0.30102999566398114
         + 347.0;
     let mut k: i32 = dk as i32;
-    if k as f64 != dk {
+    if f64::from(k) != dk {
         k += 1;
     }
     let index: u32 =
@@ -289,7 +289,7 @@ fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
         -(-348 + (index << 3) as i32);
     diy_fp_from_parts(
         K_CACHED_POWERS_F[index as usize],
-        K_CACHED_POWERS_E[index as usize] as i32,
+        i32::from(K_CACHED_POWERS_E[index as usize]),
     )
 }
 #[inline]
@@ -406,7 +406,7 @@ fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i
             *len += 1;
         }
         kappa -= 1;
-        let tmp: u64 = ((p1 as u64) << -one.e).wrapping_add(p2);
+        let tmp: u64 = (u64::from(p1) << -one.e).wrapping_add(p2);
         if tmp <= delta {
             *k_out += kappa;
             // `kappa`/`-kappa` can reach 12 for a high-precision double,
@@ -422,7 +422,7 @@ fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i
                 *len,
                 delta,
                 tmp,
-                (K_POW10[(kappa as usize).min(9)] as u64) << -one.e,
+                u64::from(K_POW10[(kappa as usize).min(9)]) << -one.e,
                 wp_w.f,
             );
             return;
@@ -447,7 +447,7 @@ fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i
                 p2,
                 one.f,
                 wp_w.f
-                    .wrapping_mul(K_POW10[(-kappa as usize).min(9)] as u64),
+                    .wrapping_mul(u64::from(K_POW10[(-kappa as usize).min(9)])),
             );
             return;
         }
@@ -542,13 +542,13 @@ fn prettify(buffer: &mut [u8], length: i32, k: i32) {
 /// byte. Callers slice up to the first NUL.
 pub fn emyg_dtoa(mut value: f64, buffer: &mut [u8]) {
     let mut buffer = buffer;
-    if value == 0 as f64 {
+    if value == 0.0 {
         buffer[0] = b'0';
         buffer[1] = b'.';
         buffer[2] = b'0';
         buffer[3] = 0;
     } else {
-        if value < 0 as f64 {
+        if value < 0.0 {
             buffer[0] = b'-';
             buffer = &mut buffer[1..];
             value = -value;

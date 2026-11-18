@@ -48,10 +48,10 @@ pub struct TsiBuildTarget {
 #[inline]
 fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
-        gid as i32 != 0xfffe
-            && gid as i32 != 0xfffc
+        i32::from(gid) != 0xfffe
+            && i32::from(gid) != 0xfffc
     } else {
-        (gid as i32) < 0xfffa
+        i32::from(gid) < 0xfffa
     }
 }
 // One 8-byte record: gid(u16) + text_length(u16, widened) + text_offset(u32).
@@ -68,7 +68,7 @@ fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, Re
     let mut r = FontReader::new(index_data).at((idx as usize).wrapping_mul(8))?;
     Ok(TsiIndexEntry {
         gid: r.u16()?,
-        text_length: r.u16()? as u32,
+        text_length: u32::from(r.u16()?),
         text_offset: r.u32()?,
     })
 }
@@ -91,7 +91,7 @@ pub fn read_tsi(
             let mut predicted_text_length: u32 = text_len.wrapping_sub(entry.text_offset);
             let mut k: u32 = j.wrapping_add(1);
             while let Ok(entry_k) = read_tsi_index_entry(&index_part.data, k) {
-                if entry_k.gid as i32 != 0xfffe
+                if i32::from(entry_k.gid) != 0xfffe
                     && entry_k.text_offset < text_len
                     && entry_k.text_offset > entry.text_offset
                 {
@@ -126,7 +126,7 @@ pub fn read_tsi(
                 glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
                 content,
             };
-            match entry.gid as i32 {
+            match i32::from(entry.gid) {
                 65530 => {
                     tsi_entry.kind = TsiEntryType::Prep;
                     tsi_entry.glyph = Handle::default();
@@ -256,7 +256,7 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, kind: TsiEntryT
             index_part.write_u16be(0x8000);
         }
         index_part.write_u32be(length_sofar as u32);
-        items_pushed = (items_pushed as i32 + 1) as GlyphId;
+        items_pushed = (i32::from(items_pushed) + 1) as GlyphId;
     }
     for _ in items_pushed..min_n {
         let text_pos = target.text_part.as_ref().unwrap().pos();

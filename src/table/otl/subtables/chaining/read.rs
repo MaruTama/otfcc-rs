@@ -150,7 +150,7 @@ pub fn class_coverage(
     // `class_zero_glyphs` budget. Class 0 (every glyph not otherwise
     // classified) is found with a bitmap of the classified glyphs, built
     // once, instead of a scan per candidate.
-    if cls as i32 == 0 {
+    if i32::from(cls) == 0 {
         let mut classified = vec![false; max_glyphs as usize];
         // `0..cd.glyphs.len()`: the bound is `cd.glyphs`'s own length,
         // fixed for this whole call (never mutated inside either loop),
@@ -164,7 +164,7 @@ pub fn class_coverage(
             if !budget.class_zero_left() {
                 break;
             }
-            if cd.classes[j] as i32 > 0 {
+            if i32::from(cd.classes[j]) > 0 {
                 let idx = cd.glyphs[j].index as usize;
                 if idx < classified.len() {
                     classified[idx] = true;
@@ -192,7 +192,7 @@ pub fn class_coverage(
         // over the length would change what such an input produces.
         let mut j_2: GlyphId = 0 as GlyphId;
         while (j_2 as usize) < cd.glyphs.len() && budget.class_zero_left() {
-            if cd.classes[j_2 as usize] as i32 == cls as i32 {
+            if i32::from(cd.classes[j_2 as usize]) == i32::from(cls) {
                 push_to_coverage(
                     &mut cov,
                     cd.glyphs[j_2 as usize].clone(),
@@ -212,7 +212,7 @@ pub fn format3_coverage(
     _max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Coverage {
-    read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2), budget)
+    read_coverage(data, _offset.wrapping_add(u32::from(shift)).wrapping_sub(2), budget)
 }
 // The `FontReader` reads and `require_room` checks below never reserve
 // bytes the following reads do not use.
@@ -225,7 +225,7 @@ pub fn general_read_contextual_rule(
     max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingRule>> {
-    let minus_one_q: u16 = minus_one as u16;
+    let minus_one_q: u16 = u16::from(minus_one);
 
     let mut header = FontReader::new(slice).at(offset as usize).ok()?;
     let n_input = header.u16().ok()?;
@@ -312,7 +312,7 @@ fn read_contextual_format1(
         let Ok(chain_sub_rule_set_count) = header.u16() else {
             break 'parse None;
         };
-        let cov_offset = offset.wrapping_add(cov_rel as u32);
+        let cov_offset = offset.wrapping_add(u32::from(cov_rel));
         let first_coverage: Coverage = read_coverage(slice, cov_offset, budget);
         if chain_sub_rule_set_count as usize != first_coverage.len() {
             break 'parse None;
@@ -332,7 +332,7 @@ fn read_contextual_format1(
                 .unwrap()
                 .u16()
                 .unwrap();
-            let srs_offset = offset.wrapping_add(srs_rel as u32);
+            let srs_offset = offset.wrapping_add(u32::from(srs_rel));
             let Ok(mut srs_header) = FontReader::new(slice).at(srs_offset as usize) else {
                 break 'parse None;
             };
@@ -354,7 +354,7 @@ fn read_contextual_format1(
                 .unwrap()
                 .u16()
                 .unwrap();
-            let srs_offset = offset.wrapping_add(srs_rel as u32);
+            let srs_offset = offset.wrapping_add(u32::from(srs_rel));
             let srs_count = FontReader::new(slice)
                 .at(srs_offset as usize)
                 .unwrap()
@@ -369,7 +369,7 @@ fn read_contextual_format1(
                     .unwrap()
                     .u16()
                     .unwrap();
-                let sr_offset = srs_offset.wrapping_add(sr_rel as u32);
+                let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
                 let rule_ptr = general_read_contextual_rule(
                     slice,
                     sr_offset,
@@ -426,7 +426,7 @@ fn read_contextual_format2(
 
         cds = Some(ClassDefs {
             bc: None,
-            ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(ic_rel as u32)))),
+            ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(u32::from(ic_rel))))),
             fc: None,
         });
 
@@ -481,8 +481,8 @@ fn read_contextual_format2(
                     .u16()
                     .unwrap();
                 let sr_offset = offset
-                    .wrapping_add(src_rel as u32)
-                    .wrapping_add(sr_rel as u32);
+                    .wrapping_add(u32::from(src_rel))
+                    .wrapping_add(u32::from(sr_rel));
                 let rule_ptr = general_read_contextual_rule(
                     slice,
                     sr_offset,
@@ -553,7 +553,7 @@ pub fn otl_read_contextual(
         }
         _ => {}
     }
-    tracing::warn!("Unsupported format {}.\n", format as i32);
+    tracing::warn!("Unsupported format {}.\n", i32::from(format));
     None
 }
 pub fn general_read_chaining_rule(
@@ -565,7 +565,7 @@ pub fn general_read_chaining_rule(
     max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Box<ChainingRule>> {
-    let minus_one_q: u16 = minus_one as u16;
+    let minus_one_q: u16 = u16::from(minus_one);
 
     // Four counts, each followed by the array it introduces: backtrack,
     // input (without the `minus_one` slot), lookahead, then the lookup
@@ -699,7 +699,7 @@ fn read_chaining_format1(
         let Ok(chain_sub_rule_set_count) = header.u16() else {
             break 'parse None;
         };
-        let cov_offset = offset.wrapping_add(cov_rel as u32);
+        let cov_offset = offset.wrapping_add(u32::from(cov_rel));
         let first_coverage: Coverage = read_coverage(slice, cov_offset, budget);
         if chain_sub_rule_set_count as usize != first_coverage.len() {
             break 'parse None;
@@ -718,7 +718,7 @@ fn read_chaining_format1(
                 .unwrap()
                 .u16()
                 .unwrap();
-            let srs_offset = offset.wrapping_add(srs_rel as u32);
+            let srs_offset = offset.wrapping_add(u32::from(srs_rel));
             let Ok(mut srs_header) = FontReader::new(slice).at(srs_offset as usize) else {
                 break 'parse None;
             };
@@ -739,7 +739,7 @@ fn read_chaining_format1(
                 .unwrap()
                 .u16()
                 .unwrap();
-            let srs_offset = offset.wrapping_add(srs_rel as u32);
+            let srs_offset = offset.wrapping_add(u32::from(srs_rel));
             let srs_count = FontReader::new(slice)
                 .at(srs_offset as usize)
                 .unwrap()
@@ -754,7 +754,7 @@ fn read_chaining_format1(
                     .unwrap()
                     .u16()
                     .unwrap();
-                let sr_offset = srs_offset.wrapping_add(sr_rel as u32);
+                let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
                 let rule_ptr = general_read_chaining_rule(
                     slice,
                     sr_offset,
@@ -816,9 +816,9 @@ fn read_chaining_format2(
         }
 
         cds = Some(ClassDefs {
-            bc: Some(Box::new(read_class_def(slice, offset.wrapping_add(bc_rel as u32)))),
-            ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(ic_rel as u32)))),
-            fc: Some(Box::new(read_class_def(slice, offset.wrapping_add(fc_rel as u32)))),
+            bc: Some(Box::new(read_class_def(slice, offset.wrapping_add(u32::from(bc_rel))))),
+            ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(u32::from(ic_rel))))),
+            fc: Some(Box::new(read_class_def(slice, offset.wrapping_add(u32::from(fc_rel))))),
         });
 
         // First pass: check every non-empty class set's header and rule
@@ -872,8 +872,8 @@ fn read_chaining_format2(
                     .u16()
                     .unwrap();
                 let sr_offset = offset
-                    .wrapping_add(src_rel as u32)
-                    .wrapping_add(dsr_rel as u32);
+                    .wrapping_add(u32::from(src_rel))
+                    .wrapping_add(u32::from(dsr_rel));
                 let rule_ptr = general_read_chaining_rule(
                     slice,
                     sr_offset,
@@ -948,7 +948,7 @@ pub fn otl_read_chaining(
         }
         _ => {}
     }
-    tracing::warn!("Unsupported format {}.\n", format as i32);
+    tracing::warn!("Unsupported format {}.\n", i32::from(format));
     None
 }
 #[inline]

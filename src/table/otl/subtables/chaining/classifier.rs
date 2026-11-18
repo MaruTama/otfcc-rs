@@ -105,9 +105,9 @@ fn build_rule(
         let mut cov: Coverage = Coverage::new();
         if !match_entry.is_empty() {
             let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
-                if (m as i32) < rule.input_begins as i32 {
+                if (m as i32) < i32::from(rule.input_begins) {
                     hb
-                } else if (m as i32) < rule.input_ends as i32 {
+                } else if (m as i32) < i32::from(rule.input_ends) {
                     hi
                 } else {
                     hf

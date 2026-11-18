@@ -54,7 +54,7 @@ pub fn otl_read_gsub_reverse(
         }
         let mut backtrack_offsets = Vec::with_capacity(n_backtrack as usize);
         for _ in 0..n_backtrack {
-            backtrack_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+            backtrack_offsets.push(offset.wrapping_add(u32::from(header.u16().unwrap())));
         }
 
         let Ok(n_forward) = header.u16() else {
@@ -65,7 +65,7 @@ pub fn otl_read_gsub_reverse(
         }
         let mut forward_offsets = Vec::with_capacity(n_forward as usize);
         for _ in 0..n_forward {
-            forward_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+            forward_offsets.push(offset.wrapping_add(u32::from(header.u16().unwrap())));
         }
 
         let Ok(n_replacement) = header.u16() else {
@@ -79,13 +79,13 @@ pub fn otl_read_gsub_reverse(
         // + 1` -- each addend is individually bounded to u16, but their
         // sum is not. A truncated count would size `sequence` too small
         // for the real `n_backtrack`/`n_forward` below, so it is rejected.
-        let Some(match_count_u32) = (n_backtrack as u32)
-            .checked_add(n_forward as u32)
+        let Some(match_count_u32) = u32::from(n_backtrack)
+            .checked_add(u32::from(n_forward))
             .and_then(|s| s.checked_add(1))
         else {
             break 'parse;
         };
-        if match_count_u32 > u16::MAX as u32 {
+        if match_count_u32 > u32::from(u16::MAX) {
             break 'parse;
         }
         let match_count = match_count_u32 as TableId;
@@ -102,7 +102,7 @@ pub fn otl_read_gsub_reverse(
             subtable.sequence[j] = read_coverage(data, cov_offset, budget);
         }
 
-        let input_cov_offset = offset.wrapping_add(input_cov_rel as u32);
+        let input_cov_offset = offset.wrapping_add(u32::from(input_cov_rel));
         subtable.sequence[subtable.input_index as usize] = read_coverage(data, input_cov_offset, budget);
 
         if n_replacement as usize != subtable.sequence[subtable.input_index as usize].len() {
@@ -141,7 +141,7 @@ pub fn otl_gsub_dump_reverse(_subtable: &Subtable) -> BuiltValue {
     }
     _st.push_field(b"match", _match);
     _st.push_field(b"to", dump_coverage(&subtable.to));
-    _st.push_field(b"inputIndex", BuiltValue::Int(subtable.input_index as i64));
+    _st.push_field(b"inputIndex", BuiltValue::Int(i64::from(subtable.input_index)));
     _st
 }
 pub fn otl_gsub_parse_reverse(
@@ -190,7 +190,7 @@ pub fn build_gsub_reverse(
         &mut root,
         vec![bk_int(
             BkCellType::B16,
-            (subtable.input_index as i32) as u32,
+            i32::from(subtable.input_index) as u32,
         )],
     );
     for cov in backtrack.iter() {
@@ -206,8 +206,8 @@ pub fn build_gsub_reverse(
         &mut root,
         vec![bk_int(
             BkCellType::B16,
-            (subtable.match_count as i32
-                - subtable.input_index as i32
+            (i32::from(subtable.match_count)
+                - i32::from(subtable.input_index)
                 - 1) as u32,
         )],
     );
@@ -233,7 +233,7 @@ pub fn build_gsub_reverse(
     for entry in subtable.to.iter() {
         bk_push(
             &mut root,
-            vec![bk_int(BkCellType::B16, (entry.index as i32) as u32)],
+            vec![bk_int(BkCellType::B16, i32::from(entry.index) as u32)],
         );
     }
     bk_build_block(root)

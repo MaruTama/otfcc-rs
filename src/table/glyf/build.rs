@@ -20,7 +20,7 @@ pub fn shrink_flags(flags: Buffer) -> Buffer {
     let mut repeating: i32 = 0;
     for pair in flags_data.windows(2) {
         let (prev, cur) = (pair[0], pair[1]);
-        if cur as i32 == prev as i32 {
+        if i32::from(cur) == i32::from(prev) {
             if repeating != 0 && repeating < 0xfe {
                 let idx = shrunk.cursor.wrapping_sub(1);
                 shrunk.data[idx] = shrunk.data[idx].wrapping_add(1);
@@ -54,7 +54,7 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
     let mut ptid: ShapeId = 0 as ShapeId;
     for contour in g.contours.iter() {
         ptid = (ptid as usize).wrapping_add(contour.len()) as ShapeId;
-        gbuf.write_u16be((ptid as i32 - 1) as u16);
+        gbuf.write_u16be((i32::from(ptid) - 1) as u16);
     }
     gbuf.write_u16be(g.instructions.len() as u16);
     if !g.instructions.is_empty() {
@@ -81,7 +81,7 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
                         flag.insert(PointFlags::POSITIVE_X);
                         xs.write_u8(dx as u8);
                     } else {
-                        xs.write_u8(-(dx as i32) as u8);
+                        xs.write_u8(-i32::from(dx) as u8);
                     }
                 }
                 _ => xs.write_u16be(dx as u16),
@@ -94,7 +94,7 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
                         flag.insert(PointFlags::POSITIVE_Y);
                         ys.write_u8(dy as u8);
                     } else {
-                        ys.write_u8(-(dy as i32) as u8);
+                        ys.write_u8(-i32::from(dy) as u8);
                     }
                 }
                 _ => ys.write_u16be(dy as u16),
@@ -131,7 +131,7 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         let (arg1, arg2): (u16, u16) = if output_anchor {
             let a1 = r.outer;
             let a2 = r.inner;
-            if !((a1 as i32) < 0x100 && (a2 as i32) < 0x100) {
+            if !(i32::from(a1) < 0x100 && i32::from(a2) < 0x100) {
                 flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }
             (a1, a2)
@@ -139,10 +139,10 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
             flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
             let c1 = vq_get_still(r.x.borrow().clone()) as i16;
             let c2 = vq_get_still(r.y.borrow().clone()) as i16;
-            if !((c1 as i32) < 128
-                && c1 as i32 >= -128
-                && (c2 as i32) < 128
-                && c2 as i32 >= -128)
+            if !(i32::from(c1) < 128
+                && i32::from(c1) >= -128
+                && i32::from(c2) < 128
+                && i32::from(c2) >= -128)
             {
                 flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }

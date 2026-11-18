@@ -67,17 +67,17 @@ pub fn otl_read_gpos_mark_to_single(
             break 'parse;
         };
 
-        let marks: Coverage = read_coverage(data, subtable_offset.wrapping_add(marks_rel as u32), budget);
-        let bases: Coverage = read_coverage(data, subtable_offset.wrapping_add(bases_rel as u32), budget);
+        let marks: Coverage = read_coverage(data, subtable_offset.wrapping_add(u32::from(marks_rel)), budget);
+        let bases: Coverage = read_coverage(data, subtable_offset.wrapping_add(u32::from(bases_rel)), budget);
         if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
 
         subtable.class_count = class_count as GlyphClass;
-        let mark_array_offset = subtable_offset.wrapping_add(mark_array_rel as u32);
+        let mark_array_offset = subtable_offset.wrapping_add(u32::from(mark_array_rel));
         otl_read_mark_array(&mut subtable.mark_array, &marks, data, mark_array_offset);
 
-        let base_array_offset = subtable_offset.wrapping_add(base_array_rel as u32);
+        let base_array_offset = subtable_offset.wrapping_add(u32::from(base_array_rel));
         let Ok(mut base_reader) = FontReader::new(data).at(base_array_offset as usize) else {
             break 'parse;
         };
@@ -113,7 +113,7 @@ pub fn otl_read_gpos_mark_to_single(
                 if anchor_rel != 0 {
                     base_anchors.push(otl_read_anchor(
                         data,
-                        base_array_offset.wrapping_add(anchor_rel as u32),
+                        base_array_offset.wrapping_add(u32::from(anchor_rel)),
                     ));
                 } else {
                     base_anchors.push(otl_anchor_absent());
@@ -138,7 +138,7 @@ pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
     let mut _bases = BuiltValue::new_object(subtable.base_array.len());
     for mark in subtable.mark_array.iter() {
         let mut _mark = BuiltValue::new_object(3);
-        let mark_class_name: Vec<u8> = crate::bytesbuild!(b"anchor", mark.mark_class as i32,);
+        let mark_class_name: Vec<u8> = crate::bytesbuild!(b"anchor", i32::from(mark.mark_class),);
         _mark.push_field(b"class", BuiltValue::str_truncated_at_nul(&mark_class_name));
         _mark.push_field(b"x", BuiltValue::Int(mark.anchor.x as i64));
         _mark.push_field(b"y", BuiltValue::Int(mark.anchor.y as i64));
@@ -257,7 +257,7 @@ pub fn build_gpos_mark_to_single(
         ),
         bk_int(
             BkCellType::B16,
-            (subtable.class_count as i32) as u32,
+            i32::from(subtable.class_count) as u32,
         ),
     ]);
     let mut mark_array: BkBlock = bk_new_block(vec![bk_int(
@@ -268,7 +268,7 @@ pub fn build_gpos_mark_to_single(
         bk_push(
             &mut mark_array,
             vec![
-                bk_int(BkCellType::B16, (mark.mark_class as i32) as u32),
+                bk_int(BkCellType::B16, i32::from(mark.mark_class) as u32),
                 bk_ptr(BkCellType::P16, bk_from_anchor(mark.anchor)),
             ],
         );
@@ -382,7 +382,7 @@ mod otl_read_gpos_mark_to_single_tests {
 
         // base array: baseCount, then base_count*class_count absent slots.
         d.extend_from_slice(&base_count.to_be_bytes());
-        for _ in 0..(base_count as u32 * class_count as u32) {
+        for _ in 0..(u32::from(base_count) * u32::from(class_count)) {
             d.extend_from_slice(&0u16.to_be_bytes());
         }
         d

@@ -436,28 +436,28 @@ pub fn dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     );
     post.push_field(
         b"underlinePosition",
-        BuiltValue::Int(table.underline_position as i64),
+        BuiltValue::Int(i64::from(table.underline_position)),
     );
     post.push_field(
         b"underlineThickness",
-        BuiltValue::Int(table.underline_thickness as i64),
+        BuiltValue::Int(i64::from(table.underline_thickness)),
     );
     post.push_field(b"isFixedPitch", BuiltValue::Bool(table.is_fixed_pitch != 0));
     post.push_field(
         b"minMemType42",
-        BuiltValue::Int(table.min_mem_type42 as i64),
+        BuiltValue::Int(i64::from(table.min_mem_type42)),
     );
     post.push_field(
         b"maxMemType42",
-        BuiltValue::Int(table.max_mem_type42 as i64),
+        BuiltValue::Int(i64::from(table.max_mem_type42)),
     );
     post.push_field(
         b"minMemType1",
-        BuiltValue::Int(table.min_mem_type1 as i64),
+        BuiltValue::Int(i64::from(table.min_mem_type1)),
     );
     post.push_field(
         b"maxMemType1",
-        BuiltValue::Int(table.max_mem_type1 as i64),
+        BuiltValue::Int(i64::from(table.max_mem_type1)),
     );
     root.push_field(b"post", post);
     stage.finish();
@@ -488,7 +488,7 @@ pub fn parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable
         post.italic_angle = to_fixed(table.get_num(b"italicAngle"));
         post.underline_position = table.get_num(b"underlinePosition") as i16;
         post.underline_thickness = table.get_num(b"underlineThickness") as i16;
-        post.is_fixed_pitch = table.get_bool(b"isFixedPitch") as u32;
+        post.is_fixed_pitch = u32::from(table.get_bool(b"isFixedPitch"));
         post.min_mem_type42 = table.get_num(b"minMemType42") as u32;
         post.max_mem_type42 = table.get_num(b"maxMemType42") as u32;
         post.min_mem_type1 = table.get_num(b"minMemType1") as u32;
@@ -519,7 +519,7 @@ pub fn build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> 
         buf.write_u16be(glyphorder.by_gid.len() as u16);
         for &idx in glyphorder.by_gid.values() {
             let entry = &glyphorder.entries[idx];
-            buf.write_u16be((258 + entry.gid as i32) as u16);
+            buf.write_u16be((258 + i32::from(entry.gid)) as u16);
         }
         for &idx in glyphorder.by_gid.values() {
             let entry = &glyphorder.entries[idx];

@@ -205,12 +205,12 @@ fn glyf_contour_fill(arr: &mut Contour, n: usize) {
 pub fn glyf_component_reference_empty() -> ComponentReference {
     ComponentReference {
         glyph: handle_empty(),
-        x: std::cell::RefCell::new(vq_create_still(0 as Pos)),
-        y: std::cell::RefCell::new(vq_create_still(0 as Pos)),
-        a: 1 as Scale,
-        b: 0 as Scale,
-        c: 0 as Scale,
-        d: 1 as Scale,
+        x: std::cell::RefCell::new(vq_create_still(Pos::from(0))),
+        y: std::cell::RefCell::new(vq_create_still(Pos::from(0))),
+        a: Scale::from(1),
+        b: Scale::from(0),
+        c: Scale::from(0),
+        d: Scale::from(1),
         is_anchored: std::cell::Cell::new(RefAnchorStatus::Xy),
         outer: 0 as ShapeId,
         inner: 0 as ShapeId,
@@ -249,10 +249,10 @@ pub fn new_glyf_glyph() -> Box<Glyph> {
         fd_select: handle_empty() as FdHandle,
         cid: 0 as GlyphId,
         stat: GlyphStat {
-            x_min: 0 as Pos,
-            x_max: 0 as Pos,
-            y_min: 0 as Pos,
-            y_max: 0 as Pos,
+            x_min: Pos::from(0),
+            x_max: Pos::from(0),
+            y_min: Pos::from(0),
+            y_max: Pos::from(0),
             nest_depth: 0,
             n_points: 0,
             n_contours: 0,
@@ -303,8 +303,8 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
         ref_json.push_field(b"d", BuiltValue::position(r.d as Pos));
         if r.is_anchored.get() != RefAnchorStatus::Xy {
             ref_json.push_field(b"isAnchored", BuiltValue::Bool(true));
-            ref_json.push_field(b"inner", BuiltValue::Int(r.inner as i64));
-            ref_json.push_field(b"outer", BuiltValue::Int(r.outer as i64));
+            ref_json.push_field(b"inner", BuiltValue::Int(i64::from(r.inner)));
+            ref_json.push_field(b"outer", BuiltValue::Int(i64::from(r.outer)));
         }
         if r.round_to_grid {
             ref_json.push_field(b"roundToGrid", BuiltValue::Bool(true));
@@ -332,9 +332,9 @@ fn glyf_glyph_dump_maskdefs(masks: &MaskList, hh: &StemDefList, vv: &StemDefList
         let mut mask = BuiltValue::new_object(3);
         mask.push_field(
             b"contoursBefore",
-            BuiltValue::Int(entry.contours_before as i64),
+            BuiltValue::Int(i64::from(entry.contours_before)),
         );
-        mask.push_field(b"pointsBefore", BuiltValue::Int(entry.points_before as i64));
+        mask.push_field(b"pointsBefore", BuiltValue::Int(i64::from(entry.points_before)));
         // Bounded by the glyph's own stem counts (and by the mask's 256
         // flags).
         let mut h = BuiltValue::new_array(hh.len());
@@ -383,7 +383,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
             b"CFF_fdSelect",
             BuiltValue::str_truncated_at_nul(&g.fd_select.name),
         );
-        glyph.push_field(b"CFF_CID", BuiltValue::Int(g.cid as i64));
+        glyph.push_field(b"CFF_CID", BuiltValue::Int(i64::from(g.cid)));
     }
     if !options.ignore_hints {
         if !g.instructions.is_empty() {
@@ -408,7 +408,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
             );
         }
         if g.y_pel != 0 {
-            glyph.push_field(b"LTSH_yPel", BuiltValue::Int(g.y_pel as i64));
+            glyph.push_field(b"LTSH_yPel", BuiltValue::Int(i64::from(g.y_pel)));
         }
     }
     glyph
@@ -454,7 +454,7 @@ fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
         match &key[..key.len() - 1] {
             b"x" => point.x = json_vq_of(Some(val)),
             b"y" => point.y = json_vq_of(Some(val)),
-            b"on" => point.on_curve = val.as_bool().unwrap_or(false) as i8,
+            b"on" => point.on_curve = i8::from(val.as_bool().unwrap_or(false)),
             _ => {}
         }
     }
@@ -478,8 +478,8 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     let mut glyph_ref: ComponentReference = glyf_component_reference_empty();
     let Some(_gname) = refdump.get_typed(b"glyph", JsonType::String) else {
         glyph_ref.glyph.name = Vec::new();
-        glyph_ref.x = std::cell::RefCell::new(vq_create_still(0 as Pos));
-        glyph_ref.y = std::cell::RefCell::new(vq_create_still(0 as Pos));
+        glyph_ref.x = std::cell::RefCell::new(vq_create_still(Pos::from(0)));
+        glyph_ref.y = std::cell::RefCell::new(vq_create_still(Pos::from(0)));
         glyph_ref.a = 1.0 as Scale;
         glyph_ref.b = 0.0 as Scale;
         glyph_ref.c = 0.0 as Scale;

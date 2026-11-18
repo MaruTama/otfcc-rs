@@ -54,7 +54,7 @@ pub struct VQ {
 }
 #[inline]
 fn init_vq_segment(vqs: &mut VqSegment) {
-    *vqs = VqSegment::Still(0 as Pos);
+    *vqs = VqSegment::Still(Pos::from(0));
 }
 #[inline]
 fn copy_vq_segment(dst: &mut VqSegment, src: &VqSegment) {
@@ -120,7 +120,7 @@ fn vqs_compare(a: &VqSegment, b: &VqSegment) -> i32 {
     }
 }
 pub(crate) fn vq_neutral() -> VQ {
-    vq_create_still(0 as Pos)
+    vq_create_still(Pos::from(0))
 }
 fn vqs_compatible(a: &VqSegment, b: &VqSegment) -> bool {
     match (a, b) {
@@ -190,7 +190,7 @@ fn vq_inplace_scale(a: &mut VQ, b: Pos) {
     }
 }
 fn vq_inplace_negate(a: &mut VQ) {
-    vq_inplace_scale(a, -1 as Pos);
+    vq_inplace_scale(a, Pos::from(-1));
 }
 fn vq_negate(a: VQ) -> VQ {
     let mut result: VQ = a;
@@ -255,7 +255,7 @@ pub(crate) fn vq_is_still(v: VQ) -> bool {
 }
 pub(crate) fn vq_is_zero(v: VQ, err: Pos) -> bool {
     // `f64::abs` gives the same result as C's `fabs` for every input.
-    vq_is_still(v.clone()) as i32 != 0
+    i32::from(vq_is_still(v.clone())) != 0
         && (vq_get_still(v) as f64).abs() < err
 }
 // Takes `&Rc<VqRegion>`, not `Rc<VqRegion>`: `table/glyf/read.rs`'s four

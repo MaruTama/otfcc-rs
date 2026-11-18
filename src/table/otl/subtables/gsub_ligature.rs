@@ -46,7 +46,7 @@ pub fn otl_read_gsub_ligature(
             break 'parse;
         };
 
-        let start_coverage: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32), budget);
+        let start_coverage: Coverage = read_coverage(data, offset.wrapping_add(u32::from(cov_rel)), budget);
         if set_count as usize != start_coverage.len() {
             break 'parse;
         }
@@ -55,7 +55,7 @@ pub fn otl_read_gsub_ligature(
         }
         let mut set_offsets = Vec::with_capacity(set_count as usize);
         for _ in 0..set_count {
-            set_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+            set_offsets.push(offset.wrapping_add(u32::from(header.u16().unwrap())));
         }
 
         for (j, &set_offset) in set_offsets.iter().enumerate() {
@@ -70,7 +70,7 @@ pub fn otl_read_gsub_ligature(
             }
             let mut lig_offsets = Vec::with_capacity(lig_count as usize);
             for _ in 0..lig_count {
-                lig_offsets.push(set_offset.wrapping_add(sr.u16().unwrap() as u32));
+                lig_offsets.push(set_offset.wrapping_add(u32::from(sr.u16().unwrap())));
             }
 
             for &lig_offset in &lig_offsets {
@@ -171,7 +171,7 @@ pub fn build_gsub_ligature_subtable(
     let mut start_gids: std::collections::BTreeSet<i32> =
         std::collections::BTreeSet::new();
     for rule in subtable.iter() {
-        start_gids.insert(rule.from[0].index as i32);
+        start_gids.insert(i32::from(rule.from[0].index));
     }
     let mut startcov: Coverage = Vec::new();
     for &gid in start_gids.iter() {
@@ -191,21 +191,21 @@ pub fn build_gsub_ligature_subtable(
     for &gid in start_gids.iter() {
         let n_ligs_here = subtable
             .iter()
-            .filter(|rule| rule.from[0].index as i32 == gid)
+            .filter(|rule| i32::from(rule.from[0].index) == gid)
             .count();
         let mut ligset: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
             (n_ligs_here as i32) as u32,
         )]);
-        for rule in subtable.iter().filter(|rule| rule.from[0].index as i32 == gid) {
+        for rule in subtable.iter().filter(|rule| i32::from(rule.from[0].index) == gid) {
             let mut ligdef: BkBlock = bk_new_block(vec![
-                bk_int(BkCellType::B16, (rule.to.index as i32) as u32),
+                bk_int(BkCellType::B16, i32::from(rule.to.index) as u32),
                 bk_int(BkCellType::B16, (rule.from.len() as i32) as u32),
             ]);
             for component in rule.from.iter().skip(1) {
                 bk_push(
                     &mut ligdef,
-                    vec![bk_int(BkCellType::B16, (component.index as i32) as u32)],
+                    vec![bk_int(BkCellType::B16, i32::from(component.index) as u32)],
                 );
             }
             bk_push(&mut ligset, vec![bk_ptr(BkCellType::P16, Some(ligdef))]);

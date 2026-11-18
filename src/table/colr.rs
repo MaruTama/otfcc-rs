@@ -95,7 +95,7 @@ pub fn dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
         for layer in mapping.layers.iter() {
             let mut _layer = BuiltValue::new_object(2);
             _layer.push_field(b"layer", BuiltValue::str_truncated_at_nul(&layer.glyph.name));
-            _layer.push_field(b"paletteIndex", BuiltValue::Int(layer.palette_index as i64));
+            _layer.push_field(b"paletteIndex", BuiltValue::Int(i64::from(layer.palette_index)));
             _layers.push_item(_layer);
         }
         _map.push_field(b"to", _layers.preserialize());
@@ -160,11 +160,11 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
             vec![
                 bk_int(
                     BkCellType::B16,
-                    (mapping.glyph.index as i32) as u32,
+                    i32::from(mapping.glyph.index) as u32,
                 ),
                 bk_int(
                     BkCellType::B16,
-                    (current_layer_index as i32) as u32,
+                    i32::from(current_layer_index) as u32,
                 ),
                 bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
             ],
@@ -175,15 +175,15 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
                 vec![
                     bk_int(
                         BkCellType::B16,
-                        (layer.glyph.index as i32) as u32,
+                        i32::from(layer.glyph.index) as u32,
                     ),
                     bk_int(
                         BkCellType::B16,
-                        (layer.palette_index as i32) as u32,
+                        i32::from(layer.palette_index) as u32,
                     ),
                 ],
             );
-            current_layer_index = (current_layer_index as i32
+            current_layer_index = (i32::from(current_layer_index)
                 + 1)
                 as GlyphId;
         }
@@ -195,7 +195,7 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
         bk_ptr(BkCellType::P32, Some(layer_records)),
         bk_int(
             BkCellType::B16,
-            (current_layer_index as i32) as u32,
+            i32::from(current_layer_index) as u32,
         ),
     ]);
     // `colr` drops naturally at the end of this scope -- no explicit

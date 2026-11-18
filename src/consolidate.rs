@@ -38,7 +38,7 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
             let g = slot.as_mut().unwrap();
             let gid = gid as GlyphId;
             let name: Vec<u8> = if g.name.is_empty() {
-                let name = crate::bytesbuild!(b"$$gid", gid as i32);
+                let name = crate::bytesbuild!(b"$$gid", i32::from(gid));
                 g.name = name.clone();
                 name
             } else {

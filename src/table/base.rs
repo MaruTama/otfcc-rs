@@ -85,9 +85,9 @@ fn read_base_script(
         let tag = base_tag_list[j as usize];
         let val_offset = r2.u16().unwrap();
         let coordinate = if val_offset != 0 {
-            read_base_value(data, base_values_offset + val_offset as usize) as Pos
+            Pos::from(read_base_value(data, base_values_offset + val_offset as usize))
         } else {
-            0 as Pos
+            Pos::from(0)
         };
         base_values.push(BaseValue { tag, coordinate });
     }
@@ -308,7 +308,7 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
             &mut base_values,
             vec![bk_int(
                 BkCellType::B16,
-                (default_index as i32) as u32,
+                i32::from(default_index) as u32,
             )],
         );
         bk_push(
@@ -329,7 +329,7 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
                             bk_int(BkCellType::B16, 1),
                             bk_int(
                                 BkCellType::B16,
-                                (entry_0.base_values[found_index].coordinate as i16 as i32) as u32,
+                                i32::from(entry_0.base_values[found_index].coordinate as i16) as u32,
                             ),
                         ])),
                     )],
@@ -384,7 +384,7 @@ fn str2tag(tags: Option<&[u8]>) -> u32 {
     let mut tag: u32 = 0;
     let mut len: u8 = 0;
     for &b in tags.iter().take(4) {
-        tag = tag << 8 | b as u32;
+        tag = tag << 8 | u32::from(b);
         len = len.wrapping_add(1);
     }
     for _ in len..4_u8 {

@@ -30,9 +30,9 @@ pub fn consolidate_gsub_single(
         } else if !gord_consolidate_handle(glyph_order, &mut entry.to) {
             tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.to.name));
         } else {
-            let fromid: i32 = entry.from.index as i32;
+            let fromid: i32 = i32::from(entry.from.index);
             if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
-                let toid: i32 = entry.to.index as i32;
+                let toid: i32 = i32::from(entry.to.index);
                 let fromname: Vec<u8> = entry.from.name.clone();
                 let toname: Vec<u8> = entry.to.name.clone();
                 e.insert((fromname, toid, toname));

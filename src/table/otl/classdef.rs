@@ -24,7 +24,7 @@ pub struct ClassDefSortRecord {
 pub(crate) fn push_class_def(cd: &mut ClassDef, h: GlyphHandle, cls: GlyphClass) {
     cd.glyphs.push(h);
     cd.classes.push(cls);
-    if cls as i32 > cd.maxclass as i32 {
+    if i32::from(cls) > i32::from(cd.maxclass) {
         cd.maxclass = cls;
     }
 }
@@ -73,7 +73,7 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> ClassDef {
             let start = r.u16().unwrap();
             let end = r.u16().unwrap();
             let cls = r.u16().unwrap();
-            for k in start as i32..=end as i32 {
+            for k in i32::from(start)..=i32::from(end) {
                 h.entry(k as GlyphId).or_insert(cls as GlyphClass);
             }
         }
@@ -109,7 +109,7 @@ pub(crate) fn expand_class_def(cov: &Coverage, ocd: ClassDef) -> ClassDef {
 pub(crate) fn dump_class_def(cd: &ClassDef) -> BuiltValue {
     let mut a = BuiltValue::new_object(cd.glyphs.len());
     for j in 0..cd.glyphs.len() {
-        a.push_field_bytes_key(&cd.glyphs[j].name, BuiltValue::Int(cd.classes[j] as i64));
+        a.push_field_bytes_key(&cd.glyphs[j].name, BuiltValue::Int(i64::from(cd.classes[j])));
     }
     a.preserialize()
 }
@@ -167,14 +167,14 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     let mut ranges = Buffer::new();
     for rec in r.iter().skip(1) {
         let current: GlyphId = rec.gid;
-        if !(current as i32 <= last_gid as i32) {
-            if current as i32 == end_gid as i32 + 1 && rec.cid as i32 == last_class as i32 {
+        if !(i32::from(current) <= i32::from(last_gid)) {
+            if i32::from(current) == i32::from(end_gid) + 1 && i32::from(rec.cid) == i32::from(last_class) {
                 end_gid = current;
             } else {
                 ranges.write_u16be(start_gid as u16);
                 ranges.write_u16be(end_gid as u16);
                 ranges.write_u16be(last_class as u16);
-                n_ranges = (n_ranges as i32 + 1) as GlyphId;
+                n_ranges = (i32::from(n_ranges) + 1) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
                 last_class = rec.cid;
@@ -185,7 +185,7 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     ranges.write_u16be(start_gid as u16);
     ranges.write_u16be(end_gid as u16);
     ranges.write_u16be(last_class as u16);
-    n_ranges = (n_ranges as i32 + 1) as GlyphId;
+    n_ranges = (i32::from(n_ranges) + 1) as GlyphId;
     buf.write_u16be(n_ranges as u16);
     buf.write_buffer_owned(ranges);
     buf

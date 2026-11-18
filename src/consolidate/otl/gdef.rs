@@ -48,7 +48,7 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
             std::collections::BTreeMap::new();
         for rec in lig_carets.iter_mut() {
             if gord_consolidate_handle(glyph_order, &mut rec.glyph) {
-                let gid: i32 = rec.glyph.index as i32;
+                let gid: i32 = i32::from(rec.glyph.index);
                 if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(gid) {
                     let gname: Vec<u8> = rec.glyph.name.clone();
                     if !gname.is_empty() {

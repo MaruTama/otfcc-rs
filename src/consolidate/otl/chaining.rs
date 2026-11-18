@@ -57,10 +57,10 @@ pub(crate) fn consolidate_chaining(
         shrink_coverage(cov, true);
         possible = possible && !cov.is_empty();
     }
-    if rule.input_begins as i32 > rule.match_count as i32 {
+    if i32::from(rule.input_begins) > i32::from(rule.match_count) {
         rule.input_begins = rule.match_count;
     }
-    if rule.input_ends as i32 > rule.match_count as i32 {
+    if i32::from(rule.input_ends) > i32::from(rule.match_count) {
         rule.input_ends = rule.match_count;
     }
     for app in rule.apply.iter_mut() {
@@ -135,7 +135,7 @@ pub(crate) fn consolidate_chaining(
                 let budget = options.consolidate_warning_budget.get();
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
-                    tracing::warn!("[Consolidate] Quoting an invalid lookup #{}.", app.lookup.index as i32);
+                    tracing::warn!("[Consolidate] Quoting an invalid lookup #{}.", i32::from(app.lookup.index));
                 }
                 app.lookup.index = 0 as GlyphId;
             }
