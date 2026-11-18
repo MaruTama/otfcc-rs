@@ -58,7 +58,7 @@ fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], co
     };
     let pd: &mut CffPrivateDict = meta.private_dict.as_deref_mut().unwrap();
     // Every operand, in order (the delta-encoded arrays).
-    let all = || (0..top as Arity).map(|j| cffnum(stack[j as usize])).collect::<Vec<f64>>();
+    let all = || (0..Arity::from(top)).map(|j| cffnum(stack[j as usize])).collect::<Vec<f64>>();
     // The operand `n` places below the top; only read once `top >= n` is known.
     let last = |n: usize| cffnum(stack[top as usize - n]);
     match op {
@@ -192,7 +192,7 @@ fn still_point(x: f64, y: f64, on_curve: bool) -> Point {
     Point {
         x: vq_create_still(x),
         y: vq_create_still(y),
-        on_curve: on_curve as i8,
+        on_curve: i8::from(on_curve),
     }
 }
 /// Appends a cubic Bezier segment to the current contour: two off-curve
@@ -387,7 +387,7 @@ fn build_outline(
             &mut local_subrs,
         )
     };
-    bc.g.fd_select = handle_from_index(fd as GlyphId) as FdHandle;
+    bc.g.fd_select = handle_from_index(GlyphId::from(fd)) as FdHandle;
     let ctx_fd_array: &Vec<Box<CffTable>> = &meta.fd_array;
     if (fd as usize) < ctx_fd_array.len() && ctx_fd_array[fd as usize].private_dict.is_some() {
         let pd = ctx_fd_array[fd as usize].private_dict.as_deref().unwrap();
@@ -405,7 +405,7 @@ fn build_outline(
     // always in `0..=data.len()` for any `i` within the INDEX's own
     // count, the same invariant `locate_subr`/`get_cff_sid` rely on.
     let char_string_start = (char_strings_offset[i as usize] - 1) as usize;
-    let char_string_end = (char_strings_offset[(i as i32 + 1) as usize] - 1) as usize;
+    let char_string_end = (char_strings_offset[(i32::from(i) + 1) as usize] - 1) as usize;
     let char_string_bytes: &[u8] = &f.char_strings.data[char_string_start..char_string_end];
     bc.j_contour = 0 as ShapeId;
     bc.j_point = 0 as ShapeId;
@@ -447,7 +447,7 @@ fn build_outline(
     *seed = bc.randx;
 }
 fn form_cid_string(cid: CffSid) -> Vec<u8> {
-    crate::bytesbuild!(b"CID", cid as i32)
+    crate::bytesbuild!(b"CID", i32::from(cid))
 }
 fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_file: &CffFile) {
     let is_cid = meta.is_cid;
@@ -469,8 +469,8 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
             }
             return;
         }
-        CffCharset::Format1(ranges) => ranges.iter().map(|r| (r.first, r.nleft as u32 + 1)).collect(),
-        CffCharset::Format2(ranges) => ranges.iter().map(|r| (r.first, r.nleft as u32 + 1)).collect(),
+        CffCharset::Format1(ranges) => ranges.iter().map(|r| (r.first, u32::from(r.nleft) + 1)).collect(),
+        CffCharset::Format2(ranges) => ranges.iter().map(|r| (r.first, u32::from(r.nleft) + 1)).collect(),
         _ => return,
     };
     let sids = ranges
@@ -506,9 +506,9 @@ pub(super) fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Optio
             let b: Scale = qround(f64::from(head.units_per_em) * fm.b) as Scale;
             let c: Scale = qround(f64::from(head.units_per_em) * fm.c) as Scale;
             let d: Scale = qround(f64::from(head.units_per_em) * fm.d) as Scale;
-            let mut x: VQ = vq_scale(fm.x.clone(), head.units_per_em as Scale);
+            let mut x: VQ = vq_scale(fm.x.clone(), Scale::from(head.units_per_em));
             x.kernel = qround(x.kernel) as Pos;
-            let mut y: VQ = vq_scale(fm.y.clone(), head.units_per_em as Scale);
+            let mut y: VQ = vq_scale(fm.y.clone(), Scale::from(head.units_per_em));
             y.kernel = qround(y.kernel) as Pos;
             for contour in g.contours.iter_mut() {
                 for point in contour.iter_mut() {
@@ -588,13 +588,13 @@ pub fn read_cff_and_glyf_tables(
                         // even if a later `push` reallocates the `Vec`'s
                         // own backing buffer of `Box` pointers.
                         context.meta.fd_array.push(table_cff_new());
-                        context.fd_array_index = j as i32;
+                        context.fd_array_index = i32::from(j);
                         parse_to_callback(
                             {
                                 let font_dict_offset = &cff_file.font_dict.offset;
                                 let start =
                                     font_dict_offset[j as usize].wrapping_sub(1) as usize;
-                                let len = (font_dict_offset[(j as i32
+                                let len = (font_dict_offset[(i32::from(j)
                                     + 1)
                                     as usize])
                                     .wrapping_sub(font_dict_offset[j as usize])
@@ -611,7 +611,7 @@ pub fn read_cff_and_glyf_tables(
                         );
                         if context.meta.fd_array[j as usize].font_name.is_empty() {
                             context.meta.fd_array[j as usize].font_name =
-                                crate::bytesbuild!(b"_Subfont", j as i32);
+                                crate::bytesbuild!(b"_Subfont", i32::from(j));
                         }
                     }
                 }

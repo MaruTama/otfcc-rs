@@ -162,7 +162,7 @@ fn cff_make_fd_dict(fd: &CffTable, h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>)
             fd.font_b_box_top,
         ],
     );
-    cffdict_input_ints(&mut dict, OP_IS_FIXED_PITCH, &[fd.is_fixed_pitch as i32]);
+    cffdict_input_ints(&mut dict, OP_IS_FIXED_PITCH, &[i32::from(fd.is_fixed_pitch)]);
     cffdict_input_doubles(&mut dict, OP_ITALIC_ANGLE, &[fd.italic_angle]);
     cffdict_input_doubles(&mut dict, OP_UNDERLINE_POSITION, &[fd.underline_position]);
     cffdict_input_doubles(
@@ -218,7 +218,7 @@ fn cff_make_private_dict(pd: Option<&CffPrivateDict>) -> CffDict {
     cffdict_input_doubles(&mut dict, OP_BLUE_FUZZ, &[pd.blue_fuzz]);
     cffdict_input_doubles(&mut dict, OP_STD_HW, &[pd.std_hw]);
     cffdict_input_doubles(&mut dict, OP_STD_VW, &[pd.std_vw]);
-    cffdict_input_ints(&mut dict, OP_FORCE_BOLD, &[pd.force_bold as i32]);
+    cffdict_input_ints(&mut dict, OP_FORCE_BOLD, &[i32::from(pd.force_bold)]);
     cffdict_input_ints(&mut dict, OP_LANGUAGE_GROUP, &[pd.language_group as i32]);
     cffdict_input_doubles(&mut dict, OP_EXPANSION_FACTOR, &[pd.expansion_factor]);
     cffdict_input_doubles(&mut dict, OP_INITIAL_RANDOM_SEED, &[pd.initial_random_seed]);
@@ -301,7 +301,7 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
             if fdi as usize > cff.fd_array.len() {
                 fdi = 0;
             }
-            if fdi as i32 != current as i32 {
+            if fdi != current {
                 current = fdi;
                 range3.push(CffFdSelectRangeFormat3 {
                     first: j as u16,
