@@ -507,6 +507,69 @@ pub fn decode_cff_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
 }
 
 #[cfg(test)]
+mod integer_encoding_boundary_tests {
+    use super::*;
+
+    fn bytes(val: i32) -> Vec<u8> {
+        encode_integer(val).data
+    }
+
+    // Every place where `encode_integer` switches between the 1-, 2-, 3-
+    // and 5-byte forms, with the bytes the CFF spec (Table 3) gives.
+    #[test]
+    fn encoding_changes_form_exactly_at_the_documented_boundaries() {
+        let cases: &[(i32, &[u8])] = &[
+            (0, &[139]),
+            (107, &[246]),
+            (-107, &[32]),
+            (108, &[247, 0]),
+            (1131, &[250, 255]),
+            (-108, &[251, 0]),
+            (-1131, &[254, 255]),
+            (1132, &[28, 0x04, 0x6c]),
+            (-1132, &[28, 0xfb, 0x94]),
+            (32767, &[28, 0x7f, 0xff]),
+            (-32768, &[28, 0x80, 0x00]),
+            (32768, &[29, 0, 0, 0x80, 0x00]),
+            (-32769, &[29, 0xff, 0xff, 0x7f, 0xff]),
+            (i32::MAX, &[29, 0x7f, 0xff, 0xff, 0xff]),
+            (i32::MIN, &[29, 0x80, 0, 0, 0]),
+        ];
+        for &(val, expected) in cases {
+            assert_eq!(bytes(val), expected, "encode_integer({val})");
+        }
+    }
+
+    // The DICT and charstring decoders read back what `encode_integer`
+    // wrote across the same boundaries. The DICT decoder reads the 3-byte
+    // form as unsigned, so negative values in that form are left out here.
+    #[test]
+    fn encoded_integers_decode_back_to_themselves() {
+        let vals = [
+            0, 1, -1, 107, -107, 108, -108, 1131, -1131, 1132, 32767, 32768, -32769,
+            i32::MAX, i32::MIN,
+        ];
+        for val in vals {
+            let data = bytes(val);
+            let mut dict = CffValue::Unset;
+            let used = decode_cff_token(&data, &mut dict).unwrap();
+            assert_eq!(used as usize, data.len(), "DICT token length for {val}");
+            assert_eq!(dict, CffValue::Integer(val), "DICT decode of {val}");
+        }
+        let cs2_vals = [
+            0, 107, -107, 108, -108, 1131, -1131, 1132, -1132, 32767, -32768,
+        ];
+        for val in cs2_vals {
+            let data = bytes(val);
+            let mut cs2 = CffValue::Unset;
+            let used = decode_cs2_token(&data, &mut cs2).unwrap();
+            assert_eq!(used as usize, data.len(), "CS2 token length for {val}");
+            assert_eq!(cs2, CffValue::Double(f64::from(val)), "CS2 decode of {val}");
+        }
+    }
+}
+
+#[cfg(test)]
 mod token_decoder_tests {
     use super::*;
 
