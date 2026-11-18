@@ -1,8 +1,7 @@
-
 use crate::font::sfnt::Packet;
+use crate::support::primitives::{GlyphId, Pos};
 use otfcc_binary::Buffer;
 use otfcc_binary::{FontReader, ReadError};
-use crate::support::primitives::{GlyphId, Pos};
 
 #[derive(Copy, Clone, Debug)]
 pub struct VorgEntry {
@@ -30,13 +29,19 @@ fn parse_vorg(data: &[u8]) -> Result<(GlyphId, Pos, Vec<VorgEntry>), ReadError> 
     for _ in 0..num_vert_origin_y_metrics {
         let gid = r.u16()? as GlyphId;
         let vertical_origin = r.i16()?;
-        entries.push(VorgEntry { gid, vertical_origin });
+        entries.push(VorgEntry {
+            gid,
+            vertical_origin,
+        });
     }
     Ok((num_vert_origin_y_metrics, default_vertical_origin, entries))
 }
 
 pub fn read_vorg(packet: &Packet) -> Option<Box<VorgTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VORG)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_VORG)?;
     let (num_vert_origin_y_metrics, default_vertical_origin, entries) =
         match parse_vorg(&table.data) {
             Ok(parsed) => parsed,
@@ -58,7 +63,11 @@ pub fn build_vorg(table: Option<&VorgTable>) -> Option<Buffer> {
     buf.write_u16be(0);
     buf.write_i16be(table.default_vertical_origin as i16);
     buf.write_u16be(table.num_vert_origin_y_metrics);
-    for entry in table.entries.iter().take(table.num_vert_origin_y_metrics as usize) {
+    for entry in table
+        .entries
+        .iter()
+        .take(table.num_vert_origin_y_metrics as usize)
+    {
         buf.write_u16be(entry.gid);
         buf.write_u16be(entry.vertical_origin as u16);
     }

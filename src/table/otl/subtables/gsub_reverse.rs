@@ -1,21 +1,21 @@
 use crate::support::handle::{GlyphHandle, handle_from_index};
-use otfcc_json::ParsedValue;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_json::ParsedValue;
 
 use otfcc_binary::FontReader;
 
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::Buffer;
 use crate::support::primitives::{GlyphId, TableId};
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use otfcc_json::JsonType;
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubReverseSubtable, Subtable};
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_json::BuiltValue;
 
 // Reverses the backtrack portion (`[0, input_index)`) in place: it is
 // stored nearest-first but read and written in wire order.
@@ -54,7 +54,9 @@ pub fn otl_read_gsub_reverse(
         }
         let mut backtrack_offsets = Vec::with_capacity(n_backtrack as usize);
         for _ in 0..n_backtrack {
-            backtrack_offsets.push(offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read"))));
+            backtrack_offsets.push(offset.wrapping_add(u32::from(
+                header.u16().expect("require_room above covered this read"),
+            )));
         }
 
         let Ok(n_forward) = header.u16() else {
@@ -65,7 +67,9 @@ pub fn otl_read_gsub_reverse(
         }
         let mut forward_offsets = Vec::with_capacity(n_forward as usize);
         for _ in 0..n_forward {
-            forward_offsets.push(offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read"))));
+            forward_offsets.push(offset.wrapping_add(u32::from(
+                header.u16().expect("require_room above covered this read"),
+            )));
         }
 
         let Ok(n_replacement) = header.u16() else {
@@ -103,7 +107,8 @@ pub fn otl_read_gsub_reverse(
         }
 
         let input_cov_offset = offset.wrapping_add(u32::from(input_cov_rel));
-        subtable.sequence[subtable.input_index as usize] = read_coverage(data, input_cov_offset, budget);
+        subtable.sequence[subtable.input_index as usize] =
+            read_coverage(data, input_cov_offset, budget);
 
         if n_replacement as usize != subtable.sequence[subtable.input_index as usize].len() {
             break 'parse;
@@ -118,7 +123,12 @@ pub fn otl_read_gsub_reverse(
         for _ in 0..n_replacement {
             push_to_coverage(
                 &mut subtable.to,
-                handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle,
+                handle_from_index(
+                    header
+                        .u16()
+                        .expect("require_room above covered one u16 per replacement glyph")
+                        as GlyphId,
+                ) as GlyphHandle,
             );
         }
         reverse_backtracks(&mut subtable.sequence, subtable.input_index);
@@ -141,16 +151,17 @@ pub fn otl_gsub_dump_reverse(_subtable: &Subtable) -> BuiltValue {
     }
     _st.push_field(b"match", _match);
     _st.push_field(b"to", dump_coverage(&subtable.to));
-    _st.push_field(b"inputIndex", BuiltValue::Int(i64::from(subtable.input_index)));
+    _st.push_field(
+        b"inputIndex",
+        BuiltValue::Int(i64::from(subtable.input_index)),
+    );
     _st
 }
-pub fn otl_gsub_parse_reverse(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gsub_parse_reverse(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let sv = _subtable?;
     let _match = sv.get_typed(b"match", JsonType::Array)?;
     let _to = sv.get_typed(b"to", JsonType::Array)?;
-    let match_items = _match.as_array().unwrap();
+    let match_items = _match.as_array().expect("get_typed returned an Array");
     let match_count = match_items.len() as TableId;
     let mut sequence: Vec<Coverage> = Vec::with_capacity(match_count as usize);
     for item in match_items {
@@ -164,10 +175,7 @@ pub fn otl_gsub_parse_reverse(
     };
     Some(Subtable::GsubReverse(subtable))
 }
-pub fn build_gsub_reverse(
-    _subtable: &Subtable,
-    mut _heuristics: BuildHeuristics,
-) -> Buffer {
+pub fn build_gsub_reverse(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GsubReverse(subtable) = _subtable else {
         unreachable!()
     };
@@ -206,9 +214,7 @@ pub fn build_gsub_reverse(
         &mut root,
         vec![bk_int(
             BkCellType::B16,
-            (i32::from(subtable.match_count)
-                - i32::from(subtable.input_index)
-                - 1) as u32,
+            (i32::from(subtable.match_count) - i32::from(subtable.input_index) - 1) as u32,
         )],
     );
     // Forward-region slice: [input_index + 1, match_count).
@@ -225,10 +231,7 @@ pub fn build_gsub_reverse(
     }
     bk_push(
         &mut root,
-        vec![bk_int(
-            BkCellType::B16,
-            (subtable.to.len() as i32) as u32,
-        )],
+        vec![bk_int(BkCellType::B16, (subtable.to.len() as i32) as u32)],
     );
     for entry in subtable.to.iter() {
         bk_push(

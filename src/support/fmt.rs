@@ -300,14 +300,7 @@ mod tests {
 
     #[test]
     fn pieces_are_appended_in_order() {
-        let got = bytesbuild!(
-            b"lookup_",
-            "ccmp",
-            b"_",
-            Hex2(0x1f),
-            b"_",
-            7,
-        );
+        let got = bytesbuild!(b"lookup_", "ccmp", b"_", Hex2(0x1f), b"_", 7,);
         assert_eq!(got, b"lookup_ccmp_1f_7");
     }
 
@@ -327,8 +320,21 @@ mod tests {
     )]
     fn format_g_6_matches_printf() {
         let mut values = vec![
-            0.0, 0.5, 1.0, 0.000148, 0.00169652, 12.5, 999999.4, 999999.6, 1e6, 1e-4,
-            9.99995e-5, 0.000099999, 123456.5, 1.5e-7, 3.2e12,
+            0.0,
+            0.5,
+            1.0,
+            0.000148,
+            0.00169652,
+            12.5,
+            999999.4,
+            999999.6,
+            1e6,
+            1e-4,
+            9.99995e-5,
+            0.000099999,
+            123456.5,
+            1.5e-7,
+            3.2e12,
         ];
         let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
         for _ in 0..20_000 {
@@ -345,5 +351,4 @@ mod tests {
             }
         }
     }
-
 }

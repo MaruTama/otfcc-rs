@@ -16,21 +16,23 @@ use otfcc_rust::support::options::Options;
 
 fn read_font(path: &std::path::Path, options: &Options) -> Box<Font> {
     let sfnt = read_sfnt(path).unwrap_or_else(|| panic!("cannot read {}", path.display()));
-    let mut font = read_otf(&sfnt, 0, options).unwrap_or_else(|| panic!("cannot parse {}", path.display()));
+    let mut font =
+        read_otf(&sfnt, 0, options).unwrap_or_else(|| panic!("cannot parse {}", path.display()));
     consolidate_font(&mut font, options);
     font
 }
 
 #[test]
 fn streamed_dump_matches_the_built_tree() {
-    let mut fonts: Vec<_> = std::fs::read_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/payload"))
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == "ttf" || x == "otf"))
-        // 65,535 glyphs and a million cmap entries take most of a minute
-        // here for nothing the other fonts don't already cover.
-        .filter(|p| !p.ends_with("FDArrayTest65535.otf"))
-        .collect();
+    let mut fonts: Vec<_> =
+        std::fs::read_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/payload"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|x| x == "ttf" || x == "otf"))
+            // 65,535 glyphs and a million cmap entries take most of a minute
+            // here for nothing the other fonts don't already cover.
+            .filter(|p| !p.ends_with("FDArrayTest65535.otf"))
+            .collect();
     fonts.sort();
     assert!(fonts.len() >= 10, "payload fonts not found");
     for path in &fonts {
@@ -41,7 +43,11 @@ fn streamed_dump_matches_the_built_tree() {
                 ..Options::default()
             };
             for mode in [JSON_SERIALIZE_MODE_PACKED, JSON_SERIALIZE_MODE_MULTILINE] {
-                let opts = JsonSerializeOpts { mode, opts: 0, indent_size: 4 };
+                let opts = JsonSerializeOpts {
+                    mode,
+                    opts: 0,
+                    indent_size: 4,
+                };
                 let tree = serialize_to_json(&mut read_font(path, &options), &options);
                 let mut writer = JsonStreamWriter::new(Vec::new(), opts);
                 stream_json(&mut read_font(path, &options), &options, &mut writer);

@@ -247,11 +247,7 @@ fn il_push_stems(il: &mut CffCharstringIl, g: &Glyph, hasmask: bool, haswidth: b
 /// The glyph's width is emitted only when it differs from `default_width`
 /// and is then written relative to `nominal_width`. The result is not yet
 /// optimized; see `optimize_il`.
-pub fn compile_glyph_to_il(
-    g: &Glyph,
-    default_width: u16,
-    nominal_width: u16,
-) -> CffCharstringIl {
+pub fn compile_glyph_to_il(g: &Glyph, default_width: u16, nominal_width: u16) -> CffCharstringIl {
     let mut il = CffCharstringIl { instr: Vec::new() };
     // Each contour with every point turned into a delta from the point
     // before it (the first from the previous contour's last point), closed
@@ -445,7 +441,11 @@ fn hvlineto_roll(il: &mut CffCharstringIl, j: u32) -> u8 {
     // Read out after the check above: `i()` is only valid on an operator.
     let current = il.instr[j as usize];
     let odd_arity = current.arity & 1 != 0;
-    let checkdelta: u32 = if odd_arity ^ (current.i() == OP_VLINETO.0) { 1 } else { 2 };
+    let checkdelta: u32 = if odd_arity ^ (current.i() == OP_VLINETO.0) {
+        1
+    } else {
+        2
+    };
     if il_matchop(il, j + 3, OP_RLINETO)
         && il_matchtype(il, j + 1, j + 3, CffInstructionType::Operand)
         && il.instr[(j + checkdelta) as usize].d() == 0.0
@@ -658,7 +658,11 @@ pub fn optimize_il(il: &mut CffCharstringIl, options: &Options) {
     }
     let mut j: u32 = 0;
     while j < il.instr.len() as u32 {
-        j += u32::from(decide_advance(il, j, u8::from(options.cff_roll_char_string)));
+        j += u32::from(decide_advance(
+            il,
+            j,
+            u8::from(options.cff_roll_char_string),
+        ));
     }
 }
 #[cfg(test)]

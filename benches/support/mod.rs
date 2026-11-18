@@ -14,15 +14,15 @@
 //! raw-pointer noise.
 #![allow(dead_code)]
 
+use otfcc_json::parse_json;
+use otfcc_json::{JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, JsonStreamWriter};
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::sfnt::read_sfnt_from_reader;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::json_writer::stream_json;
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::otf_writer::serialize_to_otf;
-use otfcc_json::{JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, JsonStreamWriter};
 use otfcc_rust::support::options::{Options, options_optimize_to};
-use otfcc_json::parse_json;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
@@ -66,7 +66,11 @@ pub fn dump_to_json(sfnt_bytes: &[u8], options: &Options) -> Vec<u8> {
 
     consolidate_font(&mut font, options);
 
-    let json_options = JsonSerializeOpts { mode: JSON_SERIALIZE_MODE_PACKED, opts: 0, indent_size: 4 };
+    let json_options = JsonSerializeOpts {
+        mode: JSON_SERIALIZE_MODE_PACKED,
+        opts: 0,
+        indent_size: 4,
+    };
     let mut writer = JsonStreamWriter::new(Vec::new(), json_options);
     stream_json(&mut font, options, &mut writer);
     writer.finish().expect("writing to a Vec cannot fail")

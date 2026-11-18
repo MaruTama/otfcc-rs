@@ -142,7 +142,10 @@ pub fn decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
         (CffValue::Operator(i32::from(b0)), 1)
     } else if b0 != LEAD_FIXED {
         if SMALL_INT_LEADS.contains(&b0) {
-            (CffValue::Double(f64::from(i32::from(b0) - SMALL_INT_BIAS)), 1)
+            (
+                CffValue::Double(f64::from(i32::from(b0) - SMALL_INT_BIAS)),
+                1,
+            )
         } else if POSITIVE_WIDE_LEADS.contains(&b0) {
             let b1 = r.u8().ok()?;
             (
@@ -586,8 +589,23 @@ mod integer_encoding_boundary_tests {
     #[test]
     fn encoded_integers_decode_back_to_themselves() {
         let vals = [
-            0, 1, -1, 107, -107, 108, -108, 1131, -1131, 1132, -1132, 32767, -32768, 32768,
-            -32769, i32::MAX, i32::MIN,
+            0,
+            1,
+            -1,
+            107,
+            -107,
+            108,
+            -108,
+            1131,
+            -1131,
+            1132,
+            -1132,
+            32767,
+            -32768,
+            32768,
+            -32769,
+            i32::MAX,
+            i32::MIN,
         ];
         for val in vals {
             let data = bytes(val);
@@ -793,7 +811,9 @@ mod float_encoding_tests {
     // the encode/decode pair genuinely agree end to end.
     #[test]
     fn encode_then_decode_recovers_the_same_value() {
-        for &val in &[0.0, 1.5, -1.5, 100.0, 0.001, 0.1, -0.1, 1234.5678, 1e20, -1e-10] {
+        for &val in &[
+            0.0, 1.5, -1.5, 100.0, 0.001, 0.1, -0.1, 1234.5678, 1e20, -1e-10,
+        ] {
             let blob = encode_float(val);
             let mut decoded = CffValue::Unset;
             let advance = decode_cff_token(&blob.data, &mut decoded).unwrap();

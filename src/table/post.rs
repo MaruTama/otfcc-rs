@@ -1,14 +1,14 @@
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::{FontReader, ReadError};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::set_glyph_order_by_gid;
 use crate::support::options::Options;
-use otfcc_json::ParsedValue;
 use crate::support::primitives::{F16Dot16, GlyphId};
 use crate::support::primitives::{from_fixed, to_fixed};
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Debug)]
 pub struct PostTable {
@@ -426,10 +426,7 @@ pub fn dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     };
     let stage = crate::logger::stage("post");
     let mut post = BuiltValue::new_object(10);
-    post.push_field(
-        b"version",
-        BuiltValue::Double(from_fixed(table.version)),
-    );
+    post.push_field(b"version", BuiltValue::Double(from_fixed(table.version)));
     post.push_field(
         b"italicAngle",
         BuiltValue::Int(from_fixed(table.italic_angle) as i64),

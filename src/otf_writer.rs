@@ -1,14 +1,12 @@
 pub mod stat;
 
-use otfcc_binary::Buffer;
 use crate::support::error::BuildError;
 use crate::support::options::Options;
+use otfcc_binary::Buffer;
 
 use crate::font::model::{Font, FontSubtype};
+use crate::font::sfnt_builder::{SfntBuilder, sfnt_builder_push_table, sfnt_builder_serialize};
 use crate::font::table_registry::BUILD_ORDER;
-use crate::font::sfnt_builder::{
-    SfntBuilder, sfnt_builder_push_table, sfnt_builder_serialize,
-};
 use crate::otf_writer::stat::{stat_font, unstat_font};
 
 /// Serializes a consolidated font into sfnt (OTF/TTF) bytes.

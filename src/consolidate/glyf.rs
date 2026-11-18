@@ -9,8 +9,7 @@ use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, ShapeId};
 use crate::table::cff::CffTable;
 use crate::table::glyf::{
-    ComponentReference, GlyfTable, Glyph, PostscriptHintMask, PostscriptStemDef,
-    RefAnchorStatus,
+    ComponentReference, GlyfTable, Glyph, PostscriptHintMask, PostscriptStemDef, RefAnchorStatus,
 };
 use crate::table::glyf::{glyf_component_reference_empty, new_glyf_glyph};
 use crate::vf::vq::VQ;
@@ -43,7 +42,11 @@ fn consolidate_glyph_contours(g: &mut Glyph) {
     g.contours.retain(|contour| {
         let keep = !contour.is_empty();
         if !keep {
-            tracing::warn!("[Consolidate] Removed empty contour #{} in glyph {}.\n", i32::from(j), ByteStr(name));
+            tracing::warn!(
+                "[Consolidate] Removed empty contour #{} in glyph {}.\n",
+                i32::from(j),
+                ByteStr(name)
+            );
         }
         j = j.wrapping_add(1);
         keep
@@ -54,7 +57,11 @@ fn consolidate_glyph_references(g: &mut Glyph, glyph_order: &GlyphOrder) {
     g.references.retain_mut(|r| {
         let ok = gord_consolidate_handle(glyph_order, &mut r.glyph);
         if !ok {
-            tracing::warn!("[Consolidate] Ignored absent glyph component reference /{} within /{}.\n", ByteStr(&r.glyph.name), ByteStr(name));
+            tracing::warn!(
+                "[Consolidate] Ignored absent glyph component reference /{} within /{}.\n",
+                ByteStr(&r.glyph.name),
+                ByteStr(name)
+            );
             // `retain_mut` drops rejected elements itself -- every
             // `ComponentReference` field auto-drops -- so no explicit
             // dispose call is needed here anymore.
@@ -125,13 +132,27 @@ fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, gname: &[u8])
             h.index = 0 as GlyphId;
         }
         let idx = h.index;
-        *h = Handle::new(HandleState::Consolidated, idx, fd_array[idx as usize].font_name.clone()) as FdHandle;
+        *h = Handle::new(
+            HandleState::Consolidated,
+            idx,
+            fd_array[idx as usize].font_name.clone(),
+        ) as FdHandle;
     } else if !h.name.is_empty() {
-        let found = fd_array.iter().position(|fd| handle_name_eq_bytes(&h.name, &fd.font_name));
+        let found = fd_array
+            .iter()
+            .position(|fd| handle_name_eq_bytes(&h.name, &fd.font_name));
         if let Some(j) = found {
-            *h = Handle::new(HandleState::Consolidated, j as GlyphId, fd_array[j].font_name.clone());
+            *h = Handle::new(
+                HandleState::Consolidated,
+                j as GlyphId,
+                fd_array[j].font_name.clone(),
+            );
         } else {
-            tracing::warn!("[Consolidate] CID Subfont {} is not defined. (in glyph /{}).\n", ByteStr(&h.name), ByteStr(gname));
+            tracing::warn!(
+                "[Consolidate] CID Subfont {} is not defined. (in glyph /{}).\n",
+                ByteStr(&h.name),
+                ByteStr(gname)
+            );
             *h = Handle::default();
         }
     } else if !h.name.is_empty() {
@@ -141,11 +162,7 @@ fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, gname: &[u8])
         *h = Handle::default();
     }
 }
-pub fn consolidate_glyph(
-    g: &mut Glyph,
-    glyph_order: &GlyphOrder,
-    cff: Option<&CffTable>,
-) {
+pub fn consolidate_glyph(g: &mut Glyph, glyph_order: &GlyphOrder, cff: Option<&CffTable>) {
     consolidate_glyph_contours(g);
     consolidate_glyph_references(g, glyph_order);
     consolidate_glyph_hints(g);
@@ -194,7 +211,9 @@ pub fn get_point_coordinates(
         return false;
     }
     let j: GlyphId = gr.glyph.index;
-    let g: &Glyph = table[j as usize].as_deref().unwrap();
+    let g: &Glyph = table[j as usize]
+        .as_deref()
+        .expect(FILLED_BY_CONSOLIDATE_GLYF);
     // Plain iteration, not `u16` index counters: a contour or reference list
     // is not bounded to 16 bits here, and a counter that wraps at 65,536 can
     // never reach a length of 65,536 (the same shape as the `glyf` hang).
@@ -275,12 +294,15 @@ pub fn consolidate_anchor_ref(
     if rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingAnchor
         || rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingXy
     {
-        tracing::warn!("Found circular reference of out-of-range point reference in anchored reference.");
+        tracing::warn!(
+            "Found circular reference of out-of-range point reference in anchored reference."
+        );
         rr.is_anchored.set(RefAnchorStatus::Xy);
         return false;
     }
     if rr.is_anchored.get() == RefAnchorStatus::AnchorAnchor {
-        rr.is_anchored.set(RefAnchorStatus::AnchorConsolidatingAnchor);
+        rr.is_anchored
+            .set(RefAnchorStatus::AnchorConsolidatingAnchor);
     } else {
         rr.is_anchored.set(RefAnchorStatus::AnchorConsolidatingXy);
     }
@@ -299,10 +321,17 @@ pub fn consolidate_anchor_ref(
     let s1: bool = get_point_coordinates(table, gr, rr.outer, &mut outer, options, depth + 1);
     let s2: bool = get_point_coordinates(table, &rr1, rr.inner, &mut inner, options, depth + 1);
     if !s1 {
-        tracing::warn!("Failed to access point {} in outer glyph.", i32::from(rr.outer));
+        tracing::warn!(
+            "Failed to access point {} in outer glyph.",
+            i32::from(rr.outer)
+        );
     }
     if !s2 {
-        tracing::warn!("Failed to access point {} in reference to {}.", i32::from(rr.outer), ByteStr(&rr.glyph.name));
+        tracing::warn!(
+            "Failed to access point {} in reference to {}.",
+            i32::from(rr.outer),
+            ByteStr(&rr.glyph.name)
+        );
     }
     let rrx: VQ = vq_point_linear_tfm(
         outer.x.clone(),
@@ -323,16 +352,15 @@ pub fn consolidate_anchor_ref(
         rr.y.replace(rry);
         rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     } else {
-        if (vq_get_still(rr.x.borrow().clone()) as f64
-            - vq_get_still(rrx.clone()) as f64)
-            .abs()
+        if (vq_get_still(rr.x.borrow().clone()) as f64 - vq_get_still(rrx.clone()) as f64).abs()
             > 0.5
-            && (vq_get_still(rr.y.borrow().clone()) as f64
-                - vq_get_still(rry.clone()) as f64)
-                .abs()
+            && (vq_get_still(rr.y.borrow().clone()) as f64 - vq_get_still(rry.clone()) as f64).abs()
                 > 0.5
         {
-            tracing::warn!("Anchored reference to {} does not match its X/Y offset data.", ByteStr(&rr.glyph.name));
+            tracing::warn!(
+                "Anchored reference to {} does not match its X/Y offset data.",
+                ByteStr(&rr.glyph.name)
+            );
         }
         rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     }
@@ -341,13 +369,22 @@ pub fn consolidate_anchor_ref(
     // `return false` below, so no explicit dispose calls are needed.
     false
 }
+/// `consolidate_glyf` fills every empty `glyf` slot before it resolves any
+/// reference, so the reference walkers below never meet a hole.
+const FILLED_BY_CONSOLIDATE_GLYF: &str = "consolidate_glyf filled every empty glyf slot first";
 pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     if font.glyph_order.is_none() || font.glyf.is_none() {
         return;
     }
-    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().unwrap();
+    let glyph_order: &GlyphOrder = font
+        .glyph_order
+        .as_deref()
+        .expect("the early return above checked glyph_order");
     let cff: Option<&CffTable> = font.cff.as_deref();
-    let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
+    let glyf: &mut GlyfTable = font
+        .glyf
+        .as_mut()
+        .expect("the early return above checked glyf");
     for slot in glyf.iter_mut() {
         if let Some(glyph) = slot {
             consolidate_glyph(glyph, glyph_order, cff);
@@ -363,7 +400,9 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     let table: &GlyfTable = glyf;
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < table.len() {
-        let g: &Glyph = table[j_0 as usize].as_deref().unwrap();
+        let g: &Glyph = table[j_0 as usize]
+            .as_deref()
+            .expect(FILLED_BY_CONSOLIDATE_GLYF);
         let stage = crate::logger::stage(ByteStr(&g.name));
         let mut gr: ComponentReference = (glyf_component_reference_empty)();
         gr.glyph = handle_from_index(j_0) as GlyphHandle;
@@ -500,4 +539,3 @@ mod reference_count_tests {
         }
     }
 }
-

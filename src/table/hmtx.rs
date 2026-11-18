@@ -1,7 +1,7 @@
 use crate::font::sfnt::Packet;
+use crate::support::primitives::{GlyphId, Length, Pos};
 use otfcc_binary::Buffer;
 use otfcc_binary::{FontReader, ReadError};
-use crate::support::primitives::{GlyphId, Length, Pos};
 
 use crate::table::hhea::HheaTable;
 use crate::table::maxp::MaxpTable;
@@ -47,7 +47,8 @@ pub fn read_hmtx(
 ) -> Option<Box<HmtxTable>> {
     let hhea = hhea?;
     let maxp = maxp?;
-    if hhea.number_of_metrics == 0 || i32::from(maxp.num_glyphs) < i32::from(hhea.number_of_metrics) {
+    if hhea.number_of_metrics == 0 || i32::from(maxp.num_glyphs) < i32::from(hhea.number_of_metrics)
+    {
         return None;
     }
     let table = packet

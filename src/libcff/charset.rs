@@ -91,13 +91,22 @@ fn read_charset(slice: &[u8], offset: usize, nchars: u16) -> Result<CffCharset, 
 /// (glyph 0, `.notdef`, is implicit). Each range is a 2-byte first SID and an
 /// `nleft` of `nleft_size` bytes (1 for format 1, 2 for format 2); this reads
 /// each `nleft` until the glyphs are covered and fails if the data ends first.
-fn count_ranges(slice: &[u8], offset: usize, nchars: u16, nleft_size: usize) -> Result<usize, ReadError> {
+fn count_ranges(
+    slice: &[u8],
+    offset: usize,
+    nchars: u16,
+    nleft_size: usize,
+) -> Result<usize, ReadError> {
     let range_size = 2 + nleft_size;
     let mut size: usize = 0;
     let mut glyphs_encoded_sofar: u32 = 1;
     while glyphs_encoded_sofar < u32::from(nchars) {
         let mut r = FontReader::new(slice).at(offset + 3 + range_size * size)?;
-        let nleft = if nleft_size == 1 { u16::from(r.u8()?) } else { r.u16()? };
+        let nleft = if nleft_size == 1 {
+            u16::from(r.u8()?)
+        } else {
+            r.u16()?
+        };
         glyphs_encoded_sofar = glyphs_encoded_sofar.saturating_add(1 + u32::from(nleft));
         size += 1;
     }

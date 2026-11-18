@@ -1,16 +1,23 @@
 use super::*;
+use crate::libcff::{
+    CffStack, OP_CNTRMASK, OP_FLEX, OP_FLEX1, OP_HFLEX, OP_HFLEX1, OP_HMOVETO, OP_RMOVETO,
+    OP_VMOVETO, OP_VSTEM, OP_VSTEMHM,
+};
 use crate::support::primitives::Arity;
 use crate::table::cff::OutlineBuilderContext;
 use crate::table::cff::read::{
-    callback_draw_curveto, callback_draw_lineto,
-    callback_draw_next_contour, callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
+    callback_draw_curveto, callback_draw_lineto, callback_draw_next_contour, callback_draw_sethint,
+    callback_draw_setmask, callback_draw_setwidth,
 };
-use crate::libcff::{CffStack, OP_CNTRMASK, OP_FLEX, OP_FLEX1, OP_HFLEX, OP_HFLEX1, OP_HMOVETO, OP_RMOVETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM};
 
 /// Reads the stem hints on the stack: pairs of `edge width`, each edge
 /// relative to the end of the previous stem. An odd operand count means
 /// the first operand is the glyph's advance width.
-pub(super) fn read_stem_hints(stack: &mut CffStack, outline: &mut OutlineBuilderContext, vertical: bool) {
+pub(super) fn read_stem_hints(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    vertical: bool,
+) {
     if !stack.index.is_multiple_of(2) {
         callback_draw_setwidth(outline, stack.num(0));
     }
@@ -28,7 +35,11 @@ pub(super) fn read_stem_hints(stack: &mut CffStack, outline: &mut OutlineBuilder
 }
 
 /// `hstem`, `vstem`, `hstemhm`, `vstemhm`
-pub(super) fn op_stem_hints(stack: &mut CffStack, outline: &mut OutlineBuilderContext, op: i32) -> Flow {
+pub(super) fn op_stem_hints(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    op: i32,
+) -> Flow {
     read_stem_hints(stack, outline, op == OP_VSTEM.0 || op == OP_VSTEMHM.0);
     stack.clear();
     Flow::Continue
@@ -39,7 +50,12 @@ pub(super) fn op_stem_hints(stack: &mut CffStack, outline: &mut OutlineBuilderCo
 /// vertical ones when some stems were declared already (the implicit
 /// `vstem` after `hstem`s), horizontal otherwise. Returns the number of
 /// mask bytes read, or `None` when the CharString ends before them.
-pub(super) fn op_hint_mask(stack: &mut CffStack, outline: &mut OutlineBuilderContext, op: i32, mask_bytes: &[u8]) -> Option<u32> {
+pub(super) fn op_hint_mask(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    op: i32,
+    mask_bytes: &[u8],
+) -> Option<u32> {
     let vertical = stack.stem > 0;
     read_stem_hints(stack, outline, vertical);
     let mask_length = stack.stem.div_ceil(8);
@@ -132,7 +148,11 @@ pub(super) fn op_rlineto(stack: &mut CffStack, outline: &mut OutlineBuilderConte
 
 /// Alternating vertical and horizontal lines, the first one vertical
 /// (`vlineto`) or horizontal (`hlineto`): one operand per line.
-pub(super) fn alternating_lines(stack: &mut CffStack, outline: &mut OutlineBuilderContext, first_vertical: bool) {
+pub(super) fn alternating_lines(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    first_vertical: bool,
+) {
     let line = |outline: &mut OutlineBuilderContext, d: f64, vertical: bool| {
         if vertical {
             callback_draw_lineto(outline, 0.0, d);
@@ -192,7 +212,9 @@ pub(super) fn op_rrcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderCon
 /// `{dxa dya dxb dyb dxc dyc}+ dxd dyd rcurveline`
 pub(super) fn op_rcurveline(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 2 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for op_rcurveline (24). This operation is ignored.\n");
+        tracing::warn!(
+            "[libcff] Stack cannot provide enough parameters for op_rcurveline (24). This operation is ignored.\n"
+        );
     } else {
         for i in (0..complete_groups_end(stack.index - 2, 6)).step_by(6) {
             curve_at(stack, outline, i);
@@ -206,7 +228,9 @@ pub(super) fn op_rcurveline(stack: &mut CffStack, outline: &mut OutlineBuilderCo
 /// `{dxa dya}+ dxb dyb dxc dyc dxd dyd rlinecurve`
 pub(super) fn op_rlinecurve(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     if stack.index < 6 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for op_rlinecurve (25). This operation is ignored.\n");
+        tracing::warn!(
+            "[libcff] Stack cannot provide enough parameters for op_rlinecurve (25). This operation is ignored.\n"
+        );
     } else {
         let curve = stack.index - 6;
         for i in (0..curve).step_by(2) {
@@ -222,9 +246,18 @@ pub(super) fn op_rlinecurve(stack: &mut CffStack, outline: &mut OutlineBuilderCo
 /// `dy1? {dxa dxb dyb dxc}+ hhcurveto`: curves that start and end in the
 /// same direction, four operands each. An odd leading operand offsets the
 /// first curve's start across that direction.
-pub(super) fn same_direction_curves(stack: &mut CffStack, outline: &mut OutlineBuilderContext, vertical: bool) {
+pub(super) fn same_direction_curves(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    vertical: bool,
+) {
     let curve = |outline: &mut OutlineBuilderContext, across: f64, i: Arity| {
-        let (d1, x2, y2, d3) = (stack.num(i), stack.num(i + 1), stack.num(i + 2), stack.num(i + 3));
+        let (d1, x2, y2, d3) = (
+            stack.num(i),
+            stack.num(i + 1),
+            stack.num(i + 2),
+            stack.num(i + 3),
+        );
         if vertical {
             callback_draw_curveto(outline, across, d1, x2, y2, 0.0, d3);
         } else {
@@ -269,13 +302,26 @@ pub(super) fn op_hhcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderCon
 /// that alternate between starting vertical and starting horizontal, four
 /// operands each. An odd trailing operand `df` is the last curve's final
 /// coordinate across its end direction.
-pub(super) fn alternating_curves(stack: &mut CffStack, outline: &mut OutlineBuilderContext, first_vertical: bool) {
+pub(super) fn alternating_curves(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    first_vertical: bool,
+) {
     let has_final = stack.index % 4 == 1;
-    let curves = (if has_final { stack.index - 5 } else { stack.index }) / 4;
+    let curves = (if has_final {
+        stack.index - 5
+    } else {
+        stack.index
+    }) / 4;
     let mut vertical = first_vertical;
     for k in 0..curves {
         let i = 4 * k;
-        let (d1, x2, y2, d3) = (stack.num(i), stack.num(i + 1), stack.num(i + 2), stack.num(i + 3));
+        let (d1, x2, y2, d3) = (
+            stack.num(i),
+            stack.num(i + 1),
+            stack.num(i + 2),
+            stack.num(i + 3),
+        );
         if vertical {
             callback_draw_curveto(outline, 0.0, d1, x2, y2, d3, 0.0);
         } else {
@@ -284,7 +330,13 @@ pub(super) fn alternating_curves(stack: &mut CffStack, outline: &mut OutlineBuil
         vertical = !vertical;
     }
     if has_final {
-        let (d1, x2, y2, d3, df) = (stack.top(5), stack.top(4), stack.top(3), stack.top(2), stack.top(1));
+        let (d1, x2, y2, d3, df) = (
+            stack.top(5),
+            stack.top(4),
+            stack.top(3),
+            stack.top(2),
+            stack.top(1),
+        );
         if vertical {
             callback_draw_curveto(outline, 0.0, d1, x2, y2, d3, df);
         } else {
@@ -297,7 +349,9 @@ pub(super) fn op_vhcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderCon
     // `index % 4 == 1` with `index < 5` means exactly `index == 1`: a lone
     // coordinate with no complete curve to pair it with.
     if stack.index == 1 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for op_vhcurveto (30). This operation is ignored.\n");
+        tracing::warn!(
+            "[libcff] Stack cannot provide enough parameters for op_vhcurveto (30). This operation is ignored.\n"
+        );
     } else {
         alternating_curves(stack, outline, true);
     }
@@ -308,7 +362,9 @@ pub(super) fn op_vhcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderCon
 pub(super) fn op_hvcurveto(stack: &mut CffStack, outline: &mut OutlineBuilderContext) -> Flow {
     // See `op_vhcurveto`.
     if stack.index == 1 {
-        tracing::warn!("[libcff] Stack cannot provide enough parameters for op_hvcurveto (31). This operation is ignored.\n");
+        tracing::warn!(
+            "[libcff] Stack cannot provide enough parameters for op_hvcurveto (31). This operation is ignored.\n"
+        );
     } else {
         alternating_curves(stack, outline, false);
     }
@@ -348,7 +404,8 @@ pub(super) fn op_hflex1(stack: &mut CffStack, outline: &mut OutlineBuilderContex
     if stack.index < 9 {
         too_few_operands("op_hflex1", OP_HFLEX1);
     } else {
-        let [dx1, dy1, dx2, dy2, dx3, dx4, dx5, dy5, dx6] = std::array::from_fn(|i| stack.num(i as Arity));
+        let [dx1, dy1, dx2, dy2, dx3, dx4, dx5, dy5, dx6] =
+            std::array::from_fn(|i| stack.num(i as Arity));
         callback_draw_curveto(outline, dx1, dy1, dx2, dy2, dx3, 0.0);
         callback_draw_curveto(outline, dx4, 0.0, dx5, dy5, dx6, -(dy1 + dy2 + dy5));
         stack.clear();
@@ -366,9 +423,21 @@ pub(super) fn op_flex1(stack: &mut CffStack, outline: &mut OutlineBuilderContext
         let dx = stack.num(0) + stack.num(2) + stack.num(4) + stack.num(6) + stack.num(8);
         let dy = stack.num(1) + stack.num(3) + stack.num(5) + stack.num(7) + stack.num(9);
         let d6 = stack.num(10);
-        let (dx6, dy6) = if dx.abs() > dy.abs() { (d6, -dy) } else { (-dx, d6) };
+        let (dx6, dy6) = if dx.abs() > dy.abs() {
+            (d6, -dy)
+        } else {
+            (-dx, d6)
+        };
         curve_at(stack, outline, 0);
-        callback_draw_curveto(outline, stack.num(6), stack.num(7), stack.num(8), stack.num(9), dx6, dy6);
+        callback_draw_curveto(
+            outline,
+            stack.num(6),
+            stack.num(7),
+            stack.num(8),
+            stack.num(9),
+            dx6,
+            dy6,
+        );
         stack.clear();
     }
     Flow::Continue

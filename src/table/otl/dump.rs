@@ -1,15 +1,18 @@
 use crate::logger::ByteStr;
-use otfcc_json::BuiltValue;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::{Feature, Lookup, OtlTable};
+use otfcc_json::BuiltValue;
 fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
     let mut dump = BuiltValue::new_object(5);
     // A lookup of no known kind dumps as an empty object.
     let Some(kind) = lookup_kind(lookup.lookup_type) else {
         return dump;
     };
-    dump.push_field(b"type", BuiltValue::str_truncated_at_nul(lookup.lookup_type.name().as_bytes()));
+    dump.push_field(
+        b"type",
+        BuiltValue::str_truncated_at_nul(lookup.lookup_type.name().as_bytes()),
+    );
     dump.push_field(
         b"flags",
         BuiltValue::dump_flags(i32::from(lookup.flags), &LOOKUP_FLAGS_LABELS),
@@ -52,8 +55,9 @@ pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
                 // to `None` (an index a later consolidation pass punched
                 // into a hole, or -- not expected in practice -- an
                 // out-of-range one) is treated as "no reference".
-                if let Some(rf) =
-                    lang.required_feature.and_then(|idx| crate::table::otl::feature_at(&table.features, idx))
+                if let Some(rf) = lang
+                    .required_feature
+                    .and_then(|idx| crate::table::otl::feature_at(&table.features, idx))
                 {
                     _lang.push_field(
                         b"requiredFeature",
@@ -97,7 +101,8 @@ pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
         let stage_2 = crate::logger::stage("Lookups");
         {
             // `.filter` skips holes, same as the features loop above.
-            let live_lookups: Vec<&Lookup> = table.lookups.iter().filter_map(Option::as_deref).collect();
+            let live_lookups: Vec<&Lookup> =
+                table.lookups.iter().filter_map(Option::as_deref).collect();
             let mut lookups = BuiltValue::new_object(live_lookups.len());
             let mut lookup_order = BuiltValue::new_array(live_lookups.len());
             for lookup in &live_lookups {

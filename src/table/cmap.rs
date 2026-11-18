@@ -3,17 +3,17 @@ use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use otfcc_json::ParsedValue;
 
+use crate::font::sfnt::Packet;
+use crate::support::fmt::Hex4Upper;
+use crate::support::options::Options;
+use crate::support::primitives::{GlyphId, TableId, Unicode, until_nul};
+use otfcc_binary::Buffer;
 use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use otfcc_binary::bk::block::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
 use otfcc_binary::bk::graph::bk_build_block;
-use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use otfcc_binary::{FontReader, ReadError};
-use crate::support::options::Options;
-use crate::support::primitives::{GlyphId, TableId, Unicode, until_nul};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
-use crate::support::fmt::Hex4Upper;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct CmapUvsKey {
     pub unicode: u32,
@@ -28,11 +28,7 @@ pub struct CmapTable {
     pub unicodes: std::collections::BTreeMap<i32, GlyphHandle>,
     pub uvs: std::collections::BTreeMap<CmapUvsKey, GlyphHandle>,
 }
-pub fn encode_cmap_by_index(
-    cmap: &mut CmapTable,
-    c: i32,
-    gid: u16,
-) -> bool {
+pub fn encode_cmap_by_index(cmap: &mut CmapTable, c: i32, gid: u16) -> bool {
     match cmap.unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
             v.insert(handle_from_index(gid as GlyphId) as GlyphHandle);
@@ -43,11 +39,7 @@ pub fn encode_cmap_by_index(
 }
 // Maps `unicode` to the glyph named `name`. Returns `false`, keeping the
 // existing mapping, when `unicode` is already mapped.
-pub fn encode_cmap_by_name(
-    cmap: &mut CmapTable,
-    c: i32,
-    name: Vec<u8>,
-) -> bool {
+pub fn encode_cmap_by_name(cmap: &mut CmapTable, c: i32, name: Vec<u8>) -> bool {
     match cmap.unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
             v.insert(handle_from_name(Some(name)) as GlyphHandle);
@@ -62,11 +54,7 @@ pub fn unmap_cmap(cmap: &mut CmapTable, c: i32) -> bool {
 pub fn cmap_lookup(cmap: &CmapTable, c: i32) -> Option<&GlyphHandle> {
     cmap.unicodes.get(&c)
 }
-pub fn encode_cmap_uvs_by_index(
-    cmap: &mut CmapTable,
-    c: CmapUvsKey,
-    gid: u16,
-) -> bool {
+pub fn encode_cmap_uvs_by_index(cmap: &mut CmapTable, c: CmapUvsKey, gid: u16) -> bool {
     match cmap.uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
             v.insert(handle_from_index(gid as GlyphId) as GlyphHandle);
@@ -77,11 +65,7 @@ pub fn encode_cmap_uvs_by_index(
 }
 // Same `Vec<u8>`-in shape as `encode_cmap_by_name` above, same
 // reason.
-pub fn encode_cmap_uvs_by_name(
-    cmap: &mut CmapTable,
-    c: CmapUvsKey,
-    name: Vec<u8>,
-) -> bool {
+pub fn encode_cmap_uvs_by_name(cmap: &mut CmapTable, c: CmapUvsKey, name: Vec<u8>) -> bool {
     match cmap.uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
             v.insert(handle_from_name(Some(name)) as GlyphHandle);
@@ -367,13 +351,15 @@ fn read_format14(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut 
             return;
         };
         if default_uvs_offset != 0
-            && let Some(sub_offset) = offset.checked_add(default_uvs_offset as usize) {
-                read_uvs_default(data, sub_offset, selector, cmap, budget);
-            }
+            && let Some(sub_offset) = offset.checked_add(default_uvs_offset as usize)
+        {
+            read_uvs_default(data, sub_offset, selector, cmap, budget);
+        }
         if non_default_uvs_offset != 0
-            && let Some(sub_offset) = offset.checked_add(non_default_uvs_offset as usize) {
-                read_uvs_non_default(data, sub_offset, selector, cmap, budget);
-            }
+            && let Some(sub_offset) = offset.checked_add(non_default_uvs_offset as usize)
+        {
+            read_uvs_non_default(data, sub_offset, selector, cmap, budget);
+        }
     }
 }
 fn read_cmap_mapping_table(
@@ -398,12 +384,7 @@ fn read_cmap_mapping_table(
         }
     }
 }
-fn read_cmap_mapping_table_uvs(
-    data: &[u8],
-    offset: usize,
-    cmap: &mut CmapTable,
-    budget: &mut u32,
-) {
+fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u32) {
     let Some(format) = FontReader::new(data)
         .at(offset)
         .ok()
@@ -460,7 +441,8 @@ fn decode_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     // each time), so skipping the repeat parses never changes the final
     // table -- only the wasted work is removed.
     let mut budget: u32 = MAX_TOTAL_CMAP_MAPPINGS;
-    let mut processed_offsets: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    let mut processed_offsets: std::collections::BTreeSet<usize> =
+        std::collections::BTreeSet::new();
     for &required_format in FORMAT_PRIORITIES.iter().take_while(|&&f| f != 0) {
         for j in 0..num_tables {
             let entry_rel = 4 + 8 * j;
@@ -514,11 +496,7 @@ pub fn read_cmap(packet: &Packet) -> Option<Box<CmapTable>> {
 /// Writes `cmap` and `cmap_uvs` into `sink` one mapping at a time, so a
 /// sink that writes straight out never holds the whole table's JSON. Keys
 /// and glyph names are cut at the first NUL, as `push_field_bytes_key` does.
-pub fn dump_cmap(
-    table: Option<&CmapTable>,
-    sink: &mut dyn DumpSink,
-    options: &Options,
-) {
+pub fn dump_cmap(table: Option<&CmapTable>, sink: &mut dyn DumpSink, options: &Options) {
     let Some(table) = table else { return };
     let stage = crate::logger::stage("cmap");
     if !table.unicodes.is_empty() {
@@ -530,7 +508,10 @@ pub fn dump_cmap(
                 } else {
                     crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
                 };
-                sink.field(until_nul(&key), BuiltValue::str_truncated_at_nul(&glyph.name));
+                sink.field(
+                    until_nul(&key),
+                    BuiltValue::str_truncated_at_nul(&glyph.name),
+                );
             }
         }
         sink.end_object();
@@ -549,7 +530,10 @@ pub fn dump_cmap(
                         Hex4Upper(key.selector),
                     )
                 };
-                sink.field(until_nul(&field_name), BuiltValue::str_truncated_at_nul(&glyph.name));
+                sink.field(
+                    until_nul(&field_name),
+                    BuiltValue::str_truncated_at_nul(&glyph.name),
+                );
             }
         }
         sink.end_object();
@@ -582,7 +566,10 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
     for (key, item) in fields {
         let key = &key[..key.len() - 1];
         let Some(unicode) = parse_unicode(key) else {
-            tracing::warn!("cmap key \"{}\" is not a code point. This mapping is ignored.", ByteStr(key));
+            tracing::warn!(
+                "cmap key \"{}\" is not a code point. This mapping is ignored.",
+                ByteStr(key)
+            );
             continue;
         };
         let Some(bytes) = item.as_str_bytes() else {
@@ -593,9 +580,15 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
         }
         let gname: Vec<u8> = bytes.to_vec();
         if !encode_cmap_by_name(cmap, unicode as i32, gname.clone())
-            && let Some(current_map) = cmap_lookup(cmap, unicode as i32) {
-                tracing::warn!("U+{:04X} is already mapped to {}. Assignment to {} is ignored.", unicode, ByteStr(&current_map.name), ByteStr(&gname));
-            }
+            && let Some(current_map) = cmap_lookup(cmap, unicode as i32)
+        {
+            tracing::warn!(
+                "U+{:04X} is already mapped to {}. Assignment to {} is ignored.",
+                unicode,
+                ByteStr(&current_map.name),
+                ByteStr(&gname)
+            );
+        }
     }
 }
 // A UVS key is two `parse_unicode` keys separated by the first space; no
@@ -614,24 +607,30 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
     for (key, item) in fields {
         let key = &key[..key.len() - 1];
         let Some(k) = parse_uvs_key(key) else {
-            tracing::warn!("cmap_uvs key \"{}\" is not a pair of code points. This mapping is ignored.", ByteStr(key));
+            tracing::warn!(
+                "cmap_uvs key \"{}\" is not a pair of code points. This mapping is ignored.",
+                ByteStr(key)
+            );
             continue;
         };
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
-        if !(k.unicode > 0
-            && k.unicode <= 0x10ffff
-            && k.selector > 0
-            && k.selector <= 0x10ffff)
-        {
+        if !(k.unicode > 0 && k.unicode <= 0x10ffff && k.selector > 0 && k.selector <= 0x10ffff) {
             continue;
         }
         let gname: Vec<u8> = bytes.to_vec();
         if !encode_cmap_uvs_by_name(cmap, k, gname.clone())
-            && let Some(current_map) = cmap_lookup_uvs(cmap, k) {
-                tracing::warn!("UVS U+{:04X} U+{:04X} is already mapped to {}. Assignment to {} is ignored.", k.unicode, k.selector, ByteStr(&current_map.name), ByteStr(&gname));
-            }
+            && let Some(current_map) = cmap_lookup_uvs(cmap, k)
+        {
+            tracing::warn!(
+                "UVS U+{:04X} U+{:04X} is already mapped to {}. Assignment to {} is ignored.",
+                k.unicode,
+                k.selector,
+                ByteStr(&current_map.name),
+                ByteStr(&gname)
+            );
+        }
     }
 }
 pub fn parse_cmap(root: &ParsedValue) -> Option<Box<CmapTable>> {
@@ -645,10 +644,7 @@ pub fn parse_cmap(root: &ParsedValue) -> Option<Box<CmapTable>> {
     parse_cmap_unicodes(cmap, root.get_typed(b"cmap", JsonType::Object));
     stage.finish();
     let stage = crate::logger::stage("cmap_uvs");
-    parse_cmap_uvs(
-        cmap,
-        root.get_typed(b"cmap_uvs", JsonType::Object),
-    );
+    parse_cmap_uvs(cmap, root.get_typed(b"cmap_uvs", JsonType::Object));
     stage.finish();
     Some(cmap_box)
 }
@@ -681,18 +677,15 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
                     && i32::from(is_sequencial) != 0
                     && last_gid_end - last_gid_start >= 4)
             {
-                if i32::from(is_sequencial) != 0
-                    && !(i32::from(glyph.index)
-                        == last_gid_end + 1)
-                {
+                if i32::from(is_sequencial) != 0 && !(i32::from(glyph.index) == last_gid_end + 1) {
                     last_glyph_id_array_offset = glyph_id_array.cursor;
                     for j in last_gid_start..=last_gid_end {
                         glyph_id_array.write_u16be(j as u16);
                     }
                 }
                 last_unicode_end = unicode;
-                is_sequencial = i32::from(is_sequencial) != 0
-                    && i32::from(glyph.index) == last_gid_end + 1;
+                is_sequencial =
+                    i32::from(is_sequencial) != 0 && i32::from(glyph.index) == last_gid_end + 1;
                 last_gid_end = i32::from(glyph.index);
                 if !is_sequencial {
                     glyph_id_array.write_u16be(last_gid_end as u16);
@@ -799,9 +792,7 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
             last_unicode_start = last_unicode_end;
             last_gid_end = i32::from(glyph.index);
             last_gid_start = last_gid_end;
-        } else if unicode == last_unicode_end + 1
-            && i32::from(glyph.index) == last_gid_end + 1
-        {
+        } else if unicode == last_unicode_end + 1 && i32::from(glyph.index) == last_gid_end + 1 {
             last_unicode_end = unicode;
             last_gid_end = i32::from(glyph.index);
         } else {
@@ -854,21 +845,20 @@ fn build_format14_for_selector(
     let mut non_defaults: Vec<GlyphId> = vec![0xffff; MAX_UNICODE as usize];
     for (key, glyph) in cmap.uvs.iter() {
         let u: Unicode = key.unicode as Unicode;
-        if !(key.selector != selector || u >= MAX_UNICODE)
-            && !glyph.name.is_empty() {
-                let uvs_gid: GlyphId = glyph.index;
-                match cmap_lookup(cmap, u as i32) {
-                    None => {
-                        non_defaults[u as usize] = uvs_gid;
-                    }
-                    Some(g) if i32::from(uvs_gid) == i32::from(g.index) => {
-                        defaults[u as usize] = uvs_gid;
-                    }
-                    Some(_) => {
-                        non_defaults[u as usize] = uvs_gid;
-                    }
+        if !(key.selector != selector || u >= MAX_UNICODE) && !glyph.name.is_empty() {
+            let uvs_gid: GlyphId = glyph.index;
+            match cmap_lookup(cmap, u as i32) {
+                None => {
+                    non_defaults[u as usize] = uvs_gid;
+                }
+                Some(g) if i32::from(uvs_gid) == i32::from(g.index) => {
+                    defaults[u as usize] = uvs_gid;
+                }
+                Some(_) => {
+                    non_defaults[u as usize] = uvs_gid;
                 }
             }
+        }
     }
     non_defaults[0] = 0xffff;
     defaults[0] = 0xffff;
@@ -888,7 +878,12 @@ fn build_format14_for_selector(
             start_unicode_value = u;
         }
         if !here && before {
-            write_default_range(dflt, &mut num_unicode_value_ranges, start_unicode_value, u - 1);
+            write_default_range(
+                dflt,
+                &mut num_unicode_value_ranges,
+                start_unicode_value,
+                u - 1,
+            );
         }
         if non_defaults[u as usize] != 0xffff {
             nondflt.write_u24be(u);
@@ -1012,7 +1007,10 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         vec![
             bk_int(BkCellType::B16, 0),
             bk_int(BkCellType::B16, 3),
-            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
+            bk_ptr(
+                BkCellType::P32,
+                bk_new_block_from_buffer_copy(Some(&format4)),
+            ),
         ],
     );
     if requires_format12 {
@@ -1021,7 +1019,10 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
             vec![
                 bk_int(BkCellType::B16, 0),
                 bk_int(BkCellType::B16, 4),
-                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),
+                bk_ptr(
+                    BkCellType::P32,
+                    bk_new_block_from_buffer_copy(Some(&format12)),
+                ),
             ],
         );
     }
@@ -1041,7 +1042,10 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         vec![
             bk_int(BkCellType::B16, 3),
             bk_int(BkCellType::B16, 1),
-            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
+            bk_ptr(
+                BkCellType::P32,
+                bk_new_block_from_buffer_copy(Some(&format4)),
+            ),
         ],
     );
     if requires_format12 {
@@ -1050,7 +1054,10 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
             vec![
                 bk_int(BkCellType::B16, 3),
                 bk_int(BkCellType::B16, 10),
-                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),
+                bk_ptr(
+                    BkCellType::P32,
+                    bk_new_block_from_buffer_copy(Some(&format12)),
+                ),
             ],
         );
     }
@@ -1272,7 +1279,10 @@ mod cmap_read_tests {
         read_format12(&data, 0, cmap.as_mut(), &mut budget);
         assert!(start.elapsed() < std::time::Duration::from_secs(5));
 
-        assert_eq!(budget, 0, "the shared budget must be fully consumed, not per-group");
+        assert_eq!(
+            budget, 0,
+            "the shared budget must be fully consumed, not per-group"
+        );
         assert_eq!(
             cmap.unicodes.len(),
             5,
@@ -1335,7 +1345,9 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 4);
 
         let mut cmap = empty_cmap();
-        read_uvs_default(&data, 0, 0xFE00, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
+        read_uvs_default(&data, 0, 0xFE00, cmap.as_mut(), &mut {
+            MAX_TOTAL_CMAP_MAPPINGS
+        });
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1346,7 +1358,9 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 4);
 
         let mut cmap = empty_cmap();
-        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
+        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut(), &mut {
+            MAX_TOTAL_CMAP_MAPPINGS
+        });
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1359,7 +1373,9 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 9);
 
         let mut cmap = empty_cmap();
-        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
+        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut(), &mut {
+            MAX_TOTAL_CMAP_MAPPINGS
+        });
         let g = cmap
             .uvs
             .get(&CmapUvsKey {
@@ -1410,7 +1426,10 @@ mod cmap_read_tests {
         let mut budget: u32 = 5;
         read_format14(&data, 0, cmap.as_mut(), &mut budget);
 
-        assert_eq!(budget, 0, "the shared budget must be fully consumed, not per-record");
+        assert_eq!(
+            budget, 0,
+            "the shared budget must be fully consumed, not per-record"
+        );
         assert_eq!(
             cmap.uvs.len(),
             5,
@@ -1595,7 +1614,6 @@ mod cmap_read_tests {
     }
 }
 
-
 #[cfg(test)]
 mod parse_unicode_tests {
     use super::*;
@@ -1625,7 +1643,12 @@ mod parse_unicode_tests {
             b"\xc3\xa9",
             b"99999999999",
         ] {
-            assert_eq!(parse_unicode(key), None, "{:?}", String::from_utf8_lossy(key));
+            assert_eq!(
+                parse_unicode(key),
+                None,
+                "{:?}",
+                String::from_utf8_lossy(key)
+            );
         }
     }
 

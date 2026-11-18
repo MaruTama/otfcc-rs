@@ -34,7 +34,16 @@ fn run_ttf_cycle(build: &Path, name: &str, ext: &str, input: &Path) {
     let p4 = build.join(format!("{name}.4.{ext}"));
     let p5 = build.join(format!("{name}.5.json"));
 
-    run_ok(&format!("{name} dump 1"), &otfccdump(), &[input.as_os_str(), OsStr::new("-o"), p1.as_os_str(), OsStr::new("--pretty")]);
+    run_ok(
+        &format!("{name} dump 1"),
+        &otfccdump(),
+        &[
+            input.as_os_str(),
+            OsStr::new("-o"),
+            p1.as_os_str(),
+            OsStr::new("--pretty"),
+        ],
+    );
     run_ok(
         &format!("{name} build 2"),
         &otfccbuild(),
@@ -46,7 +55,16 @@ fn run_ttf_cycle(build: &Path, name: &str, ext: &str, input: &Path) {
             OsStr::new("--keep-modified-time"),
         ],
     );
-    run_ok(&format!("{name} dump 3"), &otfccdump(), &[p2.as_os_str(), OsStr::new("-o"), p3.as_os_str(), OsStr::new("--pretty")]);
+    run_ok(
+        &format!("{name} dump 3"),
+        &otfccdump(),
+        &[
+            p2.as_os_str(),
+            OsStr::new("-o"),
+            p3.as_os_str(),
+            OsStr::new("--pretty"),
+        ],
+    );
     run_ok(
         &format!("{name} build 4"),
         &otfccbuild(),
@@ -58,7 +76,16 @@ fn run_ttf_cycle(build: &Path, name: &str, ext: &str, input: &Path) {
             OsStr::new("--keep-modified-time"),
         ],
     );
-    run_ok(&format!("{name} dump 5"), &otfccdump(), &[p4.as_os_str(), OsStr::new("-o"), p5.as_os_str(), OsStr::new("--pretty")]);
+    run_ok(
+        &format!("{name} dump 5"),
+        &otfccdump(),
+        &[
+            p4.as_os_str(),
+            OsStr::new("-o"),
+            p5.as_os_str(),
+            OsStr::new("--pretty"),
+        ],
+    );
 }
 
 /// `otfccbuild` -> `otfccdump` -> `otfccbuild` -> `otfccdump`, starting
@@ -83,7 +110,16 @@ fn run_fj_cycle(build: &Path, name: &str, ext: &str, input: &Path) {
             OsStr::new("--keep-modified-time"),
         ],
     );
-    run_ok(&format!("{out_name} dump 3"), &otfccdump(), &[p2.as_os_str(), OsStr::new("-o"), p3.as_os_str(), OsStr::new("--pretty")]);
+    run_ok(
+        &format!("{out_name} dump 3"),
+        &otfccdump(),
+        &[
+            p2.as_os_str(),
+            OsStr::new("-o"),
+            p3.as_os_str(),
+            OsStr::new("--pretty"),
+        ],
+    );
     run_ok(
         &format!("{out_name} build 4"),
         &otfccbuild(),
@@ -95,7 +131,16 @@ fn run_fj_cycle(build: &Path, name: &str, ext: &str, input: &Path) {
             OsStr::new("--keep-modified-time"),
         ],
     );
-    run_ok(&format!("{out_name} dump 5"), &otfccdump(), &[p4.as_os_str(), OsStr::new("-o"), p5.as_os_str(), OsStr::new("--pretty")]);
+    run_ok(
+        &format!("{out_name} dump 5"),
+        &otfccdump(),
+        &[
+            p4.as_os_str(),
+            OsStr::new("-o"),
+            p5.as_os_str(),
+            OsStr::new("--pretty"),
+        ],
+    );
 }
 
 const ROUNDING_ERROR: f64 = 0.001;
@@ -114,7 +159,10 @@ fn deep_equal(a: &Value, b: &Value, path: &str, first_diff: &mut Option<String>)
             let fb = nb.as_f64().unwrap();
             let pass = (fa - fb).abs() < ROUNDING_ERROR;
             if !pass && first_diff.is_none() {
-                *first_diff = Some(format!("{path}: number mismatch {fa} <> {fb} (difference = {})", (fa - fb).abs()));
+                *first_diff = Some(format!(
+                    "{path}: number mismatch {fa} <> {fb} (difference = {})",
+                    (fa - fb).abs()
+                ));
             }
             pass
         }
@@ -140,7 +188,11 @@ fn deep_equal(a: &Value, b: &Value, path: &str, first_diff: &mut Option<String>)
         (Value::Array(aa), Value::Array(ab)) => {
             if aa.len() != ab.len() {
                 if first_diff.is_none() {
-                    *first_diff = Some(format!("{path}: array length differs ({} <> {})", aa.len(), ab.len()));
+                    *first_diff = Some(format!(
+                        "{path}: array length differs ({} <> {})",
+                        aa.len(),
+                        ab.len()
+                    ));
                 }
                 return false;
             }
@@ -172,9 +224,11 @@ fn deep_equal(a: &Value, b: &Value, path: &str, first_diff: &mut Option<String>)
 /// comparison go through the same lossy decoding, so this doesn't change
 /// what the check catches.
 fn read_json(path: &Path) -> Value {
-    let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    let bytes =
+        std::fs::read(path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
     let text = String::from_utf8_lossy(&bytes);
-    serde_json::from_str(&text).unwrap_or_else(|e| panic!("failed to parse {} as JSON: {e}", path.display()))
+    serde_json::from_str(&text)
+        .unwrap_or_else(|e| panic!("failed to parse {} as JSON: {e}", path.display()))
 }
 
 /// Compares `{base}.5.json` (dump of build of dump of build of the
@@ -203,8 +257,14 @@ fn compare_roundtrip(build: &Path, label: &str, base: &str, errors: &mut Vec<Str
 fn dump_build_cycles_are_stable() {
     let build = build_dir();
 
-    const TTF_PAYLOADS: &[&str] =
-        &["NotoNastaliqUrdu-Regular", "iosevka-r", "BungeeColor-Regular_colr_Windows", "Reinebow-SVGinOT", "vtt", "Molengo-Regular"];
+    const TTF_PAYLOADS: &[&str] = &[
+        "NotoNastaliqUrdu-Regular",
+        "iosevka-r",
+        "BungeeColor-Regular_colr_Windows",
+        "Reinebow-SVGinOT",
+        "vtt",
+        "Molengo-Regular",
+    ];
     // Cormorant-Medium and WorkSans-Regular.otf are excluded (not present
     // here at all): they crash with a stack overflow in BOTH the C and
     // Rust otfccdump on arm64, a pre-existing bug in the C CFF
@@ -244,10 +304,20 @@ fn dump_build_cycles_are_stable() {
         compare_roundtrip(&build, name, name, &mut errors);
     }
     for name in CFF_FJ_ROUNDTRIP_CHECKED {
-        compare_roundtrip(&build, &format!("{name} (fj)"), &format!("fj-{name}"), &mut errors);
+        compare_roundtrip(
+            &build,
+            &format!("{name} (fj)"),
+            &format!("fj-{name}"),
+            &mut errors,
+        );
     }
 
-    assert!(errors.is_empty(), "{} payload(s) failed the round-trip check:\n{}", errors.len(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{} payload(s) failed the round-trip check:\n{}",
+        errors.len(),
+        errors.join("\n")
+    );
 }
 
 /// Exercises `deep_equal` directly against synthetic values: the
@@ -259,18 +329,31 @@ fn dump_build_cycles_are_stable() {
 #[test]
 fn deep_equal_tolerates_rounding_drift_but_catches_real_differences() {
     let mut diff = None;
-    assert!(deep_equal(&serde_json::json!(1.0), &serde_json::json!(1.0009), "$", &mut diff));
+    assert!(deep_equal(
+        &serde_json::json!(1.0),
+        &serde_json::json!(1.0009),
+        "$",
+        &mut diff
+    ));
     assert!(diff.is_none());
 
     let mut diff = None;
-    assert!(!deep_equal(&serde_json::json!(1.0), &serde_json::json!(1.01), "$", &mut diff));
+    assert!(!deep_equal(
+        &serde_json::json!(1.0),
+        &serde_json::json!(1.01),
+        "$",
+        &mut diff
+    ));
     assert!(diff.unwrap().contains("number mismatch"));
 
     let mut diff = None;
     let a = serde_json::json!({"a": 1, "b": [1, 2, 3]});
     let b = serde_json::json!({"a": 1, "b": [1, 2, 4]});
     assert!(!deep_equal(&a, &b, "$", &mut diff));
-    assert_eq!(diff.unwrap(), "$.b[2]: number mismatch 3 <> 4 (difference = 1)");
+    assert_eq!(
+        diff.unwrap(),
+        "$.b[2]: number mismatch 3 <> 4 (difference = 1)"
+    );
 
     let mut diff = None;
     let c = serde_json::json!({"a": 1});

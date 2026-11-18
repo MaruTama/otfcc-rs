@@ -37,31 +37,20 @@ pub fn merge_cs2_operator(blob: &mut Buffer, val: CffCharstringOperator) {
 }
 pub fn merge_cs2_int(blob: &mut Buffer, val: i32) {
     if (-1131..=-108).contains(&val) {
-        blob.write_bytes(&[
-            ((-108 - val) / 256 + 251) as u8,
-            ((-108 - val) % 256) as u8,
-        ]);
+        blob.write_bytes(&[((-108 - val) / 256 + 251) as u8, ((-108 - val) % 256) as u8]);
     } else if (-107..=107).contains(&val) {
         blob.write_bytes(&[(val + 139) as u8]);
     } else if (108..=1131).contains(&val) {
-        blob.write_bytes(&[
-            ((val - 108) / 256 + 247) as u8,
-            ((val - 108) % 256) as u8,
-        ]);
+        blob.write_bytes(&[((val - 108) / 256 + 247) as u8, ((val - 108) % 256) as u8]);
     } else if (-32768..=32767).contains(&val) {
-        blob.write_bytes(&[
-            28,
-            (val >> 8) as u8,
-            (val << 8 >> 8) as u8,
-        ]);
+        blob.write_bytes(&[28, (val >> 8) as u8, (val << 8 >> 8) as u8]);
     } else {
         merge_cs2_int(blob, 0);
     };
 }
 fn merge_cs2_real(blob: &mut Buffer, val: f64) {
     let integer_part: i16 = val.floor() as i16;
-    let fraction_part: u16 =
-        ((val - f64::from(i32::from(integer_part))) * 65536.0) as u16;
+    let fraction_part: u16 = ((val - f64::from(i32::from(integer_part))) * 65536.0) as u16;
     blob.write_bytes(&[
         0xff,
         (i32::from(integer_part) >> 8) as u8,

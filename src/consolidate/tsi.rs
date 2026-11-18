@@ -1,9 +1,7 @@
 use crate::logger::ByteStr;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::gord_consolidate_handle;
-use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_index,
-};
+use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_index};
 use crate::support::primitives::GlyphId;
 use crate::table::glyf::GlyfTable;
 use crate::table::tsi::tsi_entry_dup;
@@ -18,7 +16,11 @@ use crate::table::tsi::{TsiEntry, TsiEntryType, TsiTable};
 // disjoint fields directly off `font`, which Rust allows even though a
 // single `&Font`/`&mut Font` funneled through this function's own
 // parameter list would not.
-pub(crate) fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<TsiTable>) {
+pub(crate) fn consolidate_tsi(
+    glyf: &GlyfTable,
+    glyph_order: &GlyphOrder,
+    tsi: &mut Option<TsiTable>,
+) {
     if tsi.is_none() {
         return;
     }
@@ -26,14 +28,17 @@ pub(crate) fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &
     // `None` = "no entry yet for this GID", `Some` = has content, even if
     // empty.
     let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; glyf.len()];
-    let entries: &mut Vec<TsiEntry> = tsi.as_mut().unwrap();
+    let entries: &mut Vec<TsiEntry> = tsi.as_mut().expect("the early return above checked tsi");
     for entry in entries.iter_mut() {
         if entry.kind == TsiEntryType::Glyph {
             if gord_consolidate_handle(glyph_order, &mut entry.glyph) {
                 gid_entries[entry.glyph.index as usize] =
                     Some(::core::mem::take(&mut entry.content));
             } else {
-                tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&entry.glyph.name));
+                tracing::warn!(
+                    "[Consolidate] Ignored missing glyph of /{}",
+                    ByteStr(&entry.glyph.name)
+                );
             }
         } else {
             // `tsi_entry_dup` is a safe fn now that this stack includes

@@ -1,4 +1,3 @@
-
 use crate::logger::ByteStr;
 use crate::support::json_limits::{MAX_ENTRIES, find_oversized_collection};
 use otfcc_json::ParsedValue;
@@ -17,7 +16,12 @@ fn decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
         FontSubtype::Ttf
     }
 }
-fn set_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, order_type: GlyphOrderPass, order_entry: u32) {
+fn set_order_by_name(
+    go: &mut GlyphOrder,
+    name: Vec<u8>,
+    order_type: GlyphOrderPass,
+    order_entry: u32,
+) {
     match go.by_name.get(&name).copied() {
         None => {
             go.entries.push(GlyphOrderEntry {
@@ -102,17 +106,23 @@ fn place_order_entries_from_cmap(table: &ParsedValue, go: &mut GlyphOrder) {
             continue;
         };
         if let Some(bytes) = item.as_str_bytes()
-            && unicode > 0 && unicode <= 0x10ffff {
-                let gname: Vec<u8> = bytes.to_vec();
-                escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::Cmap, unicode);
-            }
+            && unicode > 0
+            && unicode <= 0x10ffff
+        {
+            let gname: Vec<u8> = bytes.to_vec();
+            escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::Cmap, unicode);
+        }
     }
 }
 fn place_order_entries_from_subtable(table: &ParsedValue, go: &mut GlyphOrder, zero_only: bool) {
     let Some(items) = table.as_array() else {
         return;
     };
-    let uplimit = if zero_only { items.len().min(1) } else { items.len() };
+    let uplimit = if zero_only {
+        items.len().min(1)
+    } else {
+        items.len()
+    };
     for (j, item) in items.iter().enumerate().take(uplimit) {
         if let Some(bytes) = item.as_str_bytes() {
             let gname: Vec<u8> = bytes.to_vec();
@@ -165,7 +175,12 @@ pub fn read_json(root: &mut ParsedValue, options: &Options) -> Option<Box<Font>>
     // is what `otfccbuild` reports as "Cannot parse JSON file ... as a
     // font" and what `otfccbuild_json_otf` turns into a null buffer.
     if let Some(found) = find_oversized_collection(root) {
-        tracing::error!("Too many entries in \"{}\": {} (at most {} are supported; counts in an OpenType table are 16-bit).\n", ByteStr(&found.path), found.len as u32, MAX_ENTRIES as u32);
+        tracing::error!(
+            "Too many entries in \"{}\": {} (at most {} are supported; counts in an OpenType table are 16-bit).\n",
+            ByteStr(&found.path),
+            found.len as u32,
+            MAX_ENTRIES as u32
+        );
         return None;
     }
     let mut font: Box<Font> = Box::default();
@@ -201,7 +216,10 @@ mod glyph_count_limit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs a genuine 65,536-entry glyf object to hit the limit")]
+    #[cfg_attr(
+        miri,
+        ignore = "far too slow to run meaningfully under Miri's interpreter; needs a genuine 65,536-entry glyf object to hit the limit"
+    )]
     fn glyf_object_past_the_16_bit_glyph_limit_is_rejected_instead_of_hanging() {
         // Before the limit existed, `read_json` accepted this input and
         // `otfccbuild` then spun forever in `consolidate_glyf` (a `u16`
@@ -212,7 +230,10 @@ mod glyph_count_limit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs a genuine 65,535-entry glyf object to sit exactly on the limit")]
+    #[cfg_attr(
+        miri,
+        ignore = "far too slow to run meaningfully under Miri's interpreter; needs a genuine 65,535-entry glyf object to sit exactly on the limit"
+    )]
     fn glyf_object_exactly_at_the_16_bit_glyph_limit_is_accepted() {
         // Pins the off-by-one: 65,535 glyphs is what `maxp.numGlyphs` (a
         // `u16`) can hold, and what the `FDArrayTest65535.otf` fixture
@@ -266,4 +287,3 @@ mod layout_collection_limit_tests {
         assert!(read(&json).is_none());
     }
 }
-

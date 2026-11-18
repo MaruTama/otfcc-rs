@@ -1,7 +1,7 @@
 use crate::font::sfnt::Packet;
+use crate::support::primitives::{GlyphId, Length, Pos};
 use otfcc_binary::Buffer;
 use otfcc_binary::{FontReader, ReadError};
-use crate::support::primitives::{GlyphId, Length, Pos};
 
 use crate::table::maxp::MaxpTable;
 use crate::table::vhea::VheaTable;

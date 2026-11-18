@@ -90,13 +90,16 @@ pub(crate) fn consolidate_chaining(
                     // (see `consolidate_otl_table`) -- nothing to match
                     // against.
                     match slot.as_deref() {
-                        Some(lookup) if !lookup.subtables.is_empty() => (true, lookup.name.as_slice()),
+                        Some(lookup) if !lookup.subtables.is_empty() => {
+                            (true, lookup.name.as_slice())
+                        }
                         _ => (false, [].as_slice()),
                     }
                 };
                 if exists && handle_name_eq_bytes(&app.lookup.name, name) {
                     found_lookup = true;
-                    app.lookup = Handle::new(HandleState::Consolidated, k, name.to_vec()) as LookupHandle;
+                    app.lookup =
+                        Handle::new(HandleState::Consolidated, k, name.to_vec()) as LookupHandle;
                 }
             }
             if !found_lookup {
@@ -111,7 +114,10 @@ pub(crate) fn consolidate_chaining(
                 let budget = options.consolidate_warning_budget.get();
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
-                    tracing::warn!("[Consolidate] Quoting an invalid lookup {}. This lookup application is ignored.", ByteStr(&app.lookup.name));
+                    tracing::warn!(
+                        "[Consolidate] Quoting an invalid lookup {}. This lookup application is ignored.",
+                        ByteStr(&app.lookup.name)
+                    );
                 }
                 app.lookup = Handle::default();
             }
@@ -135,7 +141,10 @@ pub(crate) fn consolidate_chaining(
                 let budget = options.consolidate_warning_budget.get();
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
-                    tracing::warn!("[Consolidate] Quoting an invalid lookup #{}.", i32::from(app.lookup.index));
+                    tracing::warn!(
+                        "[Consolidate] Quoting an invalid lookup #{}.",
+                        i32::from(app.lookup.index)
+                    );
                 }
                 app.lookup.index = 0 as GlyphId;
             }

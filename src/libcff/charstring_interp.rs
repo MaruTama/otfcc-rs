@@ -8,16 +8,23 @@
 //! operator returns [`Flow::Stop`] when the rest of the outline must be
 //! ignored (operand stack overflow, malformed hint mask data).
 
-use crate::logger::ByteStr;
 use crate::libcff::codecs::decode_cs2_token;
 use crate::libcff::index::CffIndex;
-use crate::libcff::value::{CffValue, cffnum};
-use crate::support::primitives::Arity;
-use crate::table::cff::OutlineBuilderContext;
 use crate::libcff::parser::{
     MAX_SUBR_CALL_DEPTH, MAX_TOTAL_SUBR_CALLS, compute_subr_bias, locate_subr,
 };
-use crate::libcff::{CffCharstringOperator, CffStack, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR, OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_ENDCHAR, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET, OP_HFLEX, OP_HFLEX1, OP_HHCURVETO, OP_HINTMASK, OP_HLINETO, OP_HMOVETO, OP_HSTEM, OP_HSTEMHM, OP_HVCURVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RANDOM, OP_RCURVELINE, OP_RETURN, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_ROLL, OP_RRCURVETO, OP_SQRT, OP_SUB, OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, OP_VVCURVETO};
+use crate::libcff::value::{CffValue, cffnum};
+use crate::libcff::{
+    CffCharstringOperator, CffStack, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR,
+    OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_ENDCHAR, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET,
+    OP_HFLEX, OP_HFLEX1, OP_HHCURVETO, OP_HINTMASK, OP_HLINETO, OP_HMOVETO, OP_HSTEM, OP_HSTEMHM,
+    OP_HVCURVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RANDOM,
+    OP_RCURVELINE, OP_RETURN, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_ROLL, OP_RRCURVETO,
+    OP_SQRT, OP_SUB, OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, OP_VVCURVETO,
+};
+use crate::logger::ByteStr;
+use crate::support::primitives::Arity;
+use crate::table::cff::OutlineBuilderContext;
 mod arith;
 mod path;
 
@@ -86,7 +93,10 @@ pub fn parse_outline(
     total_calls: &mut u32,
 ) {
     if depth > MAX_SUBR_CALL_DEPTH {
-        tracing::warn!("[libcff] Subroutine call nesting exceeded {}; the rest of this outline is ignored.\n", MAX_SUBR_CALL_DEPTH);
+        tracing::warn!(
+            "[libcff] Subroutine call nesting exceeded {}; the rest of this outline is ignored.\n",
+            MAX_SUBR_CALL_DEPTH
+        );
         return;
     }
     let subrs = Subroutines {
@@ -109,7 +119,9 @@ pub fn parse_outline(
         match val {
             CffValue::Operator(op) => {
                 let flow = match CffCharstringOperator(op) {
-                    OP_HSTEM | OP_VSTEM | OP_HSTEMHM | OP_VSTEMHM => op_stem_hints(stack, outline, op),
+                    OP_HSTEM | OP_VSTEM | OP_HSTEMHM | OP_VSTEMHM => {
+                        op_stem_hints(stack, outline, op)
+                    }
                     OP_HINTMASK | OP_CNTRMASK => {
                         // The mask bytes follow the operator directly.
                         let mask_bytes = data.get(pos + advance..).unwrap_or(&[]);
@@ -163,7 +175,10 @@ pub fn parse_outline(
                     OP_CALLGSUBR => op_callgsubr(stack, outline, &subrs, depth, total_calls),
                     OP_RETURN => Flow::Stop,
                     _ => {
-                        tracing::warn!("Warning: unknown operator {} occurs in Type 2 CharString. It may caused by file corruption.", op);
+                        tracing::warn!(
+                            "Warning: unknown operator {} occurs in Type 2 CharString. It may caused by file corruption.",
+                            op
+                        );
                         Flow::Stop
                     }
                 };
@@ -196,9 +211,21 @@ fn call_subroutine(
     total_calls: &mut u32,
 ) -> Flow {
     let (name, op, kind, index, bias) = if global {
-        ("op_callgsubr", OP_CALLGSUBR, "global", subrs.gsubr, subrs.gsubr_bias)
+        (
+            "op_callgsubr",
+            OP_CALLGSUBR,
+            "global",
+            subrs.gsubr,
+            subrs.gsubr_bias,
+        )
     } else {
-        ("op_callsubr", OP_CALLSUBR, "local", subrs.lsubr, subrs.lsubr_bias)
+        (
+            "op_callsubr",
+            OP_CALLSUBR,
+            "local",
+            subrs.lsubr,
+            subrs.lsubr_bias,
+        )
     };
     if stack.index < 1 {
         too_few_operands(name, op);
@@ -209,25 +236,53 @@ fn call_subroutine(
     // float-to-unsigned cast turns every negative one into 0.
     let number = stack.num(stack.index) as i32;
     let Some(sub_data) = locate_subr(index, bias, number) else {
-        tracing::warn!("[libcff] Invalid {} subroutine index for {} ({:04x}). This call is ignored.\n", kind, ByteStr(name), op.0 as u32);
+        tracing::warn!(
+            "[libcff] Invalid {} subroutine index for {} ({:04x}). This call is ignored.\n",
+            kind,
+            ByteStr(name),
+            op.0 as u32
+        );
         return Flow::Continue;
     };
     *total_calls = total_calls.wrapping_add(1);
     if *total_calls > MAX_TOTAL_SUBR_CALLS {
         if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
-            tracing::warn!("[libcff] Subroutine call budget ({}) exceeded; the rest of this outline is ignored.\n", MAX_TOTAL_SUBR_CALLS);
+            tracing::warn!(
+                "[libcff] Subroutine call budget ({}) exceeded; the rest of this outline is ignored.\n",
+                MAX_TOTAL_SUBR_CALLS
+            );
         }
     } else {
-        parse_outline(sub_data, subrs.gsubr, subrs.lsubr, stack, outline, depth + 1, total_calls);
+        parse_outline(
+            sub_data,
+            subrs.gsubr,
+            subrs.lsubr,
+            stack,
+            outline,
+            depth + 1,
+            total_calls,
+        );
     }
     Flow::Continue
 }
 
-fn op_callsubr(stack: &mut CffStack, outline: &mut OutlineBuilderContext, subrs: &Subroutines<'_>, depth: u32, total_calls: &mut u32) -> Flow {
+fn op_callsubr(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    subrs: &Subroutines<'_>,
+    depth: u32,
+    total_calls: &mut u32,
+) -> Flow {
     call_subroutine(stack, outline, subrs, false, depth, total_calls)
 }
 
-fn op_callgsubr(stack: &mut CffStack, outline: &mut OutlineBuilderContext, subrs: &Subroutines<'_>, depth: u32, total_calls: &mut u32) -> Flow {
+fn op_callgsubr(
+    stack: &mut CffStack,
+    outline: &mut OutlineBuilderContext,
+    subrs: &Subroutines<'_>,
+    depth: u32,
+    total_calls: &mut u32,
+) -> Flow {
     call_subroutine(stack, outline, subrs, true, depth, total_calls)
 }
 
@@ -245,4 +300,3 @@ mod cff_parse_outline_subr_number_tests;
 
 #[cfg(test)]
 mod cff_parse_outline_operand_group_tests;
-

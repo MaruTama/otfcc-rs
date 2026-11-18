@@ -8,13 +8,11 @@ pub use dump::dump_cff;
 pub use parse::parse_cff;
 pub use read::read_cff_and_glyf_tables;
 
-use crate::libcff::subr::CffSubrGraph;
 use crate::libcff::CffFile;
+use crate::libcff::subr::CffSubrGraph;
 use crate::support::options::Options;
 use crate::support::primitives::{Scale, ShapeId};
-use crate::table::glyf::{
-    GlyfTable, Glyph,
-};
+use crate::table::glyf::{GlyfTable, Glyph};
 
 use crate::vf::vq::VQ;
 
@@ -300,7 +298,9 @@ mod cff_matrix_no_head_regression_tests {
             meta.font_matrix.is_some(),
             "FontMatrix should have survived the write+read round trip"
         );
-        let glyphs = result.glyphs.expect("glyf table should have been read back");
+        let glyphs = result
+            .glyphs
+            .expect("glyf table should have been read back");
         assert_eq!(glyphs.len(), 1);
         assert!(
             !glyphs[0].as_ref().unwrap().contours.is_empty(),
@@ -353,4 +353,3 @@ mod cff_matrix_no_head_regression_tests {
         assert_eq!(point.y.kernel, 10.0, "no head table means no scaling");
     }
 }
-

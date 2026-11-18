@@ -1,12 +1,12 @@
+use crate::font::sfnt::Packet;
+use crate::support::primitives::{Pos, TableId};
+use otfcc_binary::Buffer;
 use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use otfcc_binary::bk::graph::bk_build_block;
-use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
-use crate::support::primitives::{Pos, TableId};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Copy, Clone, Debug)]
 pub struct BaseValue {
@@ -83,9 +83,14 @@ fn read_base_script(
     let mut base_values: Vec<BaseValue> = Vec::with_capacity(base_values_count as usize);
     for j in 0..base_values_count {
         let tag = base_tag_list[j as usize];
-        let val_offset = r2.u16().expect("require_room above covered one u16 per base value");
+        let val_offset = r2
+            .u16()
+            .expect("require_room above covered one u16 per base value");
         let coordinate = if val_offset != 0 {
-            Pos::from(read_base_value(data, base_values_offset + val_offset as usize))
+            Pos::from(read_base_value(
+                data,
+                base_values_offset + val_offset as usize,
+            ))
         } else {
             Pos::from(0)
         };
@@ -111,7 +116,10 @@ fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
     tl.require_room(n_base_tags as usize, 4).ok()?;
     let mut base_tag_list: Vec<u32> = Vec::with_capacity(n_base_tags as usize);
     for _ in 0..n_base_tags {
-        base_tag_list.push(tl.u32().expect("require_room above covered one u32 per base tag"));
+        base_tag_list.push(
+            tl.u32()
+                .expect("require_room above covered one u32 per base tag"),
+        );
     }
     let base_script_list_offset = offset + base_script_list_rel as usize;
     let mut sl = FontReader::new(data).at(base_script_list_offset).ok()?;
@@ -119,8 +127,12 @@ fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
     sl.require_room(n_base_scripts as usize, 6).ok()?;
     let mut entries: Vec<BaseScriptEntry> = Vec::with_capacity(n_base_scripts as usize);
     for _ in 0..n_base_scripts {
-        let tag = sl.u32().expect("require_room above covered a 6-byte record per script");
-        let base_script_rel = sl.u16().expect("require_room above covered a 6-byte record per script");
+        let tag = sl
+            .u32()
+            .expect("require_room above covered a 6-byte record per script");
+        let base_script_rel = sl
+            .u16()
+            .expect("require_room above covered a 6-byte record per script");
         if base_script_rel != 0 {
             let (default_baseline_tag, base_values) = read_base_script(
                 data,
@@ -162,7 +174,10 @@ fn decode_base(data: &[u8]) -> Result<BaseAxisPair, ReadError> {
     Ok((horizontal, vertical))
 }
 pub fn read_base(packet: &Packet) -> Option<Box<BaseTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_BASE)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_BASE)?;
     let (horizontal, vertical) = match decode_base(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
@@ -223,7 +238,9 @@ fn base_script_from_json(sr: Option<&ParsedValue>) -> (u32, Vec<BaseValue>) {
     let Some(basevalues) = sr.and_then(|v| v.get_typed(b"baselines", JsonType::Object)) else {
         return (default_baseline_tag, Vec::new());
     };
-    let fields = basevalues.as_object().expect("get_typed returned an Object");
+    let fields = basevalues
+        .as_object()
+        .expect("get_typed returned an Object");
     let mut base_values: Vec<BaseValue> = Vec::with_capacity(fields.len());
     for (key, val) in fields {
         base_values.push(BaseValue {
@@ -306,17 +323,11 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
             .unwrap_or(0) as TableId;
         bk_push(
             &mut base_values,
-            vec![bk_int(
-                BkCellType::B16,
-                i32::from(default_index) as u32,
-            )],
+            vec![bk_int(BkCellType::B16, i32::from(default_index) as u32)],
         );
         bk_push(
             &mut base_values,
-            vec![bk_int(
-                BkCellType::B16,
-                (taglist.items.len() as i32) as u32,
-            )],
+            vec![bk_int(BkCellType::B16, (taglist.items.len() as i32) as u32)],
         );
         for &tag in taglist.items.iter() {
             let found_index = entry_0.base_values.iter().position(|bv| bv.tag == tag);
@@ -329,7 +340,8 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
                             bk_int(BkCellType::B16, 1),
                             bk_int(
                                 BkCellType::B16,
-                                i32::from(entry_0.base_values[found_index].coordinate as i16) as u32,
+                                i32::from(entry_0.base_values[found_index].coordinate as i16)
+                                    as u32,
                             ),
                         ])),
                     )],

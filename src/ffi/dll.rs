@@ -1,6 +1,5 @@
-
-use otfcc_binary::Buffer;
 use crate::support::options::Options;
+use otfcc_binary::Buffer;
 
 use crate::consolidate::consolidate_font;
 use crate::json_reader::read_json;
@@ -109,6 +108,22 @@ mod tests {
                 false,
             )
         }
+    }
+
+    // Found by the `json_build` fuzzer: `x` and `y` are numbers, not font
+    // dicts, but `fdArray` turned each into an entry with no private dict,
+    // and the width statistics then panicked looking for one.
+    #[test]
+    #[cfg_attr(miri, ignore = "the build stamps head.modified from the real clock")]
+    fn fd_array_entries_without_a_private_dict_build() {
+        let json = br#"{"glyph_order":[".notdef"],"CFF_":{"version":"001.000","fontName":"T",
+            "isCID":true,"cidRegistry":"Adobe","cidOrdering":"Identity","cidSupplement":0,
+            "fdArray":{"FD0":{"privates":{"defaultWidthX":0,"nominalWidthX":0}},"x":0,"y":0}},
+            "glyf":{".notdef":{"advanceWidth":500,"contours":[[{"x":50,"y":0,"on":true}]],
+            "CFF_fdSelect":"FD0"}}}"#;
+        let buf = build(json);
+        assert!(buf.is_some());
+        otfccbuild_free_otfbuf(buf);
     }
 
     #[test]

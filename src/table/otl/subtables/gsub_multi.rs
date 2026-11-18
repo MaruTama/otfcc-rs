@@ -1,22 +1,20 @@
-use crate::support::handle::{
-    GlyphHandle, handle_from_index, handle_from_name,
-};
-use otfcc_json::ParsedValue;
+use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_json::ParsedValue;
 
 use otfcc_binary::FontReader;
 
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::Buffer;
 use crate::support::primitives::{GlyphId, count_u16};
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, Subtable};
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_json::BuiltValue;
 // Each Sequence subtable (`seq_offset`, resolved from the per-entry
 // `sequenceOffsets[]` array) had *no* length guard at all before this
 // rewrite: neither `seq_offset` itself nor `n` (the Sequence's own
@@ -76,7 +74,9 @@ pub fn otl_read_gsub_multi(
 
         let mut total_outputs: u32 = 0;
         for j in 0..seq_count {
-            let seq_offset = offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read")));
+            let seq_offset = offset.wrapping_add(u32::from(
+                header.u16().expect("require_room above covered this read"),
+            ));
             let Ok(mut sr) = FontReader::new(data).at(seq_offset as usize) else {
                 break 'parse;
             };
@@ -92,7 +92,9 @@ pub fn otl_read_gsub_multi(
             for _ in 0..n {
                 push_to_coverage(
                     &mut cov,
-                    handle_from_index(sr.u16().expect("require_room above covered this read") as GlyphId) as GlyphHandle,
+                    handle_from_index(
+                        sr.u16().expect("require_room above covered this read") as GlyphId
+                    ) as GlyphHandle,
                 );
             }
             subtable.push(GsubMultiEntry {
@@ -116,9 +118,7 @@ pub fn otl_gsub_dump_multi(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub fn otl_gsub_parse_multi(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gsub_parse_multi(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let mut st: GsubMultiSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, to) in fields {
@@ -139,10 +139,7 @@ fn build_gsub_multi_subtable_range(
 ) -> Buffer {
     let mut cov: Coverage = Vec::new();
     for j in start..end {
-        push_to_coverage(
-            &mut cov,
-            subtable[j as usize].from.clone(),
-        );
+        push_to_coverage(&mut cov, subtable[j as usize].from.clone());
     }
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1),
@@ -150,24 +147,15 @@ fn build_gsub_multi_subtable_range(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),
         ),
-        bk_int(
-            BkCellType::B16,
-            (i32::from(end) - i32::from(start)) as u32,
-        ),
+        bk_int(BkCellType::B16, (i32::from(end) - i32::from(start)) as u32),
     ]);
     for idx in start..end {
         let to: &Coverage = &subtable[idx as usize].to;
-        let mut b: BkBlock = bk_new_block(vec![bk_int(
-            BkCellType::B16,
-            (to.len() as i32) as u32,
-        )]);
+        let mut b: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (to.len() as i32) as u32)]);
         for entry in to {
             bk_push(
                 &mut b,
-                vec![bk_int(
-                    BkCellType::B16,
-                    i32::from(entry.index) as u32,
-                )],
+                vec![bk_int(BkCellType::B16, i32::from(entry.index) as u32)],
             );
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(b))]);
@@ -188,9 +176,7 @@ pub fn build_gsub_multi_subtable_split(
         let mut size: usize = (6 + 4) as usize;
         let mut end: GlyphId = start;
         while (end as usize) < subtable.len() {
-            let entry_size: usize = ((2
-                + 2
-                + 2) as usize)
+            let entry_size: usize = ((2 + 2 + 2) as usize)
                 .wrapping_add((subtable[end as usize].to.len()).wrapping_mul(2));
             if i32::from(end) > i32::from(start)
                 && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT
@@ -204,7 +190,11 @@ pub fn build_gsub_multi_subtable_split(
         start = end;
     }
     if parts.is_empty() {
-        parts.push(build_gsub_multi_subtable_range(subtable, 0 as GlyphId, 0 as GlyphId));
+        parts.push(build_gsub_multi_subtable_range(
+            subtable,
+            0 as GlyphId,
+            0 as GlyphId,
+        ));
     }
     parts
 }

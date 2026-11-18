@@ -1,6 +1,6 @@
 use super::*;
-use crate::libcff::index::parse_index;
 use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
+use crate::libcff::index::parse_index;
 use crate::libcff::{OP_ENDCHAR, OP_HLINETO, OP_RMOVETO};
 
 fn simple_glyph_il(x: f64, y: f64) -> CffCharstringIl {
@@ -101,7 +101,10 @@ fn diagram_hash_keys_have_the_documented_byte_layout() {
     let rule_id = g.rule(root).unique_index.to_ne_bytes();
 
     // Singlet: '1', rule flag, '0', payload, NUL.
-    assert_eq!(graph::get_singlet_hash_key(&g, literal), [b'1', b'0', b'0', 0xaa, 0xbb, 0]);
+    assert_eq!(
+        graph::get_singlet_hash_key(&g, literal),
+        [b'1', b'0', b'0', 0xaa, 0xbb, 0]
+    );
     let mut call_singlet = vec![b'1', b'1', b'0'];
     call_singlet.extend_from_slice(&rule_id);
     call_singlet.push(0);

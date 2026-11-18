@@ -1,16 +1,14 @@
-
 use crate::logger::ByteStr;
 use crate::support::options::Options;
-use otfcc_json::ParsedValue;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::kind::{LOOKUP_KINDS, LookupKind};
 use crate::table::otl::{
-    Feature, FeatureIdx, FeatureRefList, LanguageSystem, Lookup, LookupIdx, LookupRefList,
-    OtlTable,
+    Feature, FeatureIdx, FeatureRefList, LanguageSystem, Lookup, LookupIdx, LookupRefList, OtlTable,
 };
 use crate::table::otl::{new_language, new_lookup};
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 /// A transient identity minted for a not-yet-collected `Lookup`, indexing
 /// `PendingLookups.lookups` (position within `LookupEntry.lookup_id`'s own
 /// backing store, *not* the final `OtlTable.lookups` position -- `lh` gets
@@ -129,7 +127,10 @@ fn _declare_lookup_parser(
         .is_some_and(|b| b == llt.name().as_bytes());
     if !matches_type {
         if type_name.is_none() {
-            tracing::warn!("Lookup {} does not have a valid 'type' field.", ByteStr(lookup_name));
+            tracing::warn!(
+                "Lookup {} does not have a valid 'type' field.",
+                ByteStr(lookup_name)
+            );
         }
         return false;
     }
@@ -139,7 +140,10 @@ fn _declare_lookup_parser(
         return false;
     }
     let Some(subtables) = lv.and_then(|v| v.get_typed(b"subtables", JsonType::Array)) else {
-        tracing::warn!("Lookup {} does not have a valid subtable list.", ByteStr(lookup_name));
+        tracing::warn!(
+            "Lookup {} does not have a valid subtable list.",
+            ByteStr(lookup_name)
+        );
         return false;
     };
     // Built as a local owned value, not `Box::into_raw`'d until the very
@@ -170,7 +174,10 @@ fn _declare_lookup_parser(
         stage.finish();
     }
     if lookup.subtables.is_empty() {
-        tracing::warn!("Lookup {} does not have any subtables.", ByteStr(lookup_name));
+        tracing::warn!(
+            "Lookup {} does not have any subtables.",
+            ByteStr(lookup_name)
+        );
         return false;
     }
     let order_val: u16 = lh.entries.len() as u16;
@@ -199,7 +206,10 @@ fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>) -> PendingLookups
         if lookup_val.as_object().is_some() {
             let parsed: bool = _parse_lookup(Some(lookup_val), lookup_name, &mut lh);
             if !parsed {
-                tracing::warn!("[OTFCC-fea] Ignoring invalid or unsupported lookup {}.\n", ByteStr(lookup_name));
+                tracing::warn!(
+                    "[OTFCC-fea] Ignoring invalid or unsupported lookup {}.\n",
+                    ByteStr(lookup_name)
+                );
             }
         } else if let Some(thatname_bytes) = lookup_val.as_str_bytes() {
             // Alias's own name is never checked against existing entries
@@ -262,7 +272,9 @@ fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8]) {
     };
     for j in 0..n {
         let jthis_is_container = matches!(
-            d.as_object().expect("d was checked to be an object at the top")[j].1,
+            d.as_object()
+                .expect("d was checked to be an object at the top")[j]
+                .1,
             ParsedValue::Array(_) | ParsedValue::Object(_)
         );
         if !jthis_is_container {
@@ -270,21 +282,33 @@ fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8]) {
         }
         for k in (j + 1)..n {
             let matched = {
-                let fields = d.as_object().expect("d was checked to be an object at the top");
-                fields[j].1 == fields[k].1
-                    && (!sametag || tag4_matches(&fields[j].0, &fields[k].0))
+                let fields = d
+                    .as_object()
+                    .expect("d was checked to be an object at the top");
+                fields[j].1 == fields[k].1 && (!sametag || tag4_matches(&fields[j].0, &fields[k].0))
             };
             if !matched {
                 continue;
             }
-            let kthis_bytes = d.as_object().expect("d was checked to be an object at the top")[j].0.clone();
+            let kthis_bytes = d
+                .as_object()
+                .expect("d was checked to be an object at the top")[j]
+                .0
+                .clone();
             let mut alias_str: Vec<u8> = kthis_bytes[..kthis_bytes.len() - 1].to_vec();
             alias_str.push(0);
             d.set_field(k, ParsedValue::Str(alias_str));
-            let fields = d.as_object().expect("d was checked to be an object at the top");
+            let fields = d
+                .as_object()
+                .expect("d was checked to be an object at the top");
             let kthis = &fields[j].0;
             let kthat = &fields[k].0;
-            tracing::info!("[OTFCC-fea] Merged duplicate {} '{}' into '{}'.\n", ByteStr(objtype), ByteStr(kthat), ByteStr(kthis));
+            tracing::info!(
+                "[OTFCC-fea] Merged duplicate {} '{}' into '{}'.\n",
+                ByteStr(objtype),
+                ByteStr(kthat),
+                ByteStr(kthis)
+            );
         }
     }
 }
@@ -319,7 +343,12 @@ fn figure_out_features_from_json(
                     if let Some(item) = item {
                         al.push(item.lookup_id);
                     } else {
-                        tracing::warn!("Lookup assignment {} for feature [{}/{}] is missing or invalid.", ByteStr(term_bytes), ByteStr(tag), ByteStr(feature_name));
+                        tracing::warn!(
+                            "Lookup assignment {} for feature [{}/{}] is missing or invalid.",
+                            ByteStr(term_bytes),
+                            ByteStr(tag),
+                            ByteStr(feature_name)
+                        );
                     }
                 }
             }
@@ -345,10 +374,18 @@ fn figure_out_features_from_json(
                         feature_id,
                     });
                 } else {
-                    tracing::warn!("[OTFCC-fea] Duplicate feature for [{}/{}]. This feature will be ignored.\n", ByteStr(tag), ByteStr(feature_name));
+                    tracing::warn!(
+                        "[OTFCC-fea] Duplicate feature for [{}/{}]. This feature will be ignored.\n",
+                        ByteStr(tag),
+                        ByteStr(feature_name)
+                    );
                 }
             } else {
-                tracing::warn!("[OTFCC-fea] There is no valid lookup assignments for [{}/{}]. This feature will be ignored.\n", ByteStr(tag), ByteStr(feature_name));
+                tracing::warn!(
+                    "[OTFCC-fea] There is no valid lookup assignments for [{}/{}]. This feature will be ignored.\n",
+                    ByteStr(tag),
+                    ByteStr(feature_name)
+                );
             }
         } else if let Some(target_bytes) = feature_val.as_str_bytes() {
             let target_owned = target_bytes.to_vec();
@@ -403,8 +440,7 @@ fn figure_out_languages_from_json(
                 for term in items {
                     if let Some(term_bytes) = term.as_str_bytes() {
                         let term_owned = term_bytes.to_vec();
-                        if let Some(item) = fh.entries.iter().rev().find(|e| e.name == term_owned)
-                        {
+                        if let Some(item) = fh.entries.iter().rev().find(|e| e.name == term_owned) {
                             af.push(item.feature_id);
                         }
                     }
@@ -430,10 +466,18 @@ fn figure_out_languages_from_json(
                         },
                     );
                 } else {
-                    tracing::warn!("[OTFCC-fea] Duplicate language item [{}/{}]. This language term will be ignored.\n", ByteStr(tag), ByteStr(language_name));
+                    tracing::warn!(
+                        "[OTFCC-fea] Duplicate language item [{}/{}]. This language term will be ignored.\n",
+                        ByteStr(tag),
+                        ByteStr(language_name)
+                    );
                 }
             } else {
-                tracing::warn!("[OTFCC-fea] There is no valid feature assignments for [{}/{}]. This language term will be ignored.\n", ByteStr(tag), ByteStr(language_name));
+                tracing::warn!(
+                    "[OTFCC-fea] There is no valid feature assignments for [{}/{}]. This language term will be ignored.\n",
+                    ByteStr(tag),
+                    ByteStr(language_name)
+                );
             }
         }
     }
@@ -456,9 +500,8 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
     let lookups_present = table.get_typed(b"lookups", JsonType::Object).is_some();
     if languages_present && features_present && lookups_present {
         let stage = crate::logger::stage(ByteStr(tag));
-        let mut lh: PendingLookups = figure_out_lookups_from_json(
-            table.get_typed(b"lookups", JsonType::Object),
-        );
+        let mut lh: PendingLookups =
+            figure_out_lookups_from_json(table.get_typed(b"lookups", JsonType::Object));
         if let Some(items) = table
             .get_typed(b"lookupOrder", JsonType::Array)
             .and_then(ParsedValue::as_array)
@@ -466,8 +509,7 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
             for (j, ln) in items.iter().enumerate() {
                 if let Some(ln_bytes) = ln.as_str_bytes() {
                     let ln_owned = ln_bytes.to_vec();
-                    if let Some(item) = lh.entries.iter_mut().rev().find(|e| e.name == ln_owned)
-                    {
+                    if let Some(item) = lh.entries.iter_mut().rev().find(|e| e.name == ln_owned) {
                         item.order_type = LookupOrderType::Force;
                         item.order_val = j as u16;
                     }
@@ -507,9 +549,9 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
             let mut lookup_remap: Vec<Option<LookupIdx>> = vec![None; lh.lookups.len()];
             for entry in lh.entries.into_iter() {
                 if !entry.alias {
-                    let taken = lh.lookups[entry.lookup_id.0 as usize]
-                        .take()
-                        .expect("non-alias LookupEntry's pending lookup should not have been taken yet");
+                    let taken = lh.lookups[entry.lookup_id.0 as usize].take().expect(
+                        "non-alias LookupEntry's pending lookup should not have been taken yet",
+                    );
                     let idx = LookupIdx(otl_box.lookups.len() as u32);
                     otl_box.lookups.push(Some(taken));
                     lookup_remap[entry.lookup_id.0 as usize] = Some(idx);
@@ -530,9 +572,9 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
             let mut feature_remap: Vec<Option<FeatureIdx>> = vec![None; fh.features.len()];
             for entry in fh.entries.into_iter() {
                 if !entry.alias {
-                    let pending = fh.features[entry.feature_id.0 as usize]
-                        .take()
-                        .expect("non-alias FeatureEntry's pending feature should not have been taken yet");
+                    let pending = fh.features[entry.feature_id.0 as usize].take().expect(
+                        "non-alias FeatureEntry's pending feature should not have been taken yet",
+                    );
                     let remapped_lookups: LookupRefList = pending
                         .lookups
                         .iter()
@@ -557,8 +599,9 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
             // `Feature.lookups` was above.
             for (_, language) in sh.into_iter() {
                 let required_feature = language.required_feature.map(|pending_id| {
-                    feature_remap[pending_id.0 as usize]
-                        .expect("every PendingFeatureId a language references should have been remapped")
+                    feature_remap[pending_id.0 as usize].expect(
+                        "every PendingFeatureId a language references should have been remapped",
+                    )
                 });
                 let features: FeatureRefList = language
                     .features
@@ -578,7 +621,10 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
             return Some(otl_box);
         }
     }
-    tracing::warn!("[OTFCC-fea] Ignoring invalid or incomplete OTL table {}.\n", ByteStr(tag));
+    tracing::warn!(
+        "[OTFCC-fea] Ignoring invalid or incomplete OTL table {}.\n",
+        ByteStr(tag)
+    );
     None
 }
 

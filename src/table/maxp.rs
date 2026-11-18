@@ -1,11 +1,11 @@
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{from_fixed, to_fixed};
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Copy, Clone, Debug)]
 pub struct MaxpTable {
@@ -93,13 +93,13 @@ pub fn dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
     };
     let stage = crate::logger::stage("maxp");
     let mut maxp = BuiltValue::new_object(15);
-    maxp.push_field(
-        b"version",
-        BuiltValue::Double(from_fixed(table.version)),
-    );
+    maxp.push_field(b"version", BuiltValue::Double(from_fixed(table.version)));
     maxp.push_field(b"numGlyphs", BuiltValue::Int(i64::from(table.num_glyphs)));
     maxp.push_field(b"maxPoints", BuiltValue::Int(i64::from(table.max_points)));
-    maxp.push_field(b"maxContours", BuiltValue::Int(i64::from(table.max_contours)));
+    maxp.push_field(
+        b"maxContours",
+        BuiltValue::Int(i64::from(table.max_contours)),
+    );
     maxp.push_field(
         b"maxCompositePoints",
         BuiltValue::Int(i64::from(table.max_composite_points)),

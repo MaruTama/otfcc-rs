@@ -76,7 +76,10 @@ fn charstring_calling_gsubr_n_times(n: u32) -> Vec<u8> {
 // `total_language_count_across_the_whole_table_is_capped`
 // (`table/otl/read.rs`) can't shrink its own N below the real cap
 // either. `cargo test` (native) stays the real regression guard.
-#[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive parse_outline calls to exercise the real MAX_TOTAL_SUBR_CALLS budget")]
+#[cfg_attr(
+    miri,
+    ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive parse_outline calls to exercise the real MAX_TOTAL_SUBR_CALLS budget"
+)]
 fn call_count_within_the_budget_all_execute() {
     let gsubr = one_trivial_gsubr();
     let lsubr = empty_cff_index();
@@ -122,7 +125,10 @@ fn call_count_within_the_budget_all_execute() {
 // Same Miri cost shape as the sibling test above: recursing up to
 // `MAX_TOTAL_SUBR_CALLS` (10,000) before stopping is the point of
 // this test, not something a smaller N could substitute for.
-#[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive parse_outline calls before the real MAX_TOTAL_SUBR_CALLS budget stops it")]
+#[cfg_attr(
+    miri,
+    ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive parse_outline calls before the real MAX_TOTAL_SUBR_CALLS budget stops it"
+)]
 fn call_count_past_the_budget_stops_recursing() {
     let gsubr = one_trivial_gsubr();
     let lsubr = empty_cff_index();

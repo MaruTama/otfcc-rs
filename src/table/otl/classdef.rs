@@ -1,12 +1,12 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
-use otfcc_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
+use otfcc_json::ParsedValue;
 
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
+use otfcc_json::BuiltValue;
 /// A class definition: `glyphs[i]` is in class `classes[i]` (the two are
 /// always grown and truncated together), and `maxclass` is the largest
 /// class seen. `Default` is class 0 with both arrays empty.
@@ -109,7 +109,10 @@ pub(crate) fn expand_class_def(cov: &Coverage, ocd: ClassDef) -> ClassDef {
 pub(crate) fn dump_class_def(cd: &ClassDef) -> BuiltValue {
     let mut a = BuiltValue::new_object(cd.glyphs.len());
     for j in 0..cd.glyphs.len() {
-        a.push_field_bytes_key(&cd.glyphs[j].name, BuiltValue::Int(i64::from(cd.classes[j])));
+        a.push_field_bytes_key(
+            &cd.glyphs[j].name,
+            BuiltValue::Int(i64::from(cd.classes[j])),
+        );
     }
     a.preserialize()
 }
@@ -128,7 +131,11 @@ pub(crate) fn parse_class_def(cd: Option<&ParsedValue>) -> Option<ClassDef> {
         // became 65535), which made a pair-positioning class count wrap to
         // 0 and panic when the subtable was built.
         let Ok(cls) = GlyphClass::try_from(number) else {
-            tracing::warn!("[OTFCC-fea] Class {} of glyph /{} is out of range. This class assignment is ignored.\n", number, ByteStr(&key[..key.len() - 1]));
+            tracing::warn!(
+                "[OTFCC-fea] Class {} of glyph /{} is out of range. This class assignment is ignored.\n",
+                number,
+                ByteStr(&key[..key.len() - 1])
+            );
             continue;
         };
         let h: GlyphHandle = handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
@@ -168,7 +175,9 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     for rec in r.iter().skip(1) {
         let current: GlyphId = rec.gid;
         if !(i32::from(current) <= i32::from(last_gid)) {
-            if i32::from(current) == i32::from(end_gid) + 1 && i32::from(rec.cid) == i32::from(last_class) {
+            if i32::from(current) == i32::from(end_gid) + 1
+                && i32::from(rec.cid) == i32::from(last_class)
+            {
                 end_gid = current;
             } else {
                 ranges.write_u16be(start_gid as u16);

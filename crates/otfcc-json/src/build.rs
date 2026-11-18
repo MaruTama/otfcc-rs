@@ -143,7 +143,6 @@ impl BuiltValue {
         let bytes = json_serialize_ex(&self, opts);
         BuiltValue::PreSerialized(bytes)
     }
-
 }
 
 const F_SPACES_AROUND_BRACKETS: i32 = 1 << 0;
@@ -216,7 +215,10 @@ impl<W: Write> JsonStreamWriter<W> {
     /// Opens the top-level object. Nothing is written until its first
     /// member arrives, because an object with no members is written `{}`.
     pub fn begin_object(&mut self) {
-        assert!(self.open.is_empty(), "begin_object opens the top-level object only");
+        assert!(
+            self.open.is_empty(),
+            "begin_object opens the top-level object only"
+        );
         self.open.push(0);
     }
 
@@ -256,7 +258,14 @@ impl<W: Write> JsonStreamWriter<W> {
         let depth = self.open.len() - 1;
         let index = self.open[depth];
         self.open[depth] += 1;
-        begin_member(&mut self.out, self.opts, self.flags, depth as i32, index, key);
+        begin_member(
+            &mut self.out,
+            self.opts,
+            self.flags,
+            depth as i32,
+            index,
+            key,
+        );
     }
 }
 
@@ -454,7 +463,10 @@ mod tests {
     fn build_sample_tree() -> BuiltValue {
         let mut root = BuiltValue::new_object(8);
 
-        root.push_field(b"name", BuiltValue::Str(b"quote\" back\\slash\ttab".to_vec()));
+        root.push_field(
+            b"name",
+            BuiltValue::Str(b"quote\" back\\slash\ttab".to_vec()),
+        );
 
         let control_bytes: &[u8] = &[0, 8, 11, 12, 10, 13, b'a', 0xff];
         root.push_field(b"controls", BuiltValue::Str(control_bytes.to_vec()));
@@ -594,7 +606,10 @@ mod tests {
     fn safe_api_push_field_bytes_key_truncates_at_the_first_nul() {
         let mut obj = BuiltValue::new_object(1);
         obj.push_field_bytes_key(b"abc\0def", BuiltValue::Int(1));
-        assert_eq!(obj, BuiltValue::Object(vec![(b"abc".to_vec(), BuiltValue::Int(1))]));
+        assert_eq!(
+            obj,
+            BuiltValue::Object(vec![(b"abc".to_vec(), BuiltValue::Int(1))])
+        );
     }
 
     #[test]
@@ -698,7 +713,11 @@ mod tests {
 
     #[test]
     fn stream_writer_matches_json_serialize_ex_in_every_layout() {
-        let trees = [nested_tree(), build_sample_tree(), BuiltValue::new_object(0)];
+        let trees = [
+            nested_tree(),
+            build_sample_tree(),
+            BuiltValue::new_object(0),
+        ];
         for mode in [
             JSON_SERIALIZE_MODE_MULTILINE,
             JSON_SERIALIZE_MODE_SINGLE_LINE,
@@ -748,7 +767,9 @@ mod tests {
     #[test]
     fn stream_writer_reports_the_first_write_error() {
         let tree = nested_tree();
-        let BuiltValue::Object(fields) = &tree else { unreachable!() };
+        let BuiltValue::Object(fields) = &tree else {
+            unreachable!()
+        };
         let opts = JsonSerializeOpts {
             mode: JSON_SERIALIZE_MODE_MULTILINE,
             opts: 0,
@@ -756,13 +777,25 @@ mod tests {
         };
         let full = json_serialize_ex(&tree, opts);
         for budget in [0, 1, 10, full.len() - 1] {
-            let mut w = JsonStreamWriter::new(FailAfter { budget, written: Vec::new() }, opts);
+            let mut w = JsonStreamWriter::new(
+                FailAfter {
+                    budget,
+                    written: Vec::new(),
+                },
+                opts,
+            );
             w.begin_object();
             stream_members(&mut w, fields);
             w.end_object();
             assert!(w.finish().is_err(), "budget {budget}");
         }
-        let mut w = JsonStreamWriter::new(FailAfter { budget: full.len(), written: Vec::new() }, opts);
+        let mut w = JsonStreamWriter::new(
+            FailAfter {
+                budget: full.len(),
+                written: Vec::new(),
+            },
+            opts,
+        );
         w.begin_object();
         stream_members(&mut w, fields);
         w.end_object();

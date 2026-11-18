@@ -1,16 +1,14 @@
-use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_name,
-};
-use otfcc_json::ParsedValue;
+use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::table::otl::coverage::Coverage;
+use otfcc_json::ParsedValue;
 
 use otfcc_binary::FontReader;
 
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, Pos, count_u16};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 /// Bounds mark-attachment anchor-slot construction (`gpos_mark_to_single.rs`'s
 /// BaseArray, `gpos_mark_to_ligature.rs`'s LigatureArray) across a WHOLE
@@ -164,7 +162,10 @@ pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
         x: Pos::from(0),
         y: Pos::from(0),
     };
-    let Ok(bytes) = FontReader::new(data).at(offset as usize).and_then(|mut r| r.bytes(6)) else {
+    let Ok(bytes) = FontReader::new(data)
+        .at(offset as usize)
+        .and_then(|mut r| r.bytes(6))
+    else {
         return anchor;
     };
     anchor.present = true;
@@ -233,7 +234,9 @@ pub fn read_gpos_value(data: &[u8], offset: u32, format: u16) -> PositionValue {
         d_height: 0.0,
     };
     let len = position_format_length(format) as usize;
-    let Ok(bytes) = FontReader::new(data).at(offset as usize).and_then(|mut r| r.bytes(len))
+    let Ok(bytes) = FontReader::new(data)
+        .at(offset as usize)
+        .and_then(|mut r| r.bytes(len))
     else {
         return v;
     };
@@ -322,37 +325,25 @@ pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
     if format & FORMAT_DX != 0 {
         bk_push(
             &mut b,
-            vec![bk_int(
-                BkCellType::B16,
-                i32::from(v.dx as i16) as u32,
-            )],
+            vec![bk_int(BkCellType::B16, i32::from(v.dx as i16) as u32)],
         );
     }
     if format & FORMAT_DY != 0 {
         bk_push(
             &mut b,
-            vec![bk_int(
-                BkCellType::B16,
-                i32::from(v.dy as i16) as u32,
-            )],
+            vec![bk_int(BkCellType::B16, i32::from(v.dy as i16) as u32)],
         );
     }
     if format & FORMAT_DWIDTH != 0 {
         bk_push(
             &mut b,
-            vec![bk_int(
-                BkCellType::B16,
-                i32::from(v.d_width as i16) as u32,
-            )],
+            vec![bk_int(BkCellType::B16, i32::from(v.d_width as i16) as u32)],
         );
     }
     if format & FORMAT_DHEIGHT != 0 {
         bk_push(
             &mut b,
-            vec![bk_int(
-                BkCellType::B16,
-                i32::from(v.d_height as i16) as u32,
-            )],
+            vec![bk_int(BkCellType::B16, i32::from(v.d_height as i16) as u32)],
         );
     }
     b
@@ -477,7 +468,11 @@ mod read_anchor_and_value_tests {
         // encoded, checked across every possible format word.
         for format in 0..=u16::MAX {
             let fields = (0..8).filter(|bit| format & (1 << bit) != 0).count() as u8;
-            assert_eq!(position_format_length(format), fields * 2, "format {format:#06x}");
+            assert_eq!(
+                position_format_length(format),
+                fields * 2,
+                "format {format:#06x}"
+            );
         }
     }
 }

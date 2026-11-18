@@ -59,7 +59,12 @@ impl<K> ::core::fmt::Debug for Handle<K> {
 }
 impl<K> Handle<K> {
     pub fn new(state: HandleState, index: GlyphId, name: Vec<u8>) -> Self {
-        Handle { state, index, name, kind: PhantomData }
+        Handle {
+            state,
+            index,
+            name,
+            kind: PhantomData,
+        }
     }
 }
 pub type GlyphHandle = Handle<GlyphKind>;
@@ -80,7 +85,6 @@ pub(crate) fn handle_empty<K>() -> Handle<K> {
     Handle::default()
 }
 pub(crate) fn handle_from_index<K>(id: GlyphId) -> Handle<K> {
-    
     Handle::new(HandleState::Index, id, Vec::new())
 }
 /// NUL-truncating comparison for two `Vec<u8>`-shaped names (e.g. comparing

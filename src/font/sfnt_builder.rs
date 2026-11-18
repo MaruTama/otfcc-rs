@@ -1,8 +1,7 @@
-
 use crate::logger::ByteStr;
-use otfcc_binary::Buffer;
-use crate::support::options::Options;
 use crate::support::fmt::Byte;
+use crate::support::options::Options;
+use otfcc_binary::Buffer;
 #[derive(Debug)]
 pub struct SfntTableEntry {
     pub tag: i32,
@@ -34,8 +33,12 @@ impl<'a> SfntBuilder<'a> {
 // byte with no remainder. `from_be_bytes` on each chunk avoids any
 // alignment requirement on `Vec<u8>`'s 1-byte-aligned storage.
 fn buf_checksum_bytes(data: &[u8]) -> u32 {
-    data.chunks_exact(4)
-        .fold(0u32, |sum, word| sum.wrapping_add(u32::from_be_bytes(word.try_into().unwrap())))
+    data.chunks_exact(4).fold(0u32, |sum, word| {
+        sum.wrapping_add(u32::from_be_bytes(
+            word.try_into()
+                .expect("chunks_exact(4) yields 4-byte slices"),
+        ))
+    })
 }
 fn create_segment(tag: u32, mut buffer: Buffer) -> SfntTableEntry {
     let length = buffer.len() as u32;
@@ -63,7 +66,13 @@ pub fn sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer: Opti
     }
     let entry = create_segment(tag, buffer);
     builder.tables.insert(tag as i32, entry);
-    tracing::debug!("OpenType table {}{}{}{} successfully built.\n", ByteStr(Byte((tag >> 24 & 0xff) as u8)), ByteStr(Byte((tag >> 16 & 0xff) as u8)), ByteStr(Byte((tag >> 8 & 0xff) as u8)), ByteStr(Byte((tag & 0xff) as u8)));
+    tracing::debug!(
+        "OpenType table {}{}{}{} successfully built.\n",
+        ByteStr(Byte((tag >> 24 & 0xff) as u8)),
+        ByteStr(Byte((tag >> 16 & 0xff) as u8)),
+        ByteStr(Byte((tag >> 8 & 0xff) as u8)),
+        ByteStr(Byte((tag & 0xff) as u8))
+    );
 }
 // `builder.is_null()` was dead here too, same reasoning as
 // `sfnt_builder_push_table` above.
@@ -76,11 +85,7 @@ pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
         if i32::from(n_tables) < 32 {
             16
         } else {
-            if i32::from(n_tables) < 64 {
-                32
-            } else {
-                64
-            }
+            if i32::from(n_tables) < 64 { 32 } else { 64 }
         }
     }) * 16) as u16;
     buffer.write_u32be(builder.header);
@@ -97,13 +102,8 @@ pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
             6
         }) as u16,
     );
-    buffer.write_u16be(
-        (i32::from(n_tables) * 16
-            - i32::from(search_range)) as u16,
-    );
-    let mut offset: usize = (12
-        + i32::from(n_tables) * 16)
-        as usize;
+    buffer.write_u16be((i32::from(n_tables) * 16 - i32::from(search_range)) as u16);
+    let mut offset: usize = (12 + i32::from(n_tables) * 16) as usize;
     let mut head_offset: usize = offset;
     for (tag, table) in builder.tables.iter() {
         buffer.write_u32be(*tag as u32);

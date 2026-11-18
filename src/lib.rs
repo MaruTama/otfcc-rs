@@ -1,4 +1,3 @@
-
 //! otfcc — an OpenType font manipulation library, ported from C to Rust
 //! (see RUST_MIGRATION.md).
 //!

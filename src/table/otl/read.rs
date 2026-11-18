@@ -1,8 +1,8 @@
 use crate::font::sfnt::Packet;
-use otfcc_binary::{FontReader, ReadError};
+use crate::support::fmt::{Byte, Dec5, Hex2};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
-use crate::support::fmt::{Byte, Dec5, Hex2};
+use otfcc_binary::{FontReader, ReadError};
 
 // A `ScriptList` entry's own `Script` table offset, and a `Script` table's
 // own `LangSysRecord` offsets, are ordinary offsets into the shared table
@@ -107,20 +107,15 @@ pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
 // above any legitimate use.
 pub(crate) const MAX_TOTAL_FEATURES_PER_TABLE: u16 = 500;
 
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::subtables::chaining::read::otl_read_contextual;
-use crate::table::otl::subtables::extend::{
-    read_otl_gpos_extend, read_otl_gsub_extend,
-};
-use crate::table::otl::budget::OtlReadBudget;
+use crate::table::otl::subtables::extend::{read_otl_gpos_extend, read_otl_gsub_extend};
 use crate::table::otl::{
     Feature, FeatureIdx, FeatureList, LanguageSystem, Lookup, LookupIdx, LookupType,
-    OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_EXTEND,
-   
-    OTL_TYPE_GPOS_UNKNOWN,
-    OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND,
-    OTL_TYPE_GSUB_UNKNOWN,
+    OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_UNKNOWN,
+    OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_UNKNOWN,
     OTL_TYPE_UNKNOWN, OtlTable, Subtable,
 };
 use crate::table::otl::{new_feature, new_language, new_lookup};
@@ -418,7 +413,10 @@ fn read_script_list(
         }
     }
     if total_languages >= MAX_TOTAL_LANGUAGES {
-        tracing::warn!("[otl] Total script/language count exceeded {}; the rest of this table's scripts are ignored.\n", MAX_TOTAL_LANGUAGES as i32);
+        tracing::warn!(
+            "[otl] Total script/language count exceeded {}; the rest of this table's scripts are ignored.\n",
+            MAX_TOTAL_LANGUAGES as i32
+        );
     }
     Ok(())
 }
@@ -484,8 +482,14 @@ fn read_otl_lookup(
     };
     lookup.flags = flags;
     for subtable_offset in subtable_offsets {
-        let subtable =
-            read_otl_subtable(data, subtable_offset, lookup.lookup_type, max_glyphs, options, budget);
+        let subtable = read_otl_subtable(
+            data,
+            subtable_offset,
+            lookup.lookup_type,
+            max_glyphs,
+            options,
+            budget,
+        );
         lookup.subtables.push(subtable);
     }
     if lookup.lookup_type == OTL_TYPE_GSUB_EXTEND || lookup.lookup_type == OTL_TYPE_GPOS_EXTEND {
@@ -686,7 +690,10 @@ mod parse_otl_common_tests {
     // parse_language tests elsewhere in this module already provide for
     // the same code; the native `cargo test` run stays the actual
     // regression guard for the cap value itself.
-    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; ~10,100 parse_language calls are needed to exceed the real MAX_TOTAL_LANGUAGES cap")]
+    #[cfg_attr(
+        miri,
+        ignore = "far too slow to run meaningfully under Miri's interpreter; ~10,100 parse_language calls are needed to exceed the real MAX_TOTAL_LANGUAGES cap"
+    )]
     fn total_language_count_across_the_whole_table_is_capped() {
         // One script whose own `langSysCount` alone (`MAX_TOTAL_LANGUAGES`
         // + 100) exceeds the budget -- every `langSysRecord`'s offset
@@ -756,7 +763,16 @@ mod parse_otl_common_tests {
         let data = well_formed_gsub(); // subtableCount is already 0
         let options = zeroed_options();
         let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
-        read_otl_lookup(&data, otl.lookups[0].as_mut().unwrap(), 0, &options, &mut OtlReadBudget::new());
-        assert_eq!(otl.lookups[0].as_ref().unwrap().lookup_type, OTL_TYPE_UNKNOWN);
+        read_otl_lookup(
+            &data,
+            otl.lookups[0].as_mut().unwrap(),
+            0,
+            &options,
+            &mut OtlReadBudget::new(),
+        );
+        assert_eq!(
+            otl.lookups[0].as_ref().unwrap().lookup_type,
+            OTL_TYPE_UNKNOWN
+        );
     }
 }

@@ -1,12 +1,12 @@
 use crate::font::sfnt::Packet;
 use crate::support::base64::{base64_decode, base64_encode};
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
 use crate::support::unicode::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
-use otfcc_json::JsonType;
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
+use otfcc_json::BuiltValue;
+use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 // `Copy` dropped (`name_string` is now `Vec<u8>`, the `sds` sweep's last
 // leaf field) -- `Clone` alone is enough, and nothing relied on
@@ -136,11 +136,20 @@ pub fn parse_name(root: &ParsedValue) -> Option<NameTable> {
         if _record.as_object().is_none() {
             continue;
         }
-        if _record.get_typed(b"platformID", JsonType::Integer).is_none() {
+        if _record
+            .get_typed(b"platformID", JsonType::Integer)
+            .is_none()
+        {
             tracing::warn!("Missing or invalid platformID for name entry {}\n", j);
-        } else if _record.get_typed(b"encodingID", JsonType::Integer).is_none() {
+        } else if _record
+            .get_typed(b"encodingID", JsonType::Integer)
+            .is_none()
+        {
             tracing::warn!("Missing or invalid encodingID for name entry {}\n", j);
-        } else if _record.get_typed(b"languageID", JsonType::Integer).is_none() {
+        } else if _record
+            .get_typed(b"languageID", JsonType::Integer)
+            .is_none()
+        {
             tracing::warn!("Missing or invalid languageID for name entry {}\n", j);
         } else if _record.get_typed(b"nameID", JsonType::Integer).is_none() {
             tracing::warn!("Missing or invalid nameID for name entry {}\n", j);

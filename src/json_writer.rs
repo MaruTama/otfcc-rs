@@ -12,7 +12,7 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
         open: Vec::new(),
     };
     dump_font(font, options, &mut tree);
-    
+
     tree.root
 }
 

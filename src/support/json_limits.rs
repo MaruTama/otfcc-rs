@@ -58,7 +58,10 @@ fn check(value: &ParsedValue) -> Option<OversizedCollection> {
     match value {
         ParsedValue::Array(items) => {
             if items.len() > MAX_ENTRIES {
-                return Some(OversizedCollection { path: Vec::new(), len: items.len() });
+                return Some(OversizedCollection {
+                    path: Vec::new(),
+                    len: items.len(),
+                });
             }
             for (i, item) in items.iter().enumerate() {
                 if let Some(mut found) = check(item) {
@@ -70,7 +73,10 @@ fn check(value: &ParsedValue) -> Option<OversizedCollection> {
         }
         ParsedValue::Object(fields) => {
             if fields.len() > MAX_ENTRIES {
-                return Some(OversizedCollection { path: Vec::new(), len: fields.len() });
+                return Some(OversizedCollection {
+                    path: Vec::new(),
+                    len: fields.len(),
+                });
             }
             for (key, item) in fields {
                 if let Some(mut found) = check(item) {
@@ -113,17 +119,26 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore = "needs genuine 65,536-member collections")]
     fn collections_at_the_limit_are_fine_and_one_past_is_reported_with_its_path() {
-        assert_eq!(find(&format!(r#"{{"name":{}}}"#, array_of(MAX_ENTRIES))), None);
+        assert_eq!(
+            find(&format!(r#"{{"name":{}}}"#, array_of(MAX_ENTRIES))),
+            None
+        );
         assert_eq!(
             find(&format!(r#"{{"name":{}}}"#, array_of(MAX_ENTRIES + 1))),
-            Some(OversizedCollection { path: b"/name".to_vec(), len: MAX_ENTRIES + 1 })
+            Some(OversizedCollection {
+                path: b"/name".to_vec(),
+                len: MAX_ENTRIES + 1
+            })
         );
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "needs genuine 65,536-member collections")]
     fn the_path_names_every_key_and_array_index_down_to_the_collection() {
-        let json = format!(r#"{{"glyf":{{"a":{{"contours":[[],{}]}}}}}}"#, array_of(MAX_ENTRIES + 1));
+        let json = format!(
+            r#"{{"glyf":{{"a":{{"contours":[[],{}]}}}}}}"#,
+            array_of(MAX_ENTRIES + 1)
+        );
         assert_eq!(
             find(&json),
             Some(OversizedCollection {
@@ -145,7 +160,10 @@ mod tests {
     #[cfg_attr(miri, ignore = "needs genuine 65,536-member collections")]
     fn the_tables_sized_by_a_32_bit_length_may_be_larger() {
         for table in ["cmap", "cmap_uvs", "fpgm", "prep", "cvt_"] {
-            assert_eq!(find(&format!(r#"{{"{table}":{}}}"#, array_of(MAX_ENTRIES + 1))), None);
+            assert_eq!(
+                find(&format!(r#"{{"{table}":{}}}"#, array_of(MAX_ENTRIES + 1))),
+                None
+            );
         }
     }
 }

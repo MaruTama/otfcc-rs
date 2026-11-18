@@ -1,17 +1,17 @@
 use crate::logger::ByteStr;
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_binary::Buffer;
 use crate::support::primitives::TableId;
+use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::chaining::build::chaining_lookup_is_contextual_lookup;
-use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::{
     FeatureIdx, LanguageSystem, Lookup, LookupIdx, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_UNKNOWN,
     OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable, Subtable,
     iter_subtables,
 };
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::bk_build_block;
 /// Maps each *storage* index into `OtlTable.lookups`/`.features`
 /// (`LookupIdx.0`/`FeatureIdx.0` as `usize`) to its *dense* position in the
 /// binary LookupList/FeatureList this module writes -- `Some(dense_pos)`
@@ -161,7 +161,12 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
     for j in 0..live.len() {
         let (lookup_idx, lookup) = live[j];
         let heu: BuildHeuristics = get_lookup_heuristics(table, lookup_idx, lookup);
-        tracing::debug!("Building lookup {} ({}/{})\n", ByteStr(&lookup.name), j as i32, live.len() as u32);
+        tracing::debug!(
+            "Building lookup {} ({}/{})\n",
+            ByteStr(&lookup.name),
+            j as i32,
+            live.len() as u32
+        );
         let Some(kind) = lookup_kind(lookup.lookup_type) else {
             continue;
         };
@@ -196,7 +201,11 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         let use_extended_for_it: bool =
             i32::from(use_extended) != 0 || i32::from(prefer_ext_for_this_lut[j_1]) != 0;
         if use_extended_for_it {
-            tracing::info!("[OTFCC-fea] Using extended OpenType table layout for {}/{}.\n", ByteStr(tag), ByteStr(&live_lookup.name));
+            tracing::info!(
+                "[OTFCC-fea] Using extended OpenType table layout for {}/{}.\n",
+                ByteStr(tag),
+                ByteStr(&live_lookup.name)
+            );
         }
         // The format number the file wants, which is the lookup type with its
         // table's base taken back off -- `LookupType::file_format`, the
@@ -218,10 +227,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         let mut blk: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, i32::from(lookup_type) as u32),
             bk_int(BkCellType::B16, i32::from(live_lookup.flags) as u32),
-            bk_int(
-                BkCellType::B16,
-                i32::from(subtable_quantity[j_1]) as u32,
-            ),
+            bk_int(BkCellType::B16, i32::from(subtable_quantity[j_1]) as u32),
         ]);
         // Bounded by `subtable_quantity[j_1]` rather than assumed equal
         // to `subtables[j_1].len()` (they are equal by construction --
@@ -298,10 +304,7 @@ fn feature_index(idx: Option<FeatureIdx>, feature_dense: &[Option<u16>]) -> Tabl
     idx.and_then(|i| feature_dense[i.0 as usize])
         .map_or(0xffff as TableId, |d| d as TableId)
 }
-fn write_language(
-    lang: Option<&LanguageSystem>,
-    feature_dense: &[Option<u16>],
-) -> Option<BkBlock> {
+fn write_language(lang: Option<&LanguageSystem>, feature_dense: &[Option<u16>]) -> Option<BkBlock> {
     let lang = lang?;
     let mut root: BkBlock = bk_new_block(vec![
         bk_ptr(BkCellType::P16, None),
@@ -337,7 +340,10 @@ fn write_script(
             &mut root,
             vec![
                 bk_int(BkCellType::B32, feature_name_to_tag(tag)),
-                bk_ptr(BkCellType::P16, write_language(Some(lang_sys), feature_dense)),
+                bk_ptr(
+                    BkCellType::P16,
+                    write_language(Some(lang_sys), feature_dense),
+                ),
             ],
         );
     }
@@ -363,8 +369,7 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
         let script_tag: Vec<u8> = language.name[..4].to_vec();
         // The compared 4-byte window never contains an embedded NUL, so
         // plain byte-slice equality is the whole comparison.
-        let is_default: bool =
-            &language.name[5..9] == b"DFLT" || &language.name[5..9] == b"dflt";
+        let is_default: bool = &language.name[5..9] == b"DFLT" || &language.name[5..9] == b"dflt";
         let mut found: Option<usize> = None;
         for (idx, group) in scripts.iter().enumerate() {
             if group.tag == script_tag {

@@ -85,7 +85,10 @@ pub fn to_fixed(x: f64) -> F16Dot16 {
 }
 #[inline]
 fn clamp(value: i64) -> F16Dot16 {
-    value.clamp(i64::from(F16DOT16_NEGATIVE_INFINITY), i64::from(F16DOT16_INFINITY)) as F16Dot16
+    value.clamp(
+        i64::from(F16DOT16_NEGATIVE_INFINITY),
+        i64::from(F16DOT16_INFINITY),
+    ) as F16Dot16
 }
 pub fn f1616_add(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     a + b

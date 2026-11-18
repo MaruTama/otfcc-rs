@@ -1,10 +1,10 @@
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
 use crate::support::primitives::ColorId;
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::{FontReader, ReadError};
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
@@ -47,7 +47,10 @@ pub static WHITE: CpalColor = CpalColor {
 /// rather than by plain addition that could wrap past a length check.
 fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
     if data.len() < 2 {
-        return Err(ReadError { needed: 2, available: data.len() });
+        return Err(ReadError {
+            needed: 2,
+            available: data.len(),
+        });
     }
     let version = FontReader::new(data).u16()?;
     let table_header_length: usize = if version == 0 { 14 } else { 26 };
@@ -108,51 +111,63 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
     }
 
     if version > 0 {
-        if let Some(offset_palette_type_array) =
-            FontReader::new(data).at(16 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
+        if let Some(offset_palette_type_array) = FontReader::new(data)
+            .at(16 + 2 * num_palettes)
+            .ok()
+            .and_then(|mut r| r.u32().ok())
         {
             let offset_palette_type_array = offset_palette_type_array as usize;
             if offset_palette_type_array != 0
                 && let Ok(mut tr) = FontReader::new(data).at(offset_palette_type_array)
-                    && tr.require_room(num_palettes, 4).is_ok() {
-                        for p in palettes.iter_mut() {
-                            p.palette_type = tr.u32().expect("require_room above covered this read");
-                        }
-                    }
+                && tr.require_room(num_palettes, 4).is_ok()
+            {
+                for p in palettes.iter_mut() {
+                    p.palette_type = tr.u32().expect("require_room above covered this read");
+                }
+            }
         }
-        if let Some(offset_palette_label_array) =
-            FontReader::new(data).at(20 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
+        if let Some(offset_palette_label_array) = FontReader::new(data)
+            .at(20 + 2 * num_palettes)
+            .ok()
+            .and_then(|mut r| r.u32().ok())
         {
             let offset_palette_label_array = offset_palette_label_array as usize;
             if offset_palette_label_array != 0
                 && let Ok(mut lr) = FontReader::new(data).at(offset_palette_label_array)
-                    && lr.require_room(num_palettes, 2).is_ok() {
-                        for p in palettes.iter_mut() {
-                            p.label = u32::from(lr.u16().expect("require_room above covered this read"));
-                        }
-                    }
+                && lr.require_room(num_palettes, 2).is_ok()
+            {
+                for p in palettes.iter_mut() {
+                    p.label = u32::from(lr.u16().expect("require_room above covered this read"));
+                }
+            }
         }
-        if let Some(offset_palette_entry_label_array) =
-            FontReader::new(data).at(24 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
+        if let Some(offset_palette_entry_label_array) = FontReader::new(data)
+            .at(24 + 2 * num_palettes)
+            .ok()
+            .and_then(|mut r| r.u32().ok())
         {
             let offset_palette_entry_label_array = offset_palette_entry_label_array as usize;
             if offset_palette_entry_label_array != 0
                 && let Ok(mut er) = FontReader::new(data).at(offset_palette_entry_label_array)
-                    && er.require_room(num_palettes_entries, 4).is_ok() {
-                        for j in 0..num_palettes_entries {
-                            let label = er.u16().expect("require_room above covered this read");
-                            for p in palettes.iter_mut() {
-                                p.colorset[j].label = label;
-                            }
-                        }
+                && er.require_room(num_palettes_entries, 4).is_ok()
+            {
+                for j in 0..num_palettes_entries {
+                    let label = er.u16().expect("require_room above covered this read");
+                    for p in palettes.iter_mut() {
+                        p.colorset[j].label = label;
                     }
+                }
+            }
         }
     }
 
     Ok((version, palettes))
 }
 pub fn read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CPAL)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_CPAL)?;
     let (version, palettes) = decode_cpal(&table.data).ok()?;
     Some(Box::new(CpalTable { version, palettes }))
 }
@@ -284,12 +299,19 @@ fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
 fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
     let palette: &CpalPalette = &palettes[0];
-    if !palette.colorset.iter().any(|c| i32::from(c.label) != 0xffff) {
+    if !palette
+        .colorset
+        .iter()
+        .any(|c| i32::from(c.label) != 0xffff)
+    {
         return None;
     }
     let mut block: BkBlock = bk_new_block(Vec::new());
     for c in palette.colorset.iter() {
-        bk_push(&mut block, vec![bk_int(BkCellType::B16, i32::from(c.label) as u32)]);
+        bk_push(
+            &mut block,
+            vec![bk_int(BkCellType::B16, i32::from(c.label) as u32)],
+        );
     }
     Some(block)
 }
@@ -301,8 +323,7 @@ pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     }
     let num_palettes: u16 = palettes.len() as u16;
     let num_palettes_entries: u16 = palettes[0].colorset.len() as u16;
-    let num_color_records: u16 =
-        (i32::from(num_palettes) * i32::from(num_palettes_entries)) as u16;
+    let num_color_records: u16 = (i32::from(num_palettes) * i32::from(num_palettes_entries)) as u16;
     let mut color_records: BkBlock = bk_new_block(Vec::new());
     for palette in palettes.iter().take(num_palettes as usize) {
         let total_colors: ColorId = palette.colorset.len() as ColorId;
@@ -316,33 +337,18 @@ pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
                 &mut color_records,
                 vec![
                     bk_int(BkCellType::B8, i32::from(color.blue) as u32),
-                    bk_int(
-                        BkCellType::B8,
-                        i32::from(color.green) as u32,
-                    ),
+                    bk_int(BkCellType::B8, i32::from(color.green) as u32),
                     bk_int(BkCellType::B8, i32::from(color.red) as u32),
-                    bk_int(
-                        BkCellType::B8,
-                        i32::from(color.alpha) as u32,
-                    ),
+                    bk_int(BkCellType::B8, i32::from(color.alpha) as u32),
                 ],
             );
         }
     }
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(
-            BkCellType::B16,
-            i32::from(cpal.version) as u32,
-        ),
-        bk_int(
-            BkCellType::B16,
-            i32::from(num_palettes_entries) as u32,
-        ),
+        bk_int(BkCellType::B16, i32::from(cpal.version) as u32),
+        bk_int(BkCellType::B16, i32::from(num_palettes_entries) as u32),
         bk_int(BkCellType::B16, i32::from(num_palettes) as u32),
-        bk_int(
-            BkCellType::B16,
-            i32::from(num_color_records) as u32,
-        ),
+        bk_int(BkCellType::B16, i32::from(num_color_records) as u32),
         bk_ptr(BkCellType::P32, Some(color_records)),
     ]);
     for j_0 in 0..num_palettes {
@@ -391,7 +397,10 @@ mod parse_cpal_tests {
         assert_eq!(version, 0);
         assert_eq!(palettes.len(), 1);
         let color = palettes[0].colorset[0];
-        assert_eq!((color.red, color.green, color.blue, color.alpha), (30, 20, 10, 255));
+        assert_eq!(
+            (color.red, color.green, color.blue, color.alpha),
+            (30, 20, 10, 255)
+        );
         assert_eq!(color.label, 0xffff);
     }
 
@@ -409,7 +418,10 @@ mod parse_cpal_tests {
         data[12..14].copy_from_slice(&5u16.to_be_bytes());
         let (_, palettes) = decode_cpal(&data).unwrap();
         let color = palettes[0].colorset[0];
-        assert_eq!((color.red, color.green, color.blue, color.alpha), (255, 255, 255, 255));
+        assert_eq!(
+            (color.red, color.green, color.blue, color.alpha),
+            (255, 255, 255, 255)
+        );
     }
 
     #[test]

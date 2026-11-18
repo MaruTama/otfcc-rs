@@ -34,7 +34,8 @@ const SNAPSHOT_RELATIVE_PATH: &str = "scripts/abi-exports.txt";
 /// `cargo test`, no separate step, already produces `libotfcc_rust.dylib`
 /// in `target/debug/`).
 fn cdylib_path() -> PathBuf {
-    let exe = std::env::current_exe().expect("current_exe should resolve for a running test binary");
+    let exe =
+        std::env::current_exe().expect("current_exe should resolve for a running test binary");
     let profile_dir = exe
         .parent() // deps/
         .and_then(Path::parent) // <profile>/
@@ -58,10 +59,14 @@ fn manifest_path(rel: &str) -> PathBuf {
 /// `_ZN...` / v0 `_R...`) and OS linker artifacts filtered out, sorted and
 /// deduped so the result is directly comparable across platforms.
 fn exported_symbols(lib_path: &Path) -> Vec<String> {
-    let data =
-        std::fs::read(lib_path).unwrap_or_else(|e| panic!("failed to read {}: {e}", lib_path.display()));
-    let file = object::File::parse(&*data)
-        .unwrap_or_else(|e| panic!("failed to parse {} as an object file: {e}", lib_path.display()));
+    let data = std::fs::read(lib_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", lib_path.display()));
+    let file = object::File::parse(&*data).unwrap_or_else(|e| {
+        panic!(
+            "failed to parse {} as an object file: {e}",
+            lib_path.display()
+        )
+    });
     let mut names: Vec<String> = file
         .exports()
         .expect("reading the export table should not fail for a well-formed cdylib")
@@ -138,8 +143,16 @@ fn cdylib_exports_exactly_the_recorded_abi_surface() {
 
     let current_refs: Vec<&str> = current.iter().map(String::as_str).collect();
 
-    let added: Vec<&str> = current_refs.iter().filter(|s| !recorded.contains(s)).copied().collect();
-    let removed: Vec<&str> = recorded.iter().filter(|s| !current_refs.contains(s)).copied().collect();
+    let added: Vec<&str> = current_refs
+        .iter()
+        .filter(|s| !recorded.contains(s))
+        .copied()
+        .collect();
+    let removed: Vec<&str> = recorded
+        .iter()
+        .filter(|s| !current_refs.contains(s))
+        .copied()
+        .collect();
 
     assert!(
         added.is_empty(),

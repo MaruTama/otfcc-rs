@@ -31,7 +31,9 @@ fn normalize(raw: &str) -> String {
     let step_time = Regex::new(r"Step time = [0-9.eE+-]+s\.").unwrap();
     let scratch = Regex::new(r"build/[A-Za-z0-9_-]+/").unwrap();
     let normalized = step_time.replace_all(raw, "Step time = <T>s.");
-    scratch.replace_all(&normalized, "build/<SCRATCH>/").into_owned()
+    scratch
+        .replace_all(&normalized, "build/<SCRATCH>/")
+        .into_owned()
 }
 
 /// Runs `program` with `args`, capturing stderr (ignoring exit status --
@@ -42,7 +44,10 @@ fn captured_normalized_stderr(program: &std::path::Path, args: &[&std::ffi::OsSt
     // reasoning as support::run_ok's own doc comment: otfccdump/otfccbuild
     // log whatever path string they're given verbatim, and the golden log
     // fixtures were captured with relative paths.
-    let args: Vec<std::ffi::OsString> = args.iter().map(|a| relative_arg(std::path::Path::new(a))).collect();
+    let args: Vec<std::ffi::OsString> = args
+        .iter()
+        .map(|a| relative_arg(std::path::Path::new(a)))
+        .collect();
     let output = Command::new(program)
         .args(&args)
         .current_dir(repo_root())
@@ -61,7 +66,10 @@ fn compare_log(label: &str, got_normalized: &str, errors: &mut Vec<String>) {
         return;
     }
     let Ok(want) = std::fs::read_to_string(&golden_path) else {
-        errors.push(format!("{label}: no golden fixture at {}", golden_path.display()));
+        errors.push(format!(
+            "{label}: no golden fixture at {}",
+            golden_path.display()
+        ));
         return;
     };
     if got_normalized != want {
@@ -190,5 +198,10 @@ fn log_output_matches_golden() {
     );
     compare_log("dump-missing-file", &dump_missing_file, &mut errors);
 
-    assert!(errors.is_empty(), "{} log comparison(s) failed:\n{}", errors.len(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{} log comparison(s) failed:\n{}",
+        errors.len(),
+        errors.join("\n")
+    );
 }

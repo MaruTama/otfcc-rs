@@ -18,7 +18,7 @@ fn bench_dump(c: &mut Criterion) {
         "KRName-Regular.otf",           // small CFF
         "Molengo-Regular.ttf",          // small TTF
         "iosevka-r.ttf",                // larger TTF
-        "NotoNastaliqUrdu-Regular.ttf",  // larger/complex TTF
+        "NotoNastaliqUrdu-Regular.ttf", // larger/complex TTF
     ];
     for &name in fixtures {
         let bytes = payload_bytes(name);

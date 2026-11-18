@@ -1,9 +1,9 @@
 use crate::font::sfnt::Packet;
 use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 #[derive(Copy, Clone, Debug)]
 pub struct Os2Table {
     pub version: u16,
@@ -253,10 +253,10 @@ pub static CODE_PAGE_LABELS1: [&str; 32] = [
     "symbol",
 ];
 pub static CODE_PAGE_LABELS2: [&str; 32] = [
-    "oem8", "oem9", "oem10", "oem11", "oem12", "oem13", "oem14", "oem15", "oem16",
-    "oem17", "oem18", "oem19", "oem20", "oem21", "oem22", "oem23", "cp869", "cp866",
-    "cp865", "cp864", "cp863", "cp862", "cp861", "cp860", "cp857", "cp855", "cp852",
-    "cp775", "cp737", "cp708", "cp850", "ascii",
+    "oem8", "oem9", "oem10", "oem11", "oem12", "oem13", "oem14", "oem15", "oem16", "oem17",
+    "oem18", "oem19", "oem20", "oem21", "oem22", "oem23", "cp869", "cp866", "cp865", "cp864",
+    "cp863", "cp862", "cp861", "cp860", "cp857", "cp855", "cp852", "cp775", "cp737", "cp708",
+    "cp850", "ascii",
 ];
 pub static UNICODE_RANGE_LABELS1: [&str; 32] = [
     "Basic_Latin",
@@ -505,7 +505,10 @@ pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
         b"sTypoLineGap",
         BuiltValue::Int(i64::from(table.s_typo_line_gap)),
     );
-    os_2.push_field(b"usWinAscent", BuiltValue::Int(i64::from(table.us_win_ascent)));
+    os_2.push_field(
+        b"usWinAscent",
+        BuiltValue::Int(i64::from(table.us_win_ascent)),
+    );
     os_2.push_field(
         b"usWinDescent",
         BuiltValue::Int(i64::from(table.us_win_descent)),
@@ -519,12 +522,18 @@ pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
         BuiltValue::dump_flags(table.ul_code_page_range2 as i32, &CODE_PAGE_LABELS2),
     );
     os_2.push_field(b"sxHeight", BuiltValue::Int(i64::from(table.sx_height)));
-    os_2.push_field(b"sCapHeight", BuiltValue::Int(i64::from(table.s_cap_height)));
+    os_2.push_field(
+        b"sCapHeight",
+        BuiltValue::Int(i64::from(table.s_cap_height)),
+    );
     os_2.push_field(
         b"usDefaultChar",
         BuiltValue::Int(i64::from(table.us_default_char)),
     );
-    os_2.push_field(b"usBreakChar", BuiltValue::Int(i64::from(table.us_break_char)));
+    os_2.push_field(
+        b"usBreakChar",
+        BuiltValue::Int(i64::from(table.us_break_char)),
+    );
     os_2.push_field(
         b"usMaxContext",
         BuiltValue::Int(i64::from(table.us_max_context)),
@@ -588,9 +597,7 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
         os_2.x_avg_char_width = table.get_num(b"xAvgCharWidth") as i16;
         os_2.us_weight_class = table.get_num(b"usWeightClass") as u16;
         os_2.us_width_class = table.get_num(b"usWidthClass") as u16;
-        os_2.fs_type = table
-            .get(b"fsType")
-            .map_or(0, |v| v.flags(&FS_TYPE_LABELS)) as u16;
+        os_2.fs_type = table.get(b"fsType").map_or(0, |v| v.flags(&FS_TYPE_LABELS)) as u16;
         os_2.y_subscript_x_size = table.get_num(b"ySubscriptXSize") as i16;
         os_2.y_subscript_y_size = table.get_num(b"ySubscriptYSize") as i16;
         os_2.y_subscript_x_offset = table.get_num(b"ySubscriptXOffset") as i16;
@@ -638,7 +645,7 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
         os_2.us_lower_optical_point_size = table.get_num(b"usLowerOpticalPointSize") as u16;
         os_2.us_upper_optical_point_size = table.get_num(b"usUpperOpticalPointSize") as u16;
         if let Some(panose) = table.get_typed(b"panose", JsonType::Array) {
-            let items = panose.as_array().unwrap();
+            let items = panose.as_array().expect("get_typed returned an Array");
             for (j, term) in items.iter().enumerate().take(10) {
                 if let Some(i) = term.as_int() {
                     os_2.panose[j] = i as u8;

@@ -3,22 +3,20 @@ pub mod read;
 
 use crate::json_writer::DumpSink;
 use crate::logger::ByteStr;
-use otfcc_binary::Buffer;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
-use crate::support::handle::{
-    FdHandle, GlyphHandle, handle_from_name, handle_empty,
-};
+use crate::support::handle::{FdHandle, GlyphHandle, handle_empty, handle_from_name};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId, until_nul};
 use crate::table::fvar::FvarTable;
+use otfcc_binary::Buffer;
 use otfcc_json::JsonType;
 
-use otfcc_json::BuiltValue;
-use otfcc_json::ParsedValue;
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_still};
+use otfcc_json::BuiltValue;
+use otfcc_json::ParsedValue;
 
 #[derive(Clone, Debug)]
 pub struct Point {
@@ -164,8 +162,14 @@ pub type GlyfTable = Vec<Option<Box<Glyph>>>;
 /// `glyf[j].as_deref().unwrap()` loops this replaces). For the passes that
 /// run after `consolidate_glyf` has patched every hole -- not for a
 /// hole-tolerant scan, which wants `.iter().flatten()` instead.
+/// Message for the `expect` on a `glyf` slot: `read_glyf` pushes `Some` for
+/// every GID and `consolidate_glyf` fills any hole, so a slot reached by a
+/// pass that runs after either is never empty.
+pub(crate) const GLYF_SLOT_FILLED: &str =
+    "glyf slots are filled by read_glyf or consolidate_glyf before dump/build/stat passes";
 pub(crate) fn iter_glyphs(glyf: &GlyfTable) -> impl Iterator<Item = &Glyph> {
-    glyf.iter().map(|slot| slot.as_deref().unwrap())
+    glyf.iter()
+        .map(|slot| slot.as_deref().expect(GLYF_SLOT_FILLED))
 }
 #[derive(Debug)]
 pub struct GlyfIOContext<'a> {
@@ -334,7 +338,10 @@ fn glyf_glyph_dump_maskdefs(masks: &MaskList, hh: &StemDefList, vv: &StemDefList
             b"contoursBefore",
             BuiltValue::Int(i64::from(entry.contours_before)),
         );
-        mask.push_field(b"pointsBefore", BuiltValue::Int(i64::from(entry.points_before)));
+        mask.push_field(
+            b"pointsBefore",
+            BuiltValue::Int(i64::from(entry.points_before)),
+        );
         // Bounded by the glyph's own stem counts (and by the mask's 256
         // flags).
         let mut h = BuiltValue::new_array(hh.len());
@@ -358,8 +365,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
         json_new_vq(g.advance_width.clone(), ctx.fvar.as_deref()),
     );
     if vq_is_still(g.horizontal_origin.clone())
-        && (vq_get_still(g.horizontal_origin.clone()) as f64).abs()
-            > 1.0 / 1000.0
+        && (vq_get_still(g.horizontal_origin.clone()) as f64).abs() > 1.0 / 1000.0
     {
         glyph.push_field(
             b"horizontalOrigin",
@@ -416,7 +422,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
 fn dump_glyphorder(table: &GlyfTable) -> BuiltValue {
     let mut order = BuiltValue::new_array(table.len());
     for slot in table {
-        let g = slot.as_deref().unwrap();
+        let g = slot.as_deref().expect(GLYF_SLOT_FILLED);
         order.push_item(BuiltValue::str_truncated_at_nul(&g.name));
     }
     order.preserialize()
@@ -436,7 +442,7 @@ pub fn dump_glyf(
     let stage = crate::logger::stage("glyf");
     sink.begin_field_object(b"glyf");
     for slot in table {
-        let g = slot.as_deref().unwrap();
+        let g = slot.as_deref().expect(GLYF_SLOT_FILLED);
         sink.field(until_nul(&g.name), glyf_dump_glyph(g, options, ctx));
     }
     sink.end_object();
@@ -465,7 +471,8 @@ fn glyf_parse_contours(col: Option<&ParsedValue>, g: &mut Glyph) {
         return;
     };
     for contourdump in items {
-        let mut contour: Contour = Vec::with_capacity(contourdump.as_array().map_or(1, |a| a.len()));
+        let mut contour: Contour =
+            Vec::with_capacity(contourdump.as_array().map_or(1, |a| a.len()));
         if let Some(points) = contourdump.as_array() {
             for pointdump in points {
                 contour.push(glyf_parse_point(pointdump));
@@ -592,11 +599,22 @@ fn glyf_parse_glyph(
                 // the `Logger` -- and this message wasn't reaching the
                 // `Logger` at all before, so no golden fixture already
                 // depends on its exact old wording.
-                tracing::warn!("[OTFCC] TrueType instructions parse error : {}, at {} in /{}\n", ByteStr(reason), pos, ByteStr(&g.name));
+                tracing::warn!(
+                    "[OTFCC] TrueType instructions parse error : {}, at {} in /{}\n",
+                    ByteStr(reason),
+                    pos,
+                    ByteStr(&g.name)
+                );
             },
         );
-        parse_stems(glyphdump.get_typed(b"stemH", JsonType::Array), &mut g.stem_h);
-        parse_stems(glyphdump.get_typed(b"stemV", JsonType::Array), &mut g.stem_v);
+        parse_stems(
+            glyphdump.get_typed(b"stemH", JsonType::Array),
+            &mut g.stem_h,
+        );
+        parse_stems(
+            glyphdump.get_typed(b"stemV", JsonType::Array),
+            &mut g.stem_v,
+        );
         parse_masks(
             glyphdump.get_typed(b"hintMasks", JsonType::Array),
             &mut g.hint_masks,
@@ -640,13 +658,14 @@ pub fn parse_glyf(
         let name_bytes = &name_key[..name_key.len() - 1];
         let order_idx = glyph_order.by_name.get(name_bytes).copied();
         if glyphdump.as_object().is_some()
-            && let Some(idx) = order_idx {
-                let order_entry = &glyph_order.entries[idx];
-                if glyf_val[order_entry.gid as usize].is_none() {
-                    glyf_val[order_entry.gid as usize] =
-                        Some(glyf_parse_glyph(glyphdump, order_entry, options));
-                }
+            && let Some(idx) = order_idx
+        {
+            let order_entry = &glyph_order.entries[idx];
+            if glyf_val[order_entry.gid as usize].is_none() {
+                glyf_val[order_entry.gid as usize] =
+                    Some(glyf_parse_glyph(glyphdump, order_entry, options));
             }
+        }
         table.take_field(j);
     }
     stage.finish();

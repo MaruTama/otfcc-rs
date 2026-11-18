@@ -1,7 +1,6 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::primitives::{GlyphId, TableId};
 
@@ -9,10 +8,7 @@ use crate::table::otl::Subtable;
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 
-pub fn consolidate_gsub_reverse(
-    glyph_order: &GlyphOrder,
-    _subtable: &mut Subtable,
-) -> bool {
+pub fn consolidate_gsub_reverse(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
     let Subtable::GsubReverse(subtable) = _subtable else {
         unreachable!()
     };
@@ -39,7 +35,10 @@ pub fn consolidate_gsub_reverse(
         std::collections::BTreeMap::new();
     // `.zip()` stops at the shorter side on its own, the same bound `n =
     // min(...)` computed by hand.
-    for (from, to) in subtable.sequence[input_index].iter().zip(subtable.to.iter()) {
+    for (from, to) in subtable.sequence[input_index]
+        .iter()
+        .zip(subtable.to.iter())
+    {
         let fromid: i32 = i32::from(from.index);
         if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
             let toid: i32 = i32::from(to.index);
@@ -47,18 +46,29 @@ pub fn consolidate_gsub_reverse(
             let toname: Vec<u8> = to.name.clone();
             e.insert((fromname, toid, toname));
         } else {
-            tracing::warn!("[Consolidate] Double-mapping a glyph in a reverse substitution /{}.\n", ByteStr(&from.name));
+            tracing::warn!(
+                "[Consolidate] Double-mapping a glyph in a reverse substitution /{}.\n",
+                ByteStr(&from.name)
+            );
         }
     }
     let count: usize = seen.len();
     if count != subtable.sequence[input_index].len() || count != subtable.to.len() {
-        tracing::warn!("[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n");
+        tracing::warn!(
+            "[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n"
+        );
     }
     subtable.sequence[input_index] = Vec::new();
     subtable.to = Vec::new();
     for (fromid, (fromname, toid, toname)) in seen {
-        subtable.sequence[input_index].push(Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle);
-        subtable.to.push(Handle::new(HandleState::Consolidated, toid as GlyphId, toname) as GlyphHandle);
+        subtable.sequence[input_index].push(Handle::new(
+            HandleState::Consolidated,
+            fromid as GlyphId,
+            fromname,
+        ) as GlyphHandle);
+        subtable
+            .to
+            .push(Handle::new(HandleState::Consolidated, toid as GlyphId, toname) as GlyphHandle);
     }
     false
 }

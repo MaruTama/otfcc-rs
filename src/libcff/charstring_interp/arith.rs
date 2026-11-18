@@ -1,17 +1,27 @@
 use super::*;
-use crate::logger::ByteStr;
 use crate::libcff::value::{CffValue, cffnum};
+use crate::libcff::{
+    CffCharstringOperator, CffStack, OP_ABS, OP_ADD, OP_AND, OP_DIV, OP_DROP, OP_DUP, OP_EQ,
+    OP_EXCH, OP_GET, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_ROLL, OP_SQRT,
+    OP_SUB, TYPE2_TRANSIENT_ARRAY,
+};
+use crate::logger::ByteStr;
 use crate::support::primitives::Arity;
 use crate::table::cff::OutlineBuilderContext;
 use crate::table::cff::read::callback_draw_getrand;
-use crate::libcff::{CffCharstringOperator, CffStack, TYPE2_TRANSIENT_ARRAY, OP_ABS, OP_ADD, OP_AND, OP_DIV, OP_DROP, OP_DUP, OP_EQ, OP_EXCH, OP_GET, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_ROLL, OP_SQRT, OP_SUB};
 
 pub(super) fn too_few_operands(name: &str, op: CffCharstringOperator) {
-    tracing::warn!("[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n", ByteStr(name), op.0 as u32);
+    tracing::warn!(
+        "[libcff] Stack cannot provide enough parameters for {} ({:04x}). This operation is ignored.\n",
+        ByteStr(name),
+        op.0 as u32
+    );
 }
 
 pub(super) fn stack_overflow() {
-    tracing::warn!("[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n");
+    tracing::warn!(
+        "[libcff] Operand stack overflow in Type 2 CharString; the rest of this outline is ignored.\n"
+    );
 }
 
 pub(super) fn truth(condition: bool) -> f64 {
@@ -19,7 +29,12 @@ pub(super) fn truth(condition: bool) -> f64 {
 }
 
 /// Replaces the top operand `a` with `f(a)`.
-pub(super) fn unary(stack: &mut CffStack, name: &str, op: CffCharstringOperator, f: impl FnOnce(f64) -> f64) -> Flow {
+pub(super) fn unary(
+    stack: &mut CffStack,
+    name: &str,
+    op: CffCharstringOperator,
+    f: impl FnOnce(f64) -> f64,
+) -> Flow {
     if stack.index < 1 {
         too_few_operands(name, op);
     } else {
@@ -30,7 +45,12 @@ pub(super) fn unary(stack: &mut CffStack, name: &str, op: CffCharstringOperator,
 }
 
 /// Replaces the top two operands `a b` (`b` pushed last) with `f(a, b)`.
-pub(super) fn binary(stack: &mut CffStack, name: &str, op: CffCharstringOperator, f: impl FnOnce(f64, f64) -> f64) -> Flow {
+pub(super) fn binary(
+    stack: &mut CffStack,
+    name: &str,
+    op: CffCharstringOperator,
+    f: impl FnOnce(f64, f64) -> f64,
+) -> Flow {
     if stack.index < 2 {
         too_few_operands(name, op);
     } else {
@@ -209,4 +229,3 @@ pub(super) fn op_roll(stack: &mut CffStack) -> Flow {
     }
     Flow::Continue
 }
-

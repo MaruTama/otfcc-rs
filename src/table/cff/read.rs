@@ -9,14 +9,13 @@ use crate::libcff::fdselect::CffFdSelect;
 use crate::libcff::index::{CffIndex, CffIndexCountType};
 use crate::libcff::value::CffValue;
 use crate::libcff::{
-    CffFile, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES,
-    TYPE2_TRANSIENT_ARRAY, OP_COPYRIGHT,
+    CffFile, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_COPYRIGHT,
     OP_DEFAULT_WIDTH_X, OP_EXPANSION_FACTOR, OP_FAMILY_BLUES, OP_FAMILY_NAME,
-    OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME,
-    OP_FORCE_BOLD, OP_FULL_NAME, OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_ITALIC_ANGLE,
-    OP_LANGUAGE_GROUP, OP_NOMINAL_WIDTH_X, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS,
-    OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH,
-    OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_VERSION, OP_WEIGHT,
+    OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME,
+    OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP,
+    OP_NOMINAL_WIDTH_X, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW,
+    OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS,
+    OP_VERSION, OP_WEIGHT, TYPE2_TRANSIENT_ARRAY,
 };
 use crate::support::primitives::{Arity, CffSid, GlyphId, Pos, Scale, ShapeId, TableId};
 use crate::table::glyf::{
@@ -33,8 +32,7 @@ use crate::libcff::value::cffnum;
 use crate::support::primitives::{from_fixed, to_fixed};
 use crate::table::glyf::{StemMask, new_glyf_glyph, table_glyf_create_n};
 use crate::vf::vq::{
-    vq_compare, vq_create_still, vq_inplace_plus, vq_neutral, vq_point_linear_tfm,
-    vq_scale,
+    vq_compare, vq_create_still, vq_inplace_plus, vq_neutral, vq_point_linear_tfm, vq_scale,
 };
 
 /// Handles one operator of a Private DICT, storing it in the Private DICT of
@@ -48,7 +46,12 @@ use crate::vf::vq::{
 /// Panics if the selected table has no `private_dict`:
 /// `callback_extract_fd` creates it when it sees `Private`, before it parses
 /// the Private DICT with this function.
-fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], context: &mut CffFdExtractContext) {
+fn callback_extract_private(
+    op: CffDictOperator,
+    top: u8,
+    stack: &[CffValue],
+    context: &mut CffFdExtractContext,
+) {
     let meta: &mut CffTable = if context.fd_array_index >= 0
         && (context.fd_array_index as usize) < context.meta.fd_array.len()
     {
@@ -61,7 +64,11 @@ fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], co
         .as_deref_mut()
         .expect("callback_extract_fd creates the Private DICT before it parses it");
     // Every operand, in order (the delta-encoded arrays).
-    let all = || (0..Arity::from(top)).map(|j| cffnum(stack[j as usize])).collect::<Vec<f64>>();
+    let all = || {
+        (0..Arity::from(top))
+            .map(|j| cffnum(stack[j as usize]))
+            .collect::<Vec<f64>>()
+    };
     // The operand `n` places below the top; only read once `top >= n` is known.
     let last = |n: usize| cffnum(stack[top as usize - n]);
     match op {
@@ -95,7 +102,12 @@ fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], co
 /// unknown string id yields an empty string. `Private` also parses the
 /// Private DICT it points to, but only if its offset and length lie inside
 /// the table's raw data; otherwise the Private DICT keeps its defaults.
-fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context: &mut CffFdExtractContext) {
+fn callback_extract_fd(
+    op: CffDictOperator,
+    top: u8,
+    stack: &[CffValue],
+    context: &mut CffFdExtractContext,
+) {
     let file: &CffFile = context.cff_file;
     let meta: &mut CffTable = if context.fd_array_index >= 0
         && (context.fd_array_index as usize) < context.meta.fd_array.len()
@@ -179,11 +191,7 @@ pub(crate) fn callback_draw_next_contour(context: &mut OutlineBuilderContext) {
 /// Appends an on-curve point to the current contour. Silently ignored before
 /// the first contour starts (`j_contour == 0`), which a malformed charstring
 /// can cause.
-pub(crate) fn callback_draw_lineto(
-    context: &mut OutlineBuilderContext,
-    x1: f64,
-    y1: f64,
-) {
+pub(crate) fn callback_draw_lineto(context: &mut OutlineBuilderContext, x1: f64, y1: f64) {
     if context.j_contour != 0 {
         let contour: &mut Contour = &mut context.g.contours[context.j_contour as usize - 1];
         contour.push(still_point(x1, y1, true));
@@ -271,7 +279,8 @@ pub(crate) fn callback_draw_setmask(
     // stems', the next `stem_v_len` the vertical stems'.
     for j in 0..StemMask::LEN {
         mask.mask_h.set(j, j < stem_h_len && mask_array[j]);
-        mask.mask_v.set(j, j < stem_v_len && mask_array[j + stem_h_len]);
+        mask.mask_v
+            .set(j, j < stem_v_len && mask_array[j + stem_h_len]);
     }
     if !mask_list.is_empty()
         && mask_list[mask_list.len() - 1].contours_before == mask.contours_before
@@ -361,7 +370,9 @@ fn build_outline(
         data: Vec::new(),
     };
     let mut bc: OutlineBuilderContext = OutlineBuilderContext {
-        g: glyphs[i as usize].as_deref_mut().expect("the glyph was stored in this slot just above"),
+        g: glyphs[i as usize]
+            .as_deref_mut()
+            .expect("the glyph was stored in this slot just above"),
         j_contour: 0 as ShapeId,
         j_point: 0 as ShapeId,
         default_width_x: 0.0,
@@ -374,25 +385,16 @@ fn build_outline(
     };
     let f_raw_data = f.raw_data.as_slice();
     let fd: u8 = if !matches!(f.fdselect, CffFdSelect::Unspecified) {
-        parse_subr(
-            i,
-            f_raw_data,
-            &f.font_dict,
-            &f.fdselect,
-            &mut local_subrs,
-        )
+        parse_subr(i, f_raw_data, &f.font_dict, &f.fdselect, &mut local_subrs)
     } else {
-        parse_subr(
-            i,
-            f_raw_data,
-            &f.top_dict,
-            &f.fdselect,
-            &mut local_subrs,
-        )
+        parse_subr(i, f_raw_data, &f.top_dict, &f.fdselect, &mut local_subrs)
     };
     bc.g.fd_select = handle_from_index(GlyphId::from(fd)) as FdHandle;
     let ctx_fd_array: &Vec<Box<CffTable>> = &meta.fd_array;
-    if let Some(pd) = ctx_fd_array.get(fd as usize).and_then(|t| t.private_dict.as_deref()) {
+    if let Some(pd) = ctx_fd_array
+        .get(fd as usize)
+        .and_then(|t| t.private_dict.as_deref())
+    {
         bc.default_width_x = pd.default_width_x;
         bc.nominal_width_x = pd.nominal_width_x;
     } else if let Some(pd) = meta.private_dict.as_deref() {
@@ -462,7 +464,9 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
             // string too here, and records the SID as the CID.
             for (j, &sid) in sids.iter().enumerate() {
                 if let Some(name) = get_cff_sid(sid, &cff_file.string) {
-                    let glyph = glyphs[j + 1].as_mut().expect("build_outline filled every glyph slot");
+                    let glyph = glyphs[j + 1]
+                        .as_mut()
+                        .expect("build_outline filled every glyph slot");
                     glyph.name = name;
                     if is_cid {
                         glyph.cid = sid as GlyphId;
@@ -471,15 +475,23 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
             }
             return;
         }
-        CffCharset::Format1(ranges) => ranges.iter().map(|r| (r.first, u32::from(r.nleft) + 1)).collect(),
-        CffCharset::Format2(ranges) => ranges.iter().map(|r| (r.first, u32::from(r.nleft) + 1)).collect(),
+        CffCharset::Format1(ranges) => ranges
+            .iter()
+            .map(|r| (r.first, u32::from(r.nleft) + 1))
+            .collect(),
+        CffCharset::Format2(ranges) => ranges
+            .iter()
+            .map(|r| (r.first, u32::from(r.nleft) + 1))
+            .collect(),
         _ => return,
     };
     let sids = ranges
         .into_iter()
         .flat_map(|(first, count)| (0..count).map(move |k| first.wrapping_add(k as CffSid)));
     for (slot, sid) in glyphs.iter_mut().skip(1).zip(sids) {
-        let glyph = slot.as_mut().expect("build_outline filled every glyph slot");
+        let glyph = slot
+            .as_mut()
+            .expect("build_outline filled every glyph slot");
         if is_cid {
             glyph.name = form_cid_string(sid);
             glyph.cid = sid as GlyphId;
@@ -498,7 +510,9 @@ pub(super) fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Optio
         return;
     };
     for gbox in glyf.iter_mut() {
-        let g: &mut Glyph = gbox.as_mut().expect("build_outline filled every glyph slot");
+        let g: &mut Glyph = gbox
+            .as_mut()
+            .expect("build_outline filled every glyph slot");
         let mut fd: &CffTable = cff;
         if (g.fd_select.index as usize) < fd.fd_array.len() {
             fd = &*fd.fd_array[g.fd_select.index as usize];
@@ -516,8 +530,10 @@ pub(super) fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Optio
                 for point in contour.iter_mut() {
                     let zx: VQ = point.x.clone();
                     let zy: VQ = point.y.clone();
-                    point.x = vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone());
-                    point.y = vq_point_linear_tfm(y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone());
+                    point.x =
+                        vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone());
+                    point.y =
+                        vq_point_linear_tfm(y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone());
                     // `zx`/`zy` are plain owned locals, never moved out, so
                     // they auto-drop at the end of this iteration -- no
                     // explicit dispose call is needed.
@@ -539,10 +555,7 @@ pub(super) fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Optio
 /// reported, so a damaged table yields defaults instead of an error.
 /// `head` supplies `unitsPerEm` to scale outlines by the FontMatrix; without it
 /// the outlines are left unscaled.
-pub fn read_cff_and_glyf_tables(
-    packet: &Packet,
-    head: Option<&HeadTable>,
-) -> CffAndGlyfOwned {
+pub fn read_cff_and_glyf_tables(packet: &Packet, head: Option<&HeadTable>) -> CffAndGlyfOwned {
     let mut ret: CffAndGlyfOwned = CffAndGlyfOwned::default();
     // Only the first `CFF ` table in the packet is read.
     if let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CFF) {
@@ -562,8 +575,7 @@ pub fn read_cff_and_glyf_tables(
                     {
                         let top_dict_len = {
                             let top_dict_offset = &cff_file.top_dict.offset;
-                            (top_dict_offset[1])
-                                .wrapping_sub(top_dict_offset[0])
+                            (top_dict_offset[1]).wrapping_sub(top_dict_offset[0])
                         } as usize;
                         let top_dict_data: &[u8] = &cff_file.top_dict.data;
                         top_dict_data.get(..top_dict_len).unwrap_or(&[])
@@ -573,8 +585,7 @@ pub fn read_cff_and_glyf_tables(
                     },
                 );
                 if context.meta.font_name.is_empty() {
-                    context.meta.font_name =
-                        get_cff_sid(391, &cff_file.name).unwrap_or_default();
+                    context.meta.font_name = get_cff_sid(391, &cff_file.name).unwrap_or_default();
                 }
                 if cff_file.font_dict.count != 0 {
                     let fd_count = cff_file.font_dict.count as usize;
@@ -594,11 +605,8 @@ pub fn read_cff_and_glyf_tables(
                         parse_to_callback(
                             {
                                 let font_dict_offset = &cff_file.font_dict.offset;
-                                let start =
-                                    font_dict_offset[j as usize].wrapping_sub(1) as usize;
-                                let len = (font_dict_offset[(i32::from(j)
-                                    + 1)
-                                    as usize])
+                                let start = font_dict_offset[j as usize].wrapping_sub(1) as usize;
+                                let len = (font_dict_offset[(i32::from(j) + 1) as usize])
                                     .wrapping_sub(font_dict_offset[j as usize])
                                     as usize;
                                 let font_dict_data: &[u8] = &cff_file.font_dict.data;

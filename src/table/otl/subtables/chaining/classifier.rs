@@ -2,8 +2,8 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_index
 use crate::table::otl::classdef::{ClassDef, push_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage};
 
-use otfcc_binary::Buffer;
 use crate::support::primitives::{GlyphClass, GlyphId, TableId};
+use otfcc_binary::Buffer;
 
 use crate::table::otl::subtables::chaining::build::{
     build_chaining, build_contextual, chaining_lookup_is_contextual_lookup,
@@ -190,7 +190,12 @@ pub fn try_classify_around(
     // class-compatible) or stops early on the first incompatible one --
     // `rule0_is_compatible` records which.
     let mut rule0_is_compatible = true;
-    for (m, cov) in rule0.sequence.iter().enumerate().take(rule0.match_count as usize) {
+    for (m, cov) in rule0
+        .sequence
+        .iter()
+        .enumerate()
+        .take(rule0.match_count as usize)
+    {
         let (h, classno) = if m < rule0.input_begins as usize {
             (&mut hb, &mut classno_b)
         } else if m < rule0.input_ends as usize {
@@ -214,7 +219,12 @@ pub fn try_classify_around(
     let mut compatible_count: usize = 0;
     'run: for slot in subtables.iter().skip(j + 1) {
         let rule = chaining_rule_const(chaining_subtable_ref(slot));
-        for (m, cov) in rule.sequence.iter().enumerate().take(rule.match_count as usize) {
+        for (m, cov) in rule
+            .sequence
+            .iter()
+            .enumerate()
+            .take(rule.match_count as usize)
+        {
             let (h, classno) = if m < rule.input_begins as usize {
                 (&mut hb, &mut classno_b)
             } else if m < rule.input_ends as usize {

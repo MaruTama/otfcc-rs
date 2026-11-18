@@ -20,12 +20,20 @@ fn bench_subroutinize(c: &mut Criterion) {
 
     let default_options = quiet_options();
     group.bench_function("WorkSans-Regular-default", |b| {
-        b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, &default_options), BatchSize::SmallInput);
+        b.iter_batched(
+            || json_bytes.clone(),
+            |json| build_to_otf(&json, &default_options),
+            BatchSize::SmallInput,
+        );
     });
 
     let o2_options = quiet_options_o2();
     group.bench_function("WorkSans-Regular-O2", |b| {
-        b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, &o2_options), BatchSize::SmallInput);
+        b.iter_batched(
+            || json_bytes.clone(),
+            |json| build_to_otf(&json, &o2_options),
+            BatchSize::SmallInput,
+        );
     });
 
     group.finish();

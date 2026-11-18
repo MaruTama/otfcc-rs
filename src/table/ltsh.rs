@@ -1,9 +1,8 @@
-
 use otfcc_binary::{FontReader, ReadError};
 
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
 use crate::support::primitives::GlyphId;
+use otfcc_binary::Buffer;
 
 // `num_glyphs` is kept as a field (rather than `y_pels.len()`): it is
 // compared against `glyf`'s glyph count in

@@ -3,7 +3,8 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 
-static BASE64_TABLE: [u8; 64] = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static BASE64_TABLE: [u8; 64] =
+    *b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /// Standard RFC 4648 alphabet with `=` padding, no line wrapping -- exactly
 /// what the hand-rolled encoder this replaced produced. A thin wrapper over
@@ -163,7 +164,10 @@ mod base64_tests {
         // final group ("Zm9v" -> "foo"): no truncation happens because
         // in_block/block only retain the *last* processed group's values,
         // so all three of the first group's bytes survive.
-        assert_eq!(base64_decode(b"AA=AZm9v"), Some(b"\x00\x00\x00foo".to_vec()));
+        assert_eq!(
+            base64_decode(b"AA=AZm9v"),
+            Some(b"\x00\x00\x00foo".to_vec())
+        );
     }
 
     #[test]
@@ -175,7 +179,9 @@ mod base64_tests {
             let data: Vec<u8> = (0..len).map(|i| (i * 53) as u8).collect();
             assert_eq!(
                 base64_encode(&data),
-                base64::engine::general_purpose::STANDARD.encode(&data).into_bytes()
+                base64::engine::general_purpose::STANDARD
+                    .encode(&data)
+                    .into_bytes()
             );
         }
     }

@@ -124,7 +124,6 @@ impl Buffer {
         }
         self.seek(cp);
     }
-
 }
 
 // Every byte of an OpenType file leaves the program through these methods,
@@ -257,7 +256,11 @@ mod tests {
         buf.write_u16be(data_start as u16);
         buf.seek(end);
         assert_eq!(buf.data, vec![0x00, 0x02, 0xca, 0xfe, 0xba, 0xbe]);
-        assert_eq!(buf.pos(), end, "cursor left at the end, not the patched slot");
+        assert_eq!(
+            buf.pos(),
+            end,
+            "cursor left at the end, not the patched slot"
+        );
     }
 
     #[test]
@@ -268,10 +271,11 @@ mod tests {
         }
         assert_eq!(
             b.data,
-            [0xff, 0xd7, 0xff, 0xff, 0x80, 0x00, 0x00, 41, 0xff, 0xd7, 0x00, 0x00, 0x7f, 0xff]
+            [
+                0xff, 0xd7, 0xff, 0xff, 0x80, 0x00, 0x00, 41, 0xff, 0xd7, 0x00, 0x00, 0x7f, 0xff
+            ]
         );
         // ...where a direct unsigned cast would have written 0.
         assert_eq!(-41.0 as u16, 0);
     }
-
 }

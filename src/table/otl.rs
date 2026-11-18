@@ -82,7 +82,9 @@ impl LookupType {
     pub const fn file_format(self) -> u32 {
         if self.0 > OTL_TYPE_GPOS_UNKNOWN.0 {
             self.0 - OTL_TYPE_GPOS_UNKNOWN.0
-        } else { self.0.saturating_sub(OTL_TYPE_GSUB_UNKNOWN.0) }
+        } else {
+            self.0.saturating_sub(OTL_TYPE_GSUB_UNKNOWN.0)
+        }
     }
 
     /// The name this type has in otfcc's JSON, and the key its lookups are
@@ -198,6 +200,24 @@ pub struct GposPairSubtable {
     pub first_values: Vec<Vec<PositionValue>>,
     pub second_values: Vec<Vec<PositionValue>>,
 }
+impl GposPairSubtable {
+    /// Every `GposPairSubtable` is built with both class definitions: the
+    /// format 1 and format 2 readers and the JSON parser set `first` and
+    /// `second` before they return it.
+    pub fn class_defs(&self) -> (&ClassDef, &ClassDef) {
+        (
+            self.first.as_deref().expect(PAIR_HAS_CLASS_DEFS),
+            self.second.as_deref().expect(PAIR_HAS_CLASS_DEFS),
+        )
+    }
+    pub fn class_defs_mut(&mut self) -> (&mut ClassDef, &mut ClassDef) {
+        (
+            self.first.as_deref_mut().expect(PAIR_HAS_CLASS_DEFS),
+            self.second.as_deref_mut().expect(PAIR_HAS_CLASS_DEFS),
+        )
+    }
+}
+const PAIR_HAS_CLASS_DEFS: &str = "a GposPairSubtable is built with both class definitions";
 #[derive(Copy, Clone, Debug)]
 pub struct PositionValue {
     pub dx: Pos,
@@ -352,14 +372,18 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
 /// Empties, in place, every slot of `arr` whose lookup fails `pred`, so the
 /// indices of the others stay valid. Returns whether it emptied any, for
 /// the fixed-point loop in `consolidate/otl.rs`.
-pub(crate) fn otl_lookup_list_punch_holes(arr: &mut LookupList, mut pred: impl FnMut(&Lookup) -> bool) -> bool {
+pub(crate) fn otl_lookup_list_punch_holes(
+    arr: &mut LookupList,
+    mut pred: impl FnMut(&Lookup) -> bool,
+) -> bool {
     let mut punched = false;
     for slot in arr.iter_mut() {
         if let Some(lookup) = slot
-            && !pred(lookup) {
-                *slot = None;
-                punched = true;
-            }
+            && !pred(lookup)
+        {
+            *slot = None;
+            punched = true;
+        }
     }
     punched
 }
@@ -379,14 +403,18 @@ pub(crate) fn new_feature() -> Box<Feature> {
         lookups: Vec::new(),
     })
 }
-pub(crate) fn otl_feature_list_punch_holes(arr: &mut FeatureList, mut pred: impl FnMut(&Feature) -> bool) -> bool {
+pub(crate) fn otl_feature_list_punch_holes(
+    arr: &mut FeatureList,
+    mut pred: impl FnMut(&Feature) -> bool,
+) -> bool {
     let mut punched = false;
     for slot in arr.iter_mut() {
         if let Some(feature) = slot
-            && !pred(feature) {
-                *slot = None;
-                punched = true;
-            }
+            && !pred(feature)
+        {
+            *slot = None;
+            punched = true;
+        }
     }
     punched
 }

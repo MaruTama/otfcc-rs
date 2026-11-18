@@ -11,17 +11,38 @@ pub fn consolidate_cmap(font: &mut Font) {
         // (leaving it in the map with an empty name) rather than
         // removing the entry -- `dump_cmap`'s "skip if name is null"
         // check is what actually hides it later.
-        for (&unicode, glyph) in font.cmap.as_mut().unwrap().unicodes.iter_mut() {
+        for (&unicode, glyph) in font
+            .cmap
+            .as_mut()
+            .expect("the filter above checked cmap")
+            .unicodes
+            .iter_mut()
+        {
             if !gord_consolidate_handle(glyph_order, glyph) {
-                tracing::warn!("[Consolidate] Ignored mapping U+{:04X} to non-existent glyph /{}.\n", unicode as u32, ByteStr(&glyph.name));
+                tracing::warn!(
+                    "[Consolidate] Ignored mapping U+{:04X} to non-existent glyph /{}.\n",
+                    unicode as u32,
+                    ByteStr(&glyph.name)
+                );
                 *glyph = Handle::default();
             }
         }
     }
     if let Some(glyph_order) = glyph_order.filter(|_| font.cmap.is_some()) {
-        for (key, glyph) in font.cmap.as_mut().unwrap().uvs.iter_mut() {
+        for (key, glyph) in font
+            .cmap
+            .as_mut()
+            .expect("the filter above checked cmap")
+            .uvs
+            .iter_mut()
+        {
             if !gord_consolidate_handle(glyph_order, glyph) {
-                tracing::warn!("[Consolidate] Ignored UVS mapping [U+{:04X} U+{:04X}] to non-existent glyph /{}.\n", key.unicode, key.selector, ByteStr(&glyph.name));
+                tracing::warn!(
+                    "[Consolidate] Ignored UVS mapping [U+{:04X} U+{:04X}] to non-existent glyph /{}.\n",
+                    key.unicode,
+                    key.selector,
+                    ByteStr(&glyph.name)
+                );
                 *glyph = Handle::default();
             }
         }

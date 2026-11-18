@@ -1,7 +1,6 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-
 use crate::support::primitives::GlyphId;
 
 use crate::support::glyph_order::GlyphOrder;
@@ -18,7 +17,10 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
     };
     if let Some(cd) = gdef.glyph_class_def.as_deref_mut() {
         fontop_consolidate_class_def(Some(glyph_order), Some(cd));
-        let cd = gdef.glyph_class_def.as_deref_mut().unwrap();
+        let cd = gdef
+            .glyph_class_def
+            .as_deref_mut()
+            .expect("matched as Some just above");
         shrink_class_def(cd);
         if cd.glyphs.is_empty() {
             gdef.glyph_class_def = None;
@@ -26,7 +28,10 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
     }
     if let Some(cd) = gdef.mark_attach_class_def.as_deref_mut() {
         fontop_consolidate_class_def(Some(glyph_order), Some(cd));
-        let cd = gdef.mark_attach_class_def.as_deref_mut().unwrap();
+        let cd = gdef
+            .mark_attach_class_def
+            .as_deref_mut()
+            .expect("matched as Some just above");
         shrink_class_def(cd);
         if cd.glyphs.is_empty() {
             gdef.mark_attach_class_def = None;
@@ -56,7 +61,10 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
                         e.insert((gname, carets));
                     }
                 } else {
-                    tracing::warn!("[Consolidate] Detected caret value double-mapping about glyph {}", ByteStr(&rec.glyph.name));
+                    tracing::warn!(
+                        "[Consolidate] Detected caret value double-mapping about glyph {}",
+                        ByteStr(&rec.glyph.name)
+                    );
                 }
             }
         }
