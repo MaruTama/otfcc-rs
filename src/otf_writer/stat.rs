@@ -776,12 +776,13 @@ fn stat_cff_widths(font: &mut Font) {
         }
     }
     for fd in cff.fd_array.iter_mut() {
-        let pd = fd
-            .private_dict
-            .as_deref_mut()
-            .expect("CFF font dict has a private dict");
-        pd.default_width_x = f64::from(maxj);
-        pd.nominal_width_x = f64::from(nominal_width_x);
+        // A JSON `fdArray` entry that is not an object (or has no
+        // `privates`) has no private dict; the build step writes a default
+        // one for it, so there is nothing to update here.
+        if let Some(pd) = fd.private_dict.as_deref_mut() {
+            pd.default_width_x = f64::from(maxj);
+            pd.nominal_width_x = f64::from(nominal_width_x);
+        }
     }
 }
 fn stat_vorg(font: &mut Font) {
