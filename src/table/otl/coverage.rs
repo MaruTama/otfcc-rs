@@ -60,7 +60,7 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget
                 if !budget.take_coverage_entry() {
                     break 'glyphs;
                 }
-                h.insert(r.u16().unwrap());
+                h.insert(r.u16().expect("require_room above covered this read"));
             }
             for gid in h.into_iter() {
                 push_to_coverage(&mut coverage, handle_from_index(gid) as GlyphHandle);
@@ -90,9 +90,9 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget
             // expansion, never real coverage.
             let mut h: indexmap::IndexMap<GlyphId, i32> = indexmap::IndexMap::new();
             'ranges: for _ in 0..range_count {
-                let start = r.u16().unwrap();
-                let end = r.u16().unwrap();
-                let start_coverage_index = r.u16().unwrap();
+                let start = r.u16().expect("require_room above covered this read");
+                let end = r.u16().expect("require_room above covered this read");
+                let start_coverage_index = r.u16().expect("require_room above covered this read");
                 // `start as i32..=end as i32`: both ends are fixed once
                 // read above and don't depend on the budget, so this walks
                 // exactly the same range the `while` did one step at a

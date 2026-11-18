@@ -109,7 +109,7 @@ pub fn otl_read_gpos_mark_to_single(
             }
             let mut base_anchors: Vec<Anchor> = Vec::with_capacity(class_count as usize);
             for _ in 0..class_count {
-                let anchor_rel = base_reader.u16().unwrap();
+                let anchor_rel = base_reader.u16().expect("require_room above covered this read");
                 if anchor_rel != 0 {
                     base_anchors.push(otl_read_anchor(
                         data,

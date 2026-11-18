@@ -158,7 +158,7 @@ fn _declare_lookup_parser(
     if mark_attachment_type != 0 {
         lookup.flags = (i32::from(lookup.flags) | i32::from(mark_attachment_type) << 8) as u16;
     }
-    let subtable_items = subtables.as_array().unwrap();
+    let subtable_items = subtables.as_array().expect("get_typed returned an Array");
     let stage = crate::logger::stage(ByteStr(lookup_name));
     {
         for _subtable in subtable_items {
@@ -262,7 +262,7 @@ fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8]) {
     };
     for j in 0..n {
         let jthis_is_container = matches!(
-            d.as_object().unwrap()[j].1,
+            d.as_object().expect("d was checked to be an object at the top")[j].1,
             ParsedValue::Array(_) | ParsedValue::Object(_)
         );
         if !jthis_is_container {
@@ -270,18 +270,18 @@ fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8]) {
         }
         for k in (j + 1)..n {
             let matched = {
-                let fields = d.as_object().unwrap();
+                let fields = d.as_object().expect("d was checked to be an object at the top");
                 fields[j].1 == fields[k].1
                     && (!sametag || tag4_matches(&fields[j].0, &fields[k].0))
             };
             if !matched {
                 continue;
             }
-            let kthis_bytes = d.as_object().unwrap()[j].0.clone();
+            let kthis_bytes = d.as_object().expect("d was checked to be an object at the top")[j].0.clone();
             let mut alias_str: Vec<u8> = kthis_bytes[..kthis_bytes.len() - 1].to_vec();
             alias_str.push(0);
             d.set_field(k, ParsedValue::Str(alias_str));
-            let fields = d.as_object().unwrap();
+            let fields = d.as_object().expect("d was checked to be an object at the top");
             let kthis = &fields[j].0;
             let kthat = &fields[k].0;
             tracing::info!("[OTFCC-fea] Merged duplicate {} '{}' into '{}'.\n", ByteStr(objtype), ByteStr(kthat), ByteStr(kthis));

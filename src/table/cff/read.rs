@@ -56,7 +56,10 @@ fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], co
     } else {
         &mut *context.meta
     };
-    let pd: &mut CffPrivateDict = meta.private_dict.as_deref_mut().unwrap();
+    let pd: &mut CffPrivateDict = meta
+        .private_dict
+        .as_deref_mut()
+        .expect("callback_extract_fd creates the Private DICT before it parses it");
     // Every operand, in order (the delta-encoded arrays).
     let all = || (0..Arity::from(top)).map(|j| cffnum(stack[j as usize])).collect::<Vec<f64>>();
     // The operand `n` places below the top; only read once `top >= n` is known.
@@ -358,7 +361,7 @@ fn build_outline(
         data: Vec::new(),
     };
     let mut bc: OutlineBuilderContext = OutlineBuilderContext {
-        g: glyphs[i as usize].as_deref_mut().unwrap(),
+        g: glyphs[i as usize].as_deref_mut().expect("the glyph was stored in this slot just above"),
         j_contour: 0 as ShapeId,
         j_point: 0 as ShapeId,
         default_width_x: 0.0,
@@ -389,8 +392,7 @@ fn build_outline(
     };
     bc.g.fd_select = handle_from_index(GlyphId::from(fd)) as FdHandle;
     let ctx_fd_array: &Vec<Box<CffTable>> = &meta.fd_array;
-    if (fd as usize) < ctx_fd_array.len() && ctx_fd_array[fd as usize].private_dict.is_some() {
-        let pd = ctx_fd_array[fd as usize].private_dict.as_deref().unwrap();
+    if let Some(pd) = ctx_fd_array.get(fd as usize).and_then(|t| t.private_dict.as_deref()) {
         bc.default_width_x = pd.default_width_x;
         bc.nominal_width_x = pd.nominal_width_x;
     } else if let Some(pd) = meta.private_dict.as_deref() {
@@ -460,7 +462,7 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
             // string too here, and records the SID as the CID.
             for (j, &sid) in sids.iter().enumerate() {
                 if let Some(name) = get_cff_sid(sid, &cff_file.string) {
-                    let glyph = glyphs[j + 1].as_mut().unwrap();
+                    let glyph = glyphs[j + 1].as_mut().expect("build_outline filled every glyph slot");
                     glyph.name = name;
                     if is_cid {
                         glyph.cid = sid as GlyphId;
@@ -477,7 +479,7 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
         .into_iter()
         .flat_map(|(first, count)| (0..count).map(move |k| first.wrapping_add(k as CffSid)));
     for (slot, sid) in glyphs.iter_mut().skip(1).zip(sids) {
-        let glyph = slot.as_mut().unwrap();
+        let glyph = slot.as_mut().expect("build_outline filled every glyph slot");
         if is_cid {
             glyph.name = form_cid_string(sid);
             glyph.cid = sid as GlyphId;
@@ -496,7 +498,7 @@ pub(super) fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Optio
         return;
     };
     for gbox in glyf.iter_mut() {
-        let g: &mut Glyph = gbox.as_mut().unwrap();
+        let g: &mut Glyph = gbox.as_mut().expect("build_outline filled every glyph slot");
         let mut fd: &CffTable = cff;
         if (g.fd_select.index as usize) < fd.fd_array.len() {
             fd = &*fd.fd_array[g.fd_select.index as usize];

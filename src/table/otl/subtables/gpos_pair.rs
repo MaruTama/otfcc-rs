@@ -106,7 +106,7 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     }
     let mut pair_set_offsets = Vec::with_capacity(pair_set_count as usize);
     for _ in 0..pair_set_count {
-        pair_set_offsets.push(offset.wrapping_add(u32::from(header.u16().unwrap())));
+        pair_set_offsets.push(offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read"))));
     }
 
     // Check every PairSet's header and record array first.

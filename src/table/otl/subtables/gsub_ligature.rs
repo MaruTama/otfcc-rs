@@ -55,7 +55,7 @@ pub fn otl_read_gsub_ligature(
         }
         let mut set_offsets = Vec::with_capacity(set_count as usize);
         for _ in 0..set_count {
-            set_offsets.push(offset.wrapping_add(u32::from(header.u16().unwrap())));
+            set_offsets.push(offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read"))));
         }
 
         for (j, &set_offset) in set_offsets.iter().enumerate() {
@@ -70,7 +70,7 @@ pub fn otl_read_gsub_ligature(
             }
             let mut lig_offsets = Vec::with_capacity(lig_count as usize);
             for _ in 0..lig_count {
-                lig_offsets.push(set_offset.wrapping_add(u32::from(sr.u16().unwrap())));
+                lig_offsets.push(set_offset.wrapping_add(u32::from(sr.u16().expect("require_room above covered this read"))));
             }
 
             for &lig_offset in &lig_offsets {
@@ -97,7 +97,7 @@ pub fn otl_read_gsub_ligature(
                 for _ in 1..lig_components {
                     push_to_coverage(
                         &mut cov,
-                        handle_from_index(lr.u16().unwrap() as GlyphId) as GlyphHandle,
+                        handle_from_index(lr.u16().expect("require_room above covered this read") as GlyphId) as GlyphHandle,
                     );
                 }
                 subtable.push(GsubLigatureEntry {

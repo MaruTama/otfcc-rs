@@ -264,11 +264,7 @@ pub fn general_read_contextual_rule(
             ));
     }
     for j in 0..n_input_built {
-        let gid = FontReader::new(slice)
-            .at(offset as usize + 4 + 2 * j as usize)
-            .unwrap()
-            .u16()
-            .unwrap();
+        let gid = u16_at(slice, offset as usize + 4 + 2 * j as usize);
         rule.sequence
             .push(coverage_of(
                 slice,
@@ -283,11 +279,9 @@ pub fn general_read_contextual_rule(
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
     let lookup_base = offset as usize + 4 + 2 * n_input_read as usize;
     for j0 in 0..n_apply.min(MAX_APPLY_PER_RULE as u16) {
-        let mut lr = FontReader::new(slice)
-            .at(lookup_base + 4 * j0 as usize)
-            .unwrap();
-        let seq_index = lr.u16().unwrap();
-        let lookup_index = lr.u16().unwrap();
+        let lookup_pos = lookup_base + 4 * j0 as usize;
+        let seq_index = u16_at(slice, lookup_pos);
+        let lookup_index = u16_at(slice, lookup_pos + 2);
         let index = rule.input_begins.wrapping_add(seq_index);
         let lookup = handle_from_index(lookup_index) as LookupHandle;
         rule.apply.push(ChainLookupApplication { index, lookup });
@@ -295,6 +289,16 @@ pub fn general_read_contextual_rule(
     reverse_backtracks(&mut rule);
     Some(rule)
 }
+/// The big-endian `u16` at byte `pos` of `slice`, for positions that an
+/// earlier `require_room` pass has already shown to lie inside the table.
+/// A failure here would be a bug in that pass, not bad input.
+fn u16_at(slice: &[u8], pos: usize) -> u16 {
+    FontReader::new(slice)
+        .at(pos)
+        .and_then(|mut r| r.u16())
+        .expect("the position was bounds-checked by an earlier require_room pass")
+}
+
 fn read_contextual_format1(
     slice: &[u8],
     offset: u32,
@@ -327,11 +331,7 @@ fn read_contextual_format1(
         // First pass: validate every ruleset's own header + rule-offset array.
         let mut total_rules: usize = 0;
         for j in 0..chain_sub_rule_set_count {
-            let srs_rel = FontReader::new(slice)
-                .at(offset as usize + 6 + 2 * j as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
             let srs_offset = offset.wrapping_add(u32::from(srs_rel));
             let Ok(mut srs_header) = FontReader::new(slice).at(srs_offset as usize) else {
                 break 'parse None;
@@ -349,26 +349,14 @@ fn read_contextual_format1(
         let ruleset = chaining_ruleset_mut(&mut subtable);
         ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
-            let srs_rel = FontReader::new(slice)
-                .at(offset as usize + 6 + 2 * j as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
             let srs_offset = offset.wrapping_add(u32::from(srs_rel));
-            let srs_count = FontReader::new(slice)
-                .at(srs_offset as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let srs_count = u16_at(slice, srs_offset as usize);
             for k in 0..srs_count {
                 if !budget.take_rule() {
                     break 'rulesets;
                 }
-                let sr_rel = FontReader::new(slice)
-                    .at(srs_offset as usize + 2 + 2 * k as usize)
-                    .unwrap()
-                    .u16()
-                    .unwrap();
+                let sr_rel = u16_at(slice, srs_offset as usize + 2 + 2 * k as usize);
                 let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
                 let rule_ptr = general_read_contextual_rule(
                     slice,
@@ -434,11 +422,7 @@ fn read_contextual_format2(
         // offsets.
         let mut total_rules: usize = 0;
         for j in 0..chain_sub_class_set_cnt {
-            let src_rel = FontReader::new(slice)
-                .at(offset as usize + 8 + 2 * j as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let src_rel = u16_at(slice, offset as usize + 8 + 2 * j as usize);
             if src_rel == 0 {
                 continue;
             }
@@ -458,28 +442,16 @@ fn read_contextual_format2(
         let ruleset = chaining_ruleset_mut(&mut subtable);
         ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'class_sets: for j in 0..chain_sub_class_set_cnt {
-            let src_rel = FontReader::new(slice)
-                .at(offset as usize + 8 + 2 * j as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let src_rel = u16_at(slice, offset as usize + 8 + 2 * j as usize);
             if src_rel == 0 {
                 continue;
             }
-            let srs_count = FontReader::new(slice)
-                .at(offset as usize + src_rel as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let srs_count = u16_at(slice, offset as usize + src_rel as usize);
             for k in 0..srs_count {
                 if !budget.take_rule() {
                     break 'class_sets;
                 }
-                let sr_rel = FontReader::new(slice)
-                    .at(offset as usize + src_rel as usize + 2 + 2 * k as usize)
-                    .unwrap()
-                    .u16()
-                    .unwrap();
+                let sr_rel = u16_at(slice, offset as usize + src_rel as usize + 2 + 2 * k as usize);
                 let sr_offset = offset
                     .wrapping_add(u32::from(src_rel))
                     .wrapping_add(u32::from(sr_rel));
@@ -489,7 +461,7 @@ fn read_contextual_format2(
                     j,
                     true,
                     |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
-                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().unwrap(), budget)
+                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().expect("the class definitions are set before this pass"), budget)
                     },
                     max_glyphs,
                     budget,
@@ -604,11 +576,7 @@ pub fn general_read_chaining_rule(
     // Filled in order: backtrack, the `minus_one` slot, input, lookahead.
     rule.sequence = Vec::with_capacity(match_count as usize);
     for j in 0..n_back_built {
-        let gid = FontReader::new(slice)
-            .at(offset as usize + 2 + 2 * j as usize)
-            .unwrap()
-            .u16()
-            .unwrap();
+        let gid = u16_at(slice, offset as usize + 2 + 2 * j as usize);
         rule.sequence
             .push(coverage_of(
                 slice,
@@ -634,11 +602,7 @@ pub fn general_read_chaining_rule(
     // `n_input < minus_one_q` cannot underflow.
     let input_base = offset as usize + 4 + 2 * n_back as usize;
     for j0 in 0..n_input_built {
-        let gid = FontReader::new(slice)
-            .at(input_base + 2 * j0 as usize)
-            .unwrap()
-            .u16()
-            .unwrap();
+        let gid = u16_at(slice, input_base + 2 * j0 as usize);
         rule.sequence
             .push(coverage_of(
                 slice,
@@ -651,11 +615,7 @@ pub fn general_read_chaining_rule(
     }
     let lookaround_base = input_base + 2 * n_input_read as usize + 2;
     for j1 in 0..n_lookaround_built {
-        let gid = FontReader::new(slice)
-            .at(lookaround_base + 2 * j1 as usize)
-            .unwrap()
-            .u16()
-            .unwrap();
+        let gid = u16_at(slice, lookaround_base + 2 * j1 as usize);
         rule.sequence
             .push(coverage_of(
                 slice,
@@ -670,11 +630,9 @@ pub fn general_read_chaining_rule(
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
     let apply_base = lookaround_base + 2 * n_lookaround as usize + 2;
     for j2 in 0..n_apply.min(MAX_APPLY_PER_RULE as u16) {
-        let mut lr = FontReader::new(slice)
-            .at(apply_base + 4 * j2 as usize)
-            .unwrap();
-        let seq_index = lr.u16().unwrap();
-        let lookup_index = lr.u16().unwrap();
+        let lookup_pos = apply_base + 4 * j2 as usize;
+        let seq_index = u16_at(slice, lookup_pos);
+        let lookup_index = u16_at(slice, lookup_pos + 2);
         let index = rule.input_begins.wrapping_add(seq_index);
         let lookup = handle_from_index(lookup_index) as LookupHandle;
         rule.apply.push(ChainLookupApplication { index, lookup });
@@ -713,11 +671,7 @@ fn read_chaining_format1(
 
         let mut total_rules: usize = 0;
         for j in 0..chain_sub_rule_set_count {
-            let srs_rel = FontReader::new(slice)
-                .at(offset as usize + 6 + 2 * j as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
             let srs_offset = offset.wrapping_add(u32::from(srs_rel));
             let Ok(mut srs_header) = FontReader::new(slice).at(srs_offset as usize) else {
                 break 'parse None;
@@ -734,26 +688,14 @@ fn read_chaining_format1(
         let ruleset = chaining_ruleset_mut(&mut subtable);
         ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
-            let srs_rel = FontReader::new(slice)
-                .at(offset as usize + 6 + 2 * j as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
             let srs_offset = offset.wrapping_add(u32::from(srs_rel));
-            let srs_count = FontReader::new(slice)
-                .at(srs_offset as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let srs_count = u16_at(slice, srs_offset as usize);
             for k in 0..srs_count {
                 if !budget.take_rule() {
                     break 'rulesets;
                 }
-                let sr_rel = FontReader::new(slice)
-                    .at(srs_offset as usize + 2 + 2 * k as usize)
-                    .unwrap()
-                    .u16()
-                    .unwrap();
+                let sr_rel = u16_at(slice, srs_offset as usize + 2 + 2 * k as usize);
                 let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
                 let rule_ptr = general_read_chaining_rule(
                     slice,
@@ -825,11 +767,7 @@ fn read_chaining_format2(
         // offsets.
         let mut total_rules: usize = 0;
         for j in 0..chain_sub_class_set_cnt {
-            let src_rel = FontReader::new(slice)
-                .at(offset as usize + 12 + 2 * j as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let src_rel = u16_at(slice, offset as usize + 12 + 2 * j as usize);
             if src_rel == 0 {
                 continue;
             }
@@ -849,28 +787,16 @@ fn read_chaining_format2(
         let ruleset = chaining_ruleset_mut(&mut subtable);
         ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'class_sets: for j in 0..chain_sub_class_set_cnt {
-            let src_rel = FontReader::new(slice)
-                .at(offset as usize + 12 + 2 * j as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let src_rel = u16_at(slice, offset as usize + 12 + 2 * j as usize);
             if src_rel == 0 {
                 continue;
             }
-            let srs_count = FontReader::new(slice)
-                .at(offset as usize + src_rel as usize)
-                .unwrap()
-                .u16()
-                .unwrap();
+            let srs_count = u16_at(slice, offset as usize + src_rel as usize);
             for k in 0..srs_count {
                 if !budget.take_rule() {
                     break 'class_sets;
                 }
-                let dsr_rel = FontReader::new(slice)
-                    .at(offset as usize + src_rel as usize + 2 + 2 * k as usize)
-                    .unwrap()
-                    .u16()
-                    .unwrap();
+                let dsr_rel = u16_at(slice, offset as usize + src_rel as usize + 2 + 2 * k as usize);
                 let sr_offset = offset
                     .wrapping_add(u32::from(src_rel))
                     .wrapping_add(u32::from(dsr_rel));
@@ -880,7 +806,7 @@ fn read_chaining_format2(
                     j,
                     true,
                     |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
-                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().unwrap(), budget)
+                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().expect("the class definitions are set before this pass"), budget)
                     },
                     max_glyphs,
                     budget,

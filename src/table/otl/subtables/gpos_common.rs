@@ -72,8 +72,8 @@ pub fn otl_read_mark_array(array: &mut MarkArray, cov: &Coverage, data: &[u8], o
     }
     let n = (mark_count as usize).min(cov.len());
     for glyph in cov.iter().take(n) {
-        let mark_class = r.u16().unwrap() as GlyphClass;
-        let delta = r.u16().unwrap();
+        let mark_class = r.u16().expect("require_room above covered this read") as GlyphClass;
+        let delta = r.u16().expect("require_room above covered this read");
         let anchor = if delta != 0 {
             otl_read_anchor(data, offset.wrapping_add(u32::from(delta)))
         } else {

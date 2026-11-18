@@ -98,7 +98,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
     // full, correct point capacity.
     let mut points_in_glyph: u32 = 0;
     for _ in 0..number_of_contours {
-        let last_point_in_current_contour: ShapeId = r.u16().unwrap(); // room already validated above
+        let last_point_in_current_contour: ShapeId = r.u16().expect("require_room above covered this read"); // room already validated above
         // A non-monotonic `endPtsOfContours` gives a negative length; reject
         // it rather than turn it into a huge point count.
         let n = i64::from(last_point_in_current_contour) - i64::from(points_in_glyph) + 1;
