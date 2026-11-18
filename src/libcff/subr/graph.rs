@@ -8,40 +8,37 @@ use crate::libcff::writer::{
 use crate::libcff::charstring_il::CffCharstringIl;
 use crate::libcff::OP_ENDCHAR;
 
-/// The key is header bytes, payload, then a trailing NUL; the leading
-/// `'1'`/`'2'` (singlet vs doublet) keeps the two arities from ever
-/// colliding in one table.
-fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
-    let mut key: Vec<u8> = Vec::new();
-    key.push(b'1');
-    let node = g.node(n);
-    key.push(if node.rule.is_some() { b'1' } else { b'0' });
-    key.push(b'0');
-    if let Some(r) = node.rule {
-        key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
-    } else {
-        key.extend_from_slice(&node.terminal.as_ref().expect("a node without a rule holds bytes").data);
+/// A diagram is a node (a "singlet") or a node and its successor (a
+/// "doublet"). Its key in `diagram_index` is: an arity marker (`'1'` or
+/// `'2'`, so the two never collide), one flag byte per node saying whether it
+/// is a call (`'1'`) or literal bytes (`'0'`), the payloads in order, and a
+/// trailing NUL. A call's payload is its rule's `unique_index`, a literal's
+/// is its bytes. (A singlet also carries a constant `'0'` flag byte where a
+/// doublet has its second node's flag; the layout is kept as is.)
+fn node_flag(node: &CffSubrNode) -> u8 {
+    if node.rule.is_some() { b'1' } else { b'0' }
+}
+fn push_payload(g: &CffSubrGraph, node: &CffSubrNode, key: &mut Vec<u8>) {
+    match node.rule {
+        Some(r) => key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes()),
+        None => key.extend_from_slice(
+            &node.terminal.as_ref().expect("a node without a rule holds bytes").data,
+        ),
     }
+}
+pub(super) fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
+    let node = g.node(n);
+    let mut key = vec![b'1', node_flag(node), b'0'];
+    push_payload(g, node, &mut key);
     key.push(0);
     key
 }
-fn get_doublet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
-    let mut key: Vec<u8> = Vec::new();
-    key.push(b'2');
+pub(super) fn get_doublet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     let node = g.node(n);
     let next = g.node(node.next.expect("a doublet starts at a node that has a successor"));
-    key.push(if node.rule.is_some() { b'1' } else { b'0' });
-    key.push(if next.rule.is_some() { b'1' } else { b'0' });
-    if let Some(r) = node.rule {
-        key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
-    } else {
-        key.extend_from_slice(&node.terminal.as_ref().expect("a node without a rule holds bytes").data);
-    }
-    if let Some(r) = next.rule {
-        key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
-    } else {
-        key.extend_from_slice(&next.terminal.as_ref().expect("a node without a rule holds bytes").data);
-    }
+    let mut key = vec![b'2', node_flag(node), node_flag(next)];
+    push_payload(g, node, &mut key);
+    push_payload(g, next, &mut key);
     key.push(0);
     key
 }

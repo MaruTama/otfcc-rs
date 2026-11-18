@@ -86,3 +86,30 @@ fn two_different_glyphs_with_subroutinize_on_extract_no_subroutine() {
     assert_eq!(index_count(&gs), 0);
     assert_eq!(index_count(&ls), 0);
 }
+
+// The diagram index is keyed by these bytes, so they are pinned exactly:
+// arity marker, one rule-or-bytes flag per node, the payloads, a NUL.
+#[test]
+fn diagram_hash_keys_have_the_documented_byte_layout() {
+    let mut g = CffSubrGraph::new(false);
+    let literal = g.alloc_node();
+    g.node_mut(literal).terminal = Some(Buffer::from_bytes(&[0xaa, 0xbb]));
+    let call = g.alloc_node();
+    let root = g.root;
+    g.node_mut(call).rule = Some(root);
+    g.node_mut(literal).next = Some(call);
+    let rule_id = g.rule(root).unique_index.to_ne_bytes();
+
+    // Singlet: '1', rule flag, '0', payload, NUL.
+    assert_eq!(graph::get_singlet_hash_key(&g, literal), [b'1', b'0', b'0', 0xaa, 0xbb, 0]);
+    let mut call_singlet = vec![b'1', b'1', b'0'];
+    call_singlet.extend_from_slice(&rule_id);
+    call_singlet.push(0);
+    assert_eq!(graph::get_singlet_hash_key(&g, call), call_singlet);
+
+    // Doublet: '2', both rule flags, both payloads, NUL.
+    let mut doublet = vec![b'2', b'0', b'1', 0xaa, 0xbb];
+    doublet.extend_from_slice(&rule_id);
+    doublet.push(0);
+    assert_eq!(graph::get_doublet_hash_key(&g, literal), doublet);
+}
