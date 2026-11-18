@@ -3,6 +3,39 @@ use crate::libcff::value::CffValue;
 use crate::support::fmt::format_g;
 use otfcc_binary::Buffer;
 use otfcc_binary::FontReader;
+
+// Lead bytes and ranges of the number encodings (CFF spec, Table 3 for
+// DICT integers; Type 2 charstring spec for operands).
+/// Lead byte of a 16-bit signed integer (3 bytes in all).
+const LEAD_INT16: u8 = 28;
+/// Lead byte of a 32-bit signed integer (5 bytes in all); DICT only.
+const LEAD_INT32: u8 = 29;
+/// Lead byte of a DICT real number (BCD nibbles).
+const LEAD_REAL: u8 = 30;
+/// Lead byte of a 16.16 fixed-point number (5 bytes in all); charstring only.
+const LEAD_FIXED: u8 = 255;
+/// One-byte integers: lead bytes 32..=246 stand for `b0 - SMALL_INT_BIAS`,
+/// that is -107..=107.
+const SMALL_INT_LEADS: std::ops::RangeInclusive<u8> = 32..=246;
+const SMALL_INT_BIAS: i32 = 139;
+/// Two-byte integers: lead bytes 247..=250 are positive and 251..=254
+/// negative, each lead byte covering 256 values after `WIDE_INT_BIAS`; that
+/// is 108..=1131 and -1131..=-108.
+const POSITIVE_WIDE_LEADS: std::ops::RangeInclusive<u8> = 247..=250;
+const NEGATIVE_WIDE_LEADS: std::ops::RangeInclusive<u8> = 251..=254;
+const WIDE_INT_BIAS: i32 = 108;
+const POSITIVE_WIDE_FIRST: i32 = 247;
+const NEGATIVE_WIDE_FIRST: i32 = 251;
+/// Largest magnitude of a one-byte integer (lead byte 246).
+const SMALL_INT_MAX: i32 = 246 - SMALL_INT_BIAS;
+/// Largest magnitude of a two-byte integer (four lead bytes of 256 values).
+const WIDE_INT_MAX: i32 = WIDE_INT_BIAS + 4 * 256 - 1;
+// Nibbles of a DICT real number.
+const NIBBLE_DECIMAL_POINT: u8 = 0xa;
+const NIBBLE_EXPONENT_PLUS: u8 = 0xb;
+const NIBBLE_EXPONENT_MINUS: u8 = 0xc;
+const NIBBLE_MINUS: u8 = 0xe;
+const NIBBLE_END: u8 = 0xf;
 /// Every caller passes a DICT operator, so the parameter says so. The body
 /// still works in `i32` -- unchanged arithmetic, unchanged bytes.
 pub fn encode_operator(val: CffDictOperator) -> Buffer {
@@ -14,19 +47,19 @@ pub fn encode_operator(val: CffDictOperator) -> Buffer {
     }
 }
 pub fn encode_integer(mut val: i32) -> Buffer {
-    if (-107..=107).contains(&val) {
-        Buffer::from_bytes(&[(val + 139) as u8])
-    } else if (108..=1131).contains(&val) {
-        val -= 108;
-        Buffer::from_bytes(&[((val >> 8) + 247) as u8, (val & 0xff) as u8])
-    } else if (-1131..=-108).contains(&val) {
-        val = -108 - val;
-        Buffer::from_bytes(&[((val >> 8) + 251) as u8, (val & 0xff) as u8])
-    } else if (-32768..32768_i32).contains(&val) {
-        Buffer::from_bytes(&[28, (val >> 8) as u8, (val & 0xff) as u8])
+    if (-SMALL_INT_MAX..=SMALL_INT_MAX).contains(&val) {
+        Buffer::from_bytes(&[(val + SMALL_INT_BIAS) as u8])
+    } else if (WIDE_INT_BIAS..=WIDE_INT_MAX).contains(&val) {
+        val -= WIDE_INT_BIAS;
+        Buffer::from_bytes(&[((val >> 8) + POSITIVE_WIDE_FIRST) as u8, (val & 0xff) as u8])
+    } else if (-WIDE_INT_MAX..=-WIDE_INT_BIAS).contains(&val) {
+        val = -WIDE_INT_BIAS - val;
+        Buffer::from_bytes(&[((val >> 8) + NEGATIVE_WIDE_FIRST) as u8, (val & 0xff) as u8])
+    } else if (i32::from(i16::MIN)..=i32::from(i16::MAX)).contains(&val) {
+        Buffer::from_bytes(&[LEAD_INT16, (val >> 8) as u8, (val & 0xff) as u8])
     } else {
         Buffer::from_bytes(&[
-            29,
+            LEAD_INT32,
             (val >> 24 & 0xff) as u8,
             (val >> 16 & 0xff) as u8,
             (val >> 8 & 0xff) as u8,
@@ -37,8 +70,8 @@ pub fn encode_integer(mut val: i32) -> Buffer {
 pub fn encode_float(val: f64) -> Buffer {
     let mut blob = Buffer::new();
     if val == 0.0 {
-        blob.write_u8(30);
-        blob.write_u8(0xf);
+        blob.write_u8(LEAD_REAL);
+        blob.write_u8(NIBBLE_END);
         return blob;
     }
     let text = format_g(val, 13);
@@ -48,7 +81,7 @@ pub fn encode_float(val: f64) -> Buffer {
     while i < bytes.len() {
         match bytes[i] {
             b'.' => {
-                nibbles.push(0xa);
+                nibbles.push(NIBBLE_DECIMAL_POINT);
                 i += 1;
             }
             b'0'..=b'9' => {
@@ -56,27 +89,27 @@ pub fn encode_float(val: f64) -> Buffer {
                 i += 1;
             }
             b'e' if bytes.get(i + 1) == Some(&b'-') => {
-                nibbles.push(0xc);
+                nibbles.push(NIBBLE_EXPONENT_MINUS);
                 i += 2;
             }
             b'e' if bytes.get(i + 1) == Some(&b'+') => {
-                nibbles.push(0xb);
+                nibbles.push(NIBBLE_EXPONENT_PLUS);
                 i += 2;
             }
             b'-' => {
-                nibbles.push(0xe);
+                nibbles.push(NIBBLE_MINUS);
                 i += 1;
             }
             _ => unreachable!("format_g only emits '.', digits, 'e-', 'e+' and '-'"),
         }
     }
     if !nibbles.len().is_multiple_of(2) {
-        nibbles.push(0xf);
+        nibbles.push(NIBBLE_END);
     } else {
-        nibbles.push(0xf);
-        nibbles.push(0xf);
+        nibbles.push(NIBBLE_END);
+        nibbles.push(NIBBLE_END);
     }
-    blob.write_u8(30);
+    blob.write_u8(LEAD_REAL);
     for pair in nibbles.chunks(2) {
         blob.write_u8(pair[0] * 16 + pair[1]);
     }
@@ -98,32 +131,38 @@ pub fn decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
             // 0-11 and 13-27 are all one-byte operators.
             (CffValue::Operator(i32::from(b0)), 1)
         }
-    } else if b0 == 28 {
+    } else if b0 == LEAD_INT16 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
         let i = i32::from(((i32::from(b1) << 8) | i32::from(b2)) as i16);
         (CffValue::Double(f64::from(i)), 3)
-    } else if (29..=31).contains(&b0) {
+    } else if (LEAD_INT32..=31).contains(&b0) {
+        // 29..=31 are not operands in a charstring; they are kept as
+        // one-byte operators.
         (CffValue::Operator(i32::from(b0)), 1)
-    } else if (32..=254).contains(&b0) {
-        if (32..=246).contains(&b0) {
-            (CffValue::Double(f64::from(i32::from(b0) - 139)), 1)
-        } else if (247..=250).contains(&b0) {
+    } else if b0 != LEAD_FIXED {
+        if SMALL_INT_LEADS.contains(&b0) {
+            (CffValue::Double(f64::from(i32::from(b0) - SMALL_INT_BIAS)), 1)
+        } else if POSITIVE_WIDE_LEADS.contains(&b0) {
             let b1 = r.u8().ok()?;
             (
-                CffValue::Double(f64::from((i32::from(b0) - 247) * 256 + i32::from(b1) + 108)),
+                CffValue::Double(f64::from(
+                    (i32::from(b0) - POSITIVE_WIDE_FIRST) * 256 + i32::from(b1) + WIDE_INT_BIAS,
+                )),
                 2,
             )
         } else {
-            // 251-254
+            debug_assert!(NEGATIVE_WIDE_LEADS.contains(&b0));
             let b1 = r.u8().ok()?;
             (
-                CffValue::Double(f64::from(-((i32::from(b0) - 251) * 256) - i32::from(b1) - 108)),
+                CffValue::Double(f64::from(
+                    -((i32::from(b0) - NEGATIVE_WIDE_FIRST) * 256) - i32::from(b1) - WIDE_INT_BIAS,
+                )),
                 2,
             )
         }
     } else {
-        // b0 == 255
+        // b0 == LEAD_FIXED
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
         let b3 = r.u8().ok()?;
@@ -143,23 +182,23 @@ fn cff_dec_i(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let b0 = r.u8().ok()?;
     let i: i32;
     let len: u32;
-    if (32..=246).contains(&b0) {
-        i = i32::from(b0) - 139;
+    if SMALL_INT_LEADS.contains(&b0) {
+        i = i32::from(b0) - SMALL_INT_BIAS;
         len = 1;
-    } else if (247..=250).contains(&b0) {
+    } else if POSITIVE_WIDE_LEADS.contains(&b0) {
         let b1 = r.u8().ok()?;
-        i = (i32::from(b0) - 247) * 256 + i32::from(b1) + 108;
+        i = (i32::from(b0) - POSITIVE_WIDE_FIRST) * 256 + i32::from(b1) + WIDE_INT_BIAS;
         len = 2;
-    } else if (251..=254).contains(&b0) {
+    } else if NEGATIVE_WIDE_LEADS.contains(&b0) {
         let b1 = r.u8().ok()?;
-        i = -(i32::from(b0) - 251) * 256 - i32::from(b1) - 108;
+        i = -(i32::from(b0) - NEGATIVE_WIDE_FIRST) * 256 - i32::from(b1) - WIDE_INT_BIAS;
         len = 2;
-    } else if b0 == 28 {
+    } else if b0 == LEAD_INT16 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
         i = (i32::from(b1) << 8) | i32::from(b2);
         len = 3;
-    } else if b0 == 29 {
+    } else if b0 == LEAD_INT32 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
         let b3 = r.u8().ok()?;
@@ -188,11 +227,11 @@ fn cff_dec_r(slice: &[u8], val: &mut CffValue) -> Option<u32> {
         let &byte = slice.get(nibst)?;
         let a = byte / 16;
         let b = byte % 16;
-        if a == 0xf {
+        if a == NIBBLE_END {
             break;
         }
         text.extend_from_slice(NIBBLE_SYMB[a as usize].as_bytes());
-        if b == 0xf {
+        if b == NIBBLE_END {
             break;
         }
         text.extend_from_slice(NIBBLE_SYMB[b as usize].as_bytes());
