@@ -57,6 +57,15 @@ const MAX_TOTAL_GPOS_PAIR_CLASS_CELLS: usize = 2_000_000;
 // font in this repo spends is under 30,000 cells, so 8,000,000 leaves
 // generous headroom while keeping the grids to a few hundred MB.
 pub(crate) const MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE: u32 = 8_000_000;
+/// The second glyph of the pair record at `pos`. The PairSet's `require_room`
+/// check (record count times stride) already showed every record of the set
+/// lies inside `data`, so this cannot fail on input that got that far.
+fn pair_second_glyph(data: &[u8], pos: usize) -> u16 {
+    FontReader::new(data)
+        .at(pos)
+        .and_then(|mut r| r.u16())
+        .expect("the PairSet's require_room covered every record")
+}
 pub fn otl_read_gpos_pair(
     data: &[u8],
     offset: u32,
@@ -132,11 +141,7 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
         for k in 0..pair_counts[i] {
             let second_offset = pso as usize + 2 + stride * k as usize;
             // Already validated by the pass above.
-            let second = i32::from(FontReader::new(data)
-                .at(second_offset)
-                .unwrap()
-                .u16()
-                .unwrap());
+            let second = i32::from(pair_second_glyph(data, second_offset));
             h.insert(second);
         }
     }
@@ -168,11 +173,7 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     for (j3, &pso) in pair_set_offsets.iter().enumerate() {
         for k1 in 0..pair_counts[j3] {
             let second_offset = pso as usize + 2 + stride * k1 as usize;
-            let second = i32::from(FontReader::new(data)
-                .at(second_offset)
-                .unwrap()
-                .u16()
-                .unwrap());
+            let second = i32::from(pair_second_glyph(data, second_offset));
             if let Some(idx) = h.get_index_of(&second) {
                 let cid = idx + 1;
                 first_values[j3][cid] =
@@ -284,8 +285,7 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
     };
-    let first_cd: &ClassDef = subtable.first.as_deref().unwrap();
-    let second_cd: &ClassDef = subtable.second.as_deref().unwrap();
+    let (first_cd, second_cd) = subtable.class_defs();
     let mut st = BuiltValue::new_object(3);
     st.push_field(b"first", dump_class_def(first_cd));
     st.push_field(b"second", dump_class_def(second_cd));
@@ -396,8 +396,7 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
     };
-    let first_cd: &ClassDef = subtable.first.as_deref().unwrap();
-    let second_cd: &ClassDef = subtable.second.as_deref().unwrap();
+    let (first_cd, second_cd) = subtable.class_defs();
     let mut format1: u16 = 0;
     let mut format2: u16 = 0;
     let class1_count: GlyphClass =
@@ -488,8 +487,7 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
     };
-    let first_cd: &ClassDef = subtable.first.as_deref().unwrap();
-    let second_cd: &ClassDef = subtable.second.as_deref().unwrap();
+    let (first_cd, second_cd) = subtable.class_defs();
     let mut format1: u16 = 0;
     let mut format2: u16 = 0;
     let class1_count: GlyphClass =

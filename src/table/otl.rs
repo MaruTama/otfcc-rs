@@ -198,6 +198,24 @@ pub struct GposPairSubtable {
     pub first_values: Vec<Vec<PositionValue>>,
     pub second_values: Vec<Vec<PositionValue>>,
 }
+impl GposPairSubtable {
+    /// Every `GposPairSubtable` is built with both class definitions: the
+    /// format 1 and format 2 readers and the JSON parser set `first` and
+    /// `second` before they return it.
+    pub fn class_defs(&self) -> (&ClassDef, &ClassDef) {
+        (
+            self.first.as_deref().expect(PAIR_HAS_CLASS_DEFS),
+            self.second.as_deref().expect(PAIR_HAS_CLASS_DEFS),
+        )
+    }
+    pub fn class_defs_mut(&mut self) -> (&mut ClassDef, &mut ClassDef) {
+        (
+            self.first.as_deref_mut().expect(PAIR_HAS_CLASS_DEFS),
+            self.second.as_deref_mut().expect(PAIR_HAS_CLASS_DEFS),
+        )
+    }
+}
+const PAIR_HAS_CLASS_DEFS: &str = "a GposPairSubtable is built with both class definitions";
 #[derive(Copy, Clone, Debug)]
 pub struct PositionValue {
     pub dx: Pos,

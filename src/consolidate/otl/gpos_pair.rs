@@ -14,7 +14,8 @@ pub fn consolidate_gpos_pair(
     };
     fontop_consolidate_class_def(Some(glyph_order), subtable.first.as_deref_mut());
     fontop_consolidate_class_def(Some(glyph_order), subtable.second.as_deref_mut());
-    shrink_class_def(subtable.first.as_deref_mut().unwrap());
-    shrink_class_def(subtable.second.as_deref_mut().unwrap());
-    subtable.first.as_deref().unwrap().glyphs.is_empty()
+    let (first, second) = subtable.class_defs_mut();
+    shrink_class_def(first);
+    shrink_class_def(second);
+    subtable.class_defs().0.glyphs.is_empty()
 }
