@@ -222,7 +222,7 @@ pub(crate) fn callback_draw_sethint(
     position: f64,
     width: f64,
 ) {
-    let stems: &mut StemDefList = if is_vertical as i32 != 0 {
+    let stems: &mut StemDefList = if is_vertical {
         &mut context.g.stem_v
     } else {
         &mut context.g.stem_h
@@ -245,7 +245,7 @@ pub(crate) fn callback_draw_setmask(
     is_contour_mask: bool,
     mask_array: &[bool],
 ) {
-    let mask_list: &mut MaskList = if is_contour_mask as i32 != 0 {
+    let mask_list: &mut MaskList = if is_contour_mask {
         &mut context.g.contour_masks
     } else {
         &mut context.g.hint_masks
@@ -257,7 +257,7 @@ pub(crate) fn callback_draw_setmask(
         mask_v: StemMask::default(),
     };
     if context.j_contour != 0 {
-        mask.contours_before = (context.j_contour as i32 - 1) as u16;
+        mask.contours_before = context.j_contour - 1;
     } else {
         mask.contours_before = 0;
     }
@@ -271,10 +271,8 @@ pub(crate) fn callback_draw_setmask(
         mask.mask_v.set(j, j < stem_v_len && mask_array[j + stem_h_len]);
     }
     if !mask_list.is_empty()
-        && mask_list[mask_list.len() - 1].contours_before as i32
-            == mask.contours_before as i32
-        && mask_list[mask_list.len() - 1].points_before as i32
-            == mask.points_before as i32
+        && mask_list[mask_list.len() - 1].contours_before == mask.contours_before
+        && mask_list[mask_list.len() - 1].points_before == mask.points_before
     {
         let last = mask_list.len() - 1;
         mask_list[last].mask_h = mask.mask_h;
@@ -282,9 +280,9 @@ pub(crate) fn callback_draw_setmask(
     } else {
         mask_list.push(mask);
         if is_contour_mask {
-            context.defined_contour_masks = (context.defined_contour_masks as i32 + 1) as u8;
+            context.defined_contour_masks = context.defined_contour_masks.wrapping_add(1);
         } else {
-            context.defined_hint_masks = (context.defined_hint_masks as i32 + 1) as u8;
+            context.defined_hint_masks = context.defined_hint_masks.wrapping_add(1);
         }
     };
 }
@@ -504,22 +502,10 @@ pub(super) fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Optio
             fd = &*fd.fd_array[g.fd_select.index as usize];
         }
         if let Some(fm) = fd.font_matrix.as_deref() {
-            let a: Scale = qround(
-                head.units_per_em as i32 as f64
-                    * fm.a,
-            ) as Scale;
-            let b: Scale = qround(
-                head.units_per_em as i32 as f64
-                    * fm.b,
-            ) as Scale;
-            let c: Scale = qround(
-                head.units_per_em as i32 as f64
-                    * fm.c,
-            ) as Scale;
-            let d: Scale = qround(
-                head.units_per_em as i32 as f64
-                    * fm.d,
-            ) as Scale;
+            let a: Scale = qround(f64::from(head.units_per_em) * fm.a) as Scale;
+            let b: Scale = qround(f64::from(head.units_per_em) * fm.b) as Scale;
+            let c: Scale = qround(f64::from(head.units_per_em) * fm.c) as Scale;
+            let d: Scale = qround(f64::from(head.units_per_em) * fm.d) as Scale;
             let mut x: VQ = vq_scale(fm.x.clone(), head.units_per_em as Scale);
             x.kernel = qround(x.kernel) as Pos;
             let mut y: VQ = vq_scale(fm.y.clone(), head.units_per_em as Scale);
