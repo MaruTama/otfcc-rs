@@ -92,7 +92,7 @@ pub fn otl_read_gpos_mark_to_ligature(
         }
         let mut lig_attach_offsets = Vec::with_capacity(lig_count as usize);
         for _ in 0..lig_count {
-            lig_attach_offsets.push(lig_array_offset.wrapping_add(u32::from(lr.u16().unwrap())));
+            lig_attach_offsets.push(lig_array_offset.wrapping_add(u32::from(lr.u16().expect("require_room above covered this read"))));
         }
 
         for (j, &lig_attach_offset) in lig_attach_offsets.iter().enumerate() {
@@ -133,7 +133,7 @@ pub fn otl_read_gpos_mark_to_ligature(
             for _ in 0..component_count {
                 let mut component: Vec<Anchor> = Vec::with_capacity(class_count as usize);
                 for _ in 0..class_count {
-                    let anchor_rel = ar.u16().unwrap();
+                    let anchor_rel = ar.u16().expect("require_room above covered this read");
                     if anchor_rel != 0 {
                         component.push(otl_read_anchor(
                             data,

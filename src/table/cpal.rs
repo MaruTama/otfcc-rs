@@ -116,7 +116,7 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
                 && let Ok(mut tr) = FontReader::new(data).at(offset_palette_type_array)
                     && tr.require_room(num_palettes, 4).is_ok() {
                         for p in palettes.iter_mut() {
-                            p.palette_type = tr.u32().unwrap();
+                            p.palette_type = tr.u32().expect("require_room above covered this read");
                         }
                     }
         }
@@ -128,7 +128,7 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
                 && let Ok(mut lr) = FontReader::new(data).at(offset_palette_label_array)
                     && lr.require_room(num_palettes, 2).is_ok() {
                         for p in palettes.iter_mut() {
-                            p.label = u32::from(lr.u16().unwrap());
+                            p.label = u32::from(lr.u16().expect("require_room above covered this read"));
                         }
                     }
         }
@@ -140,7 +140,7 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
                 && let Ok(mut er) = FontReader::new(data).at(offset_palette_entry_label_array)
                     && er.require_room(num_palettes_entries, 4).is_ok() {
                         for j in 0..num_palettes_entries {
-                            let label = er.u16().unwrap();
+                            let label = er.u16().expect("require_room above covered this read");
                             for p in palettes.iter_mut() {
                                 p.colorset[j].label = label;
                             }

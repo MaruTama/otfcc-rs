@@ -69,7 +69,7 @@ fn read_lig_caret_record(data: &[u8], offset: usize) -> CaretValueRecord {
         return g;
     }
     for _ in 0..caret_count {
-        let caret_rel = r.u16().unwrap();
+        let caret_rel = r.u16().expect("require_room above covered this read");
         g.carets.push(read_caret_value(data, offset + caret_rel as usize));
     }
     g

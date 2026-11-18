@@ -76,7 +76,7 @@ pub fn otl_read_gsub_multi(
 
         let mut total_outputs: u32 = 0;
         for j in 0..seq_count {
-            let seq_offset = offset.wrapping_add(u32::from(header.u16().unwrap()));
+            let seq_offset = offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read")));
             let Ok(mut sr) = FontReader::new(data).at(seq_offset as usize) else {
                 break 'parse;
             };
@@ -92,7 +92,7 @@ pub fn otl_read_gsub_multi(
             for _ in 0..n {
                 push_to_coverage(
                     &mut cov,
-                    handle_from_index(sr.u16().unwrap() as GlyphId) as GlyphHandle,
+                    handle_from_index(sr.u16().expect("require_room above covered this read") as GlyphId) as GlyphHandle,
                 );
             }
             subtable.push(GsubMultiEntry {

@@ -48,7 +48,7 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> ClassDef {
         };
         if count != 0 && r.require_room(count as usize, 2).is_ok() {
             for j in 0..count {
-                let cls = r.u16().unwrap();
+                let cls = r.u16().expect("require_room above covered this read");
                 push_class_def(
                     &mut cd,
                     handle_from_index(start_gid.wrapping_add(j)) as GlyphHandle,
@@ -70,9 +70,9 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> ClassDef {
         // a stable sort by the stored class value.
         let mut h: indexmap::IndexMap<GlyphId, GlyphClass> = indexmap::IndexMap::new();
         for _ in 0..range_count {
-            let start = r.u16().unwrap();
-            let end = r.u16().unwrap();
-            let cls = r.u16().unwrap();
+            let start = r.u16().expect("require_room above covered this read");
+            let end = r.u16().expect("require_room above covered this read");
+            let cls = r.u16().expect("require_room above covered this read");
             for k in i32::from(start)..=i32::from(end) {
                 h.entry(k as GlyphId).or_insert(cls as GlyphClass);
             }

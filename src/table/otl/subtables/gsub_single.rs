@@ -61,7 +61,7 @@ pub fn otl_read_gsub_single(
                 break 'parse;
             }
             (0..toglyphs)
-                .map(|_| handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle)
+                .map(|_| handle_from_index(header.u16().expect("require_room above covered this read") as GlyphId) as GlyphHandle)
                 .collect()
         };
 

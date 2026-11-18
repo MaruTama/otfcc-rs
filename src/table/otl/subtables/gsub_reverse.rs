@@ -54,7 +54,7 @@ pub fn otl_read_gsub_reverse(
         }
         let mut backtrack_offsets = Vec::with_capacity(n_backtrack as usize);
         for _ in 0..n_backtrack {
-            backtrack_offsets.push(offset.wrapping_add(u32::from(header.u16().unwrap())));
+            backtrack_offsets.push(offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read"))));
         }
 
         let Ok(n_forward) = header.u16() else {
@@ -65,7 +65,7 @@ pub fn otl_read_gsub_reverse(
         }
         let mut forward_offsets = Vec::with_capacity(n_forward as usize);
         for _ in 0..n_forward {
-            forward_offsets.push(offset.wrapping_add(u32::from(header.u16().unwrap())));
+            forward_offsets.push(offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read"))));
         }
 
         let Ok(n_replacement) = header.u16() else {
