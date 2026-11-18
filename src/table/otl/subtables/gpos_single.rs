@@ -18,6 +18,10 @@ use crate::table::otl::{GposSingleEntry, GposSingleSubtable, PositionValue, Subt
 use otfcc_binary::bk::block::bk_new_block_from_buffer;
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
+/// Reads a GPOS single adjustment at `offset`. Returns `None` if the header is
+/// unreadable or the coverage is empty. Format 1 gives every covered glyph the
+/// same value record; any other format is read as format 2, whose value count
+/// must equal the coverage size and fit in `data`. `_max_glyphs` is not used.
 pub fn otl_read_gpos_single(
     data: &[u8],
     offset: u32,
@@ -86,6 +90,8 @@ pub fn otl_read_gpos_single(
 
     None
 }
+/// Dumps the subtable as an object mapping each glyph name to its dumped
+/// value record. `_subtable` must be a `Subtable::GposSingle`.
 pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
@@ -96,6 +102,8 @@ pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
+/// Reads the object written by `otl_gpos_dump_single`. Always returns `Some`;
+/// entries whose value is not an object are skipped.
 pub fn otl_gpos_parse_single(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let mut subtable: GposSingleSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
@@ -110,6 +118,9 @@ pub fn otl_gpos_parse_single(_subtable: Option<&ParsedValue>) -> Option<Subtable
     }
     Some(Subtable::GposSingle(subtable))
 }
+/// Builds format 1 (one shared value record) when every entry has the same
+/// placement and advance values, and format 2 (one record per glyph)
+/// otherwise. The value format is the union of what the entries need.
 pub fn build_gpos_single(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
