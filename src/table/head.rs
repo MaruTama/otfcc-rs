@@ -6,6 +6,8 @@ use otfcc_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{from_fixed, to_fixed};
 use otfcc_json::JsonType;
+/// The `head` table, field for field as in the OpenType spec (54 bytes).
+/// `created` and `modified` are seconds since 1904-01-01, kept as `i64`.
 #[derive(Copy, Clone, Debug)]
 pub struct HeadTable {
     pub version: F16Dot16,
@@ -26,6 +28,8 @@ pub struct HeadTable {
     pub index_to_loc_format: i16,
     pub glyph_data_format: i16,
 }
+/// Decodes the fixed 54-byte layout. Fails if `data` is shorter than that;
+/// extra trailing bytes are ignored.
 fn decode_head(data: &[u8]) -> Result<HeadTable, ReadError> {
     let mut r = FontReader::new(data);
     Ok(HeadTable {
@@ -48,6 +52,8 @@ fn decode_head(data: &[u8]) -> Result<HeadTable, ReadError> {
         glyph_data_format: r.i16()?,
     })
 }
+/// Reads the first `head` table in `packet`. Returns `None` if there is none,
+/// or if it is too short to decode (a warning is logged in that case).
 pub fn read_head(packet: &Packet) -> Option<Box<HeadTable>> {
     let table = packet
         .pieces
@@ -87,6 +93,9 @@ static MAC_STYLE_LABELS: [&str; 7] = [
     "condensed",
     "extended",
 ];
+/// Writes `table` to `root["head"]` as JSON; does nothing for `None`.
+/// `checkSumAdjustment` and `magicNumber` are deliberately not dumped:
+/// the builder recomputes the first and the second is a constant.
 pub fn dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -135,6 +144,12 @@ pub fn dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     root.push_field(b"head", head);
     stage.finish();
 }
+/// Reads `root["head"]`. Always returns `Some`.
+///
+/// A missing `head` object gives the defaults (`unitsPerEm` 1000). When the
+/// object exists, every absent field is 0 -- `unitsPerEm` included, so the
+/// 1000 default does not apply. Numbers outside a field's range wrap
+/// (`as` casts), as the original otfcc does.
 pub fn parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
     // Reproduces `init_head`'s two non-zero defaults exactly:
     // `.magic_number` is never set anywhere in this function's body below
@@ -186,6 +201,9 @@ pub fn parse_head(root: &ParsedValue) -> Option<Box<HeadTable>> {
     stage.finish();
     Some(Box::new(head))
 }
+/// Serializes `head` to its 54-byte form; `None` in, `None` out.
+/// `checkSumAdjustment` is written as stored -- it is patched later, when the
+/// whole font's checksum is known.
 pub fn build_head(head: Option<&HeadTable>) -> Option<Buffer> {
     let head = head?;
     let mut buf = Buffer::new();

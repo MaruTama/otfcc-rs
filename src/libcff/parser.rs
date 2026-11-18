@@ -217,6 +217,13 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
         empty_index(&mut cff.local_subr);
     };
 }
+/// Parses a whole CFF table (`data`) into a `CffFile`, keeping a copy of the
+/// bytes in `raw_data`.
+///
+/// Never fails: the font is untrusted, so any part that is missing or
+/// out of range is left as an empty value (empty INDEX, default charset, no
+/// FDSelect) and the rest is still parsed. Callers must therefore check
+/// counts, such as `top_dict.count`, before relying on a part being present.
 pub fn open_stream(data: &[u8]) -> Box<CffFile> {
     // Every field starts as a valid empty value: `parse_cff_bytecode`
     // assigns them one by one, and a malformed font may leave some
@@ -248,6 +255,18 @@ pub fn open_stream(data: &[u8]) -> Box<CffFile> {
 }
 // Takes `&CffFdSelect` because both callers read it from a shared
 // `CffFile` once per glyph.
+/// Finds the local subroutine INDEX for glyph `idx` and stores it in `subr`;
+/// returns the glyph's FD index.
+///
+/// The FD comes from `select` (FD 0 when there is no FDSelect). If it is
+/// outside `fdarray`, or its Private DICT is missing or does not fit in
+/// `raw`, or it has no `Subrs` entry, `subr` is set to an empty INDEX (the
+/// returned FD is still the one selected).
+///
+/// `idx` must be below the number of glyphs `select` was read for: a
+/// `Format0` FDSelect is indexed directly and panics when `idx` is past its
+/// end. `raw` is the whole CFF table, because Private DICT offsets are
+/// relative to its start.
 pub fn parse_subr(
     idx: u16,
     raw: &[u8],
@@ -348,6 +367,9 @@ pub(crate) fn locate_subr(subr_index: &CffIndex, bias: u16, subr: i32) -> Option
     let data_len = (end - start) as usize;
     subr_index.data.get(data_offset..)?.get(..data_len)
 }
+/// The bias a subroutine INDEX of `cnt` entries adds to a `callsubr` operand
+/// (CFF2 spec, "Subroutine Index"): 107 below 1240 subroutines, 1131 below
+/// 33900, and 32768 from there.
 pub(crate) fn compute_subr_bias(cnt: u16) -> u16 {
     if i32::from(cnt) < 1240 {
         107
