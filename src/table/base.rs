@@ -83,7 +83,7 @@ fn read_base_script(
     let mut base_values: Vec<BaseValue> = Vec::with_capacity(base_values_count as usize);
     for j in 0..base_values_count {
         let tag = base_tag_list[j as usize];
-        let val_offset = r2.u16().unwrap();
+        let val_offset = r2.u16().expect("require_room above covered one u16 per base value");
         let coordinate = if val_offset != 0 {
             Pos::from(read_base_value(data, base_values_offset + val_offset as usize))
         } else {
@@ -111,7 +111,7 @@ fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
     tl.require_room(n_base_tags as usize, 4).ok()?;
     let mut base_tag_list: Vec<u32> = Vec::with_capacity(n_base_tags as usize);
     for _ in 0..n_base_tags {
-        base_tag_list.push(tl.u32().unwrap());
+        base_tag_list.push(tl.u32().expect("require_room above covered one u32 per base tag"));
     }
     let base_script_list_offset = offset + base_script_list_rel as usize;
     let mut sl = FontReader::new(data).at(base_script_list_offset).ok()?;
@@ -119,8 +119,8 @@ fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
     sl.require_room(n_base_scripts as usize, 6).ok()?;
     let mut entries: Vec<BaseScriptEntry> = Vec::with_capacity(n_base_scripts as usize);
     for _ in 0..n_base_scripts {
-        let tag = sl.u32().unwrap();
-        let base_script_rel = sl.u16().unwrap();
+        let tag = sl.u32().expect("require_room above covered a 6-byte record per script");
+        let base_script_rel = sl.u16().expect("require_room above covered a 6-byte record per script");
         if base_script_rel != 0 {
             let (default_baseline_tag, base_values) = read_base_script(
                 data,
@@ -223,7 +223,7 @@ fn base_script_from_json(sr: Option<&ParsedValue>) -> (u32, Vec<BaseValue>) {
     let Some(basevalues) = sr.and_then(|v| v.get_typed(b"baselines", JsonType::Object)) else {
         return (default_baseline_tag, Vec::new());
     };
-    let fields = basevalues.as_object().unwrap();
+    let fields = basevalues.as_object().expect("get_typed returned an Object");
     let mut base_values: Vec<BaseValue> = Vec::with_capacity(fields.len());
     for (key, val) in fields {
         base_values.push(BaseValue {

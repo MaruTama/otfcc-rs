@@ -226,6 +226,8 @@ pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
     stage.finish();
     Some(tsi)
 }
+/// `build_tsi` creates both buffers before it calls `push_tsi_entries`.
+const BOTH_PARTS: &str = "build_tsi creates both buffers before pushing entries";
 // The reserved glyph ids TSI uses for the non-glyph entries. `entry` is
 // only needed for `Glyph`, and `push_tsi_entries` only passes `None` from
 // its `min_n` padding loop, which never runs for `Glyph` (`min_n` is 0
@@ -236,7 +238,7 @@ fn propergid(entry: Option<&TsiEntry>, kind: TsiEntryType) -> GlyphId {
         TsiEntryType::Fpgm => 0xfffd as GlyphId,
         TsiEntryType::Prep => 0xfffa as GlyphId,
         TsiEntryType::ReservedFffc => 0xfffc as GlyphId,
-        TsiEntryType::Glyph => entry.unwrap().glyph.index,
+        TsiEntryType::Glyph => entry.expect("a Glyph entry is always passed with its entry").glyph.index,
     }
 }
 fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, kind: TsiEntryType, min_n: GlyphId) {
@@ -245,10 +247,10 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, kind: TsiEntryT
         if entry.kind != kind {
             continue;
         }
-        let length_sofar = target.text_part.as_ref().unwrap().pos();
-        target.text_part.as_mut().unwrap().write_bytes(&entry.content);
-        let length_after = target.text_part.as_ref().unwrap().pos();
-        let index_part = target.index_part.as_mut().unwrap();
+        let length_sofar = target.text_part.as_ref().expect(BOTH_PARTS).pos();
+        target.text_part.as_mut().expect(BOTH_PARTS).write_bytes(&entry.content);
+        let length_after = target.text_part.as_ref().expect(BOTH_PARTS).pos();
+        let index_part = target.index_part.as_mut().expect(BOTH_PARTS);
         index_part.write_u16be(propergid(Some(entry), kind) as u16);
         if length_after.wrapping_sub(length_sofar) < 0x8000 {
             index_part.write_u16be(length_after.wrapping_sub(length_sofar) as u16);
@@ -259,8 +261,8 @@ fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, kind: TsiEntryT
         items_pushed = (i32::from(items_pushed) + 1) as GlyphId;
     }
     for _ in items_pushed..min_n {
-        let text_pos = target.text_part.as_ref().unwrap().pos();
-        let index_part = target.index_part.as_mut().unwrap();
+        let text_pos = target.text_part.as_ref().expect(BOTH_PARTS).pos();
+        let index_part = target.index_part.as_mut().expect(BOTH_PARTS);
         index_part.write_u16be(propergid(None, kind) as u16);
         index_part.write_u16be(0);
         index_part.write_u32be(text_pos as u32);
@@ -278,7 +280,7 @@ pub fn build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
         text_part: Some(Buffer::new()),
     };
     push_tsi_entries(&mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
-    let index_part = target.index_part.as_mut().unwrap();
+    let index_part = target.index_part.as_mut().expect(BOTH_PARTS);
     index_part.write_u16be(0xfffe);
     index_part.write_u16be(0);
     index_part.write_u32be(0xabfc1f34);
