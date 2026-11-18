@@ -1,16 +1,16 @@
+use crate::support::primitives::Pos;
 use otfcc_binary::FontReader;
 use otfcc_json::ParsedValue;
-use crate::support::primitives::Pos;
 
 use crate::font::sfnt::Packet;
-use otfcc_json::BuiltValue;
 use crate::support::primitives::from_fixed;
 use crate::vf::axis::{VfAxes, VfAxis};
-use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::region::vq_axis_span_is_one;
+use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_get_still};
 use crate::vf::vv::VV;
+use otfcc_json::BuiltValue;
 use std::rc::Rc;
 #[derive(Debug)]
 pub struct FvarInstance {
@@ -82,7 +82,10 @@ pub(crate) fn fvar_register_region(fvar: &mut FvarTable, region: Box<VqRegion>) 
     fvar.masters.insert(key, FvarMaster { name, region });
     canonical
 }
-fn fvar_find_master_by_region<'a>(fvar: &'a FvarTable, region: &VqRegion) -> Option<&'a FvarMaster> {
+fn fvar_find_master_by_region<'a>(
+    fvar: &'a FvarTable,
+    region: &VqRegion,
+) -> Option<&'a FvarMaster> {
     let key = RegionKey::from_region(region);
     fvar.masters.get(&key)
 }
@@ -118,8 +121,7 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
     let instance_count = h.u16().ok()?;
     let instance_size = h.u16().ok()?;
 
-    let instance_size_without_psnid =
-        4usize.checked_add((axis_count as usize).checked_mul(4)?)?;
+    let instance_size_without_psnid = 4usize.checked_add((axis_count as usize).checked_mul(4)?)?;
     let instance_size_with_psnid = instance_size_without_psnid.checked_add(2)?;
     if instance_size as usize != instance_size_without_psnid
         && instance_size as usize != instance_size_with_psnid
@@ -129,7 +131,9 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
 
     let axes_bytes = AXIS_RECORD_SIZE.checked_mul(axis_count as usize)?;
     let instances_bytes = (instance_size as usize).checked_mul(instance_count as usize)?;
-    let total_needed = axes_array_offset.checked_add(axes_bytes)?.checked_add(instances_bytes)?;
+    let total_needed = axes_array_offset
+        .checked_add(axes_bytes)?
+        .checked_add(instances_bytes)?;
     if data.len() < total_needed {
         return None;
     }
@@ -168,7 +172,11 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
             coordinates.push(from_fixed(v) as Pos);
         }
         coordinates.shrink_to_fit();
-        let post_script_name_id = if has_postscript_name_id { r.u16().ok()? } else { 0 };
+        let post_script_name_id = if has_postscript_name_id {
+            r.u16().ok()?
+        } else {
+            0
+        };
         instances.push(FvarInstance {
             subfamily_name_id,
             flags,
@@ -188,7 +196,10 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
     })
 }
 pub fn read_fvar(packet: &Packet) -> Option<Box<FvarTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_FVAR)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_FVAR)?;
     match parse_fvar(&table.data) {
         Some(fvar) => Some(Box::new(fvar)),
         None => {
@@ -228,10 +239,7 @@ pub fn dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
             );
         }
         _instance.push_field(b"flags", BuiltValue::Int(i64::from(instance.flags)));
-        _instance.push_field(
-            b"coordinates",
-            json_new_v_vp(&instance.coordinates, table),
-        );
+        _instance.push_field(b"coordinates", json_new_v_vp(&instance.coordinates, table));
         _instances.push_item(_instance);
     }
     t.push_field(b"instances", _instances);
@@ -476,7 +484,11 @@ mod fvar_register_region_tests {
     #[test]
     fn two_content_identical_regions_coalesce_into_one_master() {
         let mut fvar = empty_fvar_table();
-        let span = VqAxisSpan { start: -1.0, peak: 0.0, end: 1.0 };
+        let span = VqAxisSpan {
+            start: -1.0,
+            peak: 0.0,
+            end: 1.0,
+        };
         let region_a = region_with_spans(vec![span]);
         let region_b = region_with_spans(vec![span]);
         let canonical_a = fvar_register_region(&mut fvar, region_a);
@@ -490,8 +502,16 @@ mod fvar_register_region_tests {
     #[test]
     fn content_distinct_regions_register_separately() {
         let mut fvar = empty_fvar_table();
-        let region_a = region_with_spans(vec![VqAxisSpan { start: -1.0, peak: 0.0, end: 1.0 }]);
-        let region_b = region_with_spans(vec![VqAxisSpan { start: 0.0, peak: 1.0, end: 1.0 }]);
+        let region_a = region_with_spans(vec![VqAxisSpan {
+            start: -1.0,
+            peak: 0.0,
+            end: 1.0,
+        }]);
+        let region_b = region_with_spans(vec![VqAxisSpan {
+            start: 0.0,
+            peak: 1.0,
+            end: 1.0,
+        }]);
         let canonical_a = fvar_register_region(&mut fvar, region_a);
         let canonical_b = fvar_register_region(&mut fvar, region_b);
         assert!(!Rc::ptr_eq(&canonical_a, &canonical_b));

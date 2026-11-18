@@ -1,7 +1,7 @@
-use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::dump_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_const};
 use crate::table::otl::{ChainingRule, Subtable};
+use otfcc_json::BuiltValue;
 
 pub fn otl_dump_chaining(_subtable: &Subtable) -> BuiltValue {
     let Subtable::Chaining(subtable) = _subtable else {
@@ -30,7 +30,10 @@ pub fn otl_dump_chaining(_subtable: &Subtable) -> BuiltValue {
         _apply.push_item(_application);
     }
     _st.push_field(b"apply", _apply.preserialize());
-    _st.push_field(b"inputBegins", BuiltValue::Int(i64::from(rule.input_begins)));
+    _st.push_field(
+        b"inputBegins",
+        BuiltValue::Int(i64::from(rule.input_begins)),
+    );
     _st.push_field(b"inputEnds", BuiltValue::Int(i64::from(rule.input_ends)));
     _st
 }

@@ -1,18 +1,18 @@
-use otfcc_rust::logger::ByteStr;
 use otfcc_binary::Buffer;
+use otfcc_rust::logger::ByteStr;
 use otfcc_rust::support::options::Options;
 
+use otfcc_cli::EXIT_FAILURE;
+use otfcc_cli::getopt::{GetoptItem, LongOpt, getopt_long};
+use otfcc_cli::stopwatch::log_step_time;
+use otfcc_cli::{print_version_info, report_getopt_error, start_logging};
+use otfcc_json::ParsedValue;
+use otfcc_json::parse_json;
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::model::Font;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::otf_writer::serialize_to_otf;
-use otfcc_cli::getopt::{GetoptItem, LongOpt, getopt_long};
-use otfcc_cli::{print_version_info, report_getopt_error, start_logging};
 use otfcc_rust::support::options::options_optimize_to;
-use otfcc_json::ParsedValue;
-use otfcc_json::parse_json;
-use otfcc_cli::stopwatch::log_step_time;
-use otfcc_cli::EXIT_FAILURE;
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
@@ -86,34 +86,126 @@ fn parse_args(args: &[String]) -> BuildArgs {
     const OPT_SHIP: i32 = 269;
     const OPT_VERBOSE: i32 = 270;
     const LONGOPTS: &[LongOpt] = &[
-        LongOpt { name: "version", has_arg: false, val: OPT_VERSION },
-        LongOpt { name: "help", has_arg: false, val: OPT_HELP },
-        LongOpt { name: "time", has_arg: false, val: OPT_TIME },
-        LongOpt { name: "ignore-glyph-order", has_arg: false, val: OPT_IGNORE_GLYPH_ORDER },
-        LongOpt { name: "keep-glyph-order", has_arg: false, val: OPT_KEEP_GLYPH_ORDER },
-        LongOpt { name: "dont-ignore-glyph-order", has_arg: false, val: OPT_KEEP_GLYPH_ORDER },
-        LongOpt { name: "ignore-hints", has_arg: false, val: OPT_IGNORE_HINTS },
+        LongOpt {
+            name: "version",
+            has_arg: false,
+            val: OPT_VERSION,
+        },
+        LongOpt {
+            name: "help",
+            has_arg: false,
+            val: OPT_HELP,
+        },
+        LongOpt {
+            name: "time",
+            has_arg: false,
+            val: OPT_TIME,
+        },
+        LongOpt {
+            name: "ignore-glyph-order",
+            has_arg: false,
+            val: OPT_IGNORE_GLYPH_ORDER,
+        },
+        LongOpt {
+            name: "keep-glyph-order",
+            has_arg: false,
+            val: OPT_KEEP_GLYPH_ORDER,
+        },
+        LongOpt {
+            name: "dont-ignore-glyph-order",
+            has_arg: false,
+            val: OPT_KEEP_GLYPH_ORDER,
+        },
+        LongOpt {
+            name: "ignore-hints",
+            has_arg: false,
+            val: OPT_IGNORE_HINTS,
+        },
         LongOpt {
             name: "keep-average-char-width",
             has_arg: false,
             val: OPT_KEEP_AVERAGE_CHAR_WIDTH,
         },
-        LongOpt { name: "keep-unicode-ranges", has_arg: false, val: OPT_KEEP_UNICODE_RANGES },
-        LongOpt { name: "keep-modified-time", has_arg: false, val: OPT_KEEP_MODIFIED_TIME },
-        LongOpt { name: "merge-lookups", has_arg: false, val: OPT_MERGE_LOOKUPS },
-        LongOpt { name: "merge-features", has_arg: false, val: OPT_MERGE_FEATURES },
-        LongOpt { name: "dont-merge-lookups", has_arg: false, val: OPT_DONT_MERGE_LOOKUPS },
-        LongOpt { name: "dont-merge-features", has_arg: false, val: OPT_DONT_MERGE_FEATURES },
-        LongOpt { name: "short-post", has_arg: false, val: OPT_SHORT_POST },
-        LongOpt { name: "force-cid", has_arg: false, val: OPT_FORCE_CID },
-        LongOpt { name: "subroutinize", has_arg: false, val: OPT_SUBROUTINIZE },
-        LongOpt { name: "stub-cmap4", has_arg: false, val: OPT_STUB_CMAP4 },
-        LongOpt { name: "dummy-dsig", has_arg: false, val: OPT_DUMMY_DSIG },
-        LongOpt { name: "ship", has_arg: false, val: OPT_SHIP },
-        LongOpt { name: "verbose", has_arg: false, val: OPT_VERBOSE },
-        LongOpt { name: "quiet", has_arg: false, val: OPT_QUIET },
-        LongOpt { name: "optimize", has_arg: true, val: OPT_OPTIMIZE },
-        LongOpt { name: "output", has_arg: true, val: OPT_OUTPUT },
+        LongOpt {
+            name: "keep-unicode-ranges",
+            has_arg: false,
+            val: OPT_KEEP_UNICODE_RANGES,
+        },
+        LongOpt {
+            name: "keep-modified-time",
+            has_arg: false,
+            val: OPT_KEEP_MODIFIED_TIME,
+        },
+        LongOpt {
+            name: "merge-lookups",
+            has_arg: false,
+            val: OPT_MERGE_LOOKUPS,
+        },
+        LongOpt {
+            name: "merge-features",
+            has_arg: false,
+            val: OPT_MERGE_FEATURES,
+        },
+        LongOpt {
+            name: "dont-merge-lookups",
+            has_arg: false,
+            val: OPT_DONT_MERGE_LOOKUPS,
+        },
+        LongOpt {
+            name: "dont-merge-features",
+            has_arg: false,
+            val: OPT_DONT_MERGE_FEATURES,
+        },
+        LongOpt {
+            name: "short-post",
+            has_arg: false,
+            val: OPT_SHORT_POST,
+        },
+        LongOpt {
+            name: "force-cid",
+            has_arg: false,
+            val: OPT_FORCE_CID,
+        },
+        LongOpt {
+            name: "subroutinize",
+            has_arg: false,
+            val: OPT_SUBROUTINIZE,
+        },
+        LongOpt {
+            name: "stub-cmap4",
+            has_arg: false,
+            val: OPT_STUB_CMAP4,
+        },
+        LongOpt {
+            name: "dummy-dsig",
+            has_arg: false,
+            val: OPT_DUMMY_DSIG,
+        },
+        LongOpt {
+            name: "ship",
+            has_arg: false,
+            val: OPT_SHIP,
+        },
+        LongOpt {
+            name: "verbose",
+            has_arg: false,
+            val: OPT_VERBOSE,
+        },
+        LongOpt {
+            name: "quiet",
+            has_arg: false,
+            val: OPT_QUIET,
+        },
+        LongOpt {
+            name: "optimize",
+            has_arg: true,
+            val: OPT_OPTIMIZE,
+        },
+        LongOpt {
+            name: "output",
+            has_arg: true,
+            val: OPT_OUTPUT,
+        },
     ];
     let (items, positionals) = getopt_long(args, "vhqskiO:o:", LONGOPTS);
     for item in items {
@@ -199,9 +291,10 @@ fn run(args: Vec<String>) -> i32 {
     if invalid_argument {
         return EXIT_FAILURE;
     }
-    let in_path: Option<::std::ffi::CString> = positionals.into_iter().next().map(|p| {
-        ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte")
-    });
+    let in_path: Option<::std::ffi::CString> = positionals
+        .into_iter()
+        .next()
+        .map(|p| ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte"));
     if output_path.is_none() {
         tracing::error!("Unable to build OpenType font tile : output path not specified. Exit.\n");
         print_help();
@@ -211,7 +304,10 @@ fn run(args: Vec<String>) -> i32 {
     let stage = otfcc_rust::logger::stage("Load file");
     {
         if let Some(ref in_path) = in_path {
-            let substage = otfcc_rust::logger::stage(format_args!("Load from file {}", ByteStr(in_path.as_bytes())));
+            let substage = otfcc_rust::logger::stage(format_args!(
+                "Load from file {}",
+                ByteStr(in_path.as_bytes())
+            ));
             {
                 let Some(b) = read_entire_file(in_path.as_c_str()) else {
                     return EXIT_FAILURE;
@@ -235,7 +331,15 @@ fn run(args: Vec<String>) -> i32 {
         json_root = parse_json(&buffer);
         log_step_time(&mut begin);
         if json_root.is_none() {
-            tracing::error!("Cannot parse JSON file \"{}\". Exit.\n", ByteStr(in_path.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
+            tracing::error!(
+                "Cannot parse JSON file \"{}\". Exit.\n",
+                ByteStr(
+                    in_path
+                        .as_deref()
+                        .map(::std::ffi::CStr::to_bytes)
+                        .unwrap_or(b"")
+                )
+            );
             return EXIT_FAILURE;
         }
         stage.finish();
@@ -245,7 +349,15 @@ fn run(args: Vec<String>) -> i32 {
     {
         font = read_json(json_root.as_mut().unwrap(), &options);
         if font.is_none() {
-            tracing::error!("Cannot parse JSON file \"{}\" as a font. Exit.\n", ByteStr(in_path.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b"")));
+            tracing::error!(
+                "Cannot parse JSON file \"{}\" as a font. Exit.\n",
+                ByteStr(
+                    in_path
+                        .as_deref()
+                        .map(::std::ffi::CStr::to_bytes)
+                        .unwrap_or(b"")
+                )
+            );
             return EXIT_FAILURE;
         }
         drop(json_root.take());
@@ -274,7 +386,10 @@ fn run(args: Vec<String>) -> i32 {
             let output_path = output_path.as_ref().unwrap();
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
             if std::fs::write(std::path::Path::new(os_path), &otf.data).is_err() {
-                tracing::error!("Cannot write to file \"{}\". Exit.\n", ByteStr(output_path.as_bytes()));
+                tracing::error!(
+                    "Cannot write to file \"{}\". Exit.\n",
+                    ByteStr(output_path.as_bytes())
+                );
                 return EXIT_FAILURE;
             }
             substage.finish();

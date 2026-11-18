@@ -1,6 +1,5 @@
-
-use otfcc_binary::Buffer;
 use crate::support::options::Options;
+use otfcc_binary::Buffer;
 
 use crate::consolidate::consolidate_font;
 use crate::json_reader::read_json;

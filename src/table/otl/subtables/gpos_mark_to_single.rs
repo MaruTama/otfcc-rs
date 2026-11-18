@@ -1,17 +1,9 @@
 use crate::logger::ByteStr;
-use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_name,
-};
-use otfcc_json::ParsedValue;
+use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_json::ParsedValue;
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
@@ -22,6 +14,12 @@ use crate::table::otl::subtables::gpos_common::{
 use crate::table::otl::{
     Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable,
 };
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 // `2 * bases.len() * class_count` (the BaseArray's byte-length guard) is a
 // real, previously-undocumented overflow-defeats-guard bug: `bases.len()`
@@ -67,8 +65,16 @@ pub fn otl_read_gpos_mark_to_single(
             break 'parse;
         };
 
-        let marks: Coverage = read_coverage(data, subtable_offset.wrapping_add(u32::from(marks_rel)), budget);
-        let bases: Coverage = read_coverage(data, subtable_offset.wrapping_add(u32::from(bases_rel)), budget);
+        let marks: Coverage = read_coverage(
+            data,
+            subtable_offset.wrapping_add(u32::from(marks_rel)),
+            budget,
+        );
+        let bases: Coverage = read_coverage(
+            data,
+            subtable_offset.wrapping_add(u32::from(bases_rel)),
+            budget,
+        );
         if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
@@ -109,7 +115,9 @@ pub fn otl_read_gpos_mark_to_single(
             }
             let mut base_anchors: Vec<Anchor> = Vec::with_capacity(class_count as usize);
             for _ in 0..class_count {
-                let anchor_rel = base_reader.u16().expect("require_room above covered this read");
+                let anchor_rel = base_reader
+                    .u16()
+                    .expect("require_room above covered this read");
                 if anchor_rel != 0 {
                     base_anchors.push(otl_read_anchor(
                         data,
@@ -198,11 +206,14 @@ fn parse_bases(
                     let class_name = &name_key[..name_key.len() - 1];
                     match h.get(class_name) {
                         None => {
-                            tracing::warn!("[OTFCC-fea] Invalid anchor class name <{}> for /{}. This base anchor is ignored.\n", ByteStr(class_name), ByteStr(gname));
+                            tracing::warn!(
+                                "[OTFCC-fea] Invalid anchor class name <{}> for /{}. This base anchor is ignored.\n",
+                                ByteStr(class_name),
+                                ByteStr(gname)
+                            );
                         }
                         Some(&class_id) => {
-                            base.anchors[class_id as usize] =
-                                otl_parse_anchor(Some(val));
+                            base.anchors[class_id as usize] = otl_parse_anchor(Some(val));
                         }
                     }
                 }
@@ -211,9 +222,7 @@ fn parse_bases(
         }
     }
 }
-pub fn otl_gpos_parse_mark_to_single(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gpos_parse_mark_to_single(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let marks = _subtable.and_then(|v| v.get_typed(b"marks", JsonType::Object));
     let bases = _subtable.and_then(|v| v.get_typed(b"bases", JsonType::Object));
     let (Some(marks), Some(bases)) = (marks, bases) else {
@@ -230,10 +239,7 @@ pub fn otl_gpos_parse_mark_to_single(
         base_array,
     }))
 }
-pub fn build_gpos_mark_to_single(
-    _subtable: &Subtable,
-    mut _heuristics: BuildHeuristics,
-) -> Buffer {
+pub fn build_gpos_mark_to_single(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GposMarkToSingle(subtable) = _subtable else {
         unreachable!()
     };
@@ -255,10 +261,7 @@ pub fn build_gpos_mark_to_single(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&bases))),
         ),
-        bk_int(
-            BkCellType::B16,
-            i32::from(subtable.class_count) as u32,
-        ),
+        bk_int(BkCellType::B16, i32::from(subtable.class_count) as u32),
     ]);
     let mut mark_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
@@ -401,7 +404,10 @@ mod otl_read_gpos_mark_to_single_tests {
         // the shared budget first) rather than by constructing multiple
         // real subtables, which is exactly equivalent from this function's
         // point of view (it only ever sees the budget's current value).
-        let mut budget = OtlReadBudget { mark_attach_anchors: 3, ..OtlReadBudget::new() };
+        let mut budget = OtlReadBudget {
+            mark_attach_anchors: 3,
+            ..OtlReadBudget::new()
+        };
         let data = many_bases_data(10, 1);
         let result = otl_read_gpos_mark_to_single(&data, 0, 0, &mut budget);
         let Some(Subtable::GposMarkToSingle(ref subtable)) = result else {

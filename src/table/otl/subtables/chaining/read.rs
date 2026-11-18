@@ -1,8 +1,6 @@
-use crate::support::handle::{
-    GlyphHandle, LookupHandle, handle_from_index,
-};
-use crate::table::otl::classdef::{ClassDef, read_class_def};
+use crate::support::handle::{GlyphHandle, LookupHandle, handle_from_index};
 use crate::table::otl::budget::OtlReadBudget;
+use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use otfcc_binary::FontReader;
@@ -193,10 +191,7 @@ pub fn class_coverage(
         let mut j_2: GlyphId = 0 as GlyphId;
         while (j_2 as usize) < cd.glyphs.len() && budget.class_zero_left() {
             if i32::from(cd.classes[j_2 as usize]) == i32::from(cls) {
-                push_to_coverage(
-                    &mut cov,
-                    cd.glyphs[j_2 as usize].clone(),
-                );
+                push_to_coverage(&mut cov, cd.glyphs[j_2 as usize].clone());
             }
             budget.charge_class_zero();
             j_2 = j_2.wrapping_add(1);
@@ -212,7 +207,11 @@ pub fn format3_coverage(
     _max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Coverage {
-    read_coverage(data, _offset.wrapping_add(u32::from(shift)).wrapping_sub(2), budget)
+    read_coverage(
+        data,
+        _offset.wrapping_add(u32::from(shift)).wrapping_sub(2),
+        budget,
+    )
 }
 // The `FontReader` reads and `require_room` checks below never reserve
 // bytes the following reads do not use.
@@ -253,27 +252,25 @@ pub fn general_read_contextual_rule(
     // Filled in order: the `minus_one` slot first, then the rest.
     rule.sequence = Vec::with_capacity(rule.match_count as usize);
     if minus_one {
-        rule.sequence
-            .push(coverage_of(
-                slice,
-                start_gid,
-                offset,
-                ContextKind::Input,
-                max_glyphs,
-                budget,
-            ));
+        rule.sequence.push(coverage_of(
+            slice,
+            start_gid,
+            offset,
+            ContextKind::Input,
+            max_glyphs,
+            budget,
+        ));
     }
     for j in 0..n_input_built {
         let gid = u16_at(slice, offset as usize + 4 + 2 * j as usize);
-        rule.sequence
-            .push(coverage_of(
-                slice,
-                gid,
-                offset,
-                ContextKind::Input,
-                max_glyphs,
-                budget,
-            ));
+        rule.sequence.push(coverage_of(
+            slice,
+            gid,
+            offset,
+            ContextKind::Input,
+            max_glyphs,
+            budget,
+        ));
     }
 
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
@@ -384,7 +381,11 @@ fn read_contextual_format1(
         break 'parse Some(());
     };
 
-    if result.is_some() { Some(subtable) } else { None }
+    if result.is_some() {
+        Some(subtable)
+    } else {
+        None
+    }
 }
 fn read_contextual_format2(
     slice: &[u8],
@@ -414,7 +415,10 @@ fn read_contextual_format2(
 
         cds = Some(ClassDefs {
             bc: None,
-            ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(u32::from(ic_rel))))),
+            ic: Some(Box::new(read_class_def(
+                slice,
+                offset.wrapping_add(u32::from(ic_rel)),
+            ))),
             fc: None,
         });
 
@@ -451,7 +455,10 @@ fn read_contextual_format2(
                 if !budget.take_rule() {
                     break 'class_sets;
                 }
-                let sr_rel = u16_at(slice, offset as usize + src_rel as usize + 2 + 2 * k as usize);
+                let sr_rel = u16_at(
+                    slice,
+                    offset as usize + src_rel as usize + 2 + 2 * k as usize,
+                );
                 let sr_offset = offset
                     .wrapping_add(u32::from(src_rel))
                     .wrapping_add(u32::from(sr_rel));
@@ -461,7 +468,16 @@ fn read_contextual_format2(
                     j,
                     true,
                     |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
-                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().expect("the class definitions are set before this pass"), budget)
+                        class_coverage(
+                            slice,
+                            cls,
+                            offset,
+                            kind,
+                            max_glyphs,
+                            cds.as_ref()
+                                .expect("the class definitions are set before this pass"),
+                            budget,
+                        )
                     },
                     max_glyphs,
                     budget,
@@ -483,7 +499,11 @@ fn read_contextual_format2(
         break 'parse Some(());
     };
 
-    if result.is_some() { Some(subtable) } else { None }
+    if result.is_some() {
+        Some(subtable)
+    } else {
+        None
+    }
 }
 pub fn otl_read_contextual(
     data: &[u8],
@@ -494,9 +514,10 @@ pub fn otl_read_contextual(
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
     let mut format: u16 = 0;
     if let Ok(mut r) = FontReader::new(data).at(offset as usize)
-        && let Ok(f) = r.u16() {
-            format = f;
-        }
+        && let Ok(f) = r.u16()
+    {
+        format = f;
+    }
     match format {
         1 => {
             return read_contextual_format1(data, offset, max_glyphs, subtable, budget)
@@ -564,7 +585,9 @@ pub fn general_read_chaining_rule(
     let n_input_built = n_input_read.min(MAX_POSITIONS_PER_RULE);
     let n_lookaround_built = n_lookaround.min(MAX_POSITIONS_PER_RULE);
     let input_begins = n_back_built;
-    let input_ends = n_back_built.wrapping_add(minus_one_q).wrapping_add(n_input_built);
+    let input_ends = n_back_built
+        .wrapping_add(minus_one_q)
+        .wrapping_add(n_input_built);
     let match_count = input_ends.wrapping_add(n_lookaround_built);
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
         match_count: match_count as TableId,
@@ -577,54 +600,50 @@ pub fn general_read_chaining_rule(
     rule.sequence = Vec::with_capacity(match_count as usize);
     for j in 0..n_back_built {
         let gid = u16_at(slice, offset as usize + 2 + 2 * j as usize);
-        rule.sequence
-            .push(coverage_of(
-                slice,
-                gid,
-                offset,
-                ContextKind::Backtrack,
-                max_glyphs,
-                budget,
-            ));
+        rule.sequence.push(coverage_of(
+            slice,
+            gid,
+            offset,
+            ContextKind::Backtrack,
+            max_glyphs,
+            budget,
+        ));
     }
     if minus_one {
-        rule.sequence
-            .push(coverage_of(
-                slice,
-                start_gid,
-                offset,
-                ContextKind::Input,
-                max_glyphs,
-                budget,
-            ));
+        rule.sequence.push(coverage_of(
+            slice,
+            start_gid,
+            offset,
+            ContextKind::Input,
+            max_glyphs,
+            budget,
+        ));
     }
     // Array positions from the counts as read, by addition, so a malformed
     // `n_input < minus_one_q` cannot underflow.
     let input_base = offset as usize + 4 + 2 * n_back as usize;
     for j0 in 0..n_input_built {
         let gid = u16_at(slice, input_base + 2 * j0 as usize);
-        rule.sequence
-            .push(coverage_of(
-                slice,
-                gid,
-                offset,
-                ContextKind::Input,
-                max_glyphs,
-                budget,
-            ));
+        rule.sequence.push(coverage_of(
+            slice,
+            gid,
+            offset,
+            ContextKind::Input,
+            max_glyphs,
+            budget,
+        ));
     }
     let lookaround_base = input_base + 2 * n_input_read as usize + 2;
     for j1 in 0..n_lookaround_built {
         let gid = u16_at(slice, lookaround_base + 2 * j1 as usize);
-        rule.sequence
-            .push(coverage_of(
-                slice,
-                gid,
-                offset,
-                ContextKind::Lookahead,
-                max_glyphs,
-                budget,
-            ));
+        rule.sequence.push(coverage_of(
+            slice,
+            gid,
+            offset,
+            ContextKind::Lookahead,
+            max_glyphs,
+            budget,
+        ));
     }
 
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
@@ -723,7 +742,11 @@ fn read_chaining_format1(
         break 'parse Some(());
     };
 
-    if result.is_some() { Some(subtable) } else { None }
+    if result.is_some() {
+        Some(subtable)
+    } else {
+        None
+    }
 }
 fn read_chaining_format2(
     slice: &[u8],
@@ -758,9 +781,18 @@ fn read_chaining_format2(
         }
 
         cds = Some(ClassDefs {
-            bc: Some(Box::new(read_class_def(slice, offset.wrapping_add(u32::from(bc_rel))))),
-            ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(u32::from(ic_rel))))),
-            fc: Some(Box::new(read_class_def(slice, offset.wrapping_add(u32::from(fc_rel))))),
+            bc: Some(Box::new(read_class_def(
+                slice,
+                offset.wrapping_add(u32::from(bc_rel)),
+            ))),
+            ic: Some(Box::new(read_class_def(
+                slice,
+                offset.wrapping_add(u32::from(ic_rel)),
+            ))),
+            fc: Some(Box::new(read_class_def(
+                slice,
+                offset.wrapping_add(u32::from(fc_rel)),
+            ))),
         });
 
         // First pass: check every non-empty class set's header and rule
@@ -796,7 +828,10 @@ fn read_chaining_format2(
                 if !budget.take_rule() {
                     break 'class_sets;
                 }
-                let dsr_rel = u16_at(slice, offset as usize + src_rel as usize + 2 + 2 * k as usize);
+                let dsr_rel = u16_at(
+                    slice,
+                    offset as usize + src_rel as usize + 2 + 2 * k as usize,
+                );
                 let sr_offset = offset
                     .wrapping_add(u32::from(src_rel))
                     .wrapping_add(u32::from(dsr_rel));
@@ -806,7 +841,16 @@ fn read_chaining_format2(
                     j,
                     true,
                     |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
-                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().expect("the class definitions are set before this pass"), budget)
+                        class_coverage(
+                            slice,
+                            cls,
+                            offset,
+                            kind,
+                            max_glyphs,
+                            cds.as_ref()
+                                .expect("the class definitions are set before this pass"),
+                            budget,
+                        )
                     },
                     max_glyphs,
                     budget,
@@ -831,7 +875,11 @@ fn read_chaining_format2(
     // `cds` (a plain `Option<ClassDefs>` local, same as `read_contextual_
     // format2`) auto-drops when this function returns -- no manual
     // cleanup needed.
-    if result.is_some() { Some(subtable) } else { None }
+    if result.is_some() {
+        Some(subtable)
+    } else {
+        None
+    }
 }
 pub fn otl_read_chaining(
     data: &[u8],
@@ -843,9 +891,10 @@ pub fn otl_read_chaining(
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
     let mut format: u16 = 0;
     if let Ok(mut r) = FontReader::new(data).at(offset as usize)
-        && let Ok(f) = r.u16() {
-            format = f;
-        }
+        && let Ok(f) = r.u16()
+    {
+        format = f;
+    }
     match format {
         1 => {
             return read_chaining_format1(data, offset, max_glyphs, subtable, budget)
@@ -904,7 +953,10 @@ mod chaining_read_tests {
         // exactly 4 units for the second loop (`max_glyphs == 10`), which
         // must then stop after processing indices `0..=3` and leave index
         // `4` untouched.
-        let mut budget = OtlReadBudget { class_zero_glyphs: 7, ..OtlReadBudget::new() };
+        let mut budget = OtlReadBudget {
+            class_zero_glyphs: 7,
+            ..OtlReadBudget::new()
+        };
 
         let cd = ClassDef {
             maxclass: 1,
@@ -1082,10 +1134,7 @@ mod chaining_read_tests {
         // backtrack is stored reversed; here there's only one entry so
         // the order is unaffected.
         assert_eq!(
-            rule.sequence
-                .iter()
-                .map(glyphs_of)
-                .collect::<Vec<_>>(),
+            rule.sequence.iter().map(glyphs_of).collect::<Vec<_>>(),
             vec![vec![1], vec![2], vec![3]]
         );
         assert_eq!(rule.input_begins, 1);
@@ -1106,7 +1155,15 @@ mod chaining_read_tests {
         data[2..4].copy_from_slice(&0u16.to_be_bytes()); // nInput (malformed: 0)
         data[4..6].copy_from_slice(&0u16.to_be_bytes()); // nLookaround
         data[6..8].copy_from_slice(&0u16.to_be_bytes()); // nApply
-        let rule = general_read_chaining_rule(&data, 0, 7, true, single_coverage, 100, &mut OtlReadBudget::new());
+        let rule = general_read_chaining_rule(
+            &data,
+            0,
+            7,
+            true,
+            single_coverage,
+            100,
+            &mut OtlReadBudget::new(),
+        );
         let rule = rule.unwrap();
         // Only the `minus_one` slot (glyph 7, from `start_gid`) is
         // filled; the (empty) input array contributes nothing.

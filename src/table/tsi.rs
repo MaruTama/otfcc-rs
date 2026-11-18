@@ -1,14 +1,14 @@
-use crate::logger::ByteStr;
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::{FontReader, ReadError};
+use crate::logger::ByteStr;
 use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, handle_empty,
+    GlyphHandle, Handle, HandleState, handle_empty, handle_from_index, handle_from_name,
 };
-use otfcc_json::ParsedValue;
 use crate::support::primitives::GlyphId;
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -48,8 +48,7 @@ pub struct TsiBuildTarget {
 #[inline]
 fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
-        i32::from(gid) != 0xfffe
-            && i32::from(gid) != 0xfffc
+        i32::from(gid) != 0xfffe && i32::from(gid) != 0xfffc
     } else {
         i32::from(gid) < 0xfffa
     }
@@ -73,11 +72,7 @@ fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, Re
     })
 }
 
-pub fn read_tsi(
-    packet: &Packet,
-    tag_index: u32,
-    tag_text: u32,
-) -> Option<TsiTable> {
+pub fn read_tsi(packet: &Packet, tag_index: u32, tag_text: u32) -> Option<TsiTable> {
     let index_part = packet.pieces.iter().find(|p| p.tag == tag_index)?;
     let text_part = packet.pieces.iter().find(|p| p.tag == tag_text)?;
     let text_len = text_part.data.len() as u32;
@@ -162,7 +157,10 @@ pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
         let mut _glyphs = BuiltValue::new_object(entries.len());
         for entry in entries.iter() {
             if entry.kind == TsiEntryType::Glyph {
-                _glyphs.push_field_bytes_key(&entry.glyph.name, BuiltValue::Str(entry.content.clone()));
+                _glyphs.push_field_bytes_key(
+                    &entry.glyph.name,
+                    BuiltValue::Str(entry.content.clone()),
+                );
             }
         }
         let mut _extra = BuiltValue::new_object(entries.len());
@@ -238,17 +236,31 @@ fn propergid(entry: Option<&TsiEntry>, kind: TsiEntryType) -> GlyphId {
         TsiEntryType::Fpgm => 0xfffd as GlyphId,
         TsiEntryType::Prep => 0xfffa as GlyphId,
         TsiEntryType::ReservedFffc => 0xfffc as GlyphId,
-        TsiEntryType::Glyph => entry.expect("a Glyph entry is always passed with its entry").glyph.index,
+        TsiEntryType::Glyph => {
+            entry
+                .expect("a Glyph entry is always passed with its entry")
+                .glyph
+                .index
+        }
     }
 }
-fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, kind: TsiEntryType, min_n: GlyphId) {
+fn push_tsi_entries(
+    target: &mut TsiBuildTarget,
+    tsi: &TsiTable,
+    kind: TsiEntryType,
+    min_n: GlyphId,
+) {
     let mut items_pushed: GlyphId = 0 as GlyphId;
     for entry in tsi.iter() {
         if entry.kind != kind {
             continue;
         }
         let length_sofar = target.text_part.as_ref().expect(BOTH_PARTS).pos();
-        target.text_part.as_mut().expect(BOTH_PARTS).write_bytes(&entry.content);
+        target
+            .text_part
+            .as_mut()
+            .expect(BOTH_PARTS)
+            .write_bytes(&entry.content);
         let length_after = target.text_part.as_ref().expect(BOTH_PARTS).pos();
         let index_part = target.index_part.as_mut().expect(BOTH_PARTS);
         index_part.write_u16be(propergid(Some(entry), kind) as u16);

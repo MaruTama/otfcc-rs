@@ -1,7 +1,6 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::primitives::GlyphId;
 
@@ -9,10 +8,7 @@ use crate::table::otl::{GposSingleEntry, PositionValue, Subtable};
 
 use crate::support::glyph_order::gord_consolidate_handle;
 
-pub fn consolidate_gpos_single(
-    glyph_order: &GlyphOrder,
-    _subtable: &mut Subtable,
-) -> bool {
+pub fn consolidate_gpos_single(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
     let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
     };
@@ -27,7 +23,10 @@ pub fn consolidate_gpos_single(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !gord_consolidate_handle(glyph_order, &mut entry.target) {
-            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.target.name));
+            tracing::warn!(
+                "[Consolidate] Ignored missing glyph /{}.\n",
+                ByteStr(&entry.target.name)
+            );
         } else {
             let fromid: i32 = i32::from(entry.target.index);
             if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
@@ -35,14 +34,18 @@ pub fn consolidate_gpos_single(
                 let v: PositionValue = entry.value;
                 e.insert((fromname, v));
             } else {
-                tracing::warn!("[Consolidate] Detected glyph double-mapping about /{}.\n", ByteStr(&entry.target.name));
+                tracing::warn!(
+                    "[Consolidate] Detected glyph double-mapping about /{}.\n",
+                    ByteStr(&entry.target.name)
+                );
             }
         }
     }
     subtable.clear();
     for (fromid, (fromname, v)) in seen {
         subtable.push(GposSingleEntry {
-            target: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,
+            target: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname)
+                as GlyphHandle,
             value: v,
         });
     }

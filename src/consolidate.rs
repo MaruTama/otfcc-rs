@@ -50,7 +50,10 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
             // below regardless of whether this call succeeds or fails, for
             // the log message and/or the retry loop.
             if !set_glyph_order_by_name(go, name.clone(), gid) {
-                tracing::warn!("[Consolidate] Glyph name {} is already in use.", ByteStr(&name));
+                tracing::warn!(
+                    "[Consolidate] Glyph name {} is already in use.",
+                    ByteStr(&name)
+                );
                 let mut suffix: u32 = 2;
                 let mut success: bool;
                 loop {
@@ -59,7 +62,11 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
                     if !success {
                         suffix = suffix.wrapping_add(1);
                     } else {
-                        tracing::warn!("[Consolidate] Glyph {} is renamed into {}.", ByteStr(&name), ByteStr(&newname));
+                        tracing::warn!(
+                            "[Consolidate] Glyph {} is renamed into {}.",
+                            ByteStr(&name),
+                            ByteStr(&newname)
+                        );
                         g.name = newname;
                     }
                     if success {
@@ -74,4 +81,3 @@ pub fn consolidate_font(font: &mut Font, options: &Options) {
         table.consolidate(font, options);
     }
 }
-

@@ -4,6 +4,8 @@ use crate::libcff::index::CffIndex;
 use crate::libcff::value::CffValue;
 use crate::support::primitives::Arity;
 pub mod charset;
+pub mod charstring_il;
+pub mod charstring_interp;
 pub mod codecs;
 pub mod dict;
 pub mod fdselect;
@@ -11,11 +13,9 @@ pub mod index;
 pub mod opmean;
 pub mod parser;
 pub mod string;
+pub mod subr;
 pub mod value;
 pub mod writer;
-pub mod charstring_il;
-pub mod charstring_interp;
-pub mod subr;
 
 /// A cff DICT operator, in otfcc's own encoding: the operator byte, or
 /// `12 << 8 | b` for the two-byte operators the spec escapes with 12.

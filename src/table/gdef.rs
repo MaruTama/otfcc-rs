@@ -1,20 +1,20 @@
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_binary::FontReader;
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
-use otfcc_json::ParsedValue;
 use crate::support::primitives::Pos;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
+use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
+use crate::table::otl::coverage::build_coverage;
 use otfcc_binary::bk::block::bk_new_block_from_buffer;
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
-use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
-use crate::table::otl::coverage::build_coverage;
 #[derive(Copy, Clone, Debug)]
 pub struct CaretValue {
     pub format: i8,
@@ -44,7 +44,10 @@ fn read_caret_value(data: &[u8], offset: usize) -> CaretValue {
         coordiante: 0.,
         point_index: 0xffffu16 as i16,
     };
-    if let Ok(bytes) = FontReader::new(data).at(offset).and_then(|mut r| r.bytes(4)) {
+    if let Ok(bytes) = FontReader::new(data)
+        .at(offset)
+        .and_then(|mut r| r.bytes(4))
+    {
         let format = u16::from_be_bytes([bytes[0], bytes[1]]);
         let value = u16::from_be_bytes([bytes[2], bytes[3]]);
         v.format = format as i8;
@@ -70,7 +73,8 @@ fn read_lig_caret_record(data: &[u8], offset: usize) -> CaretValueRecord {
     }
     for _ in 0..caret_count {
         let caret_rel = r.u16().expect("require_room above covered this read");
-        g.carets.push(read_caret_value(data, offset + caret_rel as usize));
+        g.carets
+            .push(read_caret_value(data, offset + caret_rel as usize));
     }
     g
 }
@@ -88,9 +92,17 @@ fn read_lig_carets(
     if data.len() < lig_caret_offset + 4 {
         return None;
     }
-    let coverage_rel = FontReader::new(data).at(lig_caret_offset).ok()?.u16().ok()? as usize;
+    let coverage_rel = FontReader::new(data)
+        .at(lig_caret_offset)
+        .ok()?
+        .u16()
+        .ok()? as usize;
     let cov: Coverage = read_coverage(data, (lig_caret_offset + coverage_rel) as u32, budget);
-    let lig_glyph_count = FontReader::new(data).at(lig_caret_offset + 2).ok()?.u16().ok()?;
+    let lig_glyph_count = FontReader::new(data)
+        .at(lig_caret_offset + 2)
+        .ok()?
+        .u16()
+        .ok()?;
     if cov.len() != lig_glyph_count as usize {
         return None;
     }
@@ -108,7 +120,10 @@ fn read_lig_carets(
     Some(result)
 }
 pub fn read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GDEF)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_GDEF)?;
     let data: &[u8] = &table.data;
     if data.len() < 12 {
         return None;
@@ -129,7 +144,10 @@ pub fn read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
 
     let mark_attach_def_offset = FontReader::new(data).at(10).ok()?.u16().ok()?;
     let mark_attach_class_def = if mark_attach_def_offset != 0 {
-        Some(Box::new(read_class_def(data, u32::from(mark_attach_def_offset))))
+        Some(Box::new(read_class_def(
+            data,
+            u32::from(mark_attach_def_offset),
+        )))
     } else {
         None
     };
@@ -217,10 +235,8 @@ pub fn parse_gdef(root: &ParsedValue) -> Option<Box<GdefTable>> {
         lig_carets: Vec::new(),
     });
     // is purely a narrow bridge.
-    gdef.glyph_class_def =
-        parse_class_def(table.get(b"glyphClassDef")).map(Box::new);
-    gdef.mark_attach_class_def =
-        parse_class_def(table.get(b"markAttachClassDef")).map(Box::new);
+    gdef.glyph_class_def = parse_class_def(table.get(b"glyphClassDef")).map(Box::new);
+    gdef.mark_attach_class_def = parse_class_def(table.get(b"markAttachClassDef")).map(Box::new);
     lig_caret_from_json(table.get(b"ligCarets"), &mut gdef.lig_carets);
     stage.finish();
     Some(gdef)

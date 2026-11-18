@@ -9,12 +9,21 @@ pub(crate) fn consolidate_colr(font: &mut Font) {
         return;
     }
     // Guaranteed `Some` by the early return above.
-    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().expect("the early return above checked glyph_order");
+    let glyph_order: &GlyphOrder = font
+        .glyph_order
+        .as_deref()
+        .expect("the early return above checked glyph_order");
     let mut consolidated: ColrTable = Vec::new();
-    let source: &mut Vec<ColrMapping> = font.colr.as_mut().expect("the early return above checked colr");
+    let source: &mut Vec<ColrMapping> = font
+        .colr
+        .as_mut()
+        .expect("the early return above checked colr");
     for mapping in source.iter_mut() {
         if !gord_consolidate_handle(glyph_order, &mut mapping.glyph) {
-            tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&mapping.glyph.name));
+            tracing::warn!(
+                "[Consolidate] Ignored missing glyph of /{}",
+                ByteStr(&mapping.glyph.name)
+            );
         } else {
             let mut m: ColrMapping = ColrMapping {
                 glyph: mapping.glyph.clone(),
@@ -22,7 +31,10 @@ pub(crate) fn consolidate_colr(font: &mut Font) {
             };
             for layer in mapping.layers.iter_mut() {
                 if !gord_consolidate_handle(glyph_order, &mut layer.glyph) {
-                    tracing::warn!("[Consolidate] Ignored missing glyph of /{}", ByteStr(&layer.glyph.name));
+                    tracing::warn!(
+                        "[Consolidate] Ignored missing glyph of /{}",
+                        ByteStr(&layer.glyph.name)
+                    );
                 } else {
                     m.layers.push(layer.clone());
                 }
@@ -30,7 +42,10 @@ pub(crate) fn consolidate_colr(font: &mut Font) {
             if !mapping.layers.is_empty() {
                 consolidated.push(m);
             } else {
-                tracing::warn!("[Consolidate] COLR decomposition for /{} is empth", ByteStr(&mapping.glyph.name));
+                tracing::warn!(
+                    "[Consolidate] COLR decomposition for /{} is empth",
+                    ByteStr(&mapping.glyph.name)
+                );
                 // `m` is dropped here (its `Handle` and `layers: Vec<ColrLayer>`
                 // freed by their own compiler-generated drop glue) rather than
                 // pushed into `consolidated` -- no manual dispose call needed.

@@ -38,7 +38,12 @@ fn dump_fresh(build: &Path, name: &str, input: &Path) -> PathBuf {
     run_ok(
         &format!("{name} dump"),
         &otfccdump(),
-        &[input.as_os_str(), OsStr::new("-o"), json_path.as_os_str(), OsStr::new("--pretty")],
+        &[
+            input.as_os_str(),
+            OsStr::new("-o"),
+            json_path.as_os_str(),
+            OsStr::new("--pretty"),
+        ],
     );
     json_path
 }
@@ -86,9 +91,17 @@ fn fixed_payloads_match_golden() {
     let mut errors = Vec::new();
 
     let payloads: &[(&str, &str, &str)] = &[
-        ("NotoNastaliqUrdu-Regular", "ttf", "NotoNastaliqUrdu-Regular.ttf"),
+        (
+            "NotoNastaliqUrdu-Regular",
+            "ttf",
+            "NotoNastaliqUrdu-Regular.ttf",
+        ),
         ("iosevka-r", "ttf", "iosevka-r.ttf"),
-        ("BungeeColor-Regular_colr_Windows", "ttf", "BungeeColor-Regular_colr_Windows.ttf"),
+        (
+            "BungeeColor-Regular_colr_Windows",
+            "ttf",
+            "BungeeColor-Regular_colr_Windows.ttf",
+        ),
         ("Reinebow-SVGinOT", "ttf", "Reinebow-SVGinOT.ttf"),
         ("vtt", "ttf", "vtt.ttf"),
         ("Molengo-Regular", "ttf", "Molengo-Regular.ttf"),
@@ -107,10 +120,22 @@ fn fixed_payloads_match_golden() {
         ("gvar-test", "ttf", "gvar-test.ttf"),
     ];
     for (name, ext, input_file) in payloads {
-        compare_payload(&build, name, ext, &payload(input_file), &checksums, &mut errors);
+        compare_payload(
+            &build,
+            name,
+            ext,
+            &payload(input_file),
+            &checksums,
+            &mut errors,
+        );
     }
 
-    assert!(errors.is_empty(), "{} payload(s) failed:\n{}", errors.len(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{} payload(s) failed:\n{}",
+        errors.len(),
+        errors.join("\n")
+    );
 }
 
 /// The checksums above pin the dump, but not whether it is right. This pins
@@ -136,13 +161,24 @@ fn worksans_negative_subroutine_numbers_draw_the_fonttools_outline() {
                 .as_array()
                 .expect("contour is an array")
                 .iter()
-                .map(|p| (p["x"].as_i64().unwrap(), p["y"].as_i64().unwrap(), p["on"].as_bool().unwrap()))
+                .map(|p| {
+                    (
+                        p["x"].as_i64().unwrap(),
+                        p["y"].as_i64().unwrap(),
+                        p["on"].as_bool().unwrap(),
+                    )
+                })
                 .collect()
         })
         .collect();
     assert_eq!(
         contours,
-        vec![vec![(188, 660, true), (108, 660, true), (108, 0, true), (188, 0, true)]]
+        vec![vec![
+            (188, 660, true),
+            (108, 660, true),
+            (108, 0, true),
+            (188, 0, true)
+        ]]
     );
 }
 
@@ -169,7 +205,8 @@ fn krname_cff_subroutinize_o2_matches_golden() {
             OsStr::new("--keep-modified-time"),
         ],
     );
-    check_against_golden(&out_path, "KRName-Regular-O2.otf", &checksums).unwrap_or_else(|e| panic!("{e}"));
+    check_against_golden(&out_path, "KRName-Regular-O2.otf", &checksums)
+        .unwrap_or_else(|e| panic!("{e}"));
 }
 
 /// `true` (and prints why) if `python3` isn't on PATH -- the shell script
@@ -205,7 +242,9 @@ fn unknown_lookup_dump_matches_golden() {
         "make-test-unknown-lookup.py",
         Path::new("python3"),
         &[
-            support::repo_root().join("scripts/make-test-unknown-lookup.py").as_os_str(),
+            support::repo_root()
+                .join("scripts/make-test-unknown-lookup.py")
+                .as_os_str(),
             payload("iosevka-r.ttf").as_os_str(),
             ttf_path.as_os_str(),
         ],
@@ -215,9 +254,15 @@ fn unknown_lookup_dump_matches_golden() {
     run_ok(
         "unknown-lookup dump",
         &otfccdump(),
-        &[ttf_path.as_os_str(), OsStr::new("-o"), json_path.as_os_str(), OsStr::new("--pretty")],
+        &[
+            ttf_path.as_os_str(),
+            OsStr::new("-o"),
+            json_path.as_os_str(),
+            OsStr::new("--pretty"),
+        ],
     );
-    check_against_golden(&json_path, "unknown-lookup.json", &checksums).unwrap_or_else(|e| panic!("{e}"));
+    check_against_golden(&json_path, "unknown-lookup.json", &checksums)
+        .unwrap_or_else(|e| panic!("{e}"));
 }
 
 /// `synth_payload <name> <maker.py>`: the maker script patches
@@ -265,7 +310,12 @@ fn synth_payload(
     run_ok(
         &format!("{name} dump"),
         &otfccdump(),
-        &[ttf_path.as_os_str(), OsStr::new("-o"), dump_json_path.as_os_str(), OsStr::new("--pretty")],
+        &[
+            ttf_path.as_os_str(),
+            OsStr::new("-o"),
+            dump_json_path.as_os_str(),
+            OsStr::new("--pretty"),
+        ],
     );
     if let Err(e) = check_against_golden(&dump_json_path, &format!("{name}.dump.json"), checksums) {
         errors.push(e);
@@ -288,16 +338,39 @@ fn synthetic_dedup_and_table_payloads_match_golden() {
         ("meta-test", "scripts/make-test-meta.py"),
         ("vdmx-test", "scripts/make-test-vdmx.py"),
         ("gsub-multi-dedup", "scripts/make-test-gsub-multi-dedup.py"),
-        ("gpos-single-dedup", "scripts/make-test-gpos-single-dedup.py"),
-        ("gpos-cursive-dedup", "scripts/make-test-gpos-cursive-dedup.py"),
-        ("gdef-ligcaret-dedup", "scripts/make-test-gdef-ligcaret-dedup.py"),
-        ("gsub-single-dedup", "scripts/make-test-gsub-single-dedup.py"),
-        ("gsub-reverse-dedup", "scripts/make-test-gsub-reverse-dedup.py"),
-        ("mark-consolidate-dedup", "scripts/make-test-mark-consolidate-dedup.py"),
+        (
+            "gpos-single-dedup",
+            "scripts/make-test-gpos-single-dedup.py",
+        ),
+        (
+            "gpos-cursive-dedup",
+            "scripts/make-test-gpos-cursive-dedup.py",
+        ),
+        (
+            "gdef-ligcaret-dedup",
+            "scripts/make-test-gdef-ligcaret-dedup.py",
+        ),
+        (
+            "gsub-single-dedup",
+            "scripts/make-test-gsub-single-dedup.py",
+        ),
+        (
+            "gsub-reverse-dedup",
+            "scripts/make-test-gsub-reverse-dedup.py",
+        ),
+        (
+            "mark-consolidate-dedup",
+            "scripts/make-test-mark-consolidate-dedup.py",
+        ),
     ];
     for (name, maker) in synths {
         synth_payload(&build, &iosevka_json, name, maker, &checksums, &mut errors);
     }
 
-    assert!(errors.is_empty(), "{} synthetic payload(s) failed:\n{}", errors.len(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{} synthetic payload(s) failed:\n{}",
+        errors.len(),
+        errors.join("\n")
+    );
 }

@@ -6,8 +6,8 @@
 //! `otfcc_rust`.
 #![forbid(unsafe_code)]
 
-mod buffer;
 pub mod bk;
+mod buffer;
 mod reader;
 
 pub use buffer::Buffer;

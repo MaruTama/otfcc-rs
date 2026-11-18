@@ -255,8 +255,7 @@ pub(crate) fn vq_is_still(v: VQ) -> bool {
 }
 pub(crate) fn vq_is_zero(v: VQ, err: Pos) -> bool {
     // `f64::abs` gives the same result as C's `fabs` for every input.
-    i32::from(vq_is_still(v.clone())) != 0
-        && (vq_get_still(v) as f64).abs() < err
+    i32::from(vq_is_still(v.clone())) != 0 && (vq_get_still(v) as f64).abs() < err
 }
 // Takes `&Rc<VqRegion>`, not `Rc<VqRegion>`: `table/glyf/read.rs`'s four
 // call sites in `apply_polymorphism` all share one region across several
@@ -318,7 +317,10 @@ mod tests {
             VqSegment::Delta(VqSegmentDelta {
                 quantity: 0.,
                 touched: false,
-                region: Rc::new(VqRegion { dimensions: 0, spans: Vec::new() }),
+                region: Rc::new(VqRegion {
+                    dimensions: 0,
+                    spans: Vec::new()
+                }),
             })
             .discriminant_byte(),
             1
@@ -332,7 +334,10 @@ mod tests {
     // conversion.
     #[test]
     fn vq_is_still_matches_manual_loop_semantics() {
-        assert!(vq_is_still(VQ { kernel: 0., shift: Vec::new() }));
+        assert!(vq_is_still(VQ {
+            kernel: 0.,
+            shift: Vec::new()
+        }));
         assert!(vq_is_still(VQ {
             kernel: 0.,
             shift: vec![VqSegment::Still(1.), VqSegment::Still(2.)],
@@ -340,7 +345,10 @@ mod tests {
         let delta = VqSegment::Delta(VqSegmentDelta {
             quantity: 1.,
             touched: false,
-            region: Rc::new(VqRegion { dimensions: 0, spans: Vec::new() }),
+            region: Rc::new(VqRegion {
+                dimensions: 0,
+                spans: Vec::new(),
+            }),
         });
         assert!(!vq_is_still(VQ {
             kernel: 0.,
@@ -362,8 +370,14 @@ mod tests {
     // every element compares equal.
     #[test]
     fn vq_compare_matches_manual_loop_semantics() {
-        let a = VQ { kernel: 0., shift: vec![VqSegment::Still(1.)] };
-        let b = VQ { kernel: 0., shift: Vec::new() };
+        let a = VQ {
+            kernel: 0.,
+            shift: vec![VqSegment::Still(1.)],
+        };
+        let b = VQ {
+            kernel: 0.,
+            shift: Vec::new(),
+        };
         assert_eq!(vq_compare(a.clone(), b.clone()), 1);
         assert_eq!(vq_compare(b, a), -1);
 
@@ -392,8 +406,14 @@ mod tests {
         assert_eq!(vq_compare(a, b), 2);
 
         // Both shifts empty: no zip iterations, kernel decides.
-        let a = VQ { kernel: 0., shift: Vec::new() };
-        let b = VQ { kernel: 0., shift: Vec::new() };
+        let a = VQ {
+            kernel: 0.,
+            shift: Vec::new(),
+        };
+        let b = VQ {
+            kernel: 0.,
+            shift: Vec::new(),
+        };
         assert_eq!(vq_compare(a, b), 0);
     }
 }

@@ -1,11 +1,11 @@
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{from_fixed, to_fixed};
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Copy, Clone, Debug)]
 pub struct HheaTable {
@@ -62,10 +62,7 @@ pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     };
     let stage = crate::logger::stage("hhea");
     let mut hhea = BuiltValue::new_object(13);
-    hhea.push_field(
-        b"version",
-        BuiltValue::Double(from_fixed(table.version)),
-    );
+    hhea.push_field(b"version", BuiltValue::Double(from_fixed(table.version)));
     hhea.push_field(b"ascender", BuiltValue::Int(i64::from(table.ascender)));
     hhea.push_field(b"descender", BuiltValue::Int(i64::from(table.descender)));
     hhea.push_field(b"lineGap", BuiltValue::Int(i64::from(table.line_gap)));
@@ -81,7 +78,10 @@ pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
         b"minRightSideBearing",
         BuiltValue::Int(i64::from(table.min_right_side_bearing)),
     );
-    hhea.push_field(b"xMaxExtent", BuiltValue::Int(i64::from(table.x_max_extent)));
+    hhea.push_field(
+        b"xMaxExtent",
+        BuiltValue::Int(i64::from(table.x_max_extent)),
+    );
     hhea.push_field(
         b"caretSlopeRise",
         BuiltValue::Int(i64::from(table.caret_slope_rise)),
@@ -90,7 +90,10 @@ pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
         b"caretSlopeRun",
         BuiltValue::Int(i64::from(table.caret_slope_run)),
     );
-    hhea.push_field(b"caretOffset", BuiltValue::Int(i64::from(table.caret_offset)));
+    hhea.push_field(
+        b"caretOffset",
+        BuiltValue::Int(i64::from(table.caret_offset)),
+    );
     root.push_field(b"hhea", hhea);
     stage.finish();
 }

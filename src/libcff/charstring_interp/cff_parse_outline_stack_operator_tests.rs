@@ -61,15 +61,7 @@ fn run(data: &[u8], stack: &mut CffStack) {
         defined_contour_masks: 0,
         randx: 0,
     };
-    parse_outline(
-        data,
-        &gsubr,
-        &lsubr,
-        stack,
-        &mut ctx,
-        0,
-        &mut total_calls,
-    );
+    parse_outline(data, &gsubr, &lsubr, stack, &mut ctx, 0, &mut total_calls);
 }
 
 #[test]

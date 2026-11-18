@@ -1,4 +1,3 @@
-
 use otfcc_binary::Buffer;
 use otfcc_binary::{FontReader, ReadError};
 

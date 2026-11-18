@@ -91,11 +91,7 @@ pub(crate) fn set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, gid: G
     go.by_name.insert(name, idx);
     true
 }
-pub(crate) fn gord_name_a_field_shared(
-    go: &GlyphOrder,
-    gid: GlyphId,
-    field: &mut Vec<u8>,
-) -> bool {
+pub(crate) fn gord_name_a_field_shared(go: &GlyphOrder, gid: GlyphId, field: &mut Vec<u8>) -> bool {
     match go.by_gid.get(&gid) {
         Some(&idx) => {
             *field = go.entries[idx].name.clone();
@@ -117,7 +113,8 @@ pub(crate) fn gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle) -> b
         let name_bytes = h.name.clone();
         if let Some(&entry_idx) = go.by_name.get(&name_bytes) {
             let entry = &go.entries[entry_idx];
-            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone()) as GlyphHandle;
+            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone())
+                as GlyphHandle;
             return true;
         }
         // Fall back to a by_gid lookup, like the HANDLE_STATE_INDEX branch
@@ -126,14 +123,16 @@ pub(crate) fn gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle) -> b
         // never find anything.)
         if let Some(&entry_idx) = go.by_gid.get(&h.index) {
             let entry = &go.entries[entry_idx];
-            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone()) as GlyphHandle;
+            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone())
+                as GlyphHandle;
             return true;
         }
     } else if h.state == HandleState::Name {
         let name_bytes = h.name.clone();
         if let Some(&entry_idx) = go.by_name.get(&name_bytes) {
             let entry = &go.entries[entry_idx];
-            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone()) as GlyphHandle;
+            *h = Handle::new(HandleState::Consolidated, entry.gid, entry.name.clone())
+                as GlyphHandle;
             return true;
         }
     } else if h.state == HandleState::Index {

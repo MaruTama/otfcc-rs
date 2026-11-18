@@ -39,7 +39,11 @@ fn empty_cff_index() -> CffIndex {
 }
 
 /// Runs `0 0 rmoveto -107 <call_op> endchar`; returns the points drawn.
-fn points_after_calling_minus_107(call_op: u8, gsubr: &CffIndex, lsubr: &CffIndex) -> Vec<(f64, f64)> {
+fn points_after_calling_minus_107(
+    call_op: u8,
+    gsubr: &CffIndex,
+    lsubr: &CffIndex,
+) -> Vec<(f64, f64)> {
     let data: Vec<u8> = vec![139, 139, 21, 32, call_op, 14];
     let mut stack = CffStack {
         stack: vec![CffValue::Unset; 16],
@@ -61,7 +65,15 @@ fn points_after_calling_minus_107(call_op: u8, gsubr: &CffIndex, lsubr: &CffInde
         defined_contour_masks: 0,
         randx: 0,
     };
-    parse_outline(&data, gsubr, lsubr, &mut stack, &mut ctx, 0, &mut total_calls);
+    parse_outline(
+        &data,
+        gsubr,
+        lsubr,
+        &mut stack,
+        &mut ctx,
+        0,
+        &mut total_calls,
+    );
     g.contours
         .iter()
         .flatten()

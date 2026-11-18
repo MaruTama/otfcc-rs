@@ -7,10 +7,10 @@
 pub mod getopt;
 pub mod stopwatch;
 
+use getopt::GetoptItem;
 use otfcc_rust::logger::StageGuard;
 use otfcc_rust::support::options::Options;
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use getopt::GetoptItem;
 
 /// The process exit status for a failed run (C's `EXIT_FAILURE`).
 pub const EXIT_FAILURE: i32 = 1;
@@ -34,7 +34,11 @@ pub fn report_getopt_error(program: &str, item: GetoptItem) {
             eprintln!("{program}: invalid option -- '{ch}'");
         }
         GetoptItem::AmbiguousLong { given, matches } => {
-            let possibilities = matches.iter().map(|m| format!("'--{m}'")).collect::<Vec<_>>().join(" ");
+            let possibilities = matches
+                .iter()
+                .map(|m| format!("'--{m}'"))
+                .collect::<Vec<_>>()
+                .join(" ");
             eprintln!("{program}: option '{given}' is ambiguous; possibilities: {possibilities}");
         }
         GetoptItem::MissingArgument(s) => {

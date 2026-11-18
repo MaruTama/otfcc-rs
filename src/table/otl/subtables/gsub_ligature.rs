@@ -1,19 +1,19 @@
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
-use otfcc_json::ParsedValue;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_json::ParsedValue;
 
 use otfcc_binary::FontReader;
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use crate::support::primitives::GlyphId;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable};
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 /// Replaces `*dst` with `src` (consolidation builds a fresh, filtered
 /// subtable and swaps it in).
@@ -46,7 +46,8 @@ pub fn otl_read_gsub_ligature(
             break 'parse;
         };
 
-        let start_coverage: Coverage = read_coverage(data, offset.wrapping_add(u32::from(cov_rel)), budget);
+        let start_coverage: Coverage =
+            read_coverage(data, offset.wrapping_add(u32::from(cov_rel)), budget);
         if set_count as usize != start_coverage.len() {
             break 'parse;
         }
@@ -55,7 +56,9 @@ pub fn otl_read_gsub_ligature(
         }
         let mut set_offsets = Vec::with_capacity(set_count as usize);
         for _ in 0..set_count {
-            set_offsets.push(offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read"))));
+            set_offsets.push(offset.wrapping_add(u32::from(
+                header.u16().expect("require_room above covered this read"),
+            )));
         }
 
         for (j, &set_offset) in set_offsets.iter().enumerate() {
@@ -70,7 +73,9 @@ pub fn otl_read_gsub_ligature(
             }
             let mut lig_offsets = Vec::with_capacity(lig_count as usize);
             for _ in 0..lig_count {
-                lig_offsets.push(set_offset.wrapping_add(u32::from(sr.u16().expect("require_room above covered this read"))));
+                lig_offsets.push(set_offset.wrapping_add(u32::from(
+                    sr.u16().expect("require_room above covered this read"),
+                )));
             }
 
             for &lig_offset in &lig_offsets {
@@ -97,7 +102,9 @@ pub fn otl_read_gsub_ligature(
                 for _ in 1..lig_components {
                     push_to_coverage(
                         &mut cov,
-                        handle_from_index(lr.u16().expect("require_room above covered this read") as GlyphId) as GlyphHandle,
+                        handle_from_index(
+                            lr.u16().expect("require_room above covered this read") as GlyphId
+                        ) as GlyphHandle,
                     );
                 }
                 subtable.push(GsubLigatureEntry {
@@ -125,9 +132,7 @@ pub fn otl_gsub_dump_ligature(_subtable: &Subtable) -> BuiltValue {
     ret.push_field(b"substitutions", st);
     ret
 }
-pub fn otl_gsub_parse_ligature(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gsub_parse_ligature(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     if let Some(subs) = _subtable.and_then(|v| v.get_typed(b"substitutions", JsonType::Array)) {
         let mut st: GsubLigatureSubtable = Vec::new();
         if let Some(items) = subs.as_array() {
@@ -168,14 +173,16 @@ pub fn build_gsub_ligature_subtable(
     let Subtable::GsubLigature(subtable) = _subtable else {
         unreachable!()
     };
-    let mut start_gids: std::collections::BTreeSet<i32> =
-        std::collections::BTreeSet::new();
+    let mut start_gids: std::collections::BTreeSet<i32> = std::collections::BTreeSet::new();
     for rule in subtable.iter() {
         start_gids.insert(i32::from(rule.from[0].index));
     }
     let mut startcov: Coverage = Vec::new();
     for &gid in start_gids.iter() {
-        push_to_coverage(&mut startcov, handle_from_index(gid as GlyphId) as GlyphHandle);
+        push_to_coverage(
+            &mut startcov,
+            handle_from_index(gid as GlyphId) as GlyphHandle,
+        );
     }
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1),
@@ -183,21 +190,19 @@ pub fn build_gsub_ligature_subtable(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&startcov))),
         ),
-        bk_int(
-            BkCellType::B16,
-            (startcov.len() as i32) as u32,
-        ),
+        bk_int(BkCellType::B16, (startcov.len() as i32) as u32),
     ]);
     for &gid in start_gids.iter() {
         let n_ligs_here = subtable
             .iter()
             .filter(|rule| i32::from(rule.from[0].index) == gid)
             .count();
-        let mut ligset: BkBlock = bk_new_block(vec![bk_int(
-            BkCellType::B16,
-            (n_ligs_here as i32) as u32,
-        )]);
-        for rule in subtable.iter().filter(|rule| i32::from(rule.from[0].index) == gid) {
+        let mut ligset: BkBlock =
+            bk_new_block(vec![bk_int(BkCellType::B16, (n_ligs_here as i32) as u32)]);
+        for rule in subtable
+            .iter()
+            .filter(|rule| i32::from(rule.from[0].index) == gid)
+        {
             let mut ligdef: BkBlock = bk_new_block(vec![
                 bk_int(BkCellType::B16, i32::from(rule.to.index) as u32),
                 bk_int(BkCellType::B16, (rule.from.len() as i32) as u32),

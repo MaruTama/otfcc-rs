@@ -1,17 +1,9 @@
 use crate::logger::ByteStr;
-use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_name,
-};
-use otfcc_json::ParsedValue;
+use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_json::ParsedValue;
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
@@ -22,6 +14,12 @@ use crate::table::otl::subtables::gpos_common::{
 use crate::table::otl::{
     Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
 };
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 // `2 * component_count * class_count` (the LigatureAttach's byte-length
 // guard) is the same overflow-defeats-guard shape as
@@ -67,8 +65,10 @@ pub fn otl_read_gpos_mark_to_ligature(
             break 'parse;
         };
 
-        let marks: Coverage = read_coverage(data, offset.wrapping_add(u32::from(marks_rel)), budget);
-        let bases: Coverage = read_coverage(data, offset.wrapping_add(u32::from(bases_rel)), budget);
+        let marks: Coverage =
+            read_coverage(data, offset.wrapping_add(u32::from(marks_rel)), budget);
+        let bases: Coverage =
+            read_coverage(data, offset.wrapping_add(u32::from(bases_rel)), budget);
         if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
@@ -92,7 +92,9 @@ pub fn otl_read_gpos_mark_to_ligature(
         }
         let mut lig_attach_offsets = Vec::with_capacity(lig_count as usize);
         for _ in 0..lig_count {
-            lig_attach_offsets.push(lig_array_offset.wrapping_add(u32::from(lr.u16().expect("require_room above covered this read"))));
+            lig_attach_offsets.push(lig_array_offset.wrapping_add(u32::from(
+                lr.u16().expect("require_room above covered this read"),
+            )));
         }
 
         for (j, &lig_attach_offset) in lig_attach_offsets.iter().enumerate() {
@@ -195,7 +197,10 @@ pub fn otl_gpos_dump_mark_to_ligature(st: &Subtable) -> BuiltValue {
         }
         _bases.push_field_bytes_key(&base.glyph.name, _base.preserialize());
     }
-    _subtable.push_field(b"classCount", BuiltValue::Int(i64::from(subtable.class_count)));
+    _subtable.push_field(
+        b"classCount",
+        BuiltValue::Int(i64::from(subtable.class_count)),
+    );
     _subtable.push_field(b"marks", _marks);
     _subtable.push_field(b"bases", _bases);
     _subtable
@@ -240,11 +245,14 @@ fn parse_bases(
                             // exactly.
                             match h.get(class_name) {
                                 None => {
-                                    tracing::warn!("[OTFCC-fea] Invalid anchor class name <{}> for /{}. This base anchor is ignored.\n", ByteStr(class_name), ByteStr(gname));
+                                    tracing::warn!(
+                                        "[OTFCC-fea] Invalid anchor class name <{}> for /{}. This base anchor is ignored.\n",
+                                        ByteStr(class_name),
+                                        ByteStr(gname)
+                                    );
                                 }
                                 Some(&class_id) => {
-                                    lig.anchors[k][class_id as usize] =
-                                        otl_parse_anchor(Some(val));
+                                    lig.anchors[k][class_id as usize] = otl_parse_anchor(Some(val));
                                 }
                             }
                         }
@@ -255,9 +263,7 @@ fn parse_bases(
         }
     }
 }
-pub fn otl_gpos_parse_mark_to_ligature(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gpos_parse_mark_to_ligature(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let marks = _subtable.and_then(|v| v.get_typed(b"marks", JsonType::Object));
     let bases = _subtable.and_then(|v| v.get_typed(b"bases", JsonType::Object));
     let (Some(marks), Some(bases)) = (marks, bases) else {
@@ -299,10 +305,7 @@ pub fn build_gpos_mark_to_ligature(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&bases))),
         ),
-        bk_int(
-            BkCellType::B16,
-            i32::from(subtable.class_count) as u32,
-        ),
+        bk_int(BkCellType::B16, i32::from(subtable.class_count) as u32),
     ]);
     let mut mark_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
@@ -336,7 +339,10 @@ pub fn build_gpos_mark_to_ligature(
                 );
             }
         }
-        bk_push(&mut ligature_array, vec![bk_ptr(BkCellType::P16, Some(attach))]);
+        bk_push(
+            &mut ligature_array,
+            vec![bk_ptr(BkCellType::P16, Some(attach))],
+        );
     }
     bk_push(
         &mut root,

@@ -4,7 +4,6 @@ use std::collections::btree_map::Entry;
 
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::primitives::{GlyphClass, GlyphId};
 
@@ -44,7 +43,10 @@ fn consolidate_mark_array(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !gord_consolidate_handle(glyph_order, &mut rec.glyph) {
-            tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
+            tracing::warn!(
+                "[Consolidate] Ignored unknown glyph name {}.",
+                ByteStr(&rec.glyph.name)
+            );
         } else {
             let gid: GlyphId = rec.glyph.index;
             let anchor: Anchor = rec.anchor;
@@ -58,7 +60,10 @@ fn consolidate_mark_array(
                     });
                 }
                 _ => {
-                    tracing::warn!("[Consolidate] Ignored invalid or double-mapping mark definition for /{}.", ByteStr(&rec.glyph.name));
+                    tracing::warn!(
+                        "[Consolidate] Ignored invalid or double-mapping mark definition for /{}.",
+                        ByteStr(&rec.glyph.name)
+                    );
                 }
             }
         }
@@ -72,10 +77,7 @@ fn consolidate_mark_array(
         });
     }
 }
-fn consolidate_base_array(
-    glyph_order: &GlyphOrder,
-    base_array: &mut BaseArray,
-) {
+fn consolidate_base_array(glyph_order: &GlyphOrder, base_array: &mut BaseArray) {
     let mut h: BTreeMap<GlyphId, BaseHashValue> = BTreeMap::new();
     for rec in base_array.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
@@ -83,7 +85,10 @@ fn consolidate_base_array(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !gord_consolidate_handle(glyph_order, &mut rec.glyph) {
-            tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
+            tracing::warn!(
+                "[Consolidate] Ignored unknown glyph name {}.",
+                ByteStr(&rec.glyph.name)
+            );
         } else {
             let gid: GlyphId = rec.glyph.index;
             match h.entry(gid) {
@@ -93,7 +98,10 @@ fn consolidate_base_array(
                     v.insert(BaseHashValue { name, anchors });
                 }
                 Entry::Occupied(_) => {
-                    tracing::warn!("[Consolidate] Ignored anchor double-definition for /{}.", ByteStr(&rec.glyph.name));
+                    tracing::warn!(
+                        "[Consolidate] Ignored anchor double-definition for /{}.",
+                        ByteStr(&rec.glyph.name)
+                    );
                 }
             }
         }
@@ -106,10 +114,7 @@ fn consolidate_base_array(
         });
     }
 }
-fn consolidate_lig_array(
-    glyph_order: &GlyphOrder,
-    lig_array: &mut LigatureArray,
-) {
+fn consolidate_lig_array(glyph_order: &GlyphOrder, lig_array: &mut LigatureArray) {
     let mut h: BTreeMap<GlyphId, LigHashValue> = BTreeMap::new();
     for rec in lig_array.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
@@ -117,7 +122,10 @@ fn consolidate_lig_array(
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !gord_consolidate_handle(glyph_order, &mut rec.glyph) {
-            tracing::warn!("[Consolidate] Ignored unknown glyph name {}.", ByteStr(&rec.glyph.name));
+            tracing::warn!(
+                "[Consolidate] Ignored unknown glyph name {}.",
+                ByteStr(&rec.glyph.name)
+            );
         } else {
             let gid: GlyphId = rec.glyph.index;
             match h.entry(gid) {
@@ -132,7 +140,10 @@ fn consolidate_lig_array(
                     });
                 }
                 Entry::Occupied(_) => {
-                    tracing::warn!("[Consolidate] Ignored anchor double-definition for /{}.", ByteStr(&rec.glyph.name));
+                    tracing::warn!(
+                        "[Consolidate] Ignored anchor double-definition for /{}.",
+                        ByteStr(&rec.glyph.name)
+                    );
                 }
             }
         }
@@ -150,11 +161,7 @@ pub fn consolidate_mark_to_single(glyph_order: &GlyphOrder, _subtable: &mut Subt
     let Subtable::GposMarkToSingle(subtable) = _subtable else {
         unreachable!()
     };
-    consolidate_mark_array(
-        glyph_order,
-        &mut subtable.mark_array,
-        subtable.class_count,
-    );
+    consolidate_mark_array(glyph_order, &mut subtable.mark_array, subtable.class_count);
     consolidate_base_array(glyph_order, &mut subtable.base_array);
     subtable.mark_array.is_empty() || subtable.base_array.is_empty()
 }
@@ -162,11 +169,7 @@ pub fn consolidate_mark_to_ligature(glyph_order: &GlyphOrder, _subtable: &mut Su
     let Subtable::GposMarkToLigature(subtable) = _subtable else {
         unreachable!()
     };
-    consolidate_mark_array(
-        glyph_order,
-        &mut subtable.mark_array,
-        subtable.class_count,
-    );
+    consolidate_mark_array(glyph_order, &mut subtable.mark_array, subtable.class_count);
     consolidate_lig_array(glyph_order, &mut subtable.lig_array);
     subtable.mark_array.is_empty() || subtable.lig_array.is_empty()
 }

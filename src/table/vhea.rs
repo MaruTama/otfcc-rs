@@ -1,11 +1,11 @@
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{from_fixed, to_fixed};
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Copy, Clone, Debug)]
 pub struct VheaTable {
@@ -84,10 +84,7 @@ pub fn dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     };
     let stage = crate::logger::stage("vhea");
     let mut vhea = BuiltValue::new_object(11);
-    vhea.push_field(
-        b"version",
-        BuiltValue::Double(from_fixed(table.version)),
-    );
+    vhea.push_field(b"version", BuiltValue::Double(from_fixed(table.version)));
     vhea.push_field(b"ascent", BuiltValue::Int(i64::from(table.ascent)));
     vhea.push_field(b"descent", BuiltValue::Int(i64::from(table.descent)));
     vhea.push_field(b"lineGap", BuiltValue::Int(i64::from(table.line_gap)));
@@ -97,7 +94,10 @@ pub fn dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     );
     vhea.push_field(b"minTop", BuiltValue::Int(i64::from(table.min_top)));
     vhea.push_field(b"minBottom", BuiltValue::Int(i64::from(table.min_bottom)));
-    vhea.push_field(b"yMaxExtent", BuiltValue::Int(i64::from(table.y_max_extent)));
+    vhea.push_field(
+        b"yMaxExtent",
+        BuiltValue::Int(i64::from(table.y_max_extent)),
+    );
     vhea.push_field(
         b"caretSlopeRise",
         BuiltValue::Int(i64::from(table.caret_slope_rise)),
@@ -106,7 +106,10 @@ pub fn dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
         b"caretSlopeRun",
         BuiltValue::Int(i64::from(table.caret_slope_run)),
     );
-    vhea.push_field(b"caretOffset", BuiltValue::Int(i64::from(table.caret_offset)));
+    vhea.push_field(
+        b"caretOffset",
+        BuiltValue::Int(i64::from(table.caret_offset)),
+    );
     root.push_field(b"vhea", vhea);
     stage.finish();
 }

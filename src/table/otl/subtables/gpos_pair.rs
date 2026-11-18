@@ -1,22 +1,11 @@
 use crate::support::handle::{GlyphHandle, handle_from_index};
-use otfcc_json::ParsedValue;
-use crate::table::otl::classdef::{
-    ClassDef, expand_class_def, read_class_def,
-};
 use crate::table::otl::budget::OtlReadBudget;
+use crate::table::otl::classdef::{ClassDef, expand_class_def, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage, shrink_coverage};
+use otfcc_json::ParsedValue;
 
 use otfcc_binary::FontReader;
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::bk::graph::BkGraph;
-use otfcc_binary::bk::graph::{
-    bk_build_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block,
-    bk_untangle_graph,
-};
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;
@@ -26,6 +15,15 @@ use crate::table::otl::subtables::gpos_common::{
     position_zero, read_gpos_value, required_position_format,
 };
 use crate::table::otl::{GposPairSubtable, PositionValue, Subtable};
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::BkGraph;
+use otfcc_binary::bk::graph::{
+    bk_build_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block,
+    bk_untangle_graph,
+};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 
 // `fv`/`sv` hold the matched cell's value directly now, not a pointer into
@@ -115,7 +113,9 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     }
     let mut pair_set_offsets = Vec::with_capacity(pair_set_count as usize);
     for _ in 0..pair_set_count {
-        pair_set_offsets.push(offset.wrapping_add(u32::from(header.u16().expect("require_room above covered this read"))));
+        pair_set_offsets.push(offset.wrapping_add(u32::from(
+            header.u16().expect("require_room above covered this read"),
+        )));
     }
 
     // Check every PairSet's header and record array first.
@@ -176,13 +176,9 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
             let second = i32::from(pair_second_glyph(data, second_offset));
             if let Some(idx) = h.get_index_of(&second) {
                 let cid = idx + 1;
-                first_values[j3][cid] =
-                    read_gpos_value(data, (second_offset + 2) as u32, format1);
-                second_values[j3][cid] = read_gpos_value(
-                    data,
-                    (second_offset + 2 + len1 as usize) as u32,
-                    format2,
-                );
+                first_values[j3][cid] = read_gpos_value(data, (second_offset + 2) as u32, format1);
+                second_values[j3][cid] =
+                    read_gpos_value(data, (second_offset + 2 + len1 as usize) as u32, format2);
             }
         }
     }
@@ -215,7 +211,8 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     let len1_0 = position_format_length(format1_0);
     let len2_0 = position_format_length(format2_0);
 
-    let first_coverage: Coverage = read_coverage(data, offset.wrapping_add(u32::from(cov_rel)), budget);
+    let first_coverage: Coverage =
+        read_coverage(data, offset.wrapping_add(u32::from(cov_rel)), budget);
     // `expand_class_def` takes the class def it is given and returns a
     // new one.
     let first_cd = expand_class_def(
@@ -255,10 +252,8 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     // (unlike Format 1's `cid`-indexed overwrite pass) no
     // pre-sized placeholder grid is needed -- each row is just
     // pushed as it's read.
-    let mut first_values: Vec<Vec<PositionValue>> =
-        Vec::with_capacity(class1_count as usize);
-    let mut second_values: Vec<Vec<PositionValue>> =
-        Vec::with_capacity(class1_count as usize);
+    let mut first_values: Vec<Vec<PositionValue>> = Vec::with_capacity(class1_count as usize);
+    let mut second_values: Vec<Vec<PositionValue>> = Vec::with_capacity(class1_count as usize);
     for j4 in 0..u32::from(class1_count) {
         let mut row1 = Vec::with_capacity(class2_count as usize);
         let mut row2 = Vec::with_capacity(class2_count as usize);
@@ -272,7 +267,11 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
                 .wrapping_add(16)
                 .wrapping_add((j4 * u32::from(class2_count) + k2) * stride as u32);
             row1.push(read_gpos_value(data, cell_offset, format1_0));
-            row2.push(read_gpos_value(data, cell_offset + u32::from(len1_0), format2_0));
+            row2.push(read_gpos_value(
+                data,
+                cell_offset + u32::from(len1_0),
+                format2_0,
+            ));
         }
         first_values.push(row1);
         second_values.push(row2);
@@ -332,9 +331,7 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
 /// buildable subtable, and keeps the two matrices under 70 MB.
 const MAX_CLASS_MATRIX_ENTRIES: usize = 1 << 20;
 
-pub fn otl_gpos_parse_pair(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gpos_parse_pair(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let sv = _subtable;
     let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array))?;
     let first: Option<ClassDef> =
@@ -355,7 +352,11 @@ pub fn otl_gpos_parse_pair(
         || class2_count > u16::MAX as usize
         || class1_count * class2_count > MAX_CLASS_MATRIX_ENTRIES
     {
-        tracing::warn!("[OTFCC-fea] Pair positioning subtable with {} x {} classes is too large. This subtable is ignored.\n", class1_count, class2_count);
+        tracing::warn!(
+            "[OTFCC-fea] Pair positioning subtable with {} x {} classes is too large. This subtable is ignored.\n",
+            class1_count,
+            class2_count
+        );
         return None;
     }
     let mut first_values: Vec<Vec<PositionValue>> =
@@ -399,24 +400,28 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let (first_cd, second_cd) = subtable.class_defs();
     let mut format1: u16 = 0;
     let mut format2: u16 = 0;
-    let class1_count: GlyphClass =
-        (i32::from(first_cd.maxclass) + 1) as GlyphClass;
-    let class2_count: GlyphClass =
-        (i32::from(second_cd.maxclass) + 1) as GlyphClass;
+    let class1_count: GlyphClass = (i32::from(first_cd.maxclass) + 1) as GlyphClass;
+    let class2_count: GlyphClass = (i32::from(second_cd.maxclass) + 1) as GlyphClass;
     for j in 0..class1_count {
         for k in 0..class2_count {
             format1 = (i32::from(format1)
-                | i32::from(required_position_format(subtable.first_values[j as usize][k as usize]))) as u16;
+                | i32::from(required_position_format(
+                    subtable.first_values[j as usize][k as usize],
+                ))) as u16;
             format2 = (i32::from(format2)
-                | i32::from(required_position_format(subtable.second_values[j as usize][k as usize]))) as u16;
+                | i32::from(required_position_format(
+                    subtable.second_values[j as usize][k as usize],
+                ))) as u16;
         }
     }
     let mut pair_counts: Vec<GlyphId> = vec![0 as GlyphId; first_cd.glyphs.len()];
     for (count, &c1) in pair_counts.iter_mut().zip(first_cd.classes.iter()) {
         for &c2 in second_cd.classes.iter() {
-            if i32::from(required_position_format(subtable.first_values[c1 as usize][c2 as usize]))
-                | i32::from(required_position_format(subtable.second_values[c1 as usize][c2 as usize]))
-                != 0
+            if i32::from(required_position_format(
+                subtable.first_values[c1 as usize][c2 as usize],
+            )) | i32::from(required_position_format(
+                subtable.second_values[c1 as usize][c2 as usize],
+            )) != 0
             {
                 *count = count.wrapping_add(1);
             }
@@ -432,15 +437,17 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
         ),
         bk_int(BkCellType::B16, i32::from(format1) as u32),
         bk_int(BkCellType::B16, i32::from(format2) as u32),
-        bk_int(
-            BkCellType::B16,
-            (first_cd.glyphs.len() as i32) as u32,
-        ),
+        bk_int(BkCellType::B16, (first_cd.glyphs.len() as i32) as u32),
     ]);
     for cov_entry in cov.iter() {
         let mut current_pair_count: TableId = 0 as TableId;
         let mut c1_0: GlyphClass = 0 as GlyphClass;
-        for ((glyph, &c1), &count) in first_cd.glyphs.iter().zip(first_cd.classes.iter()).zip(pair_counts.iter()) {
+        for ((glyph, &c1), &count) in first_cd
+            .glyphs
+            .iter()
+            .zip(first_cd.classes.iter())
+            .zip(pair_counts.iter())
+        {
             if i32::from(glyph.index) == i32::from(cov_entry.index) {
                 c1_0 = c1;
                 current_pair_count = count as TableId;
@@ -455,11 +462,11 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
         let mut pairs: Vec<IndividualGposPair> = Vec::with_capacity(current_pair_count as usize);
         for k_2 in 0..second_cd.glyphs.len() {
             let c2_0: GlyphClass = second_cd.classes[k_2];
-            if i32::from(required_position_format(subtable.first_values[c1_0 as usize][c2_0 as usize]))
-                | i32::from(required_position_format(
-                    subtable.second_values[c1_0 as usize][c2_0 as usize],
-                ))
-                != 0
+            if i32::from(required_position_format(
+                subtable.first_values[c1_0 as usize][c2_0 as usize],
+            )) | i32::from(required_position_format(
+                subtable.second_values[c1_0 as usize][c2_0 as usize],
+            )) != 0
             {
                 pairs.push(IndividualGposPair {
                     gid: second_cd.glyphs[k_2].index,
@@ -490,16 +497,18 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     let (first_cd, second_cd) = subtable.class_defs();
     let mut format1: u16 = 0;
     let mut format2: u16 = 0;
-    let class1_count: GlyphClass =
-        (i32::from(first_cd.maxclass) + 1) as GlyphClass;
-    let class2_count: GlyphClass =
-        (i32::from(second_cd.maxclass) + 1) as GlyphClass;
+    let class1_count: GlyphClass = (i32::from(first_cd.maxclass) + 1) as GlyphClass;
+    let class2_count: GlyphClass = (i32::from(second_cd.maxclass) + 1) as GlyphClass;
     for j in 0..class1_count {
         for k in 0..class2_count {
             format1 = (i32::from(format1)
-                | i32::from(required_position_format(subtable.first_values[j as usize][k as usize]))) as u16;
+                | i32::from(required_position_format(
+                    subtable.first_values[j as usize][k as usize],
+                ))) as u16;
             format2 = (i32::from(format2)
-                | i32::from(required_position_format(subtable.second_values[j as usize][k as usize]))) as u16;
+                | i32::from(required_position_format(
+                    subtable.second_values[j as usize][k as usize],
+                ))) as u16;
         }
     }
     let cov: Coverage = cov_from_cd(first_cd);
@@ -647,7 +656,10 @@ mod otl_read_gpos_pair_tests {
         // Each subtable has 2,550 cells, but the table's allowance (5,500)
         // only covers two of them.
         let data = format1_shared_pairset_table(50);
-        let mut budget = OtlReadBudget { pair_grid_cells: 5_500, ..OtlReadBudget::new() };
+        let mut budget = OtlReadBudget {
+            pair_grid_cells: 5_500,
+            ..OtlReadBudget::new()
+        };
         assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_some());
         assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_some());
         assert!(otl_read_gpos_pair(&data, 0, 0, &mut budget).is_none());
@@ -798,8 +810,11 @@ mod otl_gpos_parse_pair_class_limit_tests {
 
     #[test]
     fn a_small_class_matrix_is_parsed() {
-        let st = parse(r#"{"first": {"a": 1}, "second": {"b": 2}, "matrix": [[0, 0, 0], [0, 0, 5]]}"#);
-        let Some(Subtable::GposPair(st)) = &st else { panic!("not parsed") };
+        let st =
+            parse(r#"{"first": {"a": 1}, "second": {"b": 2}, "matrix": [[0, 0, 0], [0, 0, 5]]}"#);
+        let Some(Subtable::GposPair(st)) = &st else {
+            panic!("not parsed")
+        };
         assert_eq!(st.first_values.len(), 2);
         assert_eq!(st.first_values[1].len(), 3);
         assert_eq!(st.first_values[1][2].d_width, 5.0);
@@ -809,8 +824,12 @@ mod otl_gpos_parse_pair_class_limit_tests {
     fn a_negative_class_is_ignored_instead_of_wrapping_to_65535() {
         // -1 used to become class 65535, wrap the class count to 0 and
         // panic when the subtable was built.
-        let st = parse(r#"{"first": {"a": -1, "c": 1}, "second": {"b": 1}, "matrix": [[0, 0], [0, 7]]}"#);
-        let Some(Subtable::GposPair(st)) = &st else { panic!("not parsed") };
+        let st = parse(
+            r#"{"first": {"a": -1, "c": 1}, "second": {"b": 1}, "matrix": [[0, 0], [0, 7]]}"#,
+        );
+        let Some(Subtable::GposPair(st)) = &st else {
+            panic!("not parsed")
+        };
         assert_eq!(st.first.as_ref().unwrap().glyphs.len(), 1);
         assert_eq!(st.first_values.len(), 2);
     }
@@ -824,7 +843,9 @@ mod otl_gpos_parse_pair_class_limit_tests {
     #[cfg_attr(miri, ignore = "allocates a million-entry matrix")]
     fn an_oversized_class_matrix_is_rejected_instead_of_allocated() {
         // 65,534 x 65,534 classes would be over four billion matrix entries.
-        assert!(parse(r#"{"first": {"a": 65534}, "second": {"b": 65534}, "matrix": []}"#).is_none());
+        assert!(
+            parse(r#"{"first": {"a": 65534}, "second": {"b": 65534}, "matrix": []}"#).is_none()
+        );
         // Just under the limit is fine.
         assert!(parse(r#"{"first": {"a": 1023}, "second": {"b": 1023}, "matrix": []}"#).is_some());
     }

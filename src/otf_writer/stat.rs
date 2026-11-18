@@ -1,6 +1,5 @@
 use crate::support::handle::{Handle, HandleState, handle_from_index};
 
-
 use crate::font::model::{Font, FontSubtype};
 use crate::support::options::Options;
 use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, count_u16};
@@ -57,7 +56,11 @@ pub fn stat_single_glyph(
         return stat;
     }
     if stated[j as usize] == StatStatus::Doing {
-        tracing::warn!("[Stat] Circular glyph reference found in gid {} to gid {}. The reference will be dropped.\n", i32::from(topj), i32::from(j));
+        tracing::warn!(
+            "[Stat] Circular glyph reference found in gid {} to gid {}. The reference will be dropped.\n",
+            i32::from(topj),
+            i32::from(j)
+        );
         stated[j as usize] = StatStatus::Completed;
         return stat;
     }
@@ -135,18 +138,13 @@ pub fn stat_single_glyph(
         if thatstat.y_max > ymax {
             ymax = thatstat.y_max;
         }
-        if i32::from(thatstat.nest_depth) + 1
-            > i32::from(nest_depth)
-        {
-            nest_depth =
-                (i32::from(thatstat.nest_depth) + 1) as u16;
+        if i32::from(thatstat.nest_depth) + 1 > i32::from(nest_depth) {
+            nest_depth = (i32::from(thatstat.nest_depth) + 1) as u16;
         }
-        n_composite_points = (i32::from(n_composite_points)
-            + i32::from(thatstat.n_composite_points))
-            as u16;
-        n_composite_contours = (i32::from(n_composite_contours)
-            + i32::from(thatstat.n_composite_contours))
-            as u16;
+        n_composite_points =
+            (i32::from(n_composite_points) + i32::from(thatstat.n_composite_points)) as u16;
+        n_composite_contours =
+            (i32::from(n_composite_contours) + i32::from(thatstat.n_composite_contours)) as u16;
     }
     if xmin > xmax {
         xmax = Pos::from(0);
@@ -206,7 +204,10 @@ pub fn stat_glyf(font: &mut Font) {
         gr.c = Scale::from(0);
         gr.d = Scale::from(1);
         let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0, j);
-        glyf[j as usize].as_mut().expect("glyph slot is filled").stat = thatstat;
+        glyf[j as usize]
+            .as_mut()
+            .expect("glyph slot is filled")
+            .stat = thatstat;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
         }
@@ -354,12 +355,7 @@ fn stat_hmtx(font: &mut Font) {
         left_side_bearing,
     }));
     let head = font.head.as_deref_mut().expect("head table is present");
-    head.flags = (i32::from(head.flags) & !0x2
-        | (if lsb_at_x_zero {
-            0x2
-        } else {
-            0
-        })) as u16;
+    head.flags = (i32::from(head.flags) & !0x2 | (if lsb_at_x_zero { 0x2 } else { 0 })) as u16;
 }
 fn stat_vmtx(font: &mut Font, options: &Options) {
     if font.glyf.is_none() {
@@ -450,7 +446,15 @@ static UNICODE_RANGE_BITS: [(u32, &[(i32, i32)]); 123] = [
     (6, &[(0x0300, 0x036F), (0x1DC0, 0x1DFF)]),
     (7, &[(0x0370, 0x03FF)]),
     (8, &[(0x2C80, 0x2CFF)]),
-    (9, &[(0x0400, 0x04FF), (0x0500, 0x052F), (0x2DE0, 0x2DFF), (0xA640, 0xA69F)]),
+    (
+        9,
+        &[
+            (0x0400, 0x04FF),
+            (0x0500, 0x052F),
+            (0x2DE0, 0x2DFF),
+            (0xA640, 0xA69F),
+        ],
+    ),
     (10, &[(0x0530, 0x058F)]),
     (11, &[(0x0590, 0x05FF)]),
     (12, &[(0xA500, 0xA63F)]),
@@ -478,8 +482,24 @@ static UNICODE_RANGE_BITS: [(u32, &[(i32, i32)]); 123] = [
     (34, &[(0x20D0, 0x20FF)]),
     (35, &[(0x2100, 0x214F)]),
     (36, &[(0x2150, 0x218F)]),
-    (37, &[(0x2190, 0x21FF), (0x27F0, 0x27FF), (0x2900, 0x297F), (0x2B00, 0x2BFF)]),
-    (38, &[(0x2200, 0x22FF), (0x2A00, 0x2AFF), (0x27C0, 0x27EF), (0x2980, 0x29FF)]),
+    (
+        37,
+        &[
+            (0x2190, 0x21FF),
+            (0x27F0, 0x27FF),
+            (0x2900, 0x297F),
+            (0x2B00, 0x2BFF),
+        ],
+    ),
+    (
+        38,
+        &[
+            (0x2200, 0x22FF),
+            (0x2A00, 0x2AFF),
+            (0x27C0, 0x27EF),
+            (0x2980, 0x29FF),
+        ],
+    ),
     (39, &[(0x2300, 0x23FF)]),
     (40, &[(0x2400, 0x243F)]),
     (41, &[(0x2440, 0x245F)]),
@@ -498,11 +518,25 @@ static UNICODE_RANGE_BITS: [(u32, &[(i32, i32)]); 123] = [
     (54, &[(0x3200, 0x32FF)]),
     (55, &[(0x3300, 0x33FF)]),
     (56, &[(0xAC00, 0xD7AF)]),
-    (57, &[(0xD800, 0xDFFF), (0x10000, i32::MAX)]),  // surrogates, and every code point beyond the BMP
+    (57, &[(0xD800, 0xDFFF), (0x10000, i32::MAX)]), // surrogates, and every code point beyond the BMP
     (58, &[(0x10900, 0x1091F)]),
-    (59, &[(0x4E00, 0x9FFF), (0x2E80, 0x2EFF), (0x2F00, 0x2FDF), (0x2FF0, 0x2FFF), (0x3400, 0x4DBF), (0x20000, 0x2F7FF), (0x3190, 0x319F)]),
+    (
+        59,
+        &[
+            (0x4E00, 0x9FFF),
+            (0x2E80, 0x2EFF),
+            (0x2F00, 0x2FDF),
+            (0x2FF0, 0x2FFF),
+            (0x3400, 0x4DBF),
+            (0x20000, 0x2F7FF),
+            (0x3190, 0x319F),
+        ],
+    ),
     (60, &[(0xE000, 0xF8FF)]),
-    (61, &[(0x31C0, 0x31EF), (0xF900, 0xFAFF), (0x2F800, 0x2FA1F)]),
+    (
+        61,
+        &[(0x31C0, 0x31EF), (0xF900, 0xFAFF), (0x2F800, 0x2FA1F)],
+    ),
     (62, &[(0xFB00, 0xFB4F)]),
     (63, &[(0xFB50, 0xFDFF)]),
     (64, &[(0xFE20, 0xFE2F)]),
@@ -525,11 +559,22 @@ static UNICODE_RANGE_BITS: [(u32, &[(i32, i32)]); 123] = [
     (81, &[(0x1800, 0x18AF)]),
     (82, &[(0x2800, 0x28FF)]),
     (83, &[(0xA000, 0xA48F), (0xA490, 0xA4CF)]),
-    (84, &[(0x1700, 0x171F), (0x1720, 0x173F), (0x1740, 0x175F), (0x1760, 0x177F)]),
+    (
+        84,
+        &[
+            (0x1700, 0x171F),
+            (0x1720, 0x173F),
+            (0x1740, 0x175F),
+            (0x1760, 0x177F),
+        ],
+    ),
     (85, &[(0x10300, 0x1032F)]),
     (86, &[(0x10330, 0x1034F)]),
     (87, &[(0x10400, 0x1044F)]),
-    (88, &[(0x1D000, 0x1D0FF), (0x1D100, 0x1D1FF), (0x1D200, 0x1D24F)]),
+    (
+        88,
+        &[(0x1D000, 0x1D0FF), (0x1D100, 0x1D1FF), (0x1D200, 0x1D24F)],
+    ),
     (89, &[(0x1D400, 0x1D7FF)]),
     (90, &[(0xFF000, 0xFFFFD), (0x100000, 0x10FFFD)]),
     (91, &[(0xFE00, 0xFE0F), (0xE0100, 0xE01EF)]),
@@ -542,7 +587,10 @@ static UNICODE_RANGE_BITS: [(u32, &[(i32, i32)]); 123] = [
     (98, &[(0x2D30, 0x2D7F)]),
     (99, &[(0x4DC0, 0x4DFF)]),
     (100, &[(0xA800, 0xA82F)]),
-    (101, &[(0x10000, 0x1007F), (0x10080, 0x100FF), (0x10100, 0x1013F)]),
+    (
+        101,
+        &[(0x10000, 0x1007F), (0x10080, 0x100FF), (0x10100, 0x1013F)],
+    ),
     (102, &[(0x10140, 0x1018F)]),
     (103, &[(0x10380, 0x1039F)]),
     (104, &[(0x103A0, 0x103DF)]),
@@ -562,7 +610,10 @@ static UNICODE_RANGE_BITS: [(u32, &[(i32, i32)]); 123] = [
     (118, &[(0xAA00, 0xAA5F)]),
     (119, &[(0x10190, 0x101CF)]),
     (120, &[(0x101D0, 0x101FF)]),
-    (121, &[(0x102A0, 0x102DF), (0x10280, 0x1029F), (0x10920, 0x1093F)]),
+    (
+        121,
+        &[(0x102A0, 0x102DF), (0x10280, 0x1029F), (0x10920, 0x1093F)],
+    ),
     (122, &[(0x1F030, 0x1F09F), (0x1F000, 0x1F02F)]),
 ];
 
@@ -580,7 +631,13 @@ fn stat_os_2_unicode_ranges(font: &mut Font, options: &Options) {
     let mut ranges = [0u32; 4];
     let mut min_unicode: i32 = 0xffff;
     let mut max_unicode: i32 = 0;
-    for &u in font.cmap.as_ref().expect("cmap table is present").unicodes.keys() {
+    for &u in font
+        .cmap
+        .as_ref()
+        .expect("cmap table is present")
+        .unicodes
+        .keys()
+    {
         min_unicode = min_unicode.min(u);
         max_unicode = max_unicode.max(u);
         for (range, bits) in ranges.iter_mut().zip(unicode_range_bits(u)) {
@@ -615,7 +672,12 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     let glyf = font.glyf.as_ref().expect("glyf table is present");
     let mut total_width: u32 = 0;
     for slot in glyf.iter() {
-        let adw: Pos = vq_get_still(slot.as_deref().expect("glyph slot is filled").advance_width.clone()) as Pos;
+        let adw: Pos = vq_get_still(
+            slot.as_deref()
+                .expect("glyph slot is filled")
+                .advance_width
+                .clone(),
+        ) as Pos;
         if adw > Pos::from(0) {
             total_width = (Pos::from(total_width) + adw) as u32;
         }
@@ -662,7 +724,10 @@ fn stat_max_context(font: &mut Font) {
             maxc = maxc_gpos;
         }
     }
-    font.os_2.as_deref_mut().expect("os_2 table is present").us_max_context = maxc;
+    font.os_2
+        .as_deref_mut()
+        .expect("os_2 table is present")
+        .us_max_context = maxc;
 }
 fn stat_os_2(font: &mut Font, options: &Options) {
     stat_os_2_unicode_ranges(font, options);
@@ -711,17 +776,16 @@ fn stat_cff_widths(font: &mut Font) {
         }
     }
     for fd in cff.fd_array.iter_mut() {
-        let pd = fd.private_dict.as_deref_mut().expect("CFF font dict has a private dict");
+        let pd = fd
+            .private_dict
+            .as_deref_mut()
+            .expect("CFF font dict has a private dict");
         pd.default_width_x = f64::from(maxj);
         pd.nominal_width_x = f64::from(nominal_width_x);
     }
 }
 fn stat_vorg(font: &mut Font) {
-    if font.glyf.is_none()
-        || font.cff.is_none()
-        || font.vhea.is_none()
-        || font.vmtx.is_none()
-    {
+    if font.glyf.is_none() || font.cff.is_none() || font.vhea.is_none() || font.vmtx.is_none() {
         return;
     }
     let glyf = font.glyf.as_ref().expect("glyf table is present");
@@ -729,8 +793,7 @@ fn stat_vorg(font: &mut Font) {
     for g in iter_glyphs(glyf) {
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
         if vori >= Pos::from(0) && vori < Pos::from(MAX_STAT_METRIC) {
-            frequency[vori as u16 as usize] =
-                frequency[vori as u16 as usize].wrapping_add(1);
+            frequency[vori as u16 as usize] = frequency[vori as u16 as usize].wrapping_add(1);
         }
     }
     let mut maxfreq: u32 = 0;
@@ -746,8 +809,7 @@ fn stat_vorg(font: &mut Font) {
     for g in iter_glyphs(glyf) {
         let vertical_origin: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
         if vertical_origin != Pos::from(i32::from(maxj)) {
-            n_vert_origs =
-                (i32::from(n_vert_origs) + 1) as GlyphId;
+            n_vert_origs = (i32::from(n_vert_origs) + 1) as GlyphId;
         }
     }
     let mut entries: Vec<VorgEntry> = Vec::with_capacity(n_vert_origs as usize);
@@ -792,7 +854,10 @@ pub fn stat_font(font: &mut Font, options: &Options) {
                 .duration_since(::std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
-            font.head.as_deref_mut().expect("head table is present").modified = 2082844800 + now;
+            font.head
+                .as_deref_mut()
+                .expect("head table is present")
+                .modified = 2082844800 + now;
         }
     }
     if font.head.is_some() && font.cff.is_some() {
@@ -800,7 +865,11 @@ pub fn stat_font(font: &mut Font, options: &Options) {
         let head_y_max = font.head.as_deref().expect("head table is present").y_max;
         let head_x_min = font.head.as_deref().expect("head table is present").x_min;
         let head_x_max = font.head.as_deref().expect("head table is present").x_max;
-        let units_per_em = font.head.as_deref().expect("head table is present").units_per_em;
+        let units_per_em = font
+            .head
+            .as_deref()
+            .expect("head table is present")
+            .units_per_em;
         let glyf_len = font.glyf.as_ref().map(|g| g.len() as u32);
         let cff = font.cff.as_deref_mut().expect("cff table is present");
         if cff.font_b_box_bottom > f64::from(i32::from(head_y_min)) {
@@ -816,9 +885,10 @@ pub fn stat_font(font: &mut Font, options: &Options) {
             cff.font_b_box_right = f64::from(i32::from(head_x_max));
         }
         if let Some(len) = glyf_len
-            && cff.is_cid {
-                cff.cid_count = len;
-            }
+            && cff.is_cid
+        {
+            cff.cid_count = len;
+        }
         if cff.is_cid {
             cff.font_matrix = None;
             for fd in cff.fd_array.iter_mut() {
@@ -851,13 +921,15 @@ pub fn stat_font(font: &mut Font, options: &Options) {
         stat_cff_widths(font);
     }
     if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u16)
-        && let Some(maxp) = font.maxp.as_deref_mut() {
-            maxp.num_glyphs = len;
-        }
+        && let Some(maxp) = font.maxp.as_deref_mut()
+    {
+        maxp.num_glyphs = len;
+    }
     if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u32)
-        && let Some(post) = font.post.as_deref_mut() {
-            post.max_mem_type42 = len;
-        }
+        && let Some(post) = font.post.as_deref_mut()
+    {
+        post.max_mem_type42 = len;
+    }
     let maxp_version_is_10000 =
         font.maxp.as_deref().map(|m| m.version) == Some(0x10000 as F16Dot16);
     if font.glyf.is_some() && font.maxp.is_some() && maxp_version_is_10000 {
@@ -1003,7 +1075,10 @@ mod unicode_range_tests {
     #[test]
     fn table_lists_each_bit_once_with_well_formed_ranges() {
         for (i, &(bit, ranges)) in UNICODE_RANGE_BITS.iter().enumerate() {
-            assert_eq!(bit as usize, i, "bits are listed in order, 0..=122, once each");
+            assert_eq!(
+                bit as usize, i,
+                "bits are listed in order, 0..=122, once each"
+            );
             assert!(!ranges.is_empty());
             assert!(ranges.iter().all(|&(lo, hi)| lo <= hi), "bit {bit}");
         }

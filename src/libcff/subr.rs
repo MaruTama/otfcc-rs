@@ -110,7 +110,10 @@ impl CffSubrGraph {
     }
     /// The bytes of a literal node; only nodes without a rule hold bytes.
     fn terminal_of(&self, id: NodeId) -> &Buffer {
-        self.node(id).terminal.as_ref().expect("a node without a rule holds bytes")
+        self.node(id)
+            .terminal
+            .as_ref()
+            .expect("a node without a rule holds bytes")
     }
     fn rule(&self, id: RuleId) -> &CffSubrRule {
         &self.rules[id.0]
@@ -200,4 +203,3 @@ mod strncmp_eq_tests;
 // `KRName-Regular-O2.otf`'s golden checksum.
 #[cfg(test)]
 mod subr_graph_tests;
-

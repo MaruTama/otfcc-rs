@@ -3,8 +3,8 @@ pub mod unconsolidate;
 use crate::support::options::Options;
 
 use crate::font::model::{Font, FontSubtype};
-use crate::font::table_registry::READ_ORDER;
 use crate::font::sfnt::{Packet, PacketPiece, SplineFontContainer};
+use crate::font::table_registry::READ_ORDER;
 
 use crate::otf_reader::unconsolidate::unconsolidate_font;
 
@@ -44,7 +44,7 @@ mod regression_tests {
     use crate::consolidate::consolidate_font;
     use crate::font::sfnt::read_sfnt_from_reader;
     use crate::support::options::Options;
-    
+
     use std::io::Cursor;
     use std::time::{Duration, Instant};
 
@@ -73,7 +73,8 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-cff-per-glyph-stack-realloc-hang.bin",
         )
         .unwrap();
-        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -134,7 +135,8 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-contextual-amplification-hang.bin",
         )
         .unwrap();
-        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -182,7 +184,8 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-amplification-oom.bin",
         )
         .unwrap();
-        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -204,8 +207,7 @@ mod regression_tests {
             .flatten()
         {
             assert!(
-                otl.lookups.len()
-                    <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
+                otl.lookups.len() <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
                 "lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
                 otl.lookups.len()
             );
@@ -250,7 +252,8 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-parse-otl-feature-list-amplification-hang.bin",
         )
         .unwrap();
-        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -321,7 +324,8 @@ mod regression_tests {
         data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
         assert_eq!(data.len(), 28 + 54);
 
-        let sfnt = read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -362,7 +366,8 @@ mod regression_tests {
         data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
         assert_eq!(data.len(), 28 + 54);
 
-        let sfnt = read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(data.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -421,7 +426,8 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-dump-otl-coverage-consolidate-amplification-hang.bin",
         )
         .unwrap();
-        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 
@@ -475,7 +481,8 @@ mod regression_tests {
             "tests/fuzz-corpus/known-issues/otf-dump-cmap-uvs-non-default-aliasing-oom.bin",
         )
         .unwrap();
-        let sfnt = read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
 
         let options: Box<Options> = Box::default();
 

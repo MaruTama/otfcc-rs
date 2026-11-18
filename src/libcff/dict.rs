@@ -1,7 +1,5 @@
 use crate::libcff::CffDictOperator;
-use crate::libcff::codecs::{
-    decode_cff_token, encode_float, encode_integer, encode_operator,
-};
+use crate::libcff::codecs::{decode_cff_token, encode_float, encode_integer, encode_operator};
 use crate::libcff::value::CffValue;
 use otfcc_binary::Buffer;
 
@@ -22,7 +20,10 @@ pub struct CffDict {
 // font, so call sites that locate a DICT from them build this slice with
 // `.get(start..).and_then(|s| s.get(..len))` and fall back to "not found"
 // when it doesn't fit.
-pub(crate) fn parse_to_callback(data: &[u8], mut callback: impl FnMut(CffDictOperator, u8, &[CffValue])) {
+pub(crate) fn parse_to_callback(
+    data: &[u8],
+    mut callback: impl FnMut(CffDictOperator, u8, &[CffValue]),
+) {
     let mut index: u8 = 0;
     let mut val: CffValue = CffValue::Unset;
     let mut stack: [CffValue; 256] = [CffValue::Unset; 256];

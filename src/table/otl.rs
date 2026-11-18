@@ -82,7 +82,9 @@ impl LookupType {
     pub const fn file_format(self) -> u32 {
         if self.0 > OTL_TYPE_GPOS_UNKNOWN.0 {
             self.0 - OTL_TYPE_GPOS_UNKNOWN.0
-        } else { self.0.saturating_sub(OTL_TYPE_GSUB_UNKNOWN.0) }
+        } else {
+            self.0.saturating_sub(OTL_TYPE_GSUB_UNKNOWN.0)
+        }
     }
 
     /// The name this type has in otfcc's JSON, and the key its lookups are
@@ -370,14 +372,18 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
 /// Empties, in place, every slot of `arr` whose lookup fails `pred`, so the
 /// indices of the others stay valid. Returns whether it emptied any, for
 /// the fixed-point loop in `consolidate/otl.rs`.
-pub(crate) fn otl_lookup_list_punch_holes(arr: &mut LookupList, mut pred: impl FnMut(&Lookup) -> bool) -> bool {
+pub(crate) fn otl_lookup_list_punch_holes(
+    arr: &mut LookupList,
+    mut pred: impl FnMut(&Lookup) -> bool,
+) -> bool {
     let mut punched = false;
     for slot in arr.iter_mut() {
         if let Some(lookup) = slot
-            && !pred(lookup) {
-                *slot = None;
-                punched = true;
-            }
+            && !pred(lookup)
+        {
+            *slot = None;
+            punched = true;
+        }
     }
     punched
 }
@@ -397,14 +403,18 @@ pub(crate) fn new_feature() -> Box<Feature> {
         lookups: Vec::new(),
     })
 }
-pub(crate) fn otl_feature_list_punch_holes(arr: &mut FeatureList, mut pred: impl FnMut(&Feature) -> bool) -> bool {
+pub(crate) fn otl_feature_list_punch_holes(
+    arr: &mut FeatureList,
+    mut pred: impl FnMut(&Feature) -> bool,
+) -> bool {
     let mut punched = false;
     for slot in arr.iter_mut() {
         if let Some(feature) = slot
-            && !pred(feature) {
-                *slot = None;
-                punched = true;
-            }
+            && !pred(feature)
+        {
+            *slot = None;
+            punched = true;
+        }
     }
     punched
 }

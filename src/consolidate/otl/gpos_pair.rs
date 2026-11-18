@@ -1,14 +1,10 @@
-
 use crate::support::glyph_order::GlyphOrder;
 
 use crate::consolidate::otl::common::fontop_consolidate_class_def;
-use crate::table::otl::classdef::shrink_class_def;
 use crate::table::otl::Subtable;
+use crate::table::otl::classdef::shrink_class_def;
 
-pub fn consolidate_gpos_pair(
-    glyph_order: &GlyphOrder,
-    _subtable: &mut Subtable,
-) -> bool {
+pub fn consolidate_gpos_pair(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
     };

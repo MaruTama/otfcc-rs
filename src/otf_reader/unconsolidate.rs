@@ -1,20 +1,20 @@
 use crate::font::model::Font;
-use otfcc_binary::Buffer;
+use crate::support::fmt::{BytePart, Hex2Upper, Hex4Upper};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, count_u16};
-use crate::support::fmt::{Hex2Upper, Hex4Upper, BytePart};
+use otfcc_binary::Buffer;
 
 use crate::table::glyf::{GlyfTable, Glyph, PostscriptHintMask};
 
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::{ChainingRule, ChainingSubtable, Lookup, Subtable, SubtableList};
 
-use crate::support::unicode::aglfn::aglfn_name;
 use crate::support::glyph_order::{
     gord_lookup_name, gord_name_a_field_shared, set_glyph_order_by_gid,
 };
 use crate::support::primitives::{to_f2dot14, to_fixed};
+use crate::support::unicode::aglfn::aglfn_name;
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_inplace_plus};
 use sha1::{Digest, Sha1};
@@ -89,7 +89,12 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
     buf.write_u8('R' as i32 as u8);
     buf.write_u8('(' as i32 as u8);
     for r in &g.references {
-        let h: GlyphHash = name_glyph_by_hash(glyf[r.glyph.index as usize].as_deref().expect("glyph slot is filled"), glyf);
+        let h: GlyphHash = name_glyph_by_hash(
+            glyf[r.glyph.index as usize]
+                .as_deref()
+                .expect("glyph slot is filled"),
+            glyf,
+        );
         buf.write_bytes(&h.hash);
         hash_vq(buf, r.x.borrow().clone());
         hash_vq(buf, r.y.borrow().clone());
@@ -133,7 +138,9 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
     buf.write_u32be(g.instructions.len() as u32);
     buf.write_bytes(&g.instructions);
     let digest = Sha1::digest(&buf.data);
-    GlyphHash { hash: digest.into() }
+    GlyphHash {
+        hash: digest.into(),
+    }
 }
 fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
     // Built as a plain local value rather than via `otfcc_glyph_order_create`
@@ -157,7 +164,10 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         // read.
         let glyf = font.glyf.as_ref().expect("glyf table is present");
         if options.name_glyphs_by_hash {
-            let h: GlyphHash = name_glyph_by_hash(glyf[j as usize].as_deref().expect("glyph slot is filled"), glyf);
+            let h: GlyphHash = name_glyph_by_hash(
+                glyf[j as usize].as_deref().expect("glyph slot is filled"),
+                glyf,
+            );
             let mut gname: Vec<u8> = Vec::new();
             for (byte_idx, &byte) in h.hash.iter().enumerate() {
                 if byte_idx % 4 == 0 && byte_idx != 0 {
@@ -172,15 +182,13 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
                     if still_in {
                         n = (i32::from(n) + 1) as GlyphId;
                     }
-                    let newname: Vec<u8> =
-                        crate::bytesbuild!(&gname, b"-", &prefix, i32::from(n));
+                    let newname: Vec<u8> = crate::bytesbuild!(&gname, b"-", &prefix, i32::from(n));
                     still_in = gord_lookup_name(&glyph_order, newname);
                     if !still_in {
                         break;
                     }
                 }
-                let unique_name: Vec<u8> =
-                    crate::bytesbuild!(&gname, b"-", &prefix, i32::from(n));
+                let unique_name: Vec<u8> = crate::bytesbuild!(&gname, b"-", &prefix, i32::from(n));
                 set_glyph_order_by_gid(&mut glyph_order, j, unique_name)
             } else {
                 set_glyph_order_by_gid(&mut glyph_order, j, gname)
@@ -190,7 +198,11 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
                 .expect("glyph slot is filled")
                 .name = shared_name;
         } else if !(options.ignore_glyph_order || options.name_glyphs_by_gid) {
-            let existing_name = glyf[j as usize].as_deref().expect("glyph slot is filled").name.clone();
+            let existing_name = glyf[j as usize]
+                .as_deref()
+                .expect("glyph slot is filled")
+                .name
+                .clone();
             if !existing_name.is_empty() {
                 let prefixed_name: Vec<u8> = crate::bytesbuild!(&prefix, &existing_name);
                 let renamed = set_glyph_order_by_gid(&mut glyph_order, j, prefixed_name);
@@ -206,13 +218,15 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
         .as_deref()
         .and_then(|p| p.post_name_map.as_deref());
     if let Some(post_name_map) = post_name_map
-        && !options.ignore_glyph_order && !options.name_glyphs_by_gid {
-            for &idx in post_name_map.by_gid.values() {
-                let entry = &post_name_map.entries[idx];
-                let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
-                set_glyph_order_by_gid(&mut glyph_order, entry.gid, gname_1);
-            }
+        && !options.ignore_glyph_order
+        && !options.name_glyphs_by_gid
+    {
+        for &idx in post_name_map.by_gid.values() {
+            let entry = &post_name_map.entries[idx];
+            let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
+            set_glyph_order_by_gid(&mut glyph_order, entry.gid, gname_1);
         }
+    }
     if let Some(cmap) = font.cmap.as_ref().filter(|_| !options.name_glyphs_by_gid) {
         for (&unicode, glyph) in cmap.unicodes.iter() {
             if i32::from(glyph.index) > 0 {
@@ -359,7 +373,12 @@ fn merge_hmtx(font: &mut Font) {
     if !(font.hhea.is_some() && font.hmtx.is_some() && font.glyf.is_some()) {
         return;
     }
-    let count_a: u32 = u32::from(font.hhea.as_deref().expect("hhea table is present").number_of_metrics);
+    let count_a: u32 = u32::from(
+        font.hhea
+            .as_deref()
+            .expect("hhea table is present")
+            .number_of_metrics,
+    );
     let hmtx = font.hmtx.take().expect("hmtx table is present");
     let glyf = font.glyf.as_mut().expect("glyf table is present");
     let count_a = count_a as usize;
@@ -387,7 +406,12 @@ fn merge_vmtx(font: &mut Font) {
     if !(font.vhea.is_some() && font.vmtx.is_some() && font.glyf.is_some()) {
         return;
     }
-    let count_a: u32 = u32::from(font.vhea.as_deref().expect("vhea table is present").num_of_long_ver_metrics);
+    let count_a: u32 = u32::from(
+        font.vhea
+            .as_deref()
+            .expect("vhea table is present")
+            .num_of_long_ver_metrics,
+    );
     let vmtx = font.vmtx.take().expect("vmtx table is present");
     let mut vorgs: Option<Vec<Pos>> = None;
     if let Some(vorg) = font.vorg.take() {
@@ -426,12 +450,13 @@ fn merge_vmtx(font: &mut Font) {
 }
 fn merge_ltsh(font: &mut Font) {
     if let Some(glyf) = font.glyf.as_mut()
-        && let Some(ltsh) = &font.ltsh {
-            let n = (count_u16(glyf.len())).min(ltsh.num_glyphs) as usize;
-            for (slot, &y_pel) in glyf.iter_mut().zip(&ltsh.y_pels[..n]) {
-                slot.as_mut().expect("glyph slot is filled").y_pel = y_pel;
-            }
+        && let Some(ltsh) = &font.ltsh
+    {
+        let n = (count_u16(glyf.len())).min(ltsh.num_glyphs) as usize;
+        for (slot, &y_pel) in glyf.iter_mut().zip(&ltsh.y_pels[..n]) {
+            slot.as_mut().expect("glyph slot is filled").y_pel = y_pel;
         }
+    }
 }
 pub fn unconsolidate_font(font: &mut Font, options: &Options) {
     merge_hmtx(font);

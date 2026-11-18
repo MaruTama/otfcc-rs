@@ -93,13 +93,17 @@ impl OtlReadBudget {
 
     /// Spends `n` anchor slots if all of them are available.
     pub(crate) fn try_spend_mark_attach_anchors(&mut self, n: usize) -> bool {
-        let Ok(n) = u32::try_from(n) else { return false };
+        let Ok(n) = u32::try_from(n) else {
+            return false;
+        };
         Self::try_spend(&mut self.mark_attach_anchors, n)
     }
 
     /// Spends `n` cells of the pair-positioning grids if all are available.
     pub(crate) fn try_spend_pair_grid_cells(&mut self, n: usize) -> bool {
-        let Ok(n) = u32::try_from(n) else { return false };
+        let Ok(n) = u32::try_from(n) else {
+            return false;
+        };
         Self::try_spend(&mut self.pair_grid_cells, n)
     }
 }
@@ -116,7 +120,10 @@ mod tests {
 
     #[test]
     fn a_refused_spend_changes_nothing() {
-        let mut budget = OtlReadBudget { mark_attach_anchors: 3, ..OtlReadBudget::new() };
+        let mut budget = OtlReadBudget {
+            mark_attach_anchors: 3,
+            ..OtlReadBudget::new()
+        };
         assert!(!budget.try_spend_mark_attach_anchors(4));
         assert_eq!(budget.mark_attach_anchors, 3);
         assert!(budget.try_spend_mark_attach_anchors(3));
@@ -126,7 +133,10 @@ mod tests {
 
     #[test]
     fn pair_grid_cells_are_a_table_wide_allowance() {
-        let mut budget = OtlReadBudget { pair_grid_cells: 10, ..OtlReadBudget::new() };
+        let mut budget = OtlReadBudget {
+            pair_grid_cells: 10,
+            ..OtlReadBudget::new()
+        };
         assert!(budget.try_spend_pair_grid_cells(6));
         assert!(!budget.try_spend_pair_grid_cells(5));
         assert_eq!(budget.pair_grid_cells, 4);
@@ -135,10 +145,22 @@ mod tests {
 
     #[test]
     fn single_unit_budgets_stop_at_zero() {
-        let mut budget = OtlReadBudget { rules: 1, coverage_entries: 1, class_coverage_calls: 1, ..OtlReadBudget::new() };
+        let mut budget = OtlReadBudget {
+            rules: 1,
+            coverage_entries: 1,
+            class_coverage_calls: 1,
+            ..OtlReadBudget::new()
+        };
         assert!(budget.take_rule() && !budget.take_rule());
         assert!(budget.take_coverage_entry() && !budget.take_coverage_entry());
         assert!(budget.take_class_coverage_call() && !budget.take_class_coverage_call());
-        assert_eq!((budget.rules, budget.coverage_entries, budget.class_coverage_calls), (0, 0, 0));
+        assert_eq!(
+            (
+                budget.rules,
+                budget.coverage_entries,
+                budget.class_coverage_calls
+            ),
+            (0, 0, 0)
+        );
     }
 }

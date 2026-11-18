@@ -1,7 +1,7 @@
 use super::*;
 
-use otfcc_json::BuiltValue;
 use crate::table::fvar::json_new_vq;
+use otfcc_json::BuiltValue;
 
 fn pd_delta_to_json(target: &mut BuiltValue, field: &[u8], values: &[f64]) {
     if values.is_empty() {

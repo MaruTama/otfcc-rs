@@ -233,7 +233,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "calls std::fs::File::open on a real path, unsupported under Miri's default isolation")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls std::fs::File::open on a real path, unsupported under Miri's default isolation"
+    )]
     fn nonexistent_path_returns_none() {
         assert!(read_sfnt(std::path::Path::new("/nonexistent/otfcc-test-path")).is_none());
     }
@@ -241,7 +244,10 @@ mod tests {
     // A table whose declared length runs past the truncated file's actual
     // end must fail the read, not be silently zero-padded.
     #[test]
-    #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
+    #[cfg_attr(
+        miri,
+        ignore = "writes/opens a real temp file, unsupported under Miri's default isolation"
+    )]
     fn table_length_past_truncated_file_end_fails_instead_of_zero_padding() {
         // A minimal one-table SFNT: header (12 bytes) + one 16-byte
         // directory entry declaring the table's length as 8 bytes, but
@@ -270,7 +276,10 @@ mod tests {
     // check regressed, this test would hang or OOM instead of failing
     // promptly.
     #[test]
-    #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
+    #[cfg_attr(
+        miri,
+        ignore = "writes/opens a real temp file, unsupported under Miri's default isolation"
+    )]
     fn table_length_far_past_file_end_fails_without_allocating_it() {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
@@ -299,7 +308,10 @@ mod tests {
     // has *more* tables than a later one panics out of bounds. Two members:
     // the first with one table, the second with none.
     #[test]
-    #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
+    #[cfg_attr(
+        miri,
+        ignore = "writes/opens a real temp file, unsupported under Miri's default isolation"
+    )]
     fn ttc_member_with_fewer_tables_than_the_first_member_reads_cleanly() {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&crate::tag::SFNT_TTC_TAG.to_be_bytes());
@@ -333,7 +345,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
+    #[cfg_attr(
+        miri,
+        ignore = "writes/opens a real temp file, unsupported under Miri's default isolation"
+    )]
     fn ttc_count_far_past_file_end_fails_without_allocating_it() {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&crate::tag::SFNT_TTC_TAG.to_be_bytes());
@@ -345,7 +360,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
+    #[cfg_attr(
+        miri,
+        ignore = "writes/opens a real temp file, unsupported under Miri's default isolation"
+    )]
     fn well_formed_single_table_font_reads_its_bytes_back() {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());

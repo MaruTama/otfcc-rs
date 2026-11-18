@@ -1,20 +1,20 @@
 use otfcc_rust::logger::ByteStr;
 use otfcc_rust::support::options::Options;
 
+use otfcc_cli::EXIT_FAILURE;
 use otfcc_rust::font::model::Font;
 use otfcc_rust::font::sfnt::SplineFontContainer;
-use otfcc_cli::EXIT_FAILURE;
 
+use otfcc_cli::getopt::{GetoptItem, LongOpt, getopt_long};
+use otfcc_cli::stopwatch::log_step_time;
+use otfcc_cli::{print_version_info, report_getopt_error, start_logging};
+use otfcc_json::{
+    JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, JsonStreamWriter,
+};
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::sfnt::read_sfnt;
 use otfcc_rust::json_writer::stream_json;
 use otfcc_rust::otf_reader::read_otf;
-use otfcc_json::{
-    JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, JsonStreamWriter,
-};
-use otfcc_cli::getopt::{GetoptItem, LongOpt, getopt_long};
-use otfcc_cli::{print_version_info, report_getopt_error, start_logging};
-use otfcc_cli::stopwatch::log_step_time;
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
@@ -33,7 +33,11 @@ fn json_layout(show_pretty: bool, show_ugly: bool, has_output_path: bool) -> Jso
     if show_ugly {
         mode = JSON_SERIALIZE_MODE_PACKED;
     }
-    JsonSerializeOpts { mode, opts: 0, indent_size: 4 }
+    JsonSerializeOpts {
+        mode,
+        opts: 0,
+        indent_size: 4,
+    }
 }
 /// Opens where the JSON goes -- the `-o` file or stdout -- and writes the BOM
 /// if asked. Returns the writer and whether writing the file has already
@@ -106,26 +110,106 @@ fn parse_args(args: &[String]) -> DumpArgs {
     const OPT_NO_BOM: i32 = 267;
     const OPT_DEBUG_WAIT_ON_START: i32 = 268;
     const LONGOPTS: &[LongOpt] = &[
-        LongOpt { name: "version", has_arg: false, val: OPT_VERSION },
-        LongOpt { name: "help", has_arg: false, val: OPT_HELP },
-        LongOpt { name: "pretty", has_arg: false, val: OPT_PRETTY },
-        LongOpt { name: "ugly", has_arg: false, val: OPT_UGLY },
-        LongOpt { name: "time", has_arg: false, val: OPT_TIME },
-        LongOpt { name: "ignore-glyph-order", has_arg: false, val: OPT_IGNORE_GLYPH_ORDER },
-        LongOpt { name: "ignore-hints", has_arg: false, val: OPT_IGNORE_HINTS },
-        LongOpt { name: "hex-cmap", has_arg: false, val: OPT_HEX_CMAP },
-        LongOpt { name: "decimal-cmap", has_arg: false, val: OPT_DECIMAL_CMAP },
-        LongOpt { name: "instr-as-bytes", has_arg: false, val: OPT_INSTR_AS_BYTES },
-        LongOpt { name: "name-by-hash", has_arg: false, val: OPT_NAME_BY_HASH },
-        LongOpt { name: "name-by-gid", has_arg: false, val: OPT_NAME_BY_GID },
-        LongOpt { name: "glyph-name-prefix", has_arg: true, val: OPT_GLYPH_NAME_PREFIX },
-        LongOpt { name: "verbose", has_arg: false, val: OPT_VERBOSE },
-        LongOpt { name: "quiet", has_arg: false, val: OPT_QUIET },
-        LongOpt { name: "add-bom", has_arg: false, val: OPT_ADD_BOM },
-        LongOpt { name: "no-bom", has_arg: false, val: OPT_NO_BOM },
-        LongOpt { name: "output", has_arg: true, val: OPT_OUTPUT },
-        LongOpt { name: "ttc-index", has_arg: true, val: OPT_TTC_INDEX },
-        LongOpt { name: "debug-wait-on-start", has_arg: false, val: OPT_DEBUG_WAIT_ON_START },
+        LongOpt {
+            name: "version",
+            has_arg: false,
+            val: OPT_VERSION,
+        },
+        LongOpt {
+            name: "help",
+            has_arg: false,
+            val: OPT_HELP,
+        },
+        LongOpt {
+            name: "pretty",
+            has_arg: false,
+            val: OPT_PRETTY,
+        },
+        LongOpt {
+            name: "ugly",
+            has_arg: false,
+            val: OPT_UGLY,
+        },
+        LongOpt {
+            name: "time",
+            has_arg: false,
+            val: OPT_TIME,
+        },
+        LongOpt {
+            name: "ignore-glyph-order",
+            has_arg: false,
+            val: OPT_IGNORE_GLYPH_ORDER,
+        },
+        LongOpt {
+            name: "ignore-hints",
+            has_arg: false,
+            val: OPT_IGNORE_HINTS,
+        },
+        LongOpt {
+            name: "hex-cmap",
+            has_arg: false,
+            val: OPT_HEX_CMAP,
+        },
+        LongOpt {
+            name: "decimal-cmap",
+            has_arg: false,
+            val: OPT_DECIMAL_CMAP,
+        },
+        LongOpt {
+            name: "instr-as-bytes",
+            has_arg: false,
+            val: OPT_INSTR_AS_BYTES,
+        },
+        LongOpt {
+            name: "name-by-hash",
+            has_arg: false,
+            val: OPT_NAME_BY_HASH,
+        },
+        LongOpt {
+            name: "name-by-gid",
+            has_arg: false,
+            val: OPT_NAME_BY_GID,
+        },
+        LongOpt {
+            name: "glyph-name-prefix",
+            has_arg: true,
+            val: OPT_GLYPH_NAME_PREFIX,
+        },
+        LongOpt {
+            name: "verbose",
+            has_arg: false,
+            val: OPT_VERBOSE,
+        },
+        LongOpt {
+            name: "quiet",
+            has_arg: false,
+            val: OPT_QUIET,
+        },
+        LongOpt {
+            name: "add-bom",
+            has_arg: false,
+            val: OPT_ADD_BOM,
+        },
+        LongOpt {
+            name: "no-bom",
+            has_arg: false,
+            val: OPT_NO_BOM,
+        },
+        LongOpt {
+            name: "output",
+            has_arg: true,
+            val: OPT_OUTPUT,
+        },
+        LongOpt {
+            name: "ttc-index",
+            has_arg: true,
+            val: OPT_TTC_INDEX,
+        },
+        LongOpt {
+            name: "debug-wait-on-start",
+            has_arg: false,
+            val: OPT_DEBUG_WAIT_ON_START,
+        },
     ];
     let mut options: Box<Options> = Box::default();
     options.decimal_cmap = true;
@@ -225,8 +309,7 @@ fn run(args: Vec<String>) -> i32 {
         return EXIT_FAILURE;
     }
     if let Some(p) = positionals.into_iter().next() {
-        in_path =
-            ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte");
+        in_path = ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte");
     } else {
         tracing::error!("Expected argument for input file name.\n");
         print_help();
@@ -237,14 +320,24 @@ fn run(args: Vec<String>) -> i32 {
     let stage = otfcc_rust::logger::stage("Read SFNT");
     {
         tracing::debug!("From file {}", ByteStr(in_path.as_bytes()));
-        sfnt = read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(in_path.as_bytes())));
+        sfnt = read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(
+            in_path.as_bytes(),
+        )));
         if sfnt.as_ref().is_none_or(|s| s.count == 0) {
-            tracing::error!("Cannot read SFNT file \"{}\". Exit.\n", ByteStr(in_path.as_bytes()));
+            tracing::error!(
+                "Cannot read SFNT file \"{}\". Exit.\n",
+                ByteStr(in_path.as_bytes())
+            );
             return EXIT_FAILURE;
         }
         let subfonts = sfnt.as_ref().unwrap().count;
         if ttcindex >= subfonts {
-            tracing::error!("Subfont index {} out of range for \"{}\" (0 -- {}). Exit.\n", ttcindex, ByteStr(in_path.as_bytes()), ByteStr(subfonts.wrapping_sub(1)));
+            tracing::error!(
+                "Subfont index {} out of range for \"{}\" (0 -- {}). Exit.\n",
+                ttcindex,
+                ByteStr(in_path.as_bytes()),
+                ByteStr(subfonts.wrapping_sub(1))
+            );
             return EXIT_FAILURE;
         }
         log_step_time(&mut begin);
@@ -255,7 +348,10 @@ fn run(args: Vec<String>) -> i32 {
     {
         font = read_otf(sfnt.as_ref().unwrap(), ttcindex, &options);
         if font.is_none() {
-            tracing::error!("Font structure broken or corrupted \"{}\". Exit.\n", ByteStr(in_path.as_bytes()));
+            tracing::error!(
+                "Font structure broken or corrupted \"{}\". Exit.\n",
+                ByteStr(in_path.as_bytes())
+            );
             return EXIT_FAILURE;
         }
         drop(sfnt.take());
@@ -299,7 +395,10 @@ fn run(args: Vec<String>) -> i32 {
         if let Some(ref output_path) = output_path
             && write_failed
         {
-            tracing::error!("Cannot write to file \"{}\". Exit.", ByteStr(output_path.as_bytes()));
+            tracing::error!(
+                "Cannot write to file \"{}\". Exit.",
+                ByteStr(output_path.as_bytes())
+            );
             return EXIT_FAILURE;
         }
         log_step_time(&mut begin);

@@ -1,11 +1,11 @@
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::bk::graph::bk_build_block_no_minimize;
 use crate::font::sfnt::Packet;
 use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::bk::graph::bk_build_block_no_minimize;
 use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Copy, Clone, Debug)]
 pub struct VdmxRecord {
@@ -176,14 +176,8 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
             vec![
                 bk_int(BkCellType::B8, i32::from(rr.b_charset) as u32),
                 bk_int(BkCellType::B8, i32::from(rr.x_ratio) as u32),
-                bk_int(
-                    BkCellType::B8,
-                    i32::from(rr.y_start_ratio) as u32,
-                ),
-                bk_int(
-                    BkCellType::B8,
-                    i32::from(rr.y_end_ratio) as u32,
-                ),
+                bk_int(BkCellType::B8, i32::from(rr.y_start_ratio) as u32),
+                bk_int(BkCellType::B8, i32::from(rr.y_end_ratio) as u32),
             ],
         );
     }
@@ -207,10 +201,7 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
             bk_push(
                 &mut group,
                 vec![
-                    bk_int(
-                        BkCellType::B16,
-                        i32::from(r_0.y_pel_height) as u32,
-                    ),
+                    bk_int(BkCellType::B16, i32::from(r_0.y_pel_height) as u32),
                     bk_int(BkCellType::B16, i32::from(r_0.y_max) as u32),
                     bk_int(BkCellType::B16, i32::from(r_0.y_min) as u32),
                 ],

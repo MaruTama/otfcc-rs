@@ -20,8 +20,7 @@ fn diy_fp_from_parts(f: u64, e: i32) -> DiyFp {
 pub fn diy_fp_from_double(d: f64) -> DiyFp {
     let bits: u64 = d.to_bits();
     let mut res: DiyFp = DiyFp { f: 0, e: 0 };
-    let biased_e: i32 =
-        ((bits & K_DP_EXPONENT_MASK) >> K_DP_SIGNIFICAND_SIZE) as i32;
+    let biased_e: i32 = ((bits & K_DP_EXPONENT_MASK) >> K_DP_SIGNIFICAND_SIZE) as i32;
     let significand: u64 = bits & K_DP_SIGNIFICAND_MASK;
     if biased_e != 0 {
         res.f = significand.wrapping_add(K_DP_HIDDEN_BIT);
@@ -47,9 +46,7 @@ fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     let bc: u64 = b.wrapping_mul(c);
     let ad: u64 = a.wrapping_mul(d);
     let bd: u64 = b.wrapping_mul(d);
-    let mut tmp: u64 = (bd >> 32)
-        .wrapping_add(ad & m32)
-        .wrapping_add(bc & m32);
+    let mut tmp: u64 = (bd >> 32).wrapping_add(ad & m32).wrapping_add(bc & m32);
     tmp = tmp.wrapping_add(u64::from(1_u32 << 31));
     diy_fp_from_parts(
         ac.wrapping_add(ad >> 32)
@@ -76,20 +73,11 @@ fn normalize_boundary(lhs: DiyFp) -> DiyFp {
 }
 #[inline]
 fn normalized_boundaries(lhs: DiyFp, minus: &mut DiyFp, plus: &mut DiyFp) {
-    let pl: DiyFp = normalize_boundary(diy_fp_from_parts(
-        (lhs.f << 1).wrapping_add(1),
-        lhs.e - 1,
-    ));
+    let pl: DiyFp = normalize_boundary(diy_fp_from_parts((lhs.f << 1).wrapping_add(1), lhs.e - 1));
     let mut mi: DiyFp = if lhs.f == K_DP_HIDDEN_BIT {
-        diy_fp_from_parts(
-            (lhs.f << 2).wrapping_sub(1),
-            lhs.e - 2,
-        )
+        diy_fp_from_parts((lhs.f << 2).wrapping_sub(1), lhs.e - 2)
     } else {
-        diy_fp_from_parts(
-            (lhs.f << 1).wrapping_sub(1),
-            lhs.e - 1,
-        )
+        diy_fp_from_parts((lhs.f << 1).wrapping_sub(1), lhs.e - 1)
     };
     mi.f <<= mi.e - pl.e;
     mi.e = pl.e;
@@ -188,105 +176,20 @@ fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
         0xaf87023b_9bf0ee6b,
     ];
     static K_CACHED_POWERS_E: [i16; 87] = [
-        -1220,
-        -1193,
-        -1166,
-        -1140,
-        -1113,
-        -1087,
-        -1060,
-        -1034,
-        -1007,
-        -980,
-        -954,
-        -927,
-        -901,
-        -874,
-        -847,
-        -821,
-        -794,
-        -768,
-        -741,
-        -715,
-        -688,
-        -661,
-        -635,
-        -608,
-        -582,
-        -555,
-        -529,
-        -502,
-        -475,
-        -449,
-        -422,
-        -396,
-        -369,
-        -343,
-        -316,
-        -289,
-        -263,
-        -236,
-        -210,
-        -183,
-        -157,
-        -130,
-        -103,
-        -77,
-        -50,
-        -24,
-        3,
-        30,
-        56,
-        83,
-        109,
-        136,
-        162,
-        189,
-        216,
-        242,
-        269,
-        295,
-        322,
-        348,
-        375,
-        402,
-        428,
-        455,
-        481,
-        508,
-        534,
-        561,
-        588,
-        614,
-        641,
-        667,
-        694,
-        720,
-        747,
-        774,
-        800,
-        827,
-        853,
-        880,
-        907,
-        933,
-        960,
-        986,
-        1013,
-        1039,
-        1066,
+        -1220, -1193, -1166, -1140, -1113, -1087, -1060, -1034, -1007, -980, -954, -927, -901,
+        -874, -847, -821, -794, -768, -741, -715, -688, -661, -635, -608, -582, -555, -529, -502,
+        -475, -449, -422, -396, -369, -343, -316, -289, -263, -236, -210, -183, -157, -130, -103,
+        -77, -50, -24, 3, 30, 56, 83, 109, 136, 162, 189, 216, 242, 269, 295, 322, 348, 375, 402,
+        428, 455, 481, 508, 534, 561, 588, 614, 641, 667, 694, 720, 747, 774, 800, 827, 853, 880,
+        907, 933, 960, 986, 1013, 1039, 1066,
     ];
-    let dk: f64 = f64::from(-61 - e)
-        * 0.30102999566398114
-        + 347.0;
+    let dk: f64 = f64::from(-61 - e) * 0.30102999566398114 + 347.0;
     let mut k: i32 = dk as i32;
     if f64::from(k) != dk {
         k += 1;
     }
-    let index: u32 =
-        ((k >> 3) + 1) as u32;
-    *k_out =
-        -(-348 + (index << 3) as i32);
+    let index: u32 = ((k >> 3) + 1) as u32;
+    *k_out = -(-348 + (index << 3) as i32);
     diy_fp_from_parts(
         K_CACHED_POWERS_F[index as usize],
         i32::from(K_CACHED_POWERS_E[index as usize]),
@@ -335,18 +238,16 @@ fn count_decimal_digit32(n: u32) -> u32 {
     10
 }
 #[inline]
-fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i32, k_out: &mut i32) {
+fn digit_gen(
+    w: DiyFp,
+    mp: DiyFp,
+    mut delta: u64,
+    buffer: &mut [u8],
+    len: &mut i32,
+    k_out: &mut i32,
+) {
     static K_POW10: [u32; 10] = [
-        1,
-        10,
-        100,
-        1000,
-        10000,
-        100000,
-        1000000,
-        10000000,
-        100000000,
-        1000000000,
+        1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000,
     ];
     let one: DiyFp = diy_fp_from_parts(1_u64 << -mp.e, mp.e) as DiyFp;
     let wp_w: DiyFp = diy_fp_subtract(mp, w) as DiyFp;
@@ -569,7 +470,10 @@ mod tests {
     fn format(value: f64) -> String {
         let mut buffer = [0u8; 64];
         emyg_dtoa(value, &mut buffer);
-        let nul = buffer.iter().position(|&b| b == 0).expect("emyg_dtoa always writes a NUL terminator");
+        let nul = buffer
+            .iter()
+            .position(|&b| b == 0)
+            .expect("emyg_dtoa always writes a NUL terminator");
         String::from_utf8(buffer[..nul].to_vec()).expect("emyg_dtoa only ever writes ASCII")
     }
 
@@ -577,7 +481,9 @@ mod tests {
     /// `value`'s exact bit pattern, not just "a close decimal".
     fn assert_round_trips(value: f64) {
         let text = format(value);
-        let parsed: f64 = text.parse().unwrap_or_else(|e| panic!("{text:?} (from {value}) failed to parse: {e}"));
+        let parsed: f64 = text
+            .parse()
+            .unwrap_or_else(|e| panic!("{text:?} (from {value}) failed to parse: {e}"));
         assert_eq!(
             parsed.to_bits(),
             value.to_bits(),
@@ -643,7 +549,9 @@ mod tests {
         let iterations: u64 = if cfg!(miri) { 500 } else { 20_000 };
         let mut state: u64 = 0x2545F4914F6CDD1D;
         for _ in 0..iterations {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let value = f64::from_bits(state);
             if value.is_finite() {
                 assert_round_trips(value);

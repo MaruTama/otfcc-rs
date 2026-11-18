@@ -94,7 +94,8 @@ impl fmt::Debug for StageGuard {
 /// line logged in between is indented under `segment`.
 pub fn stage(segment: impl fmt::Display) -> StageGuard {
     StageGuard(
-        tracing::info_span!(STAGE_SPAN, segment = %segment, finished = tracing::field::Empty).entered(),
+        tracing::info_span!(STAGE_SPAN, segment = %segment, finished = tracing::field::Empty)
+            .entered(),
     )
 }
 
@@ -117,7 +118,12 @@ struct TreeFormatter {
 
 impl TreeFormatter {
     fn new(verbosity_limit: u8) -> Self {
-        TreeFormatter { level: 0, last_logged_level: 0, indents: Vec::new(), verbosity_limit }
+        TreeFormatter {
+            level: 0,
+            last_logged_level: 0,
+            indents: Vec::new(),
+            verbosity_limit,
+        }
     }
 
     fn indent(&mut self, segment: Vec<u8>) {
@@ -256,7 +262,9 @@ pub struct OtfccTreeLayer<W> {
 
 impl<W: Write> OtfccTreeLayer<W> {
     pub fn new(verbosity: u8, out: W) -> Self {
-        OtfccTreeLayer { state: Mutex::new((TreeFormatter::new(verbosity), out)) }
+        OtfccTreeLayer {
+            state: Mutex::new((TreeFormatter::new(verbosity), out)),
+        }
     }
 
     fn verbosity_limit(&self) -> u8 {
@@ -323,7 +331,9 @@ where
     fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
         let Some(span) = ctx.span(id) else { return };
         let extensions = span.extensions();
-        let Some(info) = extensions.get::<ScopeInfo>() else { return };
+        let Some(info) = extensions.get::<ScopeInfo>() else {
+            return;
+        };
         let segment = info.segment.clone();
         let is_stage = info.is_stage;
         drop(extensions);
@@ -341,7 +351,9 @@ where
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
         let Some(span) = ctx.span(id) else { return };
         let extensions = span.extensions();
-        let Some(info) = extensions.get::<ScopeInfo>() else { return };
+        let Some(info) = extensions.get::<ScopeInfo>() else {
+            return;
+        };
         let prints_finish = info.is_stage && info.finished;
         drop(extensions);
         self.with_state(|formatter, out| {
@@ -373,8 +385,8 @@ where
 /// ignored.
 pub fn install_stderr(verbosity: u8) {
     use tracing_subscriber::layer::SubscriberExt as _;
-    let subscriber =
-        tracing_subscriber::Registry::default().with(OtfccTreeLayer::new(verbosity, std::io::stderr()));
+    let subscriber = tracing_subscriber::Registry::default()
+        .with(OtfccTreeLayer::new(verbosity, std::io::stderr()));
     let _ = tracing::subscriber::set_global_default(subscriber);
 }
 
@@ -500,8 +512,8 @@ mod tests {
 
     fn layer_output(ops: &[Op], verbosity: u8) -> String {
         let buf = SharedBuf::default();
-        let subscriber =
-            tracing_subscriber::Registry::default().with(OtfccTreeLayer::new(verbosity, buf.clone()));
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(OtfccTreeLayer::new(verbosity, buf.clone()));
         tracing::subscriber::with_default(subscriber, || {
             let mut open: Vec<StageGuard> = Vec::new();
             for op in ops {
@@ -576,8 +588,8 @@ mod tests {
                 panic!("a message below the verbosity limit was formatted");
             }
         }
-        let subscriber =
-            tracing_subscriber::Registry::default().with(OtfccTreeLayer::new(1, SharedBuf::default()));
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(OtfccTreeLayer::new(1, SharedBuf::default()));
         tracing::subscriber::with_default(subscriber, || {
             tracing::info!("{}", Panics);
             tracing::debug!("{}", Panics);
@@ -613,7 +625,11 @@ mod tests {
     fn byte_str_renders_like_the_old_message_parts() {
         let name: Vec<u8> = b"abc\0def".to_vec();
         assert_eq!(ByteStr(&name).to_string(), "abc", "a Vec is cut at NUL");
-        assert_eq!(ByteStr(&name[..]).to_string(), "abc\u{0}def", "a slice is not");
+        assert_eq!(
+            ByteStr(&name[..]).to_string(),
+            "abc\u{0}def",
+            "a slice is not"
+        );
         assert_eq!(ByteStr(b"a\xffb").to_string(), "a\u{fffd}b");
         assert_eq!(ByteStr(-7).to_string(), "-7");
     }

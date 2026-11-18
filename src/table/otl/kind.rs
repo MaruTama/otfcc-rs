@@ -24,10 +24,8 @@ use crate::consolidate::otl::gsub_reverse::consolidate_gsub_reverse;
 use crate::consolidate::otl::gsub_single::consolidate_gsub_single;
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
 use crate::otf_reader::unconsolidate::unconsolidate_chaining;
-use otfcc_json::BuiltValue;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
-use otfcc_json::ParsedValue;
 use crate::support::primitives::{GlyphId, TableId};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::build::{LookupWriteCtx, write_each_subtable, write_each_subtable_split};
@@ -73,6 +71,8 @@ use crate::table::otl::{
     OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
     Subtable, iter_subtables,
 };
+use otfcc_json::BuiltValue;
+use otfcc_json::ParsedValue;
 
 /// What consolidating one subtable may need besides the subtable itself.
 /// Only chaining subtables use more than the glyph order: they resolve the

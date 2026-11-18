@@ -1,7 +1,7 @@
-use otfcc_binary::Buffer;
-use otfcc_binary::FontReader;
 use crate::support::error::BuildError;
 use crate::support::primitives::Arity;
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 #[repr(u32)]
@@ -162,19 +162,19 @@ mod parse_index_tests {
         // count=1, off_size=1, offset=[1,3] (data is 2 bytes), data=[0xAA,0xBB]
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x03, 0xAA, 0xBB];
         let idx = parse_index(&data, 0);
-            assert_eq!(idx.count, 1);
-            assert_eq!(idx.off_size, 1);
-            assert_eq!(idx.offset, vec![1, 3]);
-            assert_eq!(idx.data, vec![0xAA, 0xBB]);
+        assert_eq!(idx.count, 1);
+        assert_eq!(idx.off_size, 1);
+        assert_eq!(idx.offset, vec![1, 3]);
+        assert_eq!(idx.data, vec![0xAA, 0xBB]);
     }
 
     #[test]
     fn reads_an_empty_index() {
         let data = [0x00u8, 0x00, 0x00]; // count=0, off_size=0
         let idx = parse_index(&data, 0);
-            assert_eq!(idx.count, 0);
-            assert!(idx.offset.is_empty());
-            assert!(idx.data.is_empty());
+        assert_eq!(idx.count, 0);
+        assert!(idx.offset.is_empty());
+        assert!(idx.data.is_empty());
     }
 
     #[test]
@@ -185,9 +185,9 @@ mod parse_index_tests {
         // and copy ~4GB.
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x00];
         let idx = parse_index(&data, 0);
-            assert_eq!(idx.count, 0);
-            assert!(idx.offset.is_empty());
-            assert!(idx.data.is_empty());
+        assert_eq!(idx.count, 0);
+        assert!(idx.offset.is_empty());
+        assert!(idx.data.is_empty());
     }
 
     #[test]
@@ -196,9 +196,9 @@ mod parse_index_tests {
         // the offset array (and everything past it) is missing entirely.
         let data = [0x00u8, 0x05, 0x04];
         let idx = parse_index(&data, 0);
-            assert_eq!(idx.count, 0);
-            assert!(idx.offset.is_empty());
-            assert!(idx.data.is_empty());
+        assert_eq!(idx.count, 0);
+        assert!(idx.offset.is_empty());
+        assert!(idx.data.is_empty());
     }
 
     #[test]
@@ -209,9 +209,9 @@ mod parse_index_tests {
         // are internally well-formed (not the wraparound case above).
         let data = [0x00u8, 0x01, 0x01, 0x01, 200u8, 0xAA, 0xBB];
         let idx = parse_index(&data, 0);
-            assert_eq!(idx.count, 0);
-            assert!(idx.offset.is_empty());
-            assert!(idx.data.is_empty());
+        assert_eq!(idx.count, 0);
+        assert!(idx.offset.is_empty());
+        assert!(idx.data.is_empty());
     }
 
     #[test]
@@ -226,8 +226,8 @@ mod parse_index_tests {
         // guard exists to close.
         let data = [0x00u8, 0x02, 0x01, 0x01, 0x05, 0x03, 0xAA, 0xBB, 0xCC];
         let idx = parse_index(&data, 0);
-            assert_eq!(idx.count, 0);
-            assert!(idx.offset.is_empty());
+        assert_eq!(idx.count, 0);
+        assert!(idx.offset.is_empty());
     }
 
     #[test]
@@ -237,7 +237,7 @@ mod parse_index_tests {
         // wraparound as above.
         let data = [0x00u8, 0x01, 0x05, 0x00, 0x00];
         let idx = parse_index(&data, 0);
-            assert_eq!(idx.count, 0);
+        assert_eq!(idx.count, 0);
     }
 
     #[test]
@@ -245,7 +245,11 @@ mod parse_index_tests {
         let too_many = new_index_by_callback(65536, (0..65536).map(|_| Buffer::new()));
         assert_eq!(
             build_index(&too_many).unwrap_err(),
-            BuildError::TooManyEntries { what: "CFF INDEX", count: 65536, max: 65535 }
+            BuildError::TooManyEntries {
+                what: "CFF INDEX",
+                count: 65536,
+                max: 65535
+            }
         );
     }
 

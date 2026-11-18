@@ -1,8 +1,8 @@
 use crate::support::handle::{GlyphHandle, handle_from_index};
 
 use crate::font::sfnt::Packet;
-use otfcc_binary::FontReader;
 use crate::support::primitives::{F2Dot14, F16Dot16, GlyphId, Pos, Scale, ShapeId};
+use otfcc_binary::FontReader;
 
 use crate::table::fvar::FvarTable;
 use crate::table::glyf::{
@@ -10,16 +10,12 @@ use crate::table::glyf::{
     Point, PointFlags, RefAnchorStatus,
 };
 
-use crate::support::primitives::{
-    f1616_muldiv, from_f2dot14, from_fixed, to_fixed,
-};
+use crate::support::primitives::{f1616_muldiv, from_f2dot14, from_fixed, to_fixed};
 use crate::table::fvar::fvar_register_region;
 use crate::table::glyf::{glyf_component_reference_empty, glyf_contour_fill, new_glyf_glyph};
 use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
-use crate::vf::vq::{
-    vq_add_delta, vq_create_still, vq_inplace_plus, vq_neutral,
-};
+use crate::vf::vq::{vq_add_delta, vq_create_still, vq_inplace_plus, vq_neutral};
 use std::rc::Rc;
 
 // `gvar` is read field by field at byte offsets through `FontReader`, so
@@ -63,7 +59,11 @@ pub struct PackedPointRun {
     pub length: ShapeId,
     pub wide: bool,
 }
-fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut ShapeId) -> &'a mut Point {
+fn next_point<'a>(
+    contours: &'a mut ContourList,
+    cc: &mut ShapeId,
+    cp: &mut ShapeId,
+) -> &'a mut Point {
     // A contour can be zero-length: `read_simple_glyph`'s endpoint
     // arithmetic allows `n == 0` (a contour whose endpoint equals the
     // running total minus one), and the wire format has no rule against
@@ -98,7 +98,8 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
     // full, correct point capacity.
     let mut points_in_glyph: u32 = 0;
     for _ in 0..number_of_contours {
-        let last_point_in_current_contour: ShapeId = r.u16().expect("require_room above covered this read"); // room already validated above
+        let last_point_in_current_contour: ShapeId =
+            r.u16().expect("require_room above covered this read"); // room already validated above
         // A non-monotonic `endPtsOfContours` gives a negative length; reject
         // it rather than turn it into a huge point count.
         let n = i64::from(last_point_in_current_contour) - i64::from(points_in_glyph) + 1;
@@ -121,7 +122,12 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         let flag: PointFlags = PointFlags::from_bits_retain(r.u8().ok()?);
         flags[flags_read_sofar] = flag.bits();
         flags_read_sofar += 1;
-        next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = i8::from(flag.contains(PointFlags::ON_CURVE));
+        next_point(
+            &mut g.contours,
+            &mut current_contour,
+            &mut current_contour_point_index,
+        )
+        .on_curve = i8::from(flag.contains(PointFlags::ON_CURVE));
         if flag.contains(PointFlags::REPEAT) {
             let repeat: u8 = r.u8().ok()?;
             // A repeat run must not go past the declared point count.
@@ -130,7 +136,12 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
             }
             for _ in 0..repeat {
                 flags[flags_read_sofar] = flag.bits();
-                next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = i8::from(flag.contains(PointFlags::ON_CURVE));
+                next_point(
+                    &mut g.contours,
+                    &mut current_contour,
+                    &mut current_contour_point_index,
+                )
+                .on_curve = i8::from(flag.contains(PointFlags::ON_CURVE));
                 flags_read_sofar += 1;
             }
         }
@@ -151,8 +162,12 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         } else {
             r.i16().ok()?
         };
-        next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).x =
-            vq_create_still(Pos::from(x));
+        next_point(
+            &mut g.contours,
+            &mut current_contour,
+            &mut current_contour_point_index,
+        )
+        .x = vq_create_still(Pos::from(x));
     }
     current_contour = 0 as ShapeId;
     current_contour_point_index = 0 as ShapeId;
@@ -170,8 +185,12 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         } else {
             r.i16().ok()?
         };
-        next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).y =
-            vq_create_still(Pos::from(y));
+        next_point(
+            &mut g.contours,
+            &mut current_contour,
+            &mut current_contour_point_index,
+        )
+        .y = vq_create_still(Pos::from(y));
     }
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
@@ -342,8 +361,7 @@ fn parse_point_numbers(
                 // RUST_MIGRATION.md.
                 let b = r.bytes(2).ok()?;
                 let raw = u16::from_ne_bytes([b[0], b[1]]);
-                point_number =
-                    (i32::from(point_number) + i32::from(raw)) as i16;
+                point_number = (i32::from(point_number) + i32::from(raw)) as i16;
             } else {
                 point_number = (i32::from(point_number) + i32::from(r.u8().ok()?)) as i16;
             }
@@ -401,9 +419,7 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
         if !nudges[j as usize].is_touched() {
             let mut j_next: ShapeId = j;
             while !nudges[j_next as usize].is_touched() {
-                if i32::from(j_next)
-                    == i32::from(j_max) - 1
-                {
+                if i32::from(j_next) == i32::from(j_max) - 1 {
                     j_next = j_min;
                 } else {
                     j_next = (i32::from(j_next) + 1) as ShapeId;
@@ -424,18 +440,13 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
                 }
             }
             if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
-                let untouch_j: F16Dot16 =
-                    to_fixed(kernel[j as usize]);
-                let untouch_prev: F16Dot16 =
-                    to_fixed(kernel[j_prev as usize] as f64);
-                let untouch_next: F16Dot16 =
-                    to_fixed(kernel[j_next as usize] as f64);
-                let delta_prev: F16Dot16 = to_fixed(
-                    nudges[j_prev as usize].unwrap_delta().quantity as f64,
-                );
-                let delta_next: F16Dot16 = to_fixed(
-                    nudges[j_next as usize].unwrap_delta().quantity as f64,
-                );
+                let untouch_j: F16Dot16 = to_fixed(kernel[j as usize]);
+                let untouch_prev: F16Dot16 = to_fixed(kernel[j_prev as usize] as f64);
+                let untouch_next: F16Dot16 = to_fixed(kernel[j_next as usize] as f64);
+                let delta_prev: F16Dot16 =
+                    to_fixed(nudges[j_prev as usize].unwrap_delta().quantity as f64);
+                let delta_next: F16Dot16 =
+                    to_fixed(nudges[j_next as usize].unwrap_delta().quantity as f64);
                 let mut u_min: F16Dot16 = untouch_prev;
                 let mut u_max: F16Dot16 = untouch_next;
                 let mut d_min: F16Dot16 = delta_prev;
@@ -634,17 +645,9 @@ fn create_region_from_tuples(
         };
         let peak_val: Pos = from_f2dot14(peak_raw as F2Dot14) as Pos;
         let mut span: VqAxisSpan = VqAxisSpan {
-            start: Pos::from(if peak_val <= Pos::from(0) {
-                -1
-            } else {
-                0
-            } ),
+            start: Pos::from(if peak_val <= Pos::from(0) { -1 } else { 0 }),
             peak: peak_val,
-            end: Pos::from(if peak_val >= Pos::from(0) {
-                1
-            } else {
-                0
-            } ),
+            end: Pos::from(if peak_val >= Pos::from(0) { 1 } else { 0 }),
         };
         if let Some(start_offset) = range_offset {
             let end_offset = start_offset + dimensions as usize * 2;
@@ -687,9 +690,8 @@ fn polymorphize_glyph(
         total_points = (total_points as usize).wrapping_add(c.len()) as ShapeId;
     }
     total_points = (total_points as usize).wrapping_add(glyph.references.len()) as ShapeId;
-    let total_delta_entries: ShapeId = (i32::from(total_points)
-        + i32::from(ctx.n_phantom_points))
-        as ShapeId;
+    let total_delta_entries: ShapeId =
+        (i32::from(total_points) + i32::from(ctx.n_phantom_points)) as ShapeId;
 
     let mut header = FontReader::new(gvar).at(gvd_offset).ok()?;
     let raw_tuple_variation_count = header.u16().ok()?;
@@ -735,8 +737,12 @@ fn polymorphize_glyph(
         // region-dedup table) -- reborrowed fresh each iteration of this
         // loop, same as the reborrow that built `ctx.fvar` itself in
         // `polymorphize`.
-        let r: Rc<VqRegion> =
-            fvar_register_region(ctx.fvar.as_deref_mut().expect("fvar checked non-null by polymorphize"), region);
+        let r: Rc<VqRegion> = fvar_register_region(
+            ctx.fvar
+                .as_deref_mut()
+                .expect("fvar checked non-null by polymorphize"),
+            region,
+        );
 
         let tsd = data_offset + tsd_start;
         // `point_indeces` borrows `shared_point_indeces` by default and
@@ -763,7 +769,15 @@ fn polymorphize_glyph(
             read_packed_delta(gvar, after_x, n_points, &mut delta_y)?;
             // `apply_polymorphism` is a safe `fn` now; `glyph` reborrows
             // here exactly as it does across every iteration of this loop.
-            apply_polymorphism(total_points, glyph, n_points, &point_indeces, &delta_x, &delta_y, &r);
+            apply_polymorphism(
+                total_points,
+                glyph,
+                n_points,
+                &point_indeces,
+                &delta_x,
+                &delta_y,
+                &r,
+            );
         }
         tsd_start = tsd_start.wrapping_add(variation_data_size as usize);
         tvh_offset = next_tvh_offset(gvar, tvh_offset, ctx.dimensions)?;
@@ -853,7 +867,12 @@ fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'
             allow_iup: !glyph_slot.as_deref().unwrap().contours.is_empty(),
             n_phantom_points: ctx.n_phantom_points,
         };
-        polymorphize_glyph(glyph_slot.as_deref_mut().unwrap(), &mut tpctx, gvar, gvd_offset);
+        polymorphize_glyph(
+            glyph_slot.as_deref_mut().unwrap(),
+            &mut tpctx,
+            gvar,
+            gvd_offset,
+        );
     }
 }
 pub fn read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTable> {
@@ -965,11 +984,7 @@ mod glyf_read_tests {
         data[20..22].copy_from_slice(&3i16.to_be_bytes()); // y0
         data[22..24].copy_from_slice(&9i16.to_be_bytes()); // y1
         {
-            let g = read_glyph(
-                &data,
-                0,
-                data.len(),
-            );
+            let g = read_glyph(&data, 0, data.len());
             let g = g.unwrap();
             assert_eq!(g.contours.len(), 1);
             assert_eq!(g.contours[0].len(), 2);
@@ -995,11 +1010,7 @@ mod glyf_read_tests {
         data[14..16].copy_from_slice(&10i16.to_be_bytes());
         data[16..18].copy_from_slice(&20i16.to_be_bytes());
         {
-            let g = read_glyph(
-                &data,
-                0,
-                data.len(),
-            );
+            let g = read_glyph(&data, 0, data.len());
             let g = g.unwrap();
             assert_eq!(g.references.len(), 1);
             assert_eq!(g.references[0].glyph.index, 5);
@@ -1020,11 +1031,7 @@ mod glyf_read_tests {
         data[12..14].copy_from_slice(&0u16.to_be_bytes());
         data[14] = 0x01;
         {
-            let g = read_glyph(
-                &data,
-                0,
-                data.len(),
-            );
+            let g = read_glyph(&data, 0, data.len());
             assert!(g.is_none());
         }
     }
@@ -1059,11 +1066,7 @@ mod glyf_read_tests {
         data[24..26].copy_from_slice(&3i16.to_be_bytes()); // y0
         data[26..28].copy_from_slice(&9i16.to_be_bytes()); // y1
         {
-            let g = read_glyph(
-                &data,
-                0,
-                data.len(),
-            );
+            let g = read_glyph(&data, 0, data.len());
             let g = g.unwrap();
             assert_eq!(g.contours.len(), 3);
             assert_eq!(g.contours[0].len(), 1);
@@ -1088,11 +1091,7 @@ mod glyf_read_tests {
         data[14..16].copy_from_slice(&10i16.to_be_bytes());
         data[16..18].copy_from_slice(&20i16.to_be_bytes());
         {
-            let g = read_glyph(
-                &data,
-                0,
-                data.len(),
-            );
+            let g = read_glyph(&data, 0, data.len());
             assert!(g.is_none());
         }
     }
@@ -1109,11 +1108,7 @@ mod glyf_read_tests {
         data[10..12].copy_from_slice(&5u16.to_be_bytes());
         data[12..14].copy_from_slice(&2u16.to_be_bytes());
         {
-            let g = read_glyph(
-                &data,
-                0,
-                data.len(),
-            );
+            let g = read_glyph(&data, 0, data.len());
             assert!(g.is_none());
         }
     }
@@ -1131,11 +1126,7 @@ mod glyf_read_tests {
         data[14] = 0x09; // REPEAT | ON_CURVE
         data[15] = 5; // repeat count
         {
-            let g = read_glyph(
-                &data,
-                0,
-                data.len(),
-            );
+            let g = read_glyph(&data, 0, data.len());
             assert!(g.is_none());
         }
     }
@@ -1144,11 +1135,7 @@ mod glyf_read_tests {
     fn header_shorter_than_ten_bytes_is_rejected_instead_of_reading_oob() {
         let data = [0u8; 5];
         {
-            let g = read_glyph(
-                &data,
-                0,
-                data.len(),
-            );
+            let g = read_glyph(&data, 0, data.len());
             assert!(g.is_none());
         }
     }

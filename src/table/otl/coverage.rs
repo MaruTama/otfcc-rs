@@ -1,11 +1,11 @@
 use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
 use otfcc_json::ParsedValue;
 
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::FontReader;
 use crate::support::primitives::{GlyphId, count_u16};
 use crate::table::otl::budget::OtlReadBudget;
+use otfcc_binary::Buffer;
+use otfcc_binary::FontReader;
+use otfcc_json::BuiltValue;
 /// A glyph coverage set, in coverage-index order.
 pub type Coverage = Vec<GlyphHandle>;
 /// The `coverage_entries` limit of `OtlReadBudget`. It bounds the total
@@ -173,7 +173,9 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
             } else {
                 ranges.write_u16be(start_gid as u16);
                 ranges.write_u16be(end_gid as u16);
-                ranges.write_u16be((j_1 as i32 + i32::from(start_gid) - i32::from(end_gid) - 1) as u16);
+                ranges.write_u16be(
+                    (j_1 as i32 + i32::from(start_gid) - i32::from(end_gid) - 1) as u16,
+                );
                 n_ranges = (i32::from(n_ranges) + 1) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
@@ -183,11 +185,7 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     }
     ranges.write_u16be(start_gid as u16);
     ranges.write_u16be(end_gid as u16);
-    ranges.write_u16be(
-        (i32::from(jj) + i32::from(start_gid)
-            - i32::from(end_gid)
-            - 1) as u16,
-    );
+    ranges.write_u16be((i32::from(jj) + i32::from(start_gid) - i32::from(end_gid) - 1) as u16);
     n_ranges = (i32::from(n_ranges) + 1) as GlyphId;
     format2.write_u16be(n_ranges as u16);
     format2.write_buffer_owned(ranges);
@@ -274,7 +272,10 @@ mod read_coverage_tests {
         // coverage budget of only 5, must expand exactly the first 5 glyphs
         // in the range's own order and leave the budget fully spent -- not
         // skip one, not expand one extra.
-        let mut budget = OtlReadBudget { coverage_entries: 5, ..OtlReadBudget::new() };
+        let mut budget = OtlReadBudget {
+            coverage_entries: 5,
+            ..OtlReadBudget::new()
+        };
         let mut data = Vec::new();
         data.extend_from_slice(&2u16.to_be_bytes()); // format
         data.extend_from_slice(&1u16.to_be_bytes()); // rangeCount
@@ -283,7 +284,10 @@ mod read_coverage_tests {
         data.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
         let cov = read_coverage(&data, 0, &mut budget);
 
-        assert_eq!(budget.coverage_entries, 0, "the budget must be fully consumed");
+        assert_eq!(
+            budget.coverage_entries, 0,
+            "the budget must be fully consumed"
+        );
         assert_eq!(
             cov.iter().map(|h| h.index).collect::<Vec<_>>(),
             vec![10, 11, 12, 13, 14],

@@ -1,10 +1,9 @@
-
-use otfcc_binary::Buffer;
 use crate::support::primitives::ShapeId;
+use otfcc_binary::Buffer;
 
 use crate::table::glyf::{
-    ComponentFlags, GlyfAndLocaBuffers, GlyfTable, Glyph, MASK_ON_CURVE,
-    PointFlags, RefAnchorStatus,
+    ComponentFlags, GlyfAndLocaBuffers, GlyfTable, Glyph, MASK_ON_CURVE, PointFlags,
+    RefAnchorStatus,
 };
 use crate::table::head::HeadTable;
 
@@ -150,9 +149,7 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         };
         if r.b.abs() > EPSILON || r.c.abs() > EPSILON {
             flags.insert(ComponentFlags::WE_HAVE_A_TWO_BY_TWO);
-        } else if (r.a - 1.0).abs() > EPSILON
-            || (r.d - 1.0).abs() > EPSILON
-        {
+        } else if (r.a - 1.0).abs() > EPSILON || (r.d - 1.0).abs() > EPSILON {
             if (r.a - r.d).abs() > EPSILON {
                 flags.insert(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE);
             } else {

@@ -2,11 +2,9 @@ use super::*;
 use otfcc_binary::Buffer;
 
 use crate::libcff::CffCharstringOperator;
-use crate::libcff::writer::{
-    merge_cs2_operand, merge_cs2_operator, merge_cs2_special,
-};
-use crate::libcff::charstring_il::CffCharstringIl;
 use crate::libcff::OP_ENDCHAR;
+use crate::libcff::charstring_il::CffCharstringIl;
+use crate::libcff::writer::{merge_cs2_operand, merge_cs2_operator, merge_cs2_special};
 
 /// A diagram is a node (a "singlet") or a node and its successor (a
 /// "doublet"). Its key in `diagram_index` is: an arity marker (`'1'` or
@@ -22,7 +20,11 @@ fn push_payload(g: &CffSubrGraph, node: &CffSubrNode, key: &mut Vec<u8>) {
     match node.rule {
         Some(r) => key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes()),
         None => key.extend_from_slice(
-            &node.terminal.as_ref().expect("a node without a rule holds bytes").data,
+            &node
+                .terminal
+                .as_ref()
+                .expect("a node without a rule holds bytes")
+                .data,
         ),
     }
 }
@@ -35,7 +37,10 @@ pub(super) fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
 }
 pub(super) fn get_doublet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     let node = g.node(n);
-    let next = g.node(node.next.expect("a doublet starts at a node that has a successor"));
+    let next = g.node(
+        node.next
+            .expect("a doublet starts at a node that has a successor"),
+    );
     let mut key = vec![b'2', node_flag(node), node_flag(next)];
     push_payload(g, node, &mut key);
     push_payload(g, next, &mut key);
@@ -43,7 +48,9 @@ pub(super) fn get_doublet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     key
 }
 pub(super) fn last_node_of(g: &CffSubrGraph, r: RuleId) -> NodeId {
-    g.node(g.rule(r).guard).prev.expect("a rule's guard node is linked to its last node")
+    g.node(g.rule(r).guard)
+        .prev
+        .expect("a rule's guard node is linked to its last node")
 }
 fn copy_node(g: &mut CffSubrGraph, n: NodeId) -> NodeId {
     let m = g.alloc_node();
@@ -117,8 +124,14 @@ fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
     } else if nn.rule.is_some() {
         false
     } else {
-        let m_terminal = mn.terminal.as_ref().expect("a node without a rule holds bytes");
-        let n_terminal = nn.terminal.as_ref().expect("a node without a rule holds bytes");
+        let m_terminal = mn
+            .terminal
+            .as_ref()
+            .expect("a node without a rule holds bytes");
+        let n_terminal = nn
+            .terminal
+            .as_ref()
+            .expect("a node without a rule holds bytes");
         // Compares as C's `strncmp` would, stopping at a NUL in either side
         // even though this is charstring bytecode: two sequences equal up to
         // a NUL compare equal. Kept so output does not change.
@@ -132,15 +145,19 @@ fn join_nodes(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
         let n_prev = g.node(n).prev;
         let n_next = g.node(n).next;
         if let (Some(np), Some(nx)) = (n_prev, n_next)
-            && ident_node(g, np, n) && ident_node(g, n, nx) {
-                add_doublet(g, Some(n));
-            }
+            && ident_node(g, np, n)
+            && ident_node(g, n, nx)
+        {
+            add_doublet(g, Some(n));
+        }
         let m_prev = g.node(m).prev;
         let m_next = g.node(m).next;
         if let (Some(mp), Some(mx)) = (m_prev, m_next)
-            && ident_node(g, mp, m) && ident_node(g, m, mx) {
-                add_doublet(g, Some(mp));
-            }
+            && ident_node(g, mp, m)
+            && ident_node(g, m, mx)
+        {
+            add_doublet(g, Some(mp));
+        }
     }
     g.node_mut(m).next = Some(n);
     g.node_mut(n).prev = Some(m);
@@ -237,9 +254,10 @@ fn process_match_doublet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     let guard = g.rule(rule).guard;
     let first = g.next_of(guard);
     if let Some(fr) = g.node(first).rule
-        && g.rule(fr).refcount == 1 {
-            expand_call(g, first);
-        }
+        && g.rule(fr).refcount == 1
+    {
+        expand_call(g, first);
+    }
 }
 fn process_match_singlet(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {
     let m_prev = g.prev_of(m);
@@ -318,11 +336,9 @@ fn append_node_to_graph(g: &mut CffSubrGraph, n: NodeId) {
     let root = g.root;
     let last = last_node_of(g, root);
     x_insert_node_after(g, last, n);
-    if g.do_subroutinize
-        && !check_doublet_match(g, last)
-            && g.terminal_of(n).len() > 15 {
-                check_singlet_match(g, n);
-            }
+    if g.do_subroutinize && !check_doublet_match(g, last) && g.terminal_of(n).len() > 15 {
+        check_singlet_match(g, n);
+    }
 }
 pub fn insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
     let mut blob = Buffer::new();
@@ -343,10 +359,7 @@ pub fn insert_il_to_graph(g: &mut CffSubrGraph, il: &CffCharstringIl) {
                 merge_cs2_operand(&mut blob, il.instr[j as usize].d());
             }
             1 => {
-                merge_cs2_operator(
-                    &mut blob,
-                    CffCharstringOperator(il.instr[j as usize].i()),
-                );
+                merge_cs2_operator(&mut blob, CffCharstringOperator(il.instr[j as usize].i()));
                 if il.instr[j as usize].i() == OP_ENDCHAR.0 {
                     last = true;
                 }

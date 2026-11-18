@@ -53,7 +53,15 @@ fn points_drawn(operands: usize, op: u8) -> usize {
         defined_contour_masks: 0,
         randx: 0,
     };
-    parse_outline(&data, &gsubr, &lsubr, &mut stack, &mut ctx, 0, &mut total_calls);
+    parse_outline(
+        &data,
+        &gsubr,
+        &lsubr,
+        &mut stack,
+        &mut ctx,
+        0,
+        &mut total_calls,
+    );
     assert_eq!(stack.index, 0);
     g.contours.iter().map(|c| c.len()).sum::<usize>() - 1
 }

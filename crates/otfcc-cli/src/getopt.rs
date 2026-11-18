@@ -30,10 +30,16 @@ pub struct LongOpt {
 /// `getopt_long` itself would have written to stderr for the same input.
 #[derive(Debug)]
 pub enum GetoptItem {
-    Opt { val: i32, arg: Option<String> },
+    Opt {
+        val: i32,
+        arg: Option<String>,
+    },
     UnknownLong(String),
     UnknownShort(char),
-    AmbiguousLong { given: String, matches: Vec<&'static str> },
+    AmbiguousLong {
+        given: String,
+        matches: Vec<&'static str>,
+    },
     MissingArgument(String),
 }
 
@@ -63,7 +69,10 @@ fn resolve_long<'a>(name: &str, longopts: &'a [LongOpt]) -> Result<&'a LongOpt, 
     if let Some(exact) = longopts.iter().find(|o| o.name == name) {
         return Ok(exact);
     }
-    let matches: Vec<&LongOpt> = longopts.iter().filter(|o| o.name.starts_with(name)).collect();
+    let matches: Vec<&LongOpt> = longopts
+        .iter()
+        .filter(|o| o.name.starts_with(name))
+        .collect();
     match matches.len() {
         1 => Ok(matches[0]),
         0 => Err(Vec::new()),
@@ -115,7 +124,10 @@ pub fn getopt_long(
                 Ok(opt) => {
                     if opt.has_arg {
                         if let Some(v) = inline_val {
-                            items.push(GetoptItem::Opt { val: opt.val, arg: Some(v) });
+                            items.push(GetoptItem::Opt {
+                                val: opt.val,
+                                arg: Some(v),
+                            });
                         } else if i + 1 < args.len() {
                             i += 1;
                             items.push(GetoptItem::Opt {
@@ -126,7 +138,10 @@ pub fn getopt_long(
                             items.push(GetoptItem::MissingArgument(format!("--{name}")));
                         }
                     } else {
-                        items.push(GetoptItem::Opt { val: opt.val, arg: None });
+                        items.push(GetoptItem::Opt {
+                            val: opt.val,
+                            arg: None,
+                        });
                     }
                 }
                 Err(matches) if matches.is_empty() => {
@@ -171,7 +186,10 @@ pub fn getopt_long(
                     break;
                 }
                 Some(_) => {
-                    items.push(GetoptItem::Opt { val: flag as i32, arg: None });
+                    items.push(GetoptItem::Opt {
+                        val: flag as i32,
+                        arg: None,
+                    });
                     j += 1;
                 }
                 None => {
@@ -194,10 +212,26 @@ mod tests {
     }
 
     const DEMO_LONGOPTS: &[LongOpt] = &[
-        LongOpt { name: "verbose", has_arg: false, val: 0 },
-        LongOpt { name: "version", has_arg: false, val: 'v' as i32 },
-        LongOpt { name: "value", has_arg: true, val: 0 },
-        LongOpt { name: "value-other", has_arg: true, val: 0 },
+        LongOpt {
+            name: "verbose",
+            has_arg: false,
+            val: 0,
+        },
+        LongOpt {
+            name: "version",
+            has_arg: false,
+            val: 'v' as i32,
+        },
+        LongOpt {
+            name: "value",
+            has_arg: true,
+            val: 0,
+        },
+        LongOpt {
+            name: "value-other",
+            has_arg: true,
+            val: 0,
+        },
     ];
     const DEMO_OPTSTRING: &str = "vo:";
 
@@ -235,8 +269,11 @@ mod tests {
 
     #[test]
     fn long_option_with_required_arg_takes_next_token() {
-        let (items, positionals) =
-            getopt_long(&args(&["--value", "x", "file"]), DEMO_OPTSTRING, DEMO_LONGOPTS);
+        let (items, positionals) = getopt_long(
+            &args(&["--value", "x", "file"]),
+            DEMO_OPTSTRING,
+            DEMO_LONGOPTS,
+        );
         assert!(matches!(&items[0], GetoptItem::Opt { val: 0, arg: Some(v) } if v == "x"));
         assert_eq!(positionals, vec!["file".to_string()]);
     }
@@ -244,20 +281,28 @@ mod tests {
     #[test]
     fn short_option_with_attached_value() {
         let (items, _) = getopt_long(&args(&["-o2"]), DEMO_OPTSTRING, DEMO_LONGOPTS);
-        assert!(matches!(&items[0], GetoptItem::Opt { val, arg: Some(v) } if *val == 'o' as i32 && v == "2"));
+        assert!(
+            matches!(&items[0], GetoptItem::Opt { val, arg: Some(v) } if *val == 'o' as i32 && v == "2")
+        );
     }
 
     #[test]
     fn short_option_with_separate_value() {
         let (items, _) = getopt_long(&args(&["-o", "2"]), DEMO_OPTSTRING, DEMO_LONGOPTS);
-        assert!(matches!(&items[0], GetoptItem::Opt { val, arg: Some(v) } if *val == 'o' as i32 && v == "2"));
+        assert!(
+            matches!(&items[0], GetoptItem::Opt { val, arg: Some(v) } if *val == 'o' as i32 && v == "2")
+        );
     }
 
     #[test]
     fn bundled_short_flags_split_into_separate_opts() {
         let (items, _) = getopt_long(&args(&["-vv"]), "vv", &[]);
         assert_eq!(items.len(), 2);
-        assert!(items.iter().all(|it| matches!(it, GetoptItem::Opt { val, arg: None } if *val == 'v' as i32)));
+        assert!(
+            items
+                .iter()
+                .all(|it| matches!(it, GetoptItem::Opt { val, arg: None } if *val == 'v' as i32))
+        );
     }
 
     #[test]
@@ -266,13 +311,18 @@ mod tests {
         // reparsed as more short flags.
         let (items, _) = getopt_long(&args(&["-qo2"]), "qo:", &[]);
         assert!(matches!(items[0], GetoptItem::Opt { val, arg: None } if val == 'q' as i32));
-        assert!(matches!(&items[1], GetoptItem::Opt { val, arg: Some(v) } if *val == 'o' as i32 && v == "2"));
+        assert!(
+            matches!(&items[1], GetoptItem::Opt { val, arg: Some(v) } if *val == 'o' as i32 && v == "2")
+        );
     }
 
     #[test]
     fn double_dash_ends_option_parsing() {
-        let (items, positionals) =
-            getopt_long(&args(&["-v", "--", "-v", "file"]), DEMO_OPTSTRING, DEMO_LONGOPTS);
+        let (items, positionals) = getopt_long(
+            &args(&["-v", "--", "-v", "file"]),
+            DEMO_OPTSTRING,
+            DEMO_LONGOPTS,
+        );
         assert_eq!(items.len(), 1);
         assert_eq!(positionals, vec!["-v".to_string(), "file".to_string()]);
     }

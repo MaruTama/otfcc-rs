@@ -1,10 +1,10 @@
-use crate::logger::ByteStr;
 use crate::font::sfnt::Packet;
+use crate::logger::ByteStr;
+use crate::support::options::Options;
+use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
-use crate::support::options::Options;
 use otfcc_json::ParsedValue;
-use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 
 // `tag` is written on every construction path but never read back.
 #[derive(Debug)]
@@ -34,17 +34,18 @@ pub fn table_dump_table_fpgm_prep(
     root.push_field(tag, dumped);
     stage.finish();
 }
-pub fn parse_fpgm_prep(
-    root: &ParsedValue,
-    tag: &[u8],
-) -> Option<Box<FpgmPrepTable>> {
+pub fn parse_fpgm_prep(root: &ParsedValue, tag: &[u8]) -> Option<Box<FpgmPrepTable>> {
     let table = root.get(tag)?;
     let stage = crate::logger::stage(ByteStr(tag));
     let mut boxed = Box::new(FpgmPrepTable {
         tag: tag.to_vec(),
         bytes: Vec::new(),
     });
-    parse_ttinstr(Some(table), |instrs| boxed.bytes = instrs, |_reason, _pos| {});
+    parse_ttinstr(
+        Some(table),
+        |instrs| boxed.bytes = instrs,
+        |_reason, _pos| {},
+    );
     stage.finish();
     Some(boxed)
 }

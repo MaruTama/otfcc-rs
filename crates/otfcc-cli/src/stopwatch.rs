@@ -18,7 +18,10 @@ pub fn push_stopwatch(sofar: &mut Instant) -> Vec<u8> {
     format!("Step time = {}s.\n", format_g(secs, 6)).into_bytes()
 }
 pub fn log_step_time(sofar: &mut Instant) {
-    tracing::debug!("{}", otfcc_rust::logger::ByteStr(&push_stopwatch(sofar)[..]));
+    tracing::debug!(
+        "{}",
+        otfcc_rust::logger::ByteStr(&push_stopwatch(sofar)[..])
+    );
 }
 
 #[cfg(test)]
@@ -34,7 +37,10 @@ mod tests {
         // for the few microseconds between the two `Instant::now()` calls.
         let mut sofar = start.checked_sub(Duration::from_millis(500)).unwrap();
         let text = String::from_utf8(push_stopwatch(&mut sofar)).unwrap();
-        assert!(text.starts_with("Step time = 0.5"), "expected a ~0.5s reading, got {text:?}");
+        assert!(
+            text.starts_with("Step time = 0.5"),
+            "expected a ~0.5s reading, got {text:?}"
+        );
         assert!(text.ends_with("s.\n"), "got {text:?}");
         assert!(sofar >= start);
     }

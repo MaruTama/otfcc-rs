@@ -1,10 +1,10 @@
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
 use crate::support::primitives::GlyphSize;
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Copy, Clone, Debug)]
 pub struct GaspRecord {
@@ -63,7 +63,10 @@ pub fn dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue) {
     let mut t = BuiltValue::new_array(table.records.len());
     for r in &table.records {
         let mut rec = BuiltValue::new_object(5);
-        rec.push_field(b"rangeMaxPPEM", BuiltValue::Int(i64::from(r.range_max_ppem)));
+        rec.push_field(
+            b"rangeMaxPPEM",
+            BuiltValue::Int(i64::from(r.range_max_ppem)),
+        );
         rec.push_field(b"dogray", BuiltValue::Bool(r.dogray));
         rec.push_field(b"gridfit", BuiltValue::Bool(r.gridfit));
         rec.push_field(
@@ -134,9 +137,7 @@ mod parse_gasp_tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // version
         data.extend_from_slice(&1u16.to_be_bytes()); // numRanges
         data.extend_from_slice(&65535u16.to_be_bytes()); // rangeMaxPPEM
-        data.extend_from_slice(
-            &(GASP_GRIDFIT | GASP_SYMMETRIC_SMOOTHING).to_be_bytes(),
-        );
+        data.extend_from_slice(&(GASP_GRIDFIT | GASP_SYMMETRIC_SMOOTHING).to_be_bytes());
         let gasp = decode_gasp(&data).unwrap();
         assert_eq!(gasp.records.len(), 1);
         assert_eq!(gasp.records[0].range_max_ppem, 65535);

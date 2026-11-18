@@ -1,14 +1,14 @@
+use crate::font::sfnt::Packet;
+use crate::support::base64::base64_encode;
+use crate::support::primitives::GlyphId;
+use otfcc_binary::Buffer;
 use otfcc_binary::bk::block::bk_new_block_from_buffer_copy;
 use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use otfcc_binary::bk::graph::bk_build_block;
-use crate::font::sfnt::Packet;
-use crate::support::base64::base64_encode;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
-use crate::support::primitives::GlyphId;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 #[derive(Debug)]
 pub struct SvgAssignment {
@@ -38,7 +38,10 @@ fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
 /// (`FontReader::sub`): wrapping sums could otherwise pass the length check.
 fn decode_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
     if data.len() < 10 {
-        return Err(ReadError { needed: 10, available: data.len() });
+        return Err(ReadError {
+            needed: 10,
+            available: data.len(),
+        });
     }
     let offset_to_svg_doc_index = FontReader::new(data).at(2)?.u32()? as usize;
     let mut idx = FontReader::new(data).at(offset_to_svg_doc_index)?;
@@ -57,12 +60,19 @@ fn decode_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
             .and_then(|mut r| r.bytes(doclen).ok())
             .map(|s| s.to_vec())
             .unwrap_or_default();
-        svg.push(SvgAssignment { start, end, document });
+        svg.push(SvgAssignment {
+            start,
+            end,
+            document,
+        });
     }
     Ok(svg)
 }
 pub fn read_svg(packet: &Packet) -> Option<SvgTable> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_SVG)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_SVG)?;
     decode_svg(&table.data).ok()
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {

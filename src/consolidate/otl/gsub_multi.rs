@@ -2,7 +2,6 @@ use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 use crate::table::otl::coverage::{Coverage, shrink_coverage};
 
-
 use crate::support::primitives::GlyphId;
 
 use crate::support::glyph_order::GlyphOrder;
@@ -29,12 +28,18 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
         if !gord_consolidate_handle(glyph_order, &mut entry.from) {
-            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&entry.from.name));
+            tracing::warn!(
+                "[Consolidate] Ignored missing glyph /{}.\n",
+                ByteStr(&entry.from.name)
+            );
         } else {
             fontop_consolidate_coverage(glyph_order, &mut entry.to);
             shrink_coverage(&mut entry.to, false);
             if entry.to.is_empty() {
-                tracing::warn!("[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /{}.\n", ByteStr(&entry.from.name));
+                tracing::warn!(
+                    "[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /{}.\n",
+                    ByteStr(&entry.from.name)
+                );
             } else {
                 let fromid: i32 = i32::from(entry.from.index);
                 if let std::collections::btree_map::Entry::Vacant(e) = seen.entry(fromid) {
@@ -48,7 +53,8 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
     subtable.clear();
     for (fromid, (fromname, to)) in seen {
         subtable.push(GsubMultiEntry {
-            from: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname) as GlyphHandle,
+            from: Handle::new(HandleState::Consolidated, fromid as GlyphId, fromname)
+                as GlyphHandle,
             to,
         });
     }

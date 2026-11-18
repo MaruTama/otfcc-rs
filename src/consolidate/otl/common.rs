@@ -14,21 +14,18 @@ use crate::table::otl::classdef::ClassDef;
 // this from a `&mut Font` (TSI5 consolidation) needs to mutably borrow a
 // *different* field (`font.tsi5`) in the same call, which a `glyph_order: &GlyphOrder`
 // parameter here would block by requiring the whole struct immutably.
-pub fn fontop_consolidate_coverage(
-    glyph_order: &GlyphOrder,
-    coverage: &mut Coverage,
-) {
+pub fn fontop_consolidate_coverage(glyph_order: &GlyphOrder, coverage: &mut Coverage) {
     for glyph in coverage.iter_mut() {
         if !gord_consolidate_handle(glyph_order, glyph) {
-            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&glyph.name));
+            tracing::warn!(
+                "[Consolidate] Ignored missing glyph /{}.\n",
+                ByteStr(&glyph.name)
+            );
             *glyph = Handle::default();
         }
     }
 }
-pub fn fontop_consolidate_class_def(
-    glyph_order: Option<&GlyphOrder>,
-    cd: Option<&mut ClassDef>,
-) {
+pub fn fontop_consolidate_class_def(glyph_order: Option<&GlyphOrder>, cd: Option<&mut ClassDef>) {
     let Some(cd) = cd else {
         return;
     };
@@ -42,7 +39,10 @@ pub fn fontop_consolidate_class_def(
     };
     for (glyph, class) in cd.glyphs.iter_mut().zip(cd.classes.iter_mut()) {
         if !gord_consolidate_handle(glyph_order, glyph) {
-            tracing::warn!("[Consolidate] Ignored missing glyph /{}.\n", ByteStr(&glyph.name));
+            tracing::warn!(
+                "[Consolidate] Ignored missing glyph /{}.\n",
+                ByteStr(&glyph.name)
+            );
             *glyph = Handle::default();
             *class = 0 as GlyphClass;
         }

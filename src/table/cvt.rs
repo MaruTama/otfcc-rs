@@ -1,10 +1,10 @@
 use crate::font::sfnt::Packet;
 use crate::support::base64::base64_decode;
 use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use otfcc_binary::FontReader;
-use otfcc_json::ParsedValue;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 /// The `cvt ` table: a list of 16-bit control values (FWord units) used by
 /// TrueType instructions.

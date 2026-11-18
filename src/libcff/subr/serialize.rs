@@ -1,16 +1,12 @@
-use super::*;
 use super::graph::last_node_of;
+use super::*;
 use otfcc_binary::Buffer;
 
 use crate::libcff::index::CffIndex;
 use crate::libcff::index::{build_index, new_index_by_callback};
+use crate::libcff::writer::{merge_cs2_int, merge_cs2_operator};
+use crate::libcff::{OP_CALLGSUBR, OP_CALLSUBR, OP_RETURN, TYPE2_MAX_SUBRS, TYPE2_SUBR_NESTING};
 use crate::support::error::BuildError;
-use crate::libcff::writer::{
-    merge_cs2_int, merge_cs2_operator,
-};
-use crate::libcff::{
-    OP_CALLGSUBR, OP_CALLSUBR, OP_RETURN, TYPE2_MAX_SUBRS, TYPE2_SUBR_NESTING,
-};
 
 fn stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
     if height > g.rule(r).height {
@@ -132,10 +128,7 @@ fn serialize_node_to_buffer(
             let ru = g.rule(r);
             (ru.numbered, ru.number, ru.height)
         };
-        if numbered
-            && number < max_l_subrs + max_g_subrs
-            && r_height < TYPE2_SUBR_NESTING
-        {
+        if numbered && number < max_l_subrs + max_g_subrs && r_height < TYPE2_SUBR_NESTING {
             let target: SubrRef;
             if number < max_l_subrs {
                 let stacknum: i32 = number as i32 - subroutine_bias(max_l_subrs as i32);
@@ -159,10 +152,7 @@ fn serialize_node_to_buffer(
                     e = next;
                 }
                 if !ends_with_end_char(g, r) {
-                    merge_cs2_operator(
-                        out.buffer(target),
-                        OP_RETURN,
-                    );
+                    merge_cs2_operator(out.buffer(target), OP_RETURN);
                 }
             }
         } else {
@@ -175,13 +165,10 @@ fn serialize_node_to_buffer(
             }
         }
     } else {
-        out.buffer(buf)
-            .write_buffer(g.terminal_of(node));
+        out.buffer(buf).write_buffer(g.terminal_of(node));
     };
 }
-pub fn il_graph_to_buffers(
-    g: &mut CffSubrGraph,
-) -> Result<(Buffer, Buffer, Buffer), BuildError> {
+pub fn il_graph_to_buffers(g: &mut CffSubrGraph) -> Result<(Buffer, Buffer, Buffer), BuildError> {
     let root = g.root;
     stat_height(g, root, 0);
     let max_subroutines: u32 = number_subroutines(g);
@@ -233,7 +220,9 @@ pub fn il_graph_to_buffers(
     }
     let is: CffIndex = new_index_by_callback(
         g.total_char_strings,
-        char_strings[..g.total_char_strings as usize].iter().cloned(),
+        char_strings[..g.total_char_strings as usize]
+            .iter()
+            .cloned(),
     );
     let igs: CffIndex =
         new_index_by_callback(max_g_subrs, gsubrs[..max_g_subrs as usize].iter().cloned());

@@ -16,10 +16,10 @@ fn bench_build(c: &mut Criterion) {
     // Binary fixtures: dump once up front to get JSON input, then only the
     // build half is measured.
     let binary_fixtures: &[&str] = &[
-        "Molengo-Regular.ttf",     // small TTF
-        "KRName-Regular.otf",      // small CFF
-        "FDArrayTest257.otf",      // CFF CID/FDSelect edge case
-        "FDArrayTest65535.otf",    // CFF CID/FDSelect edge case, max count
+        "Molengo-Regular.ttf",  // small TTF
+        "KRName-Regular.otf",   // small CFF
+        "FDArrayTest257.otf",   // CFF CID/FDSelect edge case
+        "FDArrayTest65535.otf", // CFF CID/FDSelect edge case, max count
     ];
     for &name in binary_fixtures {
         let sfnt_bytes = payload_bytes(name);
@@ -28,7 +28,11 @@ fn bench_build(c: &mut Criterion) {
 
         let options = quiet_options();
         group.bench_function(name, |b| {
-            b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, &options), BatchSize::SmallInput);
+            b.iter_batched(
+                || json_bytes.clone(),
+                |json| build_to_otf(&json, &options),
+                BatchSize::SmallInput,
+            );
         });
     }
 
@@ -39,7 +43,11 @@ fn bench_build(c: &mut Criterion) {
         let json_bytes = payload_bytes(name);
         let options = quiet_options();
         group.bench_function(name, |b| {
-            b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, &options), BatchSize::SmallInput);
+            b.iter_batched(
+                || json_bytes.clone(),
+                |json| build_to_otf(&json, &options),
+                BatchSize::SmallInput,
+            );
         });
     }
 

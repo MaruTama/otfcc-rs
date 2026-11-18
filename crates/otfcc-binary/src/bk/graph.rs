@@ -1,5 +1,5 @@
-use crate::bk::block::{BkBlock, BkCellType, BkCellValue};
 use crate::Buffer;
+use crate::bk::block::{BkBlock, BkCellType, BkCellValue};
 
 // `BkGraph` is an arena: `dfs_convert` consumes the owned `BkBlock` tree
 // and assigns each block a stable `BlockId`, in post-order. After
@@ -190,9 +190,10 @@ fn compareblock(blocks: &[ArenaBlock], a: BlockId, b: BlockId) -> bool {
                 }
             }
             BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32
-                if ca.as_ptr() != cb.as_ptr() => {
-                    return false;
-                }
+                if ca.as_ptr() != cb.as_ptr() =>
+            {
+                return false;
+            }
             _ => {}
         }
     }
@@ -288,7 +289,8 @@ fn getoffset(
 ) -> u32 {
     let offref: usize = offsets[blocks[ref_id.0 as usize].index as usize];
     let offtgt: usize = offsets[blocks[target.0 as usize].index as usize];
-    if i32::from(bits) < 32 && (offtgt < offref || offtgt.wrapping_sub(offref) >> i32::from(bits) != 0)
+    if i32::from(bits) < 32
+        && (offtgt < offref || offtgt.wrapping_sub(offref) >> i32::from(bits) != 0)
     {
         // No `Logger`/`Options` reaches this deep into the bk-block
         // serializer (`build_bkblock` is called from ~19 unrelated

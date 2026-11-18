@@ -1,16 +1,13 @@
-use otfcc_binary::FontReader;
 use crate::support::handle::{GlyphHandle, handle_from_name};
-use otfcc_json::ParsedValue;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_binary::FontReader;
+use otfcc_json::ParsedValue;
 
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::Buffer;
 use crate::support::primitives::GlyphId;
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
@@ -18,6 +15,9 @@ use crate::table::otl::subtables::gpos_common::{
     required_position_format,
 };
 use crate::table::otl::{GposSingleEntry, GposSingleSubtable, PositionValue, Subtable};
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_json::BuiltValue;
 pub fn otl_read_gpos_single(
     data: &[u8],
     offset: u32,
@@ -38,7 +38,8 @@ pub fn otl_read_gpos_single(
             break 'parse;
         };
 
-        let targets: Coverage = read_coverage(data, offset.wrapping_add(u32::from(from_rel)), budget);
+        let targets: Coverage =
+            read_coverage(data, offset.wrapping_add(u32::from(from_rel)), budget);
         if targets.is_empty() {
             break 'parse;
         }
@@ -95,9 +96,7 @@ pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub fn otl_gpos_parse_single(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gpos_parse_single(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let mut subtable: GposSingleSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, val) in fields {
@@ -111,10 +110,7 @@ pub fn otl_gpos_parse_single(
     }
     Some(Subtable::GposSingle(subtable))
 }
-pub fn build_gpos_single(
-    _subtable: &Subtable,
-    mut _heuristics: BuildHeuristics,
-) -> Buffer {
+pub fn build_gpos_single(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
     };
@@ -138,7 +134,10 @@ pub fn build_gpos_single(
     if is_const {
         let b: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 1),
-            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
+            bk_ptr(
+                BkCellType::P16,
+                bk_new_block_from_buffer(Some(coverage_buf)),
+            ),
             bk_int(BkCellType::B16, i32::from(format) as u32),
             bk_ptr(
                 BkCellType::Embed,
@@ -149,7 +148,10 @@ pub fn build_gpos_single(
     } else {
         let mut sub_block: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 2),
-            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
+            bk_ptr(
+                BkCellType::P16,
+                bk_new_block_from_buffer(Some(coverage_buf)),
+            ),
             bk_int(BkCellType::B16, i32::from(format) as u32),
             bk_int(BkCellType::B16, (subtable.len()) as u32),
         ]);

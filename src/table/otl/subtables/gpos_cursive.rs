@@ -1,22 +1,22 @@
-use otfcc_binary::FontReader;
 use crate::support::handle::{GlyphHandle, handle_from_name};
-use otfcc_json::ParsedValue;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_binary::FontReader;
+use otfcc_json::ParsedValue;
 
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::Buffer;
 use crate::support::primitives::GlyphId;
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
     bk_from_anchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor,
 };
 use crate::table::otl::{GposCursiveEntry, GposCursiveSubtable, Subtable};
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_json::BuiltValue;
 pub fn otl_read_gpos_cursive(
     data: &[u8],
     offset: u32,
@@ -40,7 +40,8 @@ pub fn otl_read_gpos_cursive(
             break 'parse;
         };
 
-        let targets: Coverage = read_coverage(data, offset.wrapping_add(u32::from(from_rel)), budget);
+        let targets: Coverage =
+            read_coverage(data, offset.wrapping_add(u32::from(from_rel)), budget);
         if targets.is_empty() {
             break 'parse;
         }
@@ -92,9 +93,7 @@ pub fn otl_gpos_dump_cursive(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub fn otl_gpos_parse_cursive(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gpos_parse_cursive(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let mut subtable: GposCursiveSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, val) in fields {
@@ -109,10 +108,7 @@ pub fn otl_gpos_parse_cursive(
     }
     Some(Subtable::GposCursive(subtable))
 }
-pub fn build_gpos_cursive(
-    _subtable: &Subtable,
-    mut _heuristics: BuildHeuristics,
-) -> Buffer {
+pub fn build_gpos_cursive(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GposCursive(subtable) = _subtable else {
         unreachable!()
     };

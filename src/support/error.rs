@@ -18,7 +18,10 @@ impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BuildError::TooManyEntries { what, count, max } => {
-                write!(f, "{what} has {count} entries, but the format allows at most {max}")
+                write!(
+                    f,
+                    "{what} has {count} entries, but the format allows at most {max}"
+                )
             }
         }
     }

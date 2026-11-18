@@ -1,11 +1,11 @@
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
-use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{from_fixed, to_fixed};
+use otfcc_binary::Buffer;
+use otfcc_binary::{FontReader, ReadError};
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 /// The `head` table, field for field as in the OpenType spec (54 bytes).
 /// `created` and `modified` are seconds since 1904-01-01, kept as `i64`.
 #[derive(Copy, Clone, Debug)]
@@ -102,10 +102,7 @@ pub fn dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
     };
     let stage = crate::logger::stage("head");
     let mut head = BuiltValue::new_object(15);
-    head.push_field(
-        b"version",
-        BuiltValue::Double(from_fixed(table.version)),
-    );
+    head.push_field(b"version", BuiltValue::Double(from_fixed(table.version)));
     head.push_field(
         b"fontRevision",
         BuiltValue::Double(from_fixed(table.font_revision as F16Dot16)),
@@ -114,7 +111,10 @@ pub fn dump_head(table: Option<&HeadTable>, root: &mut BuiltValue) {
         b"flags",
         BuiltValue::dump_flags(i32::from(table.flags), &HEAD_FLAGS_LABELS),
     );
-    head.push_field(b"unitsPerEm", BuiltValue::Int(i64::from(table.units_per_em)));
+    head.push_field(
+        b"unitsPerEm",
+        BuiltValue::Int(i64::from(table.units_per_em)),
+    );
     head.push_field(b"created", BuiltValue::Int(table.created));
     head.push_field(b"modified", BuiltValue::Int(table.modified));
     head.push_field(b"xMin", BuiltValue::Int(i64::from(table.x_min)));

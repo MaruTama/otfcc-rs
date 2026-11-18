@@ -1,12 +1,13 @@
-
-use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name};
+use crate::support::handle::{
+    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name,
+};
 use otfcc_json::ParsedValue;
 
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_binary::{FontReader, ReadError};
 use crate::support::primitives::{ColorId, GlyphId};
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use otfcc_binary::{FontReader, ReadError};
 use otfcc_json::JsonType;
 
 use otfcc_binary::bk::graph::bk_build_block;
@@ -30,7 +31,10 @@ const LAYER_REC_LENGTH: usize = 4;
 /// `checked_add`/`checked_mul` rather than by plain addition.
 fn decode_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     if data.len() < 14 {
-        return Err(ReadError { needed: 14, available: data.len() });
+        return Err(ReadError {
+            needed: 14,
+            available: data.len(),
+        });
     }
     let num_base_glyph_records = FontReader::new(data).at(2)?.u16()?;
     let num_layer_records = FontReader::new(data).at(12)?.u16()?;
@@ -73,7 +77,10 @@ fn decode_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     Ok(colr)
 }
 pub fn read_colr(packet: &Packet) -> Option<ColrTable> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_COLR)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_COLR)?;
     match decode_colr(&table.data) {
         Ok(colr) => Some(colr),
         Err(_) => {
@@ -90,12 +97,21 @@ pub fn dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
     let mut _colr = BuiltValue::new_array(mappings.len());
     for mapping in mappings.iter() {
         let mut _map = BuiltValue::new_object(2);
-        _map.push_field(b"from", BuiltValue::str_truncated_at_nul(&mapping.glyph.name));
+        _map.push_field(
+            b"from",
+            BuiltValue::str_truncated_at_nul(&mapping.glyph.name),
+        );
         let mut _layers = BuiltValue::new_array(mapping.layers.len());
         for layer in mapping.layers.iter() {
             let mut _layer = BuiltValue::new_object(2);
-            _layer.push_field(b"layer", BuiltValue::str_truncated_at_nul(&layer.glyph.name));
-            _layer.push_field(b"paletteIndex", BuiltValue::Int(i64::from(layer.palette_index)));
+            _layer.push_field(
+                b"layer",
+                BuiltValue::str_truncated_at_nul(&layer.glyph.name),
+            );
+            _layer.push_field(
+                b"paletteIndex",
+                BuiltValue::Int(i64::from(layer.palette_index)),
+            );
             _layers.push_item(_layer);
         }
         _map.push_field(b"to", _layers.preserialize());
@@ -131,8 +147,7 @@ pub fn parse_colr(root: &ParsedValue) -> Option<ColrTable> {
                                 glyph: handle_from_name(
                                     layerglyph.as_str_bytes().map(|b| b.to_vec()),
                                 ),
-                                palette_index: layer.get_int_or(b"paletteIndex", 0xffff)
-                                    as ColorId,
+                                palette_index: layer.get_int_or(b"paletteIndex", 0xffff) as ColorId,
                             });
                         }
                     }
@@ -158,14 +173,8 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
         bk_push(
             &mut base_records,
             vec![
-                bk_int(
-                    BkCellType::B16,
-                    i32::from(mapping.glyph.index) as u32,
-                ),
-                bk_int(
-                    BkCellType::B16,
-                    i32::from(current_layer_index) as u32,
-                ),
+                bk_int(BkCellType::B16, i32::from(mapping.glyph.index) as u32),
+                bk_int(BkCellType::B16, i32::from(current_layer_index) as u32),
                 bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
             ],
         );
@@ -173,19 +182,11 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
             bk_push(
                 &mut layer_records,
                 vec![
-                    bk_int(
-                        BkCellType::B16,
-                        i32::from(layer.glyph.index) as u32,
-                    ),
-                    bk_int(
-                        BkCellType::B16,
-                        i32::from(layer.palette_index) as u32,
-                    ),
+                    bk_int(BkCellType::B16, i32::from(layer.glyph.index) as u32),
+                    bk_int(BkCellType::B16, i32::from(layer.palette_index) as u32),
                 ],
             );
-            current_layer_index = (i32::from(current_layer_index)
-                + 1)
-                as GlyphId;
+            current_layer_index = (i32::from(current_layer_index) + 1) as GlyphId;
         }
     }
     let root: BkBlock = bk_new_block(vec![
@@ -193,10 +194,7 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
         bk_int(BkCellType::B16, (colr.len()) as u32),
         bk_ptr(BkCellType::P32, Some(base_records)),
         bk_ptr(BkCellType::P32, Some(layer_records)),
-        bk_int(
-            BkCellType::B16,
-            i32::from(current_layer_index) as u32,
-        ),
+        bk_int(BkCellType::B16, i32::from(current_layer_index) as u32),
     ]);
     // `colr` drops naturally at the end of this scope -- no explicit
     // dispose call needed (`ColrMapping`'s `Handle` fields already free

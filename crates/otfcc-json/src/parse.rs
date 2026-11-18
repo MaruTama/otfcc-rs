@@ -151,10 +151,7 @@ impl ParsedValue {
             ParsedValue::Object(fields) => fields,
             _ => return None,
         };
-        let v = &mut fields
-            .iter_mut()
-            .find(|(k, _)| &k[..k.len() - 1] == key)?
-            .1;
+        let v = &mut fields.iter_mut().find(|(k, _)| &k[..k.len() - 1] == key)?.1;
         if v.kind() == kind { Some(v) } else { None }
     }
 
@@ -177,9 +174,10 @@ impl ParsedValue {
         if let Some(fields) = self.as_object() {
             for (k, v) in fields {
                 if &k[..k.len() - 1] == key
-                    && let Some(n) = v.as_num() {
-                        return n;
-                    }
+                    && let Some(n) = v.as_num()
+                {
+                    return n;
+                }
             }
         }
         fallback
@@ -231,9 +229,10 @@ impl ParsedValue {
     /// out of range.
     pub fn set_field(&mut self, i: usize, value: ParsedValue) {
         if let ParsedValue::Object(fields) = self
-            && let Some((_, v)) = fields.get_mut(i) {
-                *v = value;
-            }
+            && let Some((_, v)) = fields.get_mut(i)
+        {
+            *v = value;
+        }
     }
 
     /// Overwrites the `i`th object member's value with `Null`, returning
@@ -245,9 +244,10 @@ impl ParsedValue {
     /// object or `i` is out of range.
     pub fn take_field(&mut self, i: usize) -> ParsedValue {
         if let ParsedValue::Object(fields) = self
-            && let Some((_, v)) = fields.get_mut(i) {
-                return ::core::mem::replace(v, ParsedValue::Null);
-            }
+            && let Some((_, v)) = fields.get_mut(i)
+        {
+            return ::core::mem::replace(v, ParsedValue::Null);
+        }
         ParsedValue::Null
     }
 
@@ -630,7 +630,6 @@ impl<'a> Parser<'a> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -674,17 +673,11 @@ mod tests {
         };
         unsafe {
             let key_ptr = key.as_ptr() as *const ::core::ffi::c_char;
-            assert_eq!(
-                ::libc::strcmp(key_ptr, c"abc".as_ptr()),
-                0
-            );
+            assert_eq!(::libc::strcmp(key_ptr, c"abc".as_ptr()), 0);
             assert_eq!(::core::ffi::CStr::from_ptr(key_ptr).to_bytes(), b"abc");
 
             let str_ptr = val_bytes.as_ptr() as *const ::core::ffi::c_char;
-            assert_eq!(
-                ::libc::strcmp(str_ptr, c"xyz".as_ptr()),
-                0
-            );
+            assert_eq!(::libc::strcmp(str_ptr, c"xyz".as_ptr()), 0);
             assert_eq!(::core::ffi::CStr::from_ptr(str_ptr).to_bytes(), b"xyz");
         }
         assert_eq!(key.len() - 1, 3);
@@ -926,7 +919,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn safe_api_kind_matches_every_variant() {
         assert_eq!(ParsedValue::Null.kind(), JsonType::Null);
@@ -1015,12 +1007,13 @@ mod tests {
         // `take_field`-ing a leaf reached the same way (the exact "resolve
         // a table, then take_field one of its members" shape M-32/M-33
         // will use).
-        let mut obj = ParsedValue::Object(vec![
-            (b"glyf\0".to_vec(), ParsedValue::Object(vec![
+        let mut obj = ParsedValue::Object(vec![(
+            b"glyf\0".to_vec(),
+            ParsedValue::Object(vec![
                 (b"a\0".to_vec(), ParsedValue::Int(1)),
                 (b"b\0".to_vec(), ParsedValue::Int(2)),
-            ])),
-        ]);
+            ]),
+        )]);
 
         let table = obj
             .get_typed_mut(b"glyf", JsonType::Object)

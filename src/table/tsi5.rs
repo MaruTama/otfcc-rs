@@ -1,15 +1,15 @@
-use otfcc_json::ParsedValue;
 use crate::table::otl::classdef::{ClassDef, push_class_def};
+use otfcc_json::ParsedValue;
 
 use crate::support::handle::handle_from_index;
 
 use otfcc_binary::FontReader;
 
 use crate::font::sfnt::Packet;
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::table::otl::classdef::{dump_class_def, parse_class_def};
+use otfcc_binary::Buffer;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 
 pub type Tsi5Table = ClassDef;

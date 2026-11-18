@@ -14,12 +14,12 @@ use crate::logger::ByteStr;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::TableId;
+use crate::table::otl::kind::{LookupConsolidateCtx, lookup_kind};
+use crate::table::otl::{Lookup, LookupList, OtlTable};
 use crate::table::otl::{
     otl_feature_list_punch_holes, otl_feature_ref_list_filter_env, otl_lookup_list_punch_holes,
     otl_lookup_ref_list_filter_env,
 };
-use crate::table::otl::kind::{LookupConsolidateCtx, lookup_kind};
-use crate::table::otl::{Lookup, LookupList, OtlTable};
 
 pub fn consolidate_lookup(
     glyph_order: &GlyphOrder,
@@ -35,7 +35,13 @@ pub fn consolidate_lookup(
     let Some(kind) = lookup_kind(lookup.lookup_type) else {
         return;
     };
-    let ctx = LookupConsolidateCtx { glyph_order, lookups, self_index, self_name, options };
+    let ctx = LookupConsolidateCtx {
+        glyph_order,
+        lookups,
+        self_index,
+        self_name,
+        options,
+    };
     let stage = crate::logger::stage(ByteStr(&lookup.name));
     // The "Ignored empty subtable" warning below can fire up to 300,000
     // times for a font whose subtables mostly fail to parse (a lookup can
@@ -45,21 +51,34 @@ pub fn consolidate_lookup(
     // warnings are not being printed, so that volume costs nothing then.
     for (j, slot) in lookup.subtables.iter_mut().enumerate() {
         if slot.is_none() {
-            tracing::warn!("[Consolidate] Ignored empty subtable {} of lookup {}.\n", j as i32, ByteStr(&lookup.name));
+            tracing::warn!(
+                "[Consolidate] Ignored empty subtable {} of lookup {}.\n",
+                j as i32,
+                ByteStr(&lookup.name)
+            );
         } else {
-            let sub = slot.as_deref_mut().expect("the slot was just checked to be non-empty");
+            let sub = slot
+                .as_deref_mut()
+                .expect("the slot was just checked to be non-empty");
             let subtable_removed = kind.consolidate_subtable(sub, &ctx);
             if subtable_removed {
                 // Dropping the `Box` disposes the subtable.
                 *slot = None;
-                tracing::warn!("[Consolidate] Ignored empty subtable {} of lookup {}.\n", j as i32, ByteStr(&lookup.name));
+                tracing::warn!(
+                    "[Consolidate] Ignored empty subtable {} of lookup {}.\n",
+                    j as i32,
+                    ByteStr(&lookup.name)
+                );
             }
         }
     }
     // `Vec::retain` drops every discarded `Box<Subtable>` in place.
     lookup.subtables.retain(|s| s.is_some());
     if lookup.subtables.is_empty() {
-        tracing::warn!("[Consolidate] Lookup {} is empty and will be removed.\n", ByteStr(&lookup.name));
+        tracing::warn!(
+            "[Consolidate] Lookup {} is empty and will be removed.\n",
+            ByteStr(&lookup.name)
+        );
     }
     stage.finish();
 }
@@ -72,7 +91,11 @@ pub fn consolidate_lookup(
 // real self-reference; `self_index`/`self_name` (the latter cloned *before*
 // the `take`) are threaded down so `consolidate_chaining` can special-case
 // exactly that slot instead of reading it (as `None`) from `lookups`.
-pub(crate) fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut OtlTable>, options: &Options) {
+pub(crate) fn consolidate_otl_table(
+    glyph_order: Option<&GlyphOrder>,
+    table: Option<&mut OtlTable>,
+    options: &Options,
+) {
     // Every lookup consolidator below reads exactly one thing from the font:
     // its glyph order. So this takes `glyph_order`, not the `Font`, which
     // lets the caller borrow `font.glyph_order` and `font.gsub`/`.gpos`
@@ -210,7 +233,8 @@ mod consolidate_otl_table_tests {
     // borrowed feature refs) was already correctly pruned in this same
     // pass; `required_feature` (the lone one) was not.
     #[test]
-    fn required_feature_pointing_at_a_lookup_with_no_valid_subtables_is_cleared_not_left_dangling() {
+    fn required_feature_pointing_at_a_lookup_with_no_valid_subtables_is_cleared_not_left_dangling()
+    {
         // `LookupIdx(0)`/`FeatureIdx(0)` reference the one lookup/feature
         // slot below directly.
         let mut table = Box::new(OtlTable {
@@ -262,7 +286,10 @@ mod consolidate_otl_table_tests {
         assert!(table.lookups[0].is_some());
     }
 
-    fn self_referencing_chaining_lookup(lookup_type: LookupType, app_lookup: LookupHandle) -> Box<Lookup> {
+    fn self_referencing_chaining_lookup(
+        lookup_type: LookupType,
+        app_lookup: LookupHandle,
+    ) -> Box<Lookup> {
         let mut lookup = new_lookup();
         lookup.name = b"self_ref_lookup".to_vec();
         lookup.lookup_type = lookup_type;

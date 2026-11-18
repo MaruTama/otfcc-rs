@@ -19,7 +19,10 @@ use std::path::{Path, PathBuf};
 /// scratch directory live there, and the binaries run from there so the
 /// paths they log match the golden logs.
 pub fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().expect("the repository root should exist")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("the repository root should exist")
 }
 
 pub fn payload(name: &str) -> PathBuf {
@@ -33,7 +36,8 @@ pub fn payload(name: &str) -> PathBuf {
 /// `BUILD=` directories.
 pub fn scratch_dir(subdir: &str) -> PathBuf {
     let dir = repo_root().join("build").join(subdir);
-    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("failed to create {}: {e}", dir.display()));
+    std::fs::create_dir_all(&dir)
+        .unwrap_or_else(|e| panic!("failed to create {}: {e}", dir.display()));
     dir
 }
 
@@ -48,7 +52,8 @@ pub fn otfccbuild() -> PathBuf {
 }
 
 pub fn sha256_of(path: &Path) -> String {
-    let data = std::fs::read(path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    let data =
+        std::fs::read(path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
     let digest = Sha256::digest(&data);
     digest.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -62,9 +67,9 @@ pub fn golden_checksums() -> HashMap<String, String> {
     text.lines()
         .filter(|line| !line.is_empty())
         .map(|line| {
-            let (hash, label) = line
-                .split_once("  ")
-                .unwrap_or_else(|| panic!("malformed line in {}: {line:?}", checksums_path.display()));
+            let (hash, label) = line.split_once("  ").unwrap_or_else(|| {
+                panic!("malformed line in {}: {line:?}", checksums_path.display())
+            });
             (label.to_string(), hash.to_string())
         })
         .collect()
@@ -99,7 +104,9 @@ pub fn update_golden() -> bool {
 static CHECKSUMS_FILE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn write_golden_checksum(label: &str, hash: &str) {
-    let _guard = CHECKSUMS_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = CHECKSUMS_FILE_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let path = repo_root().join("tests/golden/checksums.sha256");
     let mut checksums = golden_checksums();
     checksums.insert(label.to_string(), hash.to_string());
@@ -109,7 +116,8 @@ fn write_golden_checksum(label: &str, hash: &str) {
     for (label, hash) in entries {
         text.push_str(&format!("{hash}  {label}\n"));
     }
-    std::fs::write(&path, text).unwrap_or_else(|e| panic!("failed to write {}: {e}", path.display()));
+    std::fs::write(&path, text)
+        .unwrap_or_else(|e| panic!("failed to write {}: {e}", path.display()));
 }
 
 /// Hashes `file` and compares against the golden checksum recorded for
@@ -119,7 +127,11 @@ fn write_golden_checksum(label: &str, hash: &str) {
 /// shape) rather than stopping at the first one -- or, under
 /// `UPDATE_GOLDEN=1`, writes the freshly computed hash as the new golden
 /// value instead of comparing, always returning `Ok`.
-pub fn check_against_golden(file: &Path, label: &str, checksums: &HashMap<String, String>) -> Result<(), String> {
+pub fn check_against_golden(
+    file: &Path,
+    label: &str,
+    checksums: &HashMap<String, String>,
+) -> Result<(), String> {
     let got = sha256_of(file);
     if update_golden() {
         write_golden_checksum(label, &got);
@@ -134,7 +146,10 @@ pub fn check_against_golden(file: &Path, label: &str, checksums: &HashMap<String
     if &got == want {
         Ok(())
     } else {
-        Err(format!("{label}: does not match golden checksum (file: {})", file.display()))
+        Err(format!(
+            "{label}: does not match golden checksum (file: {})",
+            file.display()
+        ))
     }
 }
 
@@ -147,7 +162,10 @@ pub fn check_against_golden(file: &Path, label: &str, checksums: &HashMap<String
 /// file <path>`), and an absolute path would never match the golden log
 /// fixtures, which were captured the same relative-path way.
 pub fn relative_arg(path: &Path) -> std::ffi::OsString {
-    path.strip_prefix(repo_root()).unwrap_or(path).as_os_str().to_owned()
+    path.strip_prefix(repo_root())
+        .unwrap_or(path)
+        .as_os_str()
+        .to_owned()
 }
 
 /// Runs `program` (kept absolute -- a relative *executable* path resolves
@@ -165,5 +183,9 @@ pub fn run_ok(label: &str, program: &Path, args: &[&std::ffi::OsStr]) {
         .current_dir(repo_root())
         .status()
         .unwrap_or_else(|e| panic!("{label}: failed to spawn {}: {e}", program.display()));
-    assert!(status.success(), "{label}: {} exited non-zero ({status})", program.display());
+    assert!(
+        status.success(),
+        "{label}: {} exited non-zero ({status})",
+        program.display()
+    );
 }

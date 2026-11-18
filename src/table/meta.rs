@@ -1,14 +1,14 @@
+use crate::font::sfnt::Packet;
+use crate::support::base64::{base64_decode, base64_encode};
+use otfcc_binary::Buffer;
 use otfcc_binary::bk::block::{
     BkBlock, BkCellType, bk_int, bk_new_block, bk_new_block_from_bytes, bk_ptr, bk_push,
 };
 use otfcc_binary::bk::graph::bk_build_block;
-use crate::font::sfnt::Packet;
-use crate::support::base64::{base64_decode, base64_encode};
-use otfcc_binary::Buffer;
-use otfcc_json::BuiltValue;
 use otfcc_binary::{FontReader, ReadError};
-use otfcc_json::ParsedValue;
+use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+use otfcc_json::ParsedValue;
 
 // `.data` holds either a UTF-8 string tag's bytes or raw (possibly
 // non-UTF-8) base64-decoded bytes, so `Vec<u8>`, not `String`.
@@ -191,10 +191,7 @@ pub fn build_meta(meta: Option<&MetaTable>) -> Option<Buffer> {
             &mut root,
             vec![
                 bk_int(BkCellType::B32, e.tag),
-                bk_ptr(
-                    BkCellType::P32,
-                    Some(bk_new_block_from_bytes(&e.data)),
-                ),
+                bk_ptr(BkCellType::P32, Some(bk_new_block_from_bytes(&e.data))),
                 bk_int(BkCellType::B32, (e.data.len()) as u32),
             ],
         );

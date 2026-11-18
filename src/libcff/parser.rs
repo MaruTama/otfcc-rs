@@ -8,8 +8,8 @@ use crate::libcff::fdselect::extract_fd_select;
 use crate::libcff::index::CffIndex;
 use crate::libcff::index::{empty_index, get_index_length, parse_index};
 use crate::libcff::{
-    CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, OP_CHAR_STRINGS, OP_CHARSET, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT,
-    OP_PRIVATE, OP_SUBRS,
+    CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, OP_CHAR_STRINGS,
+    OP_CHARSET, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT, OP_PRIVATE, OP_SUBRS,
 };
 
 /// The Top DICT's Encoding offset is overloaded by spec: values 0 and 1
@@ -114,7 +114,11 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
     pos = 4_u32.wrapping_add(get_index_length(&cff.name));
     cff.top_dict = parse_index(header_slice, pos);
     if cff.name.count != cff.top_dict.count {
-        tracing::warn!("[libcff] Bad CFF font: ({}, name), ({}, top_dict).\n", cff.name.count, cff.top_dict.count);
+        tracing::warn!(
+            "[libcff] Bad CFF font: ({}, name), ({}, top_dict).\n",
+            cff.name.count,
+            cff.top_dict.count
+        );
     }
     pos = 4_u32
         .wrapping_add(get_index_length(&cff.name))
@@ -158,15 +162,13 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHARSET, 0);
         if offset_0 != -1 {
-            cff.charsets =
-                extract_charset(header_slice, offset_0, cff.char_strings.count as u16);
+            cff.charsets = extract_charset(header_slice, offset_0, cff.char_strings.count as u16);
         } else {
             cff.charsets = CffCharset::IsoAdobe;
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_SELECT, 0);
         if cff.char_strings.count != 0 && offset_0 != -1 {
-            cff.fdselect =
-                extract_fd_select(header_slice, offset_0, cff.char_strings.count as u16);
+            cff.fdselect = extract_fd_select(header_slice, offset_0, cff.char_strings.count as u16);
         } else {
             cff.fdselect = CffFdSelect::Unspecified;
         }
@@ -269,12 +271,13 @@ pub fn parse_subr(
         }
         CffFdSelect::Format3 { range3, sentinel } => {
             for pair in range3.windows(2) {
-                if i32::from(idx) >= i32::from(pair[0].first) && i32::from(idx) < i32::from(pair[1].first) {
+                if i32::from(idx) >= i32::from(pair[0].first)
+                    && i32::from(idx) < i32::from(pair[1].first)
+                {
                     fd = pair[0].fd;
                 }
             }
-            if i32::from(idx)
-                >= i32::from(range3[range3.len() - 1].first)
+            if i32::from(idx) >= i32::from(range3[range3.len() - 1].first)
                 && i32::from(idx) < i32::from(*sentinel)
             {
                 fd = range3[range3.len() - 1].fd;
@@ -507,7 +510,6 @@ mod cff_header_and_encoding_tests {
 mod cff_open_stream_tests {
     use super::*;
 
-
     // A minimal CFF blob whose Top DICT INDEX is empty (`count == 0`):
     // header + 4 empty INDEXes (Name/Top DICT/String/Global Subr). With an
     // empty Top DICT, `parse_cff_bytecode` never assigns `char_strings`,
@@ -538,8 +540,8 @@ mod cff_open_stream_tests {
 #[cfg(test)]
 mod locate_subr_tests {
     use super::*;
-    use crate::support::primitives::Arity;
     use crate::libcff::index::CffIndexCountType;
+    use crate::support::primitives::Arity;
 
     fn subr_index(offset: Vec<u32>, data: Vec<u8>) -> CffIndex {
         CffIndex {

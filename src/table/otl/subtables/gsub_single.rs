@@ -1,22 +1,20 @@
-use crate::support::handle::{
-    GlyphHandle, handle_from_index, handle_from_name,
-};
-use otfcc_json::ParsedValue;
+use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use otfcc_json::ParsedValue;
 
 use otfcc_binary::FontReader;
 
-use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use otfcc_binary::Buffer;
 use crate::support::primitives::GlyphId;
+use otfcc_binary::Buffer;
+use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use otfcc_binary::bk::block::bk_new_block_from_buffer;
-use otfcc_binary::bk::graph::bk_build_block;
-use otfcc_json::BuiltValue;
 use crate::table::otl::coverage::build_coverage_format;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, Subtable};
+use otfcc_binary::bk::block::bk_new_block_from_buffer;
+use otfcc_binary::bk::graph::bk_build_block;
+use otfcc_json::BuiltValue;
 pub fn otl_read_gsub_single(
     data: &[u8],
     subtable_offset: u32,
@@ -37,7 +35,11 @@ pub fn otl_read_gsub_single(
             break 'parse;
         };
 
-        let from: Coverage = read_coverage(data, subtable_offset.wrapping_add(u32::from(from_rel)), budget);
+        let from: Coverage = read_coverage(
+            data,
+            subtable_offset.wrapping_add(u32::from(from_rel)),
+            budget,
+        );
         if from.is_empty() {
             break 'parse;
         }
@@ -48,7 +50,10 @@ pub fn otl_read_gsub_single(
                 break 'parse;
             };
             from.iter()
-                .map(|h| handle_from_index((i32::from(h.index) + i32::from(delta)) as GlyphId) as GlyphHandle)
+                .map(|h| {
+                    handle_from_index((i32::from(h.index) + i32::from(delta)) as GlyphId)
+                        as GlyphHandle
+                })
                 .collect()
         } else {
             let Ok(toglyphs) = header.u16() else {
@@ -61,7 +66,11 @@ pub fn otl_read_gsub_single(
                 break 'parse;
             }
             (0..toglyphs)
-                .map(|_| handle_from_index(header.u16().expect("require_room above covered this read") as GlyphId) as GlyphHandle)
+                .map(|_| {
+                    handle_from_index(
+                        header.u16().expect("require_room above covered this read") as GlyphId
+                    ) as GlyphHandle
+                })
                 .collect()
         };
 
@@ -89,9 +98,7 @@ pub fn otl_gsub_dump_single(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub fn otl_gsub_parse_single(
-    _subtable: Option<&ParsedValue>,
-) -> Option<Subtable> {
+pub fn otl_gsub_parse_single(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let mut subtable: GsubSingleSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, val) in fields {
@@ -105,20 +112,15 @@ pub fn otl_gsub_parse_single(
     }
     Some(Subtable::GsubSingle(subtable))
 }
-pub fn build_gsub_single_subtable(
-    _subtable: &Subtable,
-    heuristics: BuildHeuristics,
-) -> Buffer {
+pub fn build_gsub_single_subtable(_subtable: &Subtable, heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GsubSingle(subtable) = _subtable else {
         unreachable!()
     };
     let mut is_constant_difference: bool = !subtable.is_empty();
     if is_constant_difference {
-        let difference: i32 =
-            i32::from(subtable[0].to.index) - i32::from(subtable[0].from.index);
-        is_constant_difference = i32::from(is_constant_difference) != 0
-            && difference < 0x8000
-            && difference > -0x8000;
+        let difference: i32 = i32::from(subtable[0].to.index) - i32::from(subtable[0].from.index);
+        is_constant_difference =
+            i32::from(is_constant_difference) != 0 && difference < 0x8000 && difference > -0x8000;
         for entry in subtable.iter().skip(1) {
             let diff_j: i32 = i32::from(entry.to.index) - i32::from(entry.from.index);
             is_constant_difference = is_constant_difference
@@ -131,25 +133,30 @@ pub fn build_gsub_single_subtable(
     for entry in subtable.iter() {
         push_to_coverage(&mut cov, entry.from.clone());
     }
-    let coverage_buf: Buffer =
-        build_coverage_format(&cov, u16::from(heuristics.contains(BuildHeuristics::GSUB_VERT)));
-    if i32::from(is_constant_difference) != 0
-        && !heuristics.contains(BuildHeuristics::GSUB_VERT)
-    {
+    let coverage_buf: Buffer = build_coverage_format(
+        &cov,
+        u16::from(heuristics.contains(BuildHeuristics::GSUB_VERT)),
+    );
+    if i32::from(is_constant_difference) != 0 && !heuristics.contains(BuildHeuristics::GSUB_VERT) {
         let b: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 1),
-            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
+            bk_ptr(
+                BkCellType::P16,
+                bk_new_block_from_buffer(Some(coverage_buf)),
+            ),
             bk_int(
                 BkCellType::B16,
-                (i32::from(subtable[0].to.index)
-                    - i32::from(subtable[0].from.index)) as u32,
+                (i32::from(subtable[0].to.index) - i32::from(subtable[0].from.index)) as u32,
             ),
         ]);
         bk_build_block(b)
     } else {
         let mut sub_block: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 2),
-            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
+            bk_ptr(
+                BkCellType::P16,
+                bk_new_block_from_buffer(Some(coverage_buf)),
+            ),
             bk_int(BkCellType::B16, (subtable.len()) as u32),
         ]);
         for entry in subtable.iter() {
