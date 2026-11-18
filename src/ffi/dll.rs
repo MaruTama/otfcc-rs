@@ -114,6 +114,7 @@ mod tests {
     // dicts, but `fdArray` turned each into an entry with no private dict,
     // and the width statistics then panicked looking for one.
     #[test]
+    #[cfg_attr(miri, ignore = "the build stamps head.modified from the real clock")]
     fn fd_array_entries_without_a_private_dict_build() {
         let json = br#"{"glyph_order":[".notdef"],"CFF_":{"version":"001.000","fontName":"T",
             "isCID":true,"cidRegistry":"Adobe","cidOrdering":"Identity","cidSupplement":0,
