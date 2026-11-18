@@ -1,0 +1,48 @@
+name: macOS build & compatibility
+
+# The native macOS (arm64) half of "verified on both OSes" (see rust.yml and
+# RUST_MIGRATION.md). It is a separate workflow on purpose: GitHub's macOS
+# arm64 pool sometimes has no capacity, in which case the job is never given
+# a runner ("not acquired by Runner of type hosted even after multiple
+# attempts") and is cancelled after exactly 15 minutes. `continue-on-error`
+# does not cover that, so as a job of rust.yml it turned every master run red.
+# Here it can only redden its own run; re-run it by hand when that happens.
+#
+# Master pushes only (not PRs) to save macOS runner cost, plus manual runs.
+# The path filter matches rust.yml's.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "tests/**"
+      - "src/**"
+      - "fuzz/**"
+      - "benches/**"
+      - "scripts/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "build.rs"
+      - "rust-toolchain.toml"
+      - ".github/workflows/macos.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build-test-compare:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # tests/golden.rs and lookup_alias.rs shell out to the make-test-*.py
+      # fixture generators; they skip with a stated reason without python3.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: cargo build
+        run: cargo build --release --locked
+
+      - name: Clippy
+        run: cargo clippy --workspace --release --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace --release --locked
