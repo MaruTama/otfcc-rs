@@ -11,7 +11,7 @@ use crate::libcff::OP_ENDCHAR;
 /// The key is header bytes, payload, then a trailing NUL; the leading
 /// `'1'`/`'2'` (singlet vs doublet) keeps the two arities from ever
 /// colliding in one table.
-fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
+pub(super) fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     let mut key: Vec<u8> = Vec::new();
     key.push(b'1');
     let node = g.node(n);
@@ -25,7 +25,7 @@ fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     key.push(0);
     key
 }
-fn get_doublet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
+pub(super) fn get_doublet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     let mut key: Vec<u8> = Vec::new();
     key.push(b'2');
     let node = g.node(n);
