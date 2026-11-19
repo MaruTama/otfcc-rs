@@ -445,6 +445,42 @@ mod regression_tests {
         );
     }
 
+    /// `cargo fuzz run otf_parse` found `tests/fuzz-corpus/known-issues/
+    /// otf-parse-gpos-pair-format1-grid-budget-oom.bin` on a docs-only PR: a
+    /// GPOS with many format 1 pair subtables stayed under the old
+    /// table-wide grid budget (8,000,000 cells) yet still held ~1.1 GB of
+    /// `Vec<Vec<PositionValue>>` rows (~144 bytes a cell), over libFuzzer's
+    /// 2048 MB limit once ASan inflated it. `MAX_TOTAL_GPOS_PAIR_GRID_CELLS_
+    /// PER_TABLE` is now 3,000,000, which holds this input to ~430 MB. The
+    /// peak memory cannot be asserted here, so this only checks that the
+    /// font still reads promptly (the excess subtables are dropped, not
+    /// fatal).
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn gpos_pair_format1_grid_budget_font_parses_promptly() {
+        let bytes = std::fs::read(
+            "tests/fuzz-corpus/known-issues/otf-parse-gpos-pair-format1-grid-budget-oom.bin",
+        )
+        .unwrap();
+        let sfnt =
+            read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice())).expect("sfnt must parse");
+        let options: Box<Options> = Box::default();
+
+        let start = Instant::now();
+        let font = super::read_otf(&sfnt, 0, &options);
+        let elapsed = start.elapsed();
+
+        assert!(font.is_some(), "font must parse");
+        drop(font);
+        assert!(
+            elapsed < Duration::from_secs(15),
+            "read_otf took {elapsed:?}, expected well under 15s"
+        );
+    }
+
     /// `cargo fuzz run otf_dump` CI (run 35233787763) found `tests/
     /// fuzz-corpus/known-issues/otf-dump-cmap-uvs-non-default-aliasing-
     /// oom.bin`: `table/cmap.rs`'s `read_format14` threads its shared

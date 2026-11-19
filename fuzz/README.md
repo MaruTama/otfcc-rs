@@ -424,6 +424,18 @@ as regression pins even though none of them still reproduce:
   showing up across many subtables instead of within one. See
   `RUST_MIGRATION.md`'s "Next steps" for the full writeup.
 
+- ~~`tests/fuzz-corpus/known-issues/otf-parse-gpos-pair-format1-grid-
+  budget-oom.bin` — `cargo fuzz run otf_parse` out-of-memory (over
+  libFuzzer's 2048MB `-rss_limit_mb`) found on a docs-only PR. A GPOS of
+  many format 1 pair subtables stayed under the table-wide
+  `MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE` (8,000,000) yet held ~1.1GB
+  natively (~144 bytes a cell once the per-row `Vec` overhead is counted),
+  more under ASan. Located with valgrind massif (the peak is the
+  `vec![vec![position_zero(); ..]; ..]` in `read_pair_format1`)~~ —
+  **fixed**: the budget is now 3,000,000 cells, which holds this input to
+  ~430MB; every font under `tests/` dumps identically (231 dump runs
+  compared).
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).

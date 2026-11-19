@@ -52,9 +52,11 @@ const MAX_TOTAL_GPOS_PAIR_CLASS_CELLS: usize = 2_000_000;
 // many subtables each under the per-subtable cap still add up: a fuzzed GPOS
 // of ~100 format 1 subtables, each with an empty coverage (which reads as
 // 65,536 classes of one cell), asked for ~20M cells and ~1.5 GB. The most any
-// font in this repo spends is under 30,000 cells, so 8,000,000 leaves
-// generous headroom while keeping the grids to a few hundred MB.
-pub(crate) const MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE: u32 = 8_000_000;
+// font in this repo spends is under 30,000 cells, so 3,000,000 leaves
+// generous headroom. Each cell costs ~144 bytes once row overhead is counted,
+// so the cap keeps the grids near 430 MB (8,000,000 allowed over 1 GB, which
+// ran the fuzzer out of memory under ASan).
+pub(crate) const MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE: u32 = 3_000_000;
 /// The second glyph of the pair record at `pos`. The PairSet's `require_room`
 /// check (record count times stride) already showed every record of the set
 /// lies inside `data`, so this cannot fail on input that got that far.
