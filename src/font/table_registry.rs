@@ -30,7 +30,9 @@ use crate::table::base::{build_base, dump_base, parse_base, read_base};
 use crate::table::cff::{
     CffAndGlyfOwned, CffAndGlyfRef, build_cff, dump_cff, parse_cff, read_cff_and_glyf_tables,
 };
-use crate::table::cmap::{build_cmap, dump_cmap, parse_cmap, read_cmap};
+use crate::table::cmap::build::build_cmap;
+use crate::table::cmap::read::read_cmap;
+use crate::table::cmap::{dump_cmap, parse_cmap};
 use crate::table::colr::{build_colr, dump_colr, parse_colr, read_colr};
 use crate::table::cpal::{build_cpal, dump_cpal, parse_cpal, read_cpal};
 use crate::table::cvt::{build_cvt, dump_cvt, parse_cvt, read_cvt};
