@@ -12,6 +12,9 @@ use crate::vf::vq::{vq_create_still, vq_get_still};
 use crate::vf::vv::VV;
 use otfcc_json::BuiltValue;
 use std::rc::Rc;
+/// A named instance: the user-space `coordinates` (one per axis), the name table
+/// ids of its subfamily name and, when present, its PostScript name, and its
+/// flags.
 #[derive(Debug)]
 pub struct FvarInstance {
     pub subfamily_name_id: u16,
@@ -19,7 +22,10 @@ pub struct FvarInstance {
     pub coordinates: VV,
     pub post_script_name_id: u16,
 }
+/// The instances of an 'fvar' table.
 pub type FvarInstanceList = Vec<FvarInstance>;
+/// A master: a region of the design space the font's deltas refer to, with the
+/// name (`m1`, `m2`, ...) it is written under in the JSON.
 #[derive(Debug)]
 pub struct FvarMaster {
     pub name: Vec<u8>,
@@ -27,6 +33,8 @@ pub struct FvarMaster {
 }
 // The registration key of a region: its contents as bytes, so it can be
 // `Eq` and `Hash` (`f64` is neither).
+/// The registration key of a region: the region's contents as bytes, so that
+/// equal regions are found again.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct RegionKey {
     dimensions: crate::support::primitives::ShapeId,
@@ -53,6 +61,8 @@ impl RegionKey {
 // `masters` is an `IndexMap`: masters are named "m1", "m2", ... in
 // registration order and dumped in that order, and a variable font can
 // register a great many regions, so lookups must be fast.
+/// The 'fvar' table: the design axes, the named instances, and the registry of
+/// masters (regions) that variation data in other tables refers to.
 #[derive(Debug)]
 pub struct FvarTable {
     pub major_version: u16,
@@ -195,6 +205,8 @@ fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
         masters: indexmap::IndexMap::new(),
     })
 }
+/// Reads the 'fvar' table from `packet`. Returns `None` when the table is absent
+/// or corrupted (the warning "table 'fvar' corrupted" is logged).
 pub fn read_fvar(packet: &Packet) -> Option<Box<FvarTable>> {
     let table = packet
         .pieces
@@ -208,6 +220,7 @@ pub fn read_fvar(packet: &Packet) -> Option<Box<FvarTable>> {
         }
     }
 }
+/// Dumps the table as the `"fvar"` object: its axes, instances and masters.
 pub fn dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
     let Some(table) = table else { return };
     let stage = crate::logger::stage("fvar");
@@ -254,6 +267,10 @@ pub fn dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue) {
     root.push_field(b"fvar", t);
     stage.finish();
 }
+/// One variable-value segment as JSON: a still value as a number, a delta as
+/// an object with its `delta` and the region it applies `on`, plus `implicit:
+/// true` when the delta is not marked as touched. A delta requires `fvar`,
+/// since the region is named after it.
 pub fn json_new_vq_segment(s: &VqSegment, fvar: Option<&FvarTable>) -> BuiltValue {
     match s {
         VqSegment::Still(still) => BuiltValue::position(*still),
@@ -271,6 +288,8 @@ pub fn json_new_vq_segment(s: &VqSegment, fvar: Option<&FvarTable>) -> BuiltValu
         }
     }
 }
+/// A variable value as JSON: a plain number when it never varies, otherwise an
+/// array of the kernel value followed by its segments.
 pub fn json_new_vq(z: VQ, fvar: Option<&FvarTable>) -> BuiltValue {
     if z.shift.is_empty() {
         BuiltValue::position(vq_get_still(z)).preserialize()
@@ -288,6 +307,8 @@ pub fn json_new_vq(z: VQ, fvar: Option<&FvarTable>) -> BuiltValue {
 // prior target's dead vtable-adjacent duplicate -- and deleted outright
 // rather than ported (it would need `x: VV` to become `x: Vec<Pos>`, moving
 // or cloning the caller's coordinates for no live caller).
+/// Coordinates as JSON: an object keyed by axis tag when there is one value
+/// per axis, otherwise a plain array.
 pub fn json_new_v_vp(x: &VV, fvar: &FvarTable) -> BuiltValue {
     let axes: &Vec<VfAxis> = &fvar.axes;
     let coords: &Vec<Pos> = x;
@@ -305,10 +326,14 @@ pub fn json_new_v_vp(x: &VV, fvar: &FvarTable) -> BuiltValue {
         coord.preserialize()
     }
 }
+/// Reads a value as a still, non-varying number. Anything that is not a number
+/// reads as 0.
 pub fn json_vq_of(cv: Option<&ParsedValue>) -> VQ {
     let n = cv.and_then(ParsedValue::as_num).unwrap_or(0.0);
     vq_create_still(n as Pos)
 }
+/// One axis span of a region as JSON: `"*"` when it covers the whole axis,
+/// otherwise an object with `start`, `peak` and `end`.
 pub fn json_new_vq_axis_span(s: &VqAxisSpan) -> BuiltValue {
     if vq_axis_span_is_one(s) {
         BuiltValue::Str(b"*".to_vec())
@@ -343,6 +368,9 @@ fn json_new_vq_region_impl(rs: &VqRegion, fvar: &FvarTable) -> BuiltValue {
         _ => json_new_vq_region_explicit(rs, fvar),
     }
 }
+/// A region as JSON: the name of its registered master when there is one,
+/// otherwise an explicit description (an object keyed by axis tag when it has one
+/// span per axis, otherwise an array of spans).
 pub fn json_new_vq_region(rs: &VqRegion, fvar: &FvarTable) -> BuiltValue {
     json_new_vq_region_impl(rs, fvar)
 }
