@@ -14,6 +14,7 @@ use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_binary::{FontReader, ReadError};
 use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
+/// A Unicode variation sequence: a base code point and its variation selector.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct CmapUvsKey {
     pub unicode: u32,
@@ -28,6 +29,8 @@ pub struct CmapTable {
     pub unicodes: std::collections::BTreeMap<i32, GlyphHandle>,
     pub uvs: std::collections::BTreeMap<CmapUvsKey, GlyphHandle>,
 }
+/// Maps code point `c` to glyph id `gid`. Returns `false`, keeping the existing
+/// mapping, when `c` is already mapped.
 pub fn encode_cmap_by_index(cmap: &mut CmapTable, c: i32, gid: u16) -> bool {
     match cmap.unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
@@ -37,8 +40,8 @@ pub fn encode_cmap_by_index(cmap: &mut CmapTable, c: i32, gid: u16) -> bool {
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-// Maps `unicode` to the glyph named `name`. Returns `false`, keeping the
-// existing mapping, when `unicode` is already mapped.
+/// Maps `c` to the glyph named `name`. Returns `false`, keeping the existing
+/// mapping, when `c` is already mapped.
 pub fn encode_cmap_by_name(cmap: &mut CmapTable, c: i32, name: Vec<u8>) -> bool {
     match cmap.unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
@@ -48,12 +51,15 @@ pub fn encode_cmap_by_name(cmap: &mut CmapTable, c: i32, name: Vec<u8>) -> bool 
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
+/// Removes the mapping of `c`. Returns whether there was one.
 pub fn unmap_cmap(cmap: &mut CmapTable, c: i32) -> bool {
     cmap.unicodes.remove(&c).is_some()
 }
+/// The glyph `c` is mapped to, if any.
 pub fn cmap_lookup(cmap: &CmapTable, c: i32) -> Option<&GlyphHandle> {
     cmap.unicodes.get(&c)
 }
+/// Like [`encode_cmap_by_index`], for a variation sequence.
 pub fn encode_cmap_uvs_by_index(cmap: &mut CmapTable, c: CmapUvsKey, gid: u16) -> bool {
     match cmap.uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
@@ -63,8 +69,7 @@ pub fn encode_cmap_uvs_by_index(cmap: &mut CmapTable, c: CmapUvsKey, gid: u16) -
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-// Same `Vec<u8>`-in shape as `encode_cmap_by_name` above, same
-// reason.
+/// Like [`encode_cmap_by_name`], for a variation sequence.
 pub fn encode_cmap_uvs_by_name(cmap: &mut CmapTable, c: CmapUvsKey, name: Vec<u8>) -> bool {
     match cmap.uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
@@ -74,9 +79,12 @@ pub fn encode_cmap_uvs_by_name(cmap: &mut CmapTable, c: CmapUvsKey, name: Vec<u8
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
+/// Removes the mapping of the variation sequence `c`. Returns whether there was
+/// one.
 pub fn unmap_cmap_uvs(cmap: &mut CmapTable, c: CmapUvsKey) -> bool {
     cmap.uvs.remove(&c).is_some()
 }
+/// The glyph the variation sequence `c` is mapped to, if any.
 pub fn cmap_lookup_uvs(cmap: &CmapTable, c: CmapUvsKey) -> Option<&GlyphHandle> {
     cmap.uvs.get(&c)
 }
@@ -480,6 +488,14 @@ fn decode_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     }
     Ok(cmap_box)
 }
+/// Reads the 'cmap' table from `packet`. Returns `None` when the table is absent
+/// or corrupted (the warning "table 'cmap' corrupted" is logged).
+///
+/// Format 12 subtables are read before format 4 ones, and every subtable offset is
+/// read at most once. When a code point is mapped by several subtables, the first
+/// mapping read wins. The total number of mappings is capped
+/// (`MAX_TOTAL_CMAP_MAPPINGS`). Format 14 subtables give the variation
+/// sequences.
 pub fn read_cmap(packet: &Packet) -> Option<Box<CmapTable>> {
     let table = packet
         .pieces
@@ -633,6 +649,12 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
         }
     }
 }
+/// Reads the `"cmap"` and `"cmap_uvs"` objects of `root`. Keys that are not code
+/// points (or, for `"cmap_uvs"`, a pair of code points separated by a space),
+/// values that are not strings, and code points outside 1..=0x10FFFF are
+/// ignored. When a key repeats, the first assignment wins and a warning is
+/// logged. Glyphs are referenced by name, to be resolved against the glyph order
+/// later.
 pub fn parse_cmap(root: &ParsedValue) -> Option<Box<CmapTable>> {
     root.as_object()?;
     let mut cmap_box: Box<CmapTable> = Box::new(CmapTable {
@@ -950,6 +972,13 @@ fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
     buf.write_u32be(buf.len() as u32);
     buf
 }
+/// Serializes the table. Returns `None` when no code point is mapped.
+///
+/// The result always has a format 4 subtable for the BMP, except that with
+/// `options.stub_cmap4` a font that needs format 12 gets a minimal placeholder
+/// instead. A format 12 subtable is added when some code point is above
+/// 0xFFFF, or when the format 4 one would not fit in 64 KB. Variation
+/// sequences, if any, add a format 14 subtable.
 pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
     let cmap = match cmap {
         Some(c) if !c.unicodes.is_empty() => c,

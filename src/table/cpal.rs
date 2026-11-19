@@ -8,6 +8,8 @@ use otfcc_json::ParsedValue;
 
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
+/// One palette entry. `label` is the entry's name id, shared by the same entry
+/// in every palette, or 0xFFFF for "no label".
 #[derive(Copy, Clone, Debug)]
 pub struct CpalColor {
     pub red: u8,
@@ -16,12 +18,16 @@ pub struct CpalColor {
     pub alpha: u8,
     pub label: u16,
 }
+/// One palette: its colors, plus (version 1 only) its type flags and name id
+/// (0xFFFF for "no label").
 #[derive(Clone, Debug)]
 pub struct CpalPalette {
     pub colorset: Vec<CpalColor>,
     pub palette_type: u32,
     pub label: u32,
 }
+/// The 'CPAL' table: the palettes that 'COLR' layers refer to by index. Every
+/// palette has the same number of entries.
 #[derive(Clone, Debug)]
 pub struct CpalTable {
     pub version: u16,
@@ -183,6 +189,8 @@ fn read_v1_extensions(data: &[u8], palettes: &mut [CpalPalette], num_palettes_en
         }
     }
 }
+/// Reads the 'CPAL' table from `packet`. Returns `None` when the table is absent
+/// or corrupted.
 pub fn read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
     let table = packet
         .pieces
@@ -222,6 +230,7 @@ fn dump_palette(palette: &CpalPalette) -> BuiltValue {
     _palette.push_field(b"colors", a);
     _palette
 }
+/// Dumps the table as the `"CPAL"` object (`version` and `palettes`).
 pub fn dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue) {
     let table = match table {
         Some(t) => t,
@@ -254,6 +263,9 @@ fn parse_color(color: Option<&ParsedValue>) -> CpalColor {
     c.label = color.get_int_or(b"label", 0xffff) as u16;
     c
 }
+/// Reads the `"CPAL"` object. Returns `None` when `palettes` is missing or
+/// empty. A color that is not an object becomes opaque white, and missing channels
+/// default to 0 (alpha to 0xFF).
 pub fn parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
     let table = root.get_typed(b"CPAL", JsonType::Object)?;
     let stage = crate::logger::stage("CPAL");
@@ -335,6 +347,10 @@ fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     }
     Some(block)
 }
+/// Serializes the table. Returns `None` when there are no palettes. The entry
+/// count is taken from the first palette; a shorter palette is padded with white.
+/// The version 1 arrays (types, labels, entry labels) are only written for
+/// version above 0.
 pub fn build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     let cpal = cpal?;
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
