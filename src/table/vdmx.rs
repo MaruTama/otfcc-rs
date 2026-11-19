@@ -7,12 +7,16 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// One VDMX record: for the pixel height `y_pel_height`, the largest ascent
+/// (`y_max`) and descent (`y_min`) of any glyph at that size.
 #[derive(Copy, Clone, Debug)]
 pub struct VdmxRecord {
     pub y_pel_height: u16,
     pub y_max: i16,
     pub y_min: i16,
 }
+/// One VDMX ratio range: the aspect-ratio window (`x_ratio`, `y_start_ratio` to
+/// `y_end_ratio`, for character set `b_charset`) that the `records` apply to.
 #[derive(Clone, Debug)]
 pub struct VdmxRatioRange {
     pub b_charset: u8,
@@ -21,6 +25,8 @@ pub struct VdmxRatioRange {
     pub y_end_ratio: u8,
     pub records: Vec<VdmxRecord>,
 }
+/// The 'VDMX' table (vertical device metrics): per ratio range, the vertical
+/// extent of the font at specific pixel sizes.
 #[derive(Clone, Debug)]
 pub struct VdmxTable {
     pub version: u16,
@@ -68,6 +74,8 @@ fn decode_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
     }
     Ok(VdmxTable { version, ratios })
 }
+/// Reads the 'VDMX' table from `packet`. Returns `None` when the table is absent
+/// or corrupted (the warning "Table 'VDMX' corrupted" is logged).
 pub fn read_vdmx(packet: &Packet) -> Option<Box<VdmxTable>> {
     let table = packet
         .pieces
@@ -81,6 +89,8 @@ pub fn read_vdmx(packet: &Packet) -> Option<Box<VdmxTable>> {
         }
     }
 }
+/// Dumps the table as the `"VDMX"` object with its `ratios` and their
+/// `records`.
 pub fn dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue) {
     let Some(vdmx) = vdmx else {
         return;
@@ -111,6 +121,8 @@ pub fn dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue) {
     root.push_field(b"VDMX", _vdmx);
     stage.finish();
 }
+/// Reads the `"VDMX"` object. Entries that are not objects are skipped, and a
+/// ratio range without a `records` array is dropped completely.
 pub fn parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
     let vdmx_dump = root.get_typed(b"VDMX", JsonType::Object)?;
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable {
@@ -159,6 +171,9 @@ pub fn parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
     stage.finish();
     Some(vdmx)
 }
+/// Serializes the table. Returns `None` when there are no ratio ranges. The
+/// `startSize`/`endSize` of each group are recomputed as the smallest and
+/// largest `y_pel_height` among its records.
 pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
     let vdmx = vdmx?;
     let ratios: &Vec<VdmxRatioRange> = &vdmx.ratios;
