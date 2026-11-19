@@ -304,263 +304,6 @@ fn u16_at(slice: &[u8], pos: usize) -> u16 {
         .and_then(|mut r| r.u16())
         .expect("the position was bounds-checked by an earlier require_room pass")
 }
-
-fn read_contextual_format1(
-    slice: &[u8],
-    offset: u32,
-    max_glyphs: GlyphId,
-    mut subtable: Box<ChainingSubtable>,
-    budget: &mut OtlReadBudget,
-) -> Option<Box<ChainingSubtable>> {
-    let result: Option<()> = 'parse: {
-        let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
-            break 'parse None;
-        };
-        let Ok(cov_rel) = header.u16() else {
-            break 'parse None;
-        };
-        let Ok(chain_sub_rule_set_count) = header.u16() else {
-            break 'parse None;
-        };
-        let cov_offset = offset.wrapping_add(u32::from(cov_rel));
-        let first_coverage: Coverage = read_coverage(slice, cov_offset, budget);
-        if chain_sub_rule_set_count as usize != first_coverage.len() {
-            break 'parse None;
-        }
-        if header
-            .require_room(chain_sub_rule_set_count as usize, 2)
-            .is_err()
-        {
-            break 'parse None;
-        }
-
-        // First pass: validate every ruleset's own header + rule-offset array.
-        let mut total_rules: usize = 0;
-        for j in 0..chain_sub_rule_set_count {
-            let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
-            let srs_offset = offset.wrapping_add(u32::from(srs_rel));
-            let Ok(mut srs_header) = FontReader::new(slice).at(srs_offset as usize) else {
-                break 'parse None;
-            };
-            let Ok(srs_count) = srs_header.u16() else {
-                break 'parse None;
-            };
-            if srs_header.require_room(srs_count as usize, 2).is_err() {
-                break 'parse None;
-            }
-            total_rules = total_rules.saturating_add(srs_count as usize);
-        }
-
-        // Second pass: build, re-deriving each offset as the first pass did.
-        let ruleset = chaining_ruleset_mut(&mut subtable);
-        ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
-        'rulesets: for j in 0..chain_sub_rule_set_count {
-            let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
-            let srs_offset = offset.wrapping_add(u32::from(srs_rel));
-            let srs_count = u16_at(slice, srs_offset as usize);
-            for k in 0..srs_count {
-                if !budget.take_rule() {
-                    break 'rulesets;
-                }
-                let sr_rel = u16_at(slice, srs_offset as usize + 2 + 2 * k as usize);
-                let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
-                let rule_ptr = general_read_contextual_rule(
-                    slice,
-                    sr_offset,
-                    first_coverage[j as usize].index as u16,
-                    true,
-                    single_coverage,
-                    max_glyphs,
-                    budget,
-                );
-                // A `None` here means this one rule's own offset/header was
-                // malformed (`general_read_contextual_rule`/`_chaining_rule`
-                // returned early via `?`) -- the *outer* class-set/rule-set
-                // array that pointed at it was still validated and fits the
-                // table, so this is an isolated bad rule, not a reason to
-                // fail the whole subtable. `unconsolidate_chaining` asserts
-                // every slot here is `Some` (fuzzing found a font that
-                // pushed a `None` and hit that `.expect()`), so drop it here
-                // instead of ever storing a placeholder.
-                if rule_ptr.is_some() {
-                    ruleset.rules.push(rule_ptr);
-                }
-            }
-        }
-        break 'parse Some(());
-    };
-
-    if result.is_some() {
-        Some(subtable)
-    } else {
-        None
-    }
-}
-fn read_contextual_format2(
-    slice: &[u8],
-    offset: u32,
-    max_glyphs: GlyphId,
-    mut subtable: Box<ChainingSubtable>,
-    budget: &mut OtlReadBudget,
-) -> Option<Box<ChainingSubtable>> {
-    let cds: Option<ClassDefs>;
-
-    let result: Option<()> = 'parse: {
-        let Ok(mut header) = FontReader::new(slice).at(offset as usize + 4) else {
-            break 'parse None;
-        };
-        let Ok(ic_rel) = header.u16() else {
-            break 'parse None;
-        };
-        let Ok(chain_sub_class_set_cnt) = header.u16() else {
-            break 'parse None;
-        };
-        if header
-            .require_room(chain_sub_class_set_cnt as usize, 2)
-            .is_err()
-        {
-            break 'parse None;
-        }
-
-        cds = Some(ClassDefs {
-            bc: None,
-            ic: Some(Box::new(read_class_def(
-                slice,
-                offset.wrapping_add(u32::from(ic_rel)),
-            ))),
-            fc: None,
-        });
-
-        // First pass: check every non-empty class set's header and rule
-        // offsets.
-        let mut total_rules: usize = 0;
-        for j in 0..chain_sub_class_set_cnt {
-            let src_rel = u16_at(slice, offset as usize + 8 + 2 * j as usize);
-            if src_rel == 0 {
-                continue;
-            }
-            let Ok(mut cs_header) = FontReader::new(slice).at(offset as usize + src_rel as usize)
-            else {
-                break 'parse None;
-            };
-            let Ok(srs_count) = cs_header.u16() else {
-                break 'parse None;
-            };
-            if cs_header.require_room(srs_count as usize, 2).is_err() {
-                break 'parse None;
-            }
-            total_rules = total_rules.saturating_add(srs_count as usize);
-        }
-
-        let ruleset = chaining_ruleset_mut(&mut subtable);
-        ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
-        'class_sets: for j in 0..chain_sub_class_set_cnt {
-            let src_rel = u16_at(slice, offset as usize + 8 + 2 * j as usize);
-            if src_rel == 0 {
-                continue;
-            }
-            let srs_count = u16_at(slice, offset as usize + src_rel as usize);
-            for k in 0..srs_count {
-                if !budget.take_rule() {
-                    break 'class_sets;
-                }
-                let sr_rel = u16_at(
-                    slice,
-                    offset as usize + src_rel as usize + 2 + 2 * k as usize,
-                );
-                let sr_offset = offset
-                    .wrapping_add(u32::from(src_rel))
-                    .wrapping_add(u32::from(sr_rel));
-                let rule_ptr = general_read_contextual_rule(
-                    slice,
-                    sr_offset,
-                    j,
-                    true,
-                    |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
-                        class_coverage(
-                            slice,
-                            cls,
-                            offset,
-                            kind,
-                            max_glyphs,
-                            cds.as_ref()
-                                .expect("the class definitions are set before this pass"),
-                            budget,
-                        )
-                    },
-                    max_glyphs,
-                    budget,
-                );
-                // A `None` here means this one rule's own offset/header was
-                // malformed (`general_read_contextual_rule`/`_chaining_rule`
-                // returned early via `?`) -- the *outer* class-set/rule-set
-                // array that pointed at it was still validated and fits the
-                // table, so this is an isolated bad rule, not a reason to
-                // fail the whole subtable. `unconsolidate_chaining` asserts
-                // every slot here is `Some` (fuzzing found a font that
-                // pushed a `None` and hit that `.expect()`), so drop it here
-                // instead of ever storing a placeholder.
-                if rule_ptr.is_some() {
-                    ruleset.rules.push(rule_ptr);
-                }
-            }
-        }
-        break 'parse Some(());
-    };
-
-    if result.is_some() {
-        Some(subtable)
-    } else {
-        None
-    }
-}
-/// Reads a contextual subtable (GSUB 5, GPOS 7) of any of the three formats
-/// into a rule set. Returns `None` for an unknown format or a malformed
-/// format 1 or 2 header; a single malformed rule is dropped instead.
-pub fn otl_read_contextual(
-    data: &[u8],
-    offset: u32,
-    max_glyphs: GlyphId,
-    budget: &mut OtlReadBudget,
-) -> Option<Subtable> {
-    let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
-    let mut format: u16 = 0;
-    if let Ok(mut r) = FontReader::new(data).at(offset as usize)
-        && let Ok(f) = r.u16()
-    {
-        format = f;
-    }
-    match format {
-        1 => {
-            return read_contextual_format1(data, offset, max_glyphs, subtable, budget)
-                .map(|s| Subtable::Chaining(*s));
-        }
-        2 => {
-            return read_contextual_format2(data, offset, max_glyphs, subtable, budget)
-                .map(|s| Subtable::Chaining(*s));
-        }
-        3 => {
-            let rule_ptr = general_read_contextual_rule(
-                data,
-                offset.wrapping_add(2),
-                0,
-                false,
-                format3_coverage,
-                max_glyphs,
-                budget,
-            );
-            // Same "malformed individual rule, not the whole subtable" case
-            // as the format1/format2 loops above -- see their comment.
-            if rule_ptr.is_some() {
-                chaining_ruleset_mut(&mut subtable).rules.push(rule_ptr);
-            }
-            return Some(Subtable::Chaining(*subtable));
-        }
-        _ => {}
-    }
-    tracing::warn!("Unsupported format {}.\n", i32::from(format));
-    None
-}
 /// Reads one chaining rule (backtrack, input and lookahead sequences, then
 /// lookup records) at `offset`; otherwise the same as
 /// `general_read_contextual_rule`. The backtrack sequence is stored in
@@ -675,224 +418,256 @@ pub fn general_read_chaining_rule(
     reverse_backtracks(&mut rule);
     Some(rule)
 }
-fn read_chaining_format1(
-    slice: &[u8],
-    offset: u32,
-    max_glyphs: GlyphId,
-    mut subtable: Box<ChainingSubtable>,
-    budget: &mut OtlReadBudget,
-) -> Option<Box<ChainingSubtable>> {
-    let result: Option<()> = 'parse: {
-        let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
-            break 'parse None;
-        };
-        let Ok(cov_rel) = header.u16() else {
-            break 'parse None;
-        };
-        let Ok(chain_sub_rule_set_count) = header.u16() else {
-            break 'parse None;
-        };
-        let cov_offset = offset.wrapping_add(u32::from(cov_rel));
-        let first_coverage: Coverage = read_coverage(slice, cov_offset, budget);
-        if chain_sub_rule_set_count as usize != first_coverage.len() {
-            break 'parse None;
+/// Which of the two lookup families a subtable belongs to. They share the
+/// subtable layouts below and differ only in the rule format and in the
+/// class definitions a format 2 subtable carries.
+#[derive(Copy, Clone, Debug)]
+enum RuleShape {
+    /// Contextual (GSUB 5, GPOS 7): input sequence only.
+    Contextual,
+    /// Chaining contextual (GSUB 6, GPOS 8): backtrack, input and lookahead.
+    Chaining,
+}
+impl RuleShape {
+    fn read_rule(
+        self,
+        slice: &[u8],
+        offset: u32,
+        start_gid: u16,
+        minus_one: bool,
+        coverage_of: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
+        max_glyphs: GlyphId,
+        budget: &mut OtlReadBudget,
+    ) -> Option<Box<ChainingRule>> {
+        match self {
+            RuleShape::Contextual => general_read_contextual_rule(
+                slice,
+                offset,
+                start_gid,
+                minus_one,
+                coverage_of,
+                max_glyphs,
+                budget,
+            ),
+            RuleShape::Chaining => general_read_chaining_rule(
+                slice,
+                offset,
+                start_gid,
+                minus_one,
+                coverage_of,
+                max_glyphs,
+                budget,
+            ),
         }
-        if header
-            .require_room(chain_sub_rule_set_count as usize, 2)
-            .is_err()
-        {
-            break 'parse None;
-        }
-
-        let mut total_rules: usize = 0;
-        for j in 0..chain_sub_rule_set_count {
-            let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
-            let srs_offset = offset.wrapping_add(u32::from(srs_rel));
-            let Ok(mut srs_header) = FontReader::new(slice).at(srs_offset as usize) else {
-                break 'parse None;
-            };
-            let Ok(srs_count) = srs_header.u16() else {
-                break 'parse None;
-            };
-            if srs_header.require_room(srs_count as usize, 2).is_err() {
-                break 'parse None;
-            }
-            total_rules = total_rules.saturating_add(srs_count as usize);
-        }
-
-        let ruleset = chaining_ruleset_mut(&mut subtable);
-        ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
-        'rulesets: for j in 0..chain_sub_rule_set_count {
-            let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
-            let srs_offset = offset.wrapping_add(u32::from(srs_rel));
-            let srs_count = u16_at(slice, srs_offset as usize);
-            for k in 0..srs_count {
-                if !budget.take_rule() {
-                    break 'rulesets;
-                }
-                let sr_rel = u16_at(slice, srs_offset as usize + 2 + 2 * k as usize);
-                let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
-                let rule_ptr = general_read_chaining_rule(
-                    slice,
-                    sr_offset,
-                    first_coverage[j as usize].index as u16,
-                    true,
-                    single_coverage,
-                    max_glyphs,
-                    budget,
-                );
-                // A `None` here means this one rule's own offset/header was
-                // malformed (`general_read_contextual_rule`/`_chaining_rule`
-                // returned early via `?`) -- the *outer* class-set/rule-set
-                // array that pointed at it was still validated and fits the
-                // table, so this is an isolated bad rule, not a reason to
-                // fail the whole subtable. `unconsolidate_chaining` asserts
-                // every slot here is `Some` (fuzzing found a font that
-                // pushed a `None` and hit that `.expect()`), so drop it here
-                // instead of ever storing a placeholder.
-                if rule_ptr.is_some() {
-                    ruleset.rules.push(rule_ptr);
-                }
-            }
-        }
-        break 'parse Some(());
-    };
-
-    if result.is_some() {
-        Some(subtable)
-    } else {
-        None
     }
 }
-fn read_chaining_format2(
+/// Checks the rule count and rule-offset array of the rule set at
+/// `set_offset` and returns the count, or `None` if they do not fit.
+fn checked_rule_count(slice: &[u8], set_offset: usize) -> Option<u16> {
+    let mut header = FontReader::new(slice).at(set_offset).ok()?;
+    let count = header.u16().ok()?;
+    header.require_room(count as usize, 2).ok()?;
+    Some(count)
+}
+/// Format 1: one rule set per covered glyph, rules written in glyph ids.
+fn read_format1(
+    shape: RuleShape,
     slice: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
-    mut subtable: Box<ChainingSubtable>,
+    subtable: &mut ChainingSubtable,
     budget: &mut OtlReadBudget,
-) -> Option<Box<ChainingSubtable>> {
-    let cds: Option<ClassDefs>;
+) -> Option<()> {
+    let mut header = FontReader::new(slice).at(offset as usize + 2).ok()?;
+    let cov_rel = header.u16().ok()?;
+    let rule_set_count = header.u16().ok()?;
+    let cov_offset = offset.wrapping_add(u32::from(cov_rel));
+    let first_coverage: Coverage = read_coverage(slice, cov_offset, budget);
+    if rule_set_count as usize != first_coverage.len() {
+        return None;
+    }
+    header.require_room(rule_set_count as usize, 2).ok()?;
 
-    let result: Option<()> = 'parse: {
-        let Ok(mut header) = FontReader::new(slice).at(offset as usize + 4) else {
-            break 'parse None;
-        };
-        let Ok(bc_rel) = header.u16() else {
-            break 'parse None;
-        };
-        let Ok(ic_rel) = header.u16() else {
-            break 'parse None;
-        };
-        let Ok(fc_rel) = header.u16() else {
-            break 'parse None;
-        };
-        let Ok(chain_sub_class_set_cnt) = header.u16() else {
-            break 'parse None;
-        };
-        if header
-            .require_room(chain_sub_class_set_cnt as usize, 2)
-            .is_err()
-        {
-            break 'parse None;
-        }
+    // First pass: validate every rule set's own header and rule-offset array.
+    let mut total_rules: usize = 0;
+    for j in 0..rule_set_count {
+        let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
+        let srs_offset = offset.wrapping_add(u32::from(srs_rel));
+        let srs_count = checked_rule_count(slice, srs_offset as usize)?;
+        total_rules = total_rules.saturating_add(srs_count as usize);
+    }
 
-        cds = Some(ClassDefs {
-            bc: Some(Box::new(read_class_def(
-                slice,
-                offset.wrapping_add(u32::from(bc_rel)),
-            ))),
-            ic: Some(Box::new(read_class_def(
-                slice,
-                offset.wrapping_add(u32::from(ic_rel)),
-            ))),
-            fc: Some(Box::new(read_class_def(
-                slice,
-                offset.wrapping_add(u32::from(fc_rel)),
-            ))),
-        });
-
-        // First pass: check every non-empty class set's header and rule
-        // offsets.
-        let mut total_rules: usize = 0;
-        for j in 0..chain_sub_class_set_cnt {
-            let src_rel = u16_at(slice, offset as usize + 12 + 2 * j as usize);
-            if src_rel == 0 {
-                continue;
+    // Second pass: build, re-deriving each offset as the first pass did.
+    let ruleset = chaining_ruleset_mut(subtable);
+    ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+    'rulesets: for j in 0..rule_set_count {
+        let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
+        let srs_offset = offset.wrapping_add(u32::from(srs_rel));
+        let srs_count = u16_at(slice, srs_offset as usize);
+        for k in 0..srs_count {
+            if !budget.take_rule() {
+                break 'rulesets;
             }
-            let Ok(mut cs_header) = FontReader::new(slice).at(offset as usize + src_rel as usize)
-            else {
-                break 'parse None;
+            let sr_rel = u16_at(slice, srs_offset as usize + 2 + 2 * k as usize);
+            let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
+            let rule = shape.read_rule(
+                slice,
+                sr_offset,
+                first_coverage[j as usize].index as u16,
+                true,
+                single_coverage,
+                max_glyphs,
+                budget,
+            );
+            push_rule(&mut ruleset.rules, rule);
+        }
+    }
+    Some(())
+}
+/// Format 2: one rule set per input class, rules written in class numbers.
+fn read_format2(
+    shape: RuleShape,
+    slice: &[u8],
+    offset: u32,
+    max_glyphs: GlyphId,
+    subtable: &mut ChainingSubtable,
+    budget: &mut OtlReadBudget,
+) -> Option<()> {
+    let class_def_at = |rel: u16| {
+        Some(Box::new(read_class_def(
+            slice,
+            offset.wrapping_add(u32::from(rel)),
+        )))
+    };
+    let mut header = FontReader::new(slice).at(offset as usize + 4).ok()?;
+    // The class definition offsets, then the class set count and offsets.
+    let (cds, class_set_count, sets_base) = match shape {
+        RuleShape::Contextual => {
+            let ic_rel = header.u16().ok()?;
+            let class_set_count = header.u16().ok()?;
+            header.require_room(class_set_count as usize, 2).ok()?;
+            let cds = ClassDefs {
+                bc: None,
+                ic: class_def_at(ic_rel),
+                fc: None,
             };
-            let Ok(srs_count) = cs_header.u16() else {
-                break 'parse None;
+            (cds, class_set_count, offset as usize + 8)
+        }
+        RuleShape::Chaining => {
+            let bc_rel = header.u16().ok()?;
+            let ic_rel = header.u16().ok()?;
+            let fc_rel = header.u16().ok()?;
+            let class_set_count = header.u16().ok()?;
+            header.require_room(class_set_count as usize, 2).ok()?;
+            let cds = ClassDefs {
+                bc: class_def_at(bc_rel),
+                ic: class_def_at(ic_rel),
+                fc: class_def_at(fc_rel),
             };
-            if cs_header.require_room(srs_count as usize, 2).is_err() {
-                break 'parse None;
-            }
-            total_rules = total_rules.saturating_add(srs_count as usize);
+            (cds, class_set_count, offset as usize + 12)
         }
-
-        let ruleset = chaining_ruleset_mut(&mut subtable);
-        ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
-        'class_sets: for j in 0..chain_sub_class_set_cnt {
-            let src_rel = u16_at(slice, offset as usize + 12 + 2 * j as usize);
-            if src_rel == 0 {
-                continue;
-            }
-            let srs_count = u16_at(slice, offset as usize + src_rel as usize);
-            for k in 0..srs_count {
-                if !budget.take_rule() {
-                    break 'class_sets;
-                }
-                let dsr_rel = u16_at(
-                    slice,
-                    offset as usize + src_rel as usize + 2 + 2 * k as usize,
-                );
-                let sr_offset = offset
-                    .wrapping_add(u32::from(src_rel))
-                    .wrapping_add(u32::from(dsr_rel));
-                let rule_ptr = general_read_chaining_rule(
-                    slice,
-                    sr_offset,
-                    j,
-                    true,
-                    |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
-                        class_coverage(
-                            slice,
-                            cls,
-                            offset,
-                            kind,
-                            max_glyphs,
-                            cds.as_ref()
-                                .expect("the class definitions are set before this pass"),
-                            budget,
-                        )
-                    },
-                    max_glyphs,
-                    budget,
-                );
-                // A `None` here means this one rule's own offset/header was
-                // malformed (`general_read_contextual_rule`/`_chaining_rule`
-                // returned early via `?`) -- the *outer* class-set/rule-set
-                // array that pointed at it was still validated and fits the
-                // table, so this is an isolated bad rule, not a reason to
-                // fail the whole subtable. `unconsolidate_chaining` asserts
-                // every slot here is `Some` (fuzzing found a font that
-                // pushed a `None` and hit that `.expect()`), so drop it here
-                // instead of ever storing a placeholder.
-                if rule_ptr.is_some() {
-                    ruleset.rules.push(rule_ptr);
-                }
-            }
-        }
-        break 'parse Some(());
     };
 
-    if result.is_some() {
-        Some(subtable)
-    } else {
-        None
+    // First pass: check every non-empty class set's header and rule offsets.
+    let mut total_rules: usize = 0;
+    for j in 0..class_set_count {
+        let src_rel = u16_at(slice, sets_base + 2 * j as usize);
+        if src_rel == 0 {
+            continue;
+        }
+        let srs_count = checked_rule_count(slice, offset as usize + src_rel as usize)?;
+        total_rules = total_rules.saturating_add(srs_count as usize);
     }
+
+    let ruleset = chaining_ruleset_mut(subtable);
+    ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+    'class_sets: for j in 0..class_set_count {
+        let src_rel = u16_at(slice, sets_base + 2 * j as usize);
+        if src_rel == 0 {
+            continue;
+        }
+        let srs_count = u16_at(slice, offset as usize + src_rel as usize);
+        for k in 0..srs_count {
+            if !budget.take_rule() {
+                break 'class_sets;
+            }
+            let sr_rel = u16_at(
+                slice,
+                offset as usize + src_rel as usize + 2 + 2 * k as usize,
+            );
+            let sr_offset = offset
+                .wrapping_add(u32::from(src_rel))
+                .wrapping_add(u32::from(sr_rel));
+            let rule = shape.read_rule(
+                slice,
+                sr_offset,
+                j,
+                true,
+                |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
+                    class_coverage(slice, cls, offset, kind, max_glyphs, &cds, budget)
+                },
+                max_glyphs,
+                budget,
+            );
+            push_rule(&mut ruleset.rules, rule);
+        }
+    }
+    Some(())
+}
+/// Adds a rule read by `RuleShape::read_rule`, or nothing if it was `None`.
+/// `None` means this one rule's own header was malformed; the rule set
+/// that points at it was already checked and fits the table, so the rest of
+/// the subtable is kept. `unconsolidate_chaining` expects every stored slot
+/// to be `Some`.
+fn push_rule(rules: &mut Vec<Option<Box<ChainingRule>>>, rule: Option<Box<ChainingRule>>) {
+    if rule.is_some() {
+        rules.push(rule);
+    }
+}
+fn read_subtable(
+    shape: RuleShape,
+    data: &[u8],
+    offset: u32,
+    max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
+) -> Option<Subtable> {
+    let mut subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
+    let format = FontReader::new(data)
+        .at(offset as usize)
+        .and_then(|mut r| r.u16())
+        .unwrap_or(0);
+    match format {
+        1 => read_format1(shape, data, offset, max_glyphs, &mut subtable, budget)?,
+        2 => read_format2(shape, data, offset, max_glyphs, &mut subtable, budget)?,
+        3 => {
+            let rule = shape.read_rule(
+                data,
+                offset.wrapping_add(2),
+                0,
+                false,
+                format3_coverage,
+                max_glyphs,
+                budget,
+            );
+            push_rule(&mut chaining_ruleset_mut(&mut subtable).rules, rule);
+        }
+        _ => {
+            tracing::warn!("Unsupported format {}.\n", i32::from(format));
+            return None;
+        }
+    }
+    Some(Subtable::Chaining(subtable))
+}
+/// Reads a contextual subtable (GSUB 5, GPOS 7) of any of the three formats
+/// into a rule set. Returns `None` for an unknown format or a malformed
+/// format 1 or 2 header; a single malformed rule is dropped instead.
+pub fn otl_read_contextual(
+    data: &[u8],
+    offset: u32,
+    max_glyphs: GlyphId,
+    budget: &mut OtlReadBudget,
+) -> Option<Subtable> {
+    read_subtable(RuleShape::Contextual, data, offset, max_glyphs, budget)
 }
 /// Reads a chaining contextual subtable (GSUB 6, GPOS 8); otherwise the
 /// same as `otl_read_contextual`.
@@ -902,43 +677,7 @@ pub fn otl_read_chaining(
     max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
-    let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
-    let mut format: u16 = 0;
-    if let Ok(mut r) = FontReader::new(data).at(offset as usize)
-        && let Ok(f) = r.u16()
-    {
-        format = f;
-    }
-    match format {
-        1 => {
-            return read_chaining_format1(data, offset, max_glyphs, subtable, budget)
-                .map(|s| Subtable::Chaining(*s));
-        }
-        2 => {
-            return read_chaining_format2(data, offset, max_glyphs, subtable, budget)
-                .map(|s| Subtable::Chaining(*s));
-        }
-        3 => {
-            let rule_ptr = general_read_chaining_rule(
-                data,
-                offset.wrapping_add(2),
-                0,
-                false,
-                format3_coverage,
-                max_glyphs,
-                budget,
-            );
-            // Same "malformed individual rule, not the whole subtable" case
-            // as the format1/format2 loops above -- see their comment.
-            if rule_ptr.is_some() {
-                chaining_ruleset_mut(&mut subtable).rules.push(rule_ptr);
-            }
-            return Some(Subtable::Chaining(*subtable));
-        }
-        _ => {}
-    }
-    tracing::warn!("Unsupported format {}.\n", i32::from(format));
-    None
+    read_subtable(RuleShape::Chaining, data, offset, max_glyphs, budget)
 }
 #[inline]
 // The font stores the backtrack sequence nearest glyph first; put it in
