@@ -12,9 +12,13 @@ use otfcc_binary::Buffer;
 use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 
+/// The VTT `TSI5` table: the character group VTT assigns to each glyph,
+/// kept as a class definition (group number per glyph).
 pub type Tsi5Table = ClassDef;
 // One class per glyph, 2 bytes each. `FontReader::u16` requires both bytes
 // to be present, so a trailing odd byte is ignored rather than read past.
+/// Reads `TSI5`, or `None` if the font has none. Entry `j` is the group of
+/// glyph `j`.
 pub fn read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     let table = packet
         .pieces
@@ -33,12 +37,15 @@ pub fn read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     }
     Some(Box::new(tsi5))
 }
+/// Writes `table` into `root` as the JSON `TSI5` class definition (nothing
+/// if `None`).
 pub fn dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
     root.push_field(b"TSI5", dump_class_def(table));
 }
+/// Reads the JSON `TSI5` class definition, or `None` if `root` has none.
 pub fn parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
     let tsi = root.get_typed(b"TSI5", JsonType::Object)?;
     // `parse_class_def` genuinely can answer "no class def here" (an
@@ -46,6 +53,9 @@ pub fn parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
     // `read_class_def` returns a plain value.
     parse_class_def(Some(tsi)).map(Box::new)
 }
+/// Writes one group per glyph for `num_glyphs` glyphs. Glyphs the table
+/// does not list get group 0; listed glyphs at or past `num_glyphs` are
+/// dropped.
 pub fn build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {
     let tsi5 = tsi5?;
     let mut tsi5cls: Vec<u16> = vec![0; num_glyphs as usize];

@@ -3,6 +3,10 @@ use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chai
 use crate::table::otl::{ChainingRule, Subtable};
 use otfcc_json::BuiltValue;
 
+/// Writes a single-rule subtable as `{ match, apply, inputBegins, inputEnds }`:
+/// one coverage per position, the lookups applied at positions, and where
+/// the input sequence starts and ends. A subtable still holding a rule set
+/// is written as `null`.
 pub fn otl_dump_chaining(_subtable: &Subtable) -> BuiltValue {
     let Subtable::Chaining(subtable) = _subtable else {
         unreachable!()
@@ -13,8 +17,7 @@ pub fn otl_dump_chaining(_subtable: &Subtable) -> BuiltValue {
     let rule: &ChainingRule = chaining_rule_const(subtable);
     let mut _st = BuiltValue::new_object(4);
     let mut _match = BuiltValue::new_array(rule.match_count as usize);
-    // Bounded by `rule.match_count`, not assumed equal to `match_0.len()`
-    // (same count-vs-length caution established in PR #422/#423/#426-428).
+    // Bounded by `rule.match_count`, which need not equal `sequence.len()`.
     for cov in rule.sequence.iter().take(rule.match_count as usize) {
         _match.push_item(dump_coverage(cov));
     }

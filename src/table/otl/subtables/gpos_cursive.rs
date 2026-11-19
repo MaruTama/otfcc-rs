@@ -17,6 +17,9 @@ use crate::table::otl::{GposCursiveEntry, GposCursiveSubtable, Subtable};
 use otfcc_binary::bk::block::bk_new_block_from_buffer;
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
+/// Reads a cursive attachment subtable: an entry and an exit anchor for
+/// each covered glyph. Returns `None` if the header does not fit, the
+/// coverage is empty, or the record count differs from the coverage size.
 pub fn otl_read_gpos_cursive(
     data: &[u8],
     offset: u32,
@@ -80,6 +83,8 @@ pub fn otl_read_gpos_cursive(
 
     None
 }
+/// Writes the subtable as an object mapping each glyph name to
+/// `{ enter, exit }`.
 pub fn otl_gpos_dump_cursive(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposCursive(subtable) = _subtable else {
         unreachable!()
@@ -93,6 +98,8 @@ pub fn otl_gpos_dump_cursive(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
+/// Reads the object written by `otl_gpos_dump_cursive`. Always returns
+/// `Some`; entries whose value is not an object are skipped.
 pub fn otl_gpos_parse_cursive(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let mut subtable: GposCursiveSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
@@ -108,6 +115,7 @@ pub fn otl_gpos_parse_cursive(_subtable: Option<&ParsedValue>) -> Option<Subtabl
     }
     Some(Subtable::GposCursive(subtable))
 }
+/// Writes the subtable as CursivePos format 1.
 pub fn build_gpos_cursive(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GposCursive(subtable) = _subtable else {
         unreachable!()

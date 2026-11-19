@@ -14,6 +14,7 @@ use crate::table::otl::subtables::chaining::common::{
 use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, Subtable,
 };
+/// The class the classifier has given a glyph, with the glyph's name.
 #[derive(Clone, Debug)]
 pub struct ClassifierValue {
     pub gname: Vec<u8>,
@@ -257,6 +258,10 @@ pub fn try_classify_around(
     };
     Some((compatible_count, ChainingSubtable::Classified(ruleset)))
 }
+/// Builds the subtables of a chaining lookup into `subtable_buffers`,
+/// merging each run of single-rule subtables whose glyphs can share class
+/// definitions into one format 2 subtable. Adds the bytes written to
+/// `last_offset` and returns the number of subtables written.
 pub fn classified_build_chaining(
     lookup: &Lookup,
     subtable_buffers: &mut Vec<Buffer>,

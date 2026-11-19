@@ -12,11 +12,13 @@ use otfcc_json::ParsedValue;
 
 // `.data` holds either a UTF-8 string tag's bytes or raw (possibly
 // non-UTF-8) base64-decoded bytes, so `Vec<u8>`, not `String`.
+/// One metadata record: its tag (such as `dlng`) and its data.
 #[derive(Debug)]
 pub struct MetaEntry {
     pub tag: u32,
     pub data: Vec<u8>,
 }
+/// The `meta` table: a list of tagged metadata records.
 #[derive(Debug)]
 pub struct MetaTable {
     pub version: u32,
@@ -60,6 +62,8 @@ fn decode_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
         entries,
     })
 }
+/// Reads the `meta` table, or `None` if it is missing or its header is
+/// malformed. A record whose data lies outside the table is skipped.
 pub fn read_meta(packet: &Packet) -> Option<Box<MetaTable>> {
     let table = packet
         .pieces
@@ -74,6 +78,9 @@ pub fn read_meta(packet: &Packet) -> Option<Box<MetaTable>> {
     }
 }
 
+/// The data of one JSON `meta` entry: a plain string, or an object with a
+/// `string` field or a `base64` field. Returns `None` if there is none, or
+/// if the `base64` field does not decode.
 pub fn parse_meta_data(v: Option<&ParsedValue>) -> Option<Vec<u8>> {
     let v = v?;
     if let Some(bytes) = v.as_str_bytes() {
@@ -84,16 +91,17 @@ pub fn parse_meta_data(v: Option<&ParsedValue>) -> Option<Vec<u8>> {
             return Some(bytes.to_vec());
         }
         if let Some(bytes) = v.get_bytes(b"base64") {
-            // Unlike the `string` field above, a malformed `base64` field
-            // (a character count not a multiple of 4) now makes this whole
-            // entry `None` instead of silently keeping an empty decoded
-            // value -- the same "drop what doesn't parse" choice already
-            // made everywhere else malformed JSON-build input is handled.
+            // A malformed `base64` field (a character count not a multiple
+            // of 4) drops the whole entry rather than keeping an empty
+            // value, as other malformed JSON input is dropped.
             return base64_decode(bytes);
         }
     }
     None
 }
+/// Reads the JSON `meta` object, or `None` if `root` has none or it has no
+/// `entries` array. Entries whose tag is not 4 bytes long, or that carry no
+/// data, are skipped. Version and flags are always written as 1 and 0.
 pub fn parse_meta(root: &ParsedValue) -> Option<Box<MetaTable>> {
     let _meta = root.get_typed(b"meta", JsonType::Object)?;
     let entries = _meta
@@ -142,6 +150,9 @@ fn str2tag(tags: Option<&[u8]>) -> u32 {
 fn is_string_tag(tag: u32) -> bool {
     tag == crate::tag::TAG_DLNG || tag == crate::tag::TAG_SLNG
 }
+/// Writes `meta` into `root` as the JSON `meta` object (nothing if `None`).
+/// The `dlng` and `slng` records, which hold text, are written as `string`;
+/// every other record as `base64`.
 pub fn dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue) {
     let Some(meta) = meta else {
         return;
@@ -174,6 +185,8 @@ pub fn dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue) {
     stage.finish();
 }
 
+/// Writes the `meta` table, or `None` if there is no table or it has no
+/// entries.
 pub fn build_meta(meta: Option<&MetaTable>) -> Option<Buffer> {
     let meta = match meta {
         Some(m) if !m.entries.is_empty() => m,

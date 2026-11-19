@@ -16,6 +16,8 @@ use crate::table::otl::{
 };
 use otfcc_binary::bk::block::bk_new_block_from_buffer;
 use otfcc_binary::bk::graph::bk_build_block;
+/// Whether a chaining lookup has no backtrack and no lookahead in any rule,
+/// so it can be written as a plain contextual lookup (GSUB 5, GPOS 7).
 pub fn chaining_lookup_is_contextual_lookup(lookup: &Lookup) -> bool {
     if !(lookup.lookup_type == OTL_TYPE_GPOS_CHAINING
         || lookup.lookup_type == OTL_TYPE_GSUB_CHAINING)
@@ -46,6 +48,8 @@ pub fn chaining_lookup_is_contextual_lookup(lookup: &Lookup) -> bool {
     }
     is_contextual
 }
+/// Writes one rule as a chaining subtable of format 3 (one coverage per
+/// position).
 pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let ChainingSubtable::Canonical(rule) = _subtable else {
         unreachable!()
@@ -120,6 +124,7 @@ pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
 }
 const CLASSIFIED_HAS_ALL_CLASS_DEFS: &str =
     "only the classifier builds a Classified ruleset, and it sets bc, ic and fc";
+/// Writes a class-based rule set as a chaining subtable of format 2.
 pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
     else {
@@ -254,6 +259,8 @@ fn build_class_rule(rule: &ChainingRule) -> BkBlock {
     }
     r
 }
+/// Writes a chaining subtable: format 2 for a class-based rule set, format 3
+/// for a single rule.
 pub fn build_chaining(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
         build_chaining_classes(_subtable)
@@ -261,6 +268,7 @@ pub fn build_chaining(_subtable: &ChainingSubtable) -> Buffer {
         build_chaining_coverage(_subtable)
     }
 }
+/// Writes one rule as a contextual subtable of format 3.
 pub fn build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let ChainingSubtable::Canonical(rule) = _subtable else {
         unreachable!()
@@ -302,6 +310,7 @@ pub fn build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
     }
     bk_build_block(root)
 }
+/// Writes a class-based rule set as a contextual subtable of format 2.
 pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     let (ChainingSubtable::Poly(ruleset) | ChainingSubtable::Classified(ruleset)) = _subtable
     else {
@@ -382,6 +391,8 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     }
     bk_build_block(root)
 }
+/// Writes a contextual subtable: format 2 for a class-based rule set, format
+/// 3 for a single rule.
 pub fn build_contextual(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
         build_contextual_classes(_subtable)

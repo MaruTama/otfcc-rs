@@ -21,14 +21,14 @@ use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr,
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
-// `2 * component_count * class_count` (the LigatureAttach's byte-length
-// guard) is the same overflow-defeats-guard shape as
-// `gpos_mark_to_single.rs`'s `bases.len() * class_count`, but sharper
-// here: *both* factors are independently unbounded `u16` fields read
-// straight from the file (unlike `bases.len()`, which is at least bounded
-// by the actual glyph count), so the product can reach 65535*65535*2 --
-// ~8.6 billion -- from a much smaller, more plausible crafted input.
-// Fixed the same way: `checked_mul` on `usize` before `require_room`.
+// A LigatureAttach's byte length, `2 * component_count * class_count`, is
+// computed with `checked_mul` before `require_room`: both factors are `u16`
+// fields of the font, and the product (up to ~8.6 billion) would otherwise
+// overflow and defeat the check.
+/// Reads a mark-to-ligature subtable (GPOS 5): the marks with their classes
+/// and anchors, and for each ligature one anchor per mark class for each of
+/// its components. Returns `None` if the header, either coverage or the
+/// ligature array is malformed.
 pub fn otl_read_gpos_mark_to_ligature(
     data: &[u8],
     offset: u32,
@@ -154,6 +154,9 @@ pub fn otl_read_gpos_mark_to_ligature(
     }
     None
 }
+/// Writes the subtable as `{ classCount, marks, bases }`. Mark classes are
+/// named `ac_<N>`; each ligature maps to an array with one object per
+/// component, from class name to `{ x, y }`.
 pub fn otl_gpos_dump_mark_to_ligature(st: &Subtable) -> BuiltValue {
     let Subtable::GposMarkToLigature(subtable) = st else {
         unreachable!()
@@ -263,6 +266,8 @@ fn parse_bases(
         }
     }
 }
+/// Reads the object written by `otl_gpos_dump_mark_to_ligature`, or `None`
+/// if `marks` or `bases` is missing.
 pub fn otl_gpos_parse_mark_to_ligature(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let marks = _subtable.and_then(|v| v.get_typed(b"marks", JsonType::Object));
     let bases = _subtable.and_then(|v| v.get_typed(b"bases", JsonType::Object));
@@ -280,6 +285,7 @@ pub fn otl_gpos_parse_mark_to_ligature(_subtable: Option<&ParsedValue>) -> Optio
         lig_array,
     }))
 }
+/// Writes the subtable as MarkLigPos format 1.
 pub fn build_gpos_mark_to_ligature(
     _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,

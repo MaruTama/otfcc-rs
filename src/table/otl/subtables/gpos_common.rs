@@ -84,6 +84,10 @@ pub fn otl_read_mark_array(array: &mut MarkArray, cov: &Coverage, data: &[u8], o
         });
     }
 }
+/// Reads the JSON `marks` object (glyph name to `{ class, x, y }`) into
+/// `array`. Class names are numbered in alphabetical order; `h` receives
+/// the name-to-number map, and the number of classes is returned. A mark
+/// without a `class` is kept with no anchor.
 pub fn otl_parse_mark_array(
     marks: Option<&ParsedValue>,
     array: &mut MarkArray,
@@ -148,6 +152,7 @@ pub fn otl_parse_mark_array(
     }
     class_count
 }
+/// An anchor that is not there (an offset of 0 in the font, `null` in JSON).
 pub fn otl_anchor_absent() -> Anchor {
     let anchor: Anchor = Anchor {
         present: false,
@@ -156,6 +161,8 @@ pub fn otl_anchor_absent() -> Anchor {
     };
     anchor
 }
+/// Reads the Anchor table at `offset`, keeping only its x and y; any format
+/// is read as format 1. An anchor that does not fit in `data` is absent.
 pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
@@ -173,6 +180,7 @@ pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     anchor.y = Pos::from(i16::from_be_bytes([bytes[4], bytes[5]]));
     anchor
 }
+/// Writes an anchor as `{ x, y }`, or `null` if it is absent.
 pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
     if a.present {
         let mut v = BuiltValue::new_object(2);
@@ -183,6 +191,7 @@ pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
         BuiltValue::Null
     }
 }
+/// Reads a JSON `{ x, y }` anchor; anything that is not an object is absent.
 pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
@@ -197,6 +206,8 @@ pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     anchor.y = v.get_num_or(b"y", 0.0) as Pos;
     anchor
 }
+/// Lays out an anchor as a format 1 Anchor table, or `None` if it is absent
+/// (the caller then writes a null offset).
 pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
     if !a.present {
         return None;
@@ -207,6 +218,8 @@ pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
         bk_int(BkCellType::B16, i32::from(a.y as i16) as u32),
     ]))
 }
+// ValueFormat bits for the four fields otfcc keeps: XPlacement,
+// YPlacement, XAdvance and YAdvance. Device table offsets are not read.
 pub const FORMAT_DX: u16 = 1;
 pub const FORMAT_DY: u16 = 2;
 pub const FORMAT_DWIDTH: u16 = 4;
@@ -217,6 +230,7 @@ pub const FORMAT_DHEIGHT: u16 = 8;
 pub fn position_format_length(format: u16) -> u8 {
     ((format & 0xff).count_ones() << 1) as u8
 }
+/// A value record that changes nothing.
 pub fn position_zero() -> PositionValue {
     let v: PositionValue = PositionValue {
         dx: 0.0,
@@ -226,6 +240,8 @@ pub fn position_zero() -> PositionValue {
     };
     v
 }
+/// Reads a ValueRecord of `format` at `offset`. The device-table fields
+/// are skipped; a record that does not fit in `data` reads as zero.
 pub fn read_gpos_value(data: &[u8], offset: u32, format: u16) -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0,
@@ -258,6 +274,8 @@ pub fn read_gpos_value(data: &[u8], offset: u32, format: u16) -> PositionValue {
     }
     v
 }
+/// Writes a value record as `{ dx, dy, dWidth, dHeight }`, leaving out the
+/// fields that are zero.
 pub fn gpos_dump_value(value: PositionValue) -> BuiltValue {
     let mut v = BuiltValue::new_object(4);
     if value.dx != 0. {
@@ -274,6 +292,7 @@ pub fn gpos_dump_value(value: PositionValue) -> BuiltValue {
     }
     v.preserialize()
 }
+/// Reads a JSON value record; missing fields, or a non-object, are zero.
 pub fn gpos_parse_value(pos: Option<&ParsedValue>) -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0,
@@ -290,6 +309,7 @@ pub fn gpos_parse_value(pos: Option<&ParsedValue>) -> PositionValue {
     v.d_height = pos.get_num(b"dHeight") as Pos;
     v
 }
+/// The smallest ValueFormat that holds `v`: one bit per non-zero field.
 pub fn required_position_format(v: PositionValue) -> u8 {
     let mut format: u16 = 0;
     if v.dx != 0. {
@@ -306,6 +326,7 @@ pub fn required_position_format(v: PositionValue) -> u8 {
     }
     format as u8
 }
+/// Writes the fields of `v` that `format` selects, in ValueRecord order.
 pub fn write_gpos_value(buf: &mut Buffer, v: PositionValue, format: u16) {
     if format & FORMAT_DX != 0 {
         buf.write_i16be(v.dx as i16);
@@ -320,6 +341,8 @@ pub fn write_gpos_value(buf: &mut Buffer, v: PositionValue, format: u16) {
         buf.write_i16be(v.d_height as i16);
     }
 }
+/// Lays out the fields of `v` that `format` selects as a block of 16-bit
+/// cells, in ValueRecord order.
 pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
     let mut b: BkBlock = bk_new_block(Vec::new());
     if format & FORMAT_DX != 0 {
