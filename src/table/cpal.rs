@@ -66,6 +66,29 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
     let num_color_records = h.u16()? as usize;
     let offset_first_color_record = h.u32()? as usize;
 
+    let color_list = read_color_records(data, offset_first_color_record, num_color_records)?;
+
+    if data.len() < table_header_length + 2 * num_palettes {
+        return Err(ReadError {
+            needed: table_header_length + 2 * num_palettes,
+            available: data.len(),
+        });
+    }
+    let mut palettes = read_palettes(data, &color_list, num_palettes, num_palettes_entries)?;
+
+    if version > 0 {
+        read_v1_extensions(data, &mut palettes, num_palettes_entries);
+    }
+
+    Ok((version, palettes))
+}
+
+/// Reads the shared pool of BGRA color records that every palette indexes into.
+fn read_color_records(
+    data: &[u8],
+    offset_first_color_record: usize,
+    num_color_records: usize,
+) -> Result<Vec<CpalColor>, ReadError> {
     let mut cr = FontReader::new(data).at(offset_first_color_record)?;
     cr.require_room(num_color_records, 4)?;
     let mut color_list: Vec<CpalColor> = Vec::with_capacity(num_color_records);
@@ -82,24 +105,27 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
             label: 0xffff,
         });
     }
+    Ok(color_list)
+}
 
-    if data.len() < table_header_length + 2 * num_palettes {
-        return Err(ReadError {
-            needed: table_header_length + 2 * num_palettes,
-            available: data.len(),
-        });
-    }
+/// Reads `colorRecordIndices` and materialises each palette's colors from the
+/// shared pool. An entry that points past the pool becomes `WHITE`. Palette
+/// type and label start as "none" (`0` / `0xffff`); v1 data fills them in.
+fn read_palettes(
+    data: &[u8],
+    color_list: &[CpalColor],
+    num_palettes: usize,
+    num_palettes_entries: usize,
+) -> Result<Vec<CpalPalette>, ReadError> {
     let mut idx = FontReader::new(data).at(12)?;
     let mut palettes: Vec<CpalPalette> = Vec::with_capacity(num_palettes);
     for _ in 0..num_palettes {
-        // `label: 0xffff` ("no label"); nothing in this function
-        // overwrites it.
         let palette_start_index = idx.u16()? as usize;
         let mut colorset = Vec::with_capacity(num_palettes_entries);
         for j in 0..num_palettes_entries {
             let color = palette_start_index
                 .checked_add(j)
-                .filter(|&i| i < num_color_records)
+                .filter(|&i| i < color_list.len())
                 .map_or(WHITE, |i| color_list[i]);
             colorset.push(color);
         }
@@ -109,59 +135,53 @@ fn decode_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
             label: 0xffff,
         });
     }
+    Ok(palettes)
+}
 
-    if version > 0 {
-        if let Some(offset_palette_type_array) = FontReader::new(data)
-            .at(16 + 2 * num_palettes)
-            .ok()
-            .and_then(|mut r| r.u32().ok())
-        {
-            let offset_palette_type_array = offset_palette_type_array as usize;
-            if offset_palette_type_array != 0
-                && let Ok(mut tr) = FontReader::new(data).at(offset_palette_type_array)
-                && tr.require_room(num_palettes, 4).is_ok()
-            {
-                for p in palettes.iter_mut() {
-                    p.palette_type = tr.u32().expect("require_room above covered this read");
-                }
-            }
+/// Follows one of the three v1 offset fields (stored at `field_offset`) to its
+/// array. `None` when the field is unreadable, zero ("absent"), points outside
+/// the table, or the array of `count` elements of `element_size` bytes does
+/// not fit; those arrays are optional, so the palettes keep their defaults.
+fn open_v1_array(
+    data: &[u8],
+    field_offset: usize,
+    count: usize,
+    element_size: usize,
+) -> Option<FontReader<'_>> {
+    let offset = FontReader::new(data)
+        .at(field_offset)
+        .ok()
+        .and_then(|mut r| r.u32().ok())? as usize;
+    if offset == 0 {
+        return None;
+    }
+    let reader = FontReader::new(data).at(offset).ok()?;
+    reader.require_room(count, element_size).ok()?;
+    Some(reader)
+}
+
+/// Reads the optional v1 arrays: palette types, palette labels and the
+/// per-entry labels shared by all palettes.
+fn read_v1_extensions(data: &[u8], palettes: &mut [CpalPalette], num_palettes_entries: usize) {
+    let num_palettes = palettes.len();
+    if let Some(mut tr) = open_v1_array(data, 16 + 2 * num_palettes, num_palettes, 4) {
+        for p in palettes.iter_mut() {
+            p.palette_type = tr.u32().expect("require_room above covered this read");
         }
-        if let Some(offset_palette_label_array) = FontReader::new(data)
-            .at(20 + 2 * num_palettes)
-            .ok()
-            .and_then(|mut r| r.u32().ok())
-        {
-            let offset_palette_label_array = offset_palette_label_array as usize;
-            if offset_palette_label_array != 0
-                && let Ok(mut lr) = FontReader::new(data).at(offset_palette_label_array)
-                && lr.require_room(num_palettes, 2).is_ok()
-            {
-                for p in palettes.iter_mut() {
-                    p.label = u32::from(lr.u16().expect("require_room above covered this read"));
-                }
-            }
+    }
+    if let Some(mut lr) = open_v1_array(data, 20 + 2 * num_palettes, num_palettes, 2) {
+        for p in palettes.iter_mut() {
+            p.label = u32::from(lr.u16().expect("require_room above covered this read"));
         }
-        if let Some(offset_palette_entry_label_array) = FontReader::new(data)
-            .at(24 + 2 * num_palettes)
-            .ok()
-            .and_then(|mut r| r.u32().ok())
-        {
-            let offset_palette_entry_label_array = offset_palette_entry_label_array as usize;
-            if offset_palette_entry_label_array != 0
-                && let Ok(mut er) = FontReader::new(data).at(offset_palette_entry_label_array)
-                && er.require_room(num_palettes_entries, 4).is_ok()
-            {
-                for j in 0..num_palettes_entries {
-                    let label = er.u16().expect("require_room above covered this read");
-                    for p in palettes.iter_mut() {
-                        p.colorset[j].label = label;
-                    }
-                }
+    }
+    if let Some(mut er) = open_v1_array(data, 24 + 2 * num_palettes, num_palettes_entries, 4) {
+        for j in 0..num_palettes_entries {
+            let label = er.u16().expect("require_room above covered this read");
+            for p in palettes.iter_mut() {
+                p.colorset[j].label = label;
             }
         }
     }
-
-    Ok((version, palettes))
 }
 pub fn read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
     let table = packet
