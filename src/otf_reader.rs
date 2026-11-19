@@ -529,7 +529,7 @@ mod regression_tests {
         let font = font.expect("font must parse");
         if let Some(cmap) = font.cmap.as_deref() {
             assert!(
-                cmap.uvs.len() <= crate::table::cmap::MAX_TOTAL_CMAP_MAPPINGS as usize,
+                cmap.uvs.len() <= crate::table::cmap::read::MAX_TOTAL_CMAP_MAPPINGS as usize,
                 "cmap.uvs.len() = {} exceeds MAX_TOTAL_CMAP_MAPPINGS",
                 cmap.uvs.len()
             );

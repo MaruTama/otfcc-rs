@@ -1,4 +1,5 @@
 pub mod build;
+pub mod gvar;
 pub mod read;
 
 use crate::json_writer::DumpSink;
