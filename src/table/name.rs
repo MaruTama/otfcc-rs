@@ -13,6 +13,10 @@ use otfcc_json::ParsedValue;
 // `Vec<NameRecord>: Clone` doing a deep copy (the whole-table `.copy` slot
 // was already dead before this conversion, per the earlier note this
 // replaces).
+/// One `name` record. How `name_string` is held depends on the record: UTF-8
+/// text for the Unicode-encoded ones (platform 0, platform 2 encoding 1,
+/// platform 3 encodings 0, 1 and 10), the raw bytes for platform 1 encoding 0
+/// language 0, and base64 text for everything else.
 #[derive(Clone, Debug)]
 pub struct NameRecord {
     pub platform_id: u16,
@@ -87,6 +91,9 @@ fn decode_name(data: &[u8]) -> Result<NameTable, ReadError> {
     Ok(name)
 }
 
+/// Reads the `name` table from `packet`. Returns `None` if it is absent or its
+/// header or record array does not fit (after logging "corrupted"). A record
+/// whose string does not fit is kept with an empty `name_string`.
 pub fn read_name(packet: &Packet) -> Option<NameTable> {
     let table = packet
         .pieces
@@ -100,6 +107,7 @@ pub fn read_name(packet: &Packet) -> Option<NameTable> {
         }
     }
 }
+/// Adds a `name` array of records to `root`; does nothing if `name` is `None`.
 pub fn dump_name(name: Option<&NameTable>, root: &mut BuiltValue) {
     let name = match name {
         Some(n) => n,
@@ -122,6 +130,10 @@ pub fn dump_name(name: Option<&NameTable>, root: &mut BuiltValue) {
         stage.finish();
     }
 }
+/// Reads the `name` array from JSON. Always returns `Some`, empty when the key
+/// is missing. A record with a missing or mistyped field is skipped with a
+/// warning, and the rest are sorted by platform, encoding, language and name
+/// ID.
 pub fn parse_name(root: &ParsedValue) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
     let Some(items) = root
@@ -179,6 +191,11 @@ pub fn parse_name(root: &ParsedValue) -> Option<NameTable> {
     stage.finish();
     Some(name)
 }
+/// Serialises a format 0 `name` table, or `None` for no table. Strings are
+/// encoded back by record kind (see [`NameRecord`]); a base64 string that does
+/// not decode becomes empty. A 32-byte "-- By OTFCC x.y.z --" signature is
+/// appended after the strings, and the count, offsets and lengths are `u16`,
+/// so more than 65,535 bytes of strings would wrap.
 pub fn build_name(name: Option<&NameTable>) -> Option<Buffer> {
     let records: &Vec<NameRecord> = name?;
     let mut buf = Buffer::new();

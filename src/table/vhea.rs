@@ -7,6 +7,11 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// The `vhea` table. `num_of_long_ver_metrics` is the count of long `vmtx`
+/// records; it is not taken from JSON but recomputed from the glyphs when
+/// building (`otf_writer::stat`). The `dummy*` fields and
+/// `metric_data_format` are always 0: they are skipped when reading and
+/// written as 0 when building.
 #[derive(Copy, Clone, Debug)]
 pub struct VheaTable {
     pub version: F16Dot16,
@@ -65,6 +70,8 @@ fn decode_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
         num_of_long_ver_metrics,
     })
 }
+/// Reads the `vhea` table from `packet`. Returns `None` if the table is
+/// absent, or shorter than its 36 bytes (after logging "corrupted").
 pub fn read_vhea(packet: &Packet) -> Option<Box<VheaTable>> {
     let table = packet
         .pieces
@@ -78,6 +85,8 @@ pub fn read_vhea(packet: &Packet) -> Option<Box<VheaTable>> {
         }
     }
 }
+/// Adds a `vhea` object to `root`; does nothing if `table` is `None`. The
+/// metric count is not dumped.
 pub fn dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -113,6 +122,10 @@ pub fn dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue) {
     root.push_field(b"vhea", vhea);
     stage.finish();
 }
+/// Reads `vhea` from JSON. Returns `None` when there is no `vhea` object,
+/// unlike `parse_hhea`, which falls back to defaults. Absent keys inside the
+/// object are 0, and numbers go through `as`, so out-of-range values
+/// saturate.
 pub fn parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
     let table = root.get_typed(b"vhea", JsonType::Object)?;
     let stage = crate::logger::stage("vhea");
@@ -138,6 +151,9 @@ pub fn parse_vhea(root: &ParsedValue) -> Option<Box<VheaTable>> {
     stage.finish();
     Some(Box::new(vhea))
 }
+/// Serialises `vhea` as its 36-byte binary form, or `None` for no table.
+/// `num_of_long_ver_metrics` is written as stored, so the caller must have
+/// set it first.
 pub fn build_vhea(vhea: Option<&VheaTable>) -> Option<Buffer> {
     let vhea = vhea?;
     let mut buf = Buffer::new();

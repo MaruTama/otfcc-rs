@@ -15,6 +15,11 @@ use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, Subtable};
 use otfcc_binary::bk::block::bk_new_block_from_buffer;
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
+/// Reads a GSUB single substitution at `subtable_offset`. Returns `None` if
+/// the header is unreadable, the coverage is empty, or (format 2) the
+/// substitute count differs from the coverage size or does not fit in `data`.
+/// Any format other than 1 is read as format 2. In format 1 the delta is added
+/// with wrap-around to each covered glyph index. `_max_glyphs` is not used.
 pub fn otl_read_gsub_single(
     data: &[u8],
     subtable_offset: u32,
@@ -85,6 +90,9 @@ pub fn otl_read_gsub_single(
 
     None
 }
+/// Dumps the subtable as an object mapping each source glyph name to its
+/// substitute's name (cut at the first NUL). `_subtable` must be a
+/// `Subtable::GsubSingle`.
 pub fn otl_gsub_dump_single(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GsubSingle(subtable) = _subtable else {
         unreachable!()
@@ -98,6 +106,8 @@ pub fn otl_gsub_dump_single(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
+/// Reads the object written by `otl_gsub_dump_single`. Always returns `Some`;
+/// entries whose value is not a string are skipped.
 pub fn otl_gsub_parse_single(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let mut subtable: GsubSingleSubtable = Vec::new();
     if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
@@ -112,6 +122,10 @@ pub fn otl_gsub_parse_single(_subtable: Option<&ParsedValue>) -> Option<Subtable
     }
     Some(Subtable::GsubSingle(subtable))
 }
+/// Builds format 1 (one shared delta) when every entry has the same
+/// `to - from` difference and it fits in 15 bits plus sign, and format 2
+/// (explicit substitute list) otherwise. `BuildHeuristics::GSUB_VERT` forces
+/// format 2 and is passed on to the coverage builder.
 pub fn build_gsub_single_subtable(_subtable: &Subtable, heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GsubSingle(subtable) = _subtable else {
         unreachable!()

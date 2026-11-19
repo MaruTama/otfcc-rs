@@ -7,6 +7,12 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// The `maxp` table. Only `version` and `num_glyphs` exist in a version 0.5
+/// table; the other fields are 0 there. JSON supplies `numGlyphs` and the
+/// hinting limits (`maxZones` ... `maxStackElements`); when building,
+/// `otf_writer::stat` recomputes the glyph-derived ones (`max_points`,
+/// `max_contours`, the composite and component limits, and
+/// `max_size_of_instructions`).
 #[derive(Copy, Clone, Debug)]
 pub struct MaxpTable {
     pub version: F16Dot16,
@@ -74,6 +80,10 @@ fn decode_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
     }
     Ok(maxp)
 }
+/// Reads the `maxp` table from `packet`. Returns `None` if it is absent or
+/// is neither 6 bytes (version 0.5) nor 32 bytes long (after logging
+/// "corrupted"). Only a table whose version is exactly 1.0 has its limits
+/// read; any other version keeps just `num_glyphs`.
 pub fn read_maxp(packet: &Packet) -> Option<Box<MaxpTable>> {
     let table = packet
         .pieces
@@ -87,6 +97,8 @@ pub fn read_maxp(packet: &Packet) -> Option<Box<MaxpTable>> {
         }
     }
 }
+/// Adds a `maxp` object with every field to `root`; does nothing if `table`
+/// is `None`.
 pub fn dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -141,6 +153,10 @@ pub fn dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue) {
     root.push_field(b"maxp", maxp);
     stage.finish();
 }
+/// Reads `maxp` from JSON. Always returns `Some`: a missing object leaves
+/// version 1.0 and zeros. Only `version`, `numGlyphs` and the hinting limits
+/// are read; the glyph-derived limits start at 0 and are filled in when
+/// building. Numbers go through `as`, so out-of-range values saturate.
 pub fn parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
     // "maxp" JSON key is absent (never overwritten below in that case);
@@ -179,6 +195,9 @@ pub fn parse_maxp(root: &ParsedValue) -> Option<Box<MaxpTable>> {
     }
     Some(Box::new(maxp))
 }
+/// Serialises `maxp`, or `None` for no table. The limits after `num_glyphs`
+/// are written only when `version` is above 0x00005000 (version 0.5), so a
+/// version 0.5 table comes out as 6 bytes.
 pub fn build_maxp(maxp: Option<&MaxpTable>) -> Option<Buffer> {
     let maxp = maxp?;
     let mut buf = Buffer::new();
