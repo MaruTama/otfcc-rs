@@ -22,13 +22,9 @@ pub struct TuplePolymorphizerCtx<'a> {
     /// The number of axes, which is the length of every tuple.
     pub dimensions: u16,
     pub shared_tuple_count: u16,
-    // An absolute byte offset into `gvar` instead of a `*mut F2Dot14` --
-    // `polymorphize_glyph` reads through it via `FontReader`, checked
-    // against `gvar`'s real length every time, instead of walking off an
-    // unbounded pointer.
+    /// The byte offset of the shared tuples in `gvar`. Reads through it are
+    /// checked against the table's length.
     pub shared_tuples_offset: usize,
-    pub coord_dimensions: u8,
-    pub allow_iup: bool,
     pub n_phantom_points: ShapeId,
 }
 /// The header of one run of packed deltas: how many, whether they are
@@ -241,29 +237,39 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
 // that axis' `.shift`). `contour_lens` gives each contour's point count, in
 // the order `apply_polymorphism` flattened them, because gap filling never
 // crosses a contour.
-fn apply_coords(
+/// One tuple's deltas: the region they apply in, the points they touch,
+/// and each touched point's x and y delta, in the same order as `points`.
+struct TupleDeltas<'a> {
+    region: &'a Rc<VqRegion>,
+    points: &'a [ShapeId],
+    x: &'a [Pos],
+    y: &'a [Pos],
+}
+/// The shape of a glyph's flattened points: how many there are, and the
+/// length of each contour (the component references follow the contours).
+struct FlatOutline {
     total_points: ShapeId,
-    contour_lens: &[usize],
+    contour_lens: Vec<usize>,
+}
+/// The nudge of every point along one axis: `deltas` (the tuple's x or y
+/// deltas) on the touched points, and interpolated ones on the rest of each
+/// contour. `kernel` is every point's coordinate on that axis.
+fn apply_coords(
+    outline: &FlatOutline,
     kernel: &[Pos],
-    n_touched_points: ShapeId,
-    tuple_delta: &[Pos],
-    points: &[ShapeId],
-    r: &Rc<VqRegion>,
+    tuple: &TupleDeltas<'_>,
+    deltas: &[Pos],
 ) -> Vec<VqSegment> {
+    let total_points = outline.total_points;
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     for _ in 0..total_points {
         nudges.push(VqSegment::Delta(VqSegmentDelta {
             quantity: Pos::from(0),
             touched: false,
-            region: Rc::clone(r),
+            region: Rc::clone(tuple.region),
         }));
     }
-    // `n_touched_points` may be smaller than the arrays it counts.
-    for (&idx, &delta) in points
-        .iter()
-        .zip(tuple_delta.iter())
-        .take(n_touched_points as usize)
-    {
+    for (&idx, &delta) in tuple.points.iter().zip(deltas.iter()) {
         if i32::from(idx) < i32::from(total_points) {
             let d = nudges[idx as usize].delta_mut();
             d.touched = true;
@@ -271,7 +277,7 @@ fn apply_coords(
         }
     }
     let mut j_first: ShapeId = 0 as ShapeId;
-    for &len in contour_lens {
+    for &len in &outline.contour_lens {
         fill_the_gaps(
             j_first,
             (j_first as usize).wrapping_add(len) as ShapeId,
@@ -287,15 +293,7 @@ fn apply_coords(
 // are written back by a second pass in the same order, so index `j` names
 // the same point in both passes.
 #[inline]
-fn apply_polymorphism(
-    total_points: ShapeId,
-    glyph: &mut Glyph,
-    n_touched_points: ShapeId,
-    points: &[ShapeId],
-    delta_x: &[Pos],
-    delta_y: &[Pos],
-    r: &Rc<VqRegion>,
-) {
+fn apply_polymorphism(glyph: &mut Glyph, total_points: ShapeId, tuple: &TupleDeltas<'_>) {
     // Flatten the contours, then the references, in the order the write-back
     // pass below walks them: each point's per-axis `.kernel`, and each
     // contour's length (gap filling stays within a contour).
@@ -314,24 +312,12 @@ fn apply_polymorphism(
         kernel_y.push(rf.y.borrow().kernel);
     }
 
-    let nudges_x = apply_coords(
+    let outline = FlatOutline {
         total_points,
-        &contour_lens,
-        &kernel_x,
-        n_touched_points,
-        delta_x,
-        points,
-        r,
-    );
-    let nudges_y = apply_coords(
-        total_points,
-        &contour_lens,
-        &kernel_y,
-        n_touched_points,
-        delta_y,
-        points,
-        r,
-    );
+        contour_lens,
+    };
+    let nudges_x = apply_coords(&outline, &kernel_x, tuple, tuple.x);
+    let nudges_y = apply_coords(&outline, &kernel_y, tuple, tuple.y);
 
     // Write-back: the only place in this cluster that still needs `&mut
     // Point`/`&mut ComponentReference` -- one more `contours`-then-
@@ -365,33 +351,38 @@ fn apply_polymorphism(
         j += 1;
     }
 
-    if (i32::from(total_points) + 1) < i32::from(n_touched_points) {
+    // The phantom points follow the outline's points. Their deltas are taken
+    // by position in the tuple (entry `total_points` onward), not by point
+    // number, as otfcc does, so they apply only when the tuple has entries
+    // past the outline's points.
+    let n_touched = tuple.points.len() as ShapeId;
+    if (i32::from(total_points) + 1) < i32::from(n_touched) {
         vq_add_delta(
             &mut glyph.horizontal_origin,
             true,
-            r,
-            delta_x[total_points as usize],
+            tuple.region,
+            tuple.x[total_points as usize],
         );
         vq_add_delta(
             &mut glyph.advance_width,
             true,
-            r,
-            delta_x[(i32::from(total_points) + 1) as usize] - delta_x[total_points as usize],
+            tuple.region,
+            tuple.x[(i32::from(total_points) + 1) as usize] - tuple.x[total_points as usize],
         );
     }
-    if (i32::from(total_points) + 3) < i32::from(n_touched_points) {
+    if (i32::from(total_points) + 3) < i32::from(n_touched) {
         vq_add_delta(
             &mut glyph.vertical_origin,
             true,
-            r,
-            delta_y[(i32::from(total_points) + 2) as usize],
+            tuple.region,
+            tuple.y[(i32::from(total_points) + 2) as usize],
         );
         vq_add_delta(
             &mut glyph.advance_height,
             true,
-            r,
-            delta_y[(i32::from(total_points) + 2) as usize]
-                - delta_y[(i32::from(total_points) + 3) as usize],
+            tuple.region,
+            tuple.y[(i32::from(total_points) + 2) as usize]
+                - tuple.y[(i32::from(total_points) + 3) as usize],
         );
     }
 }
@@ -538,15 +529,13 @@ fn polymorphize_glyph(
             read_packed_delta(gvar, after_x, n_points, &mut delta_y)?;
             // `apply_polymorphism` is a safe `fn` now; `glyph` reborrows
             // here exactly as it does across every iteration of this loop.
-            apply_polymorphism(
-                total_points,
-                glyph,
-                n_points,
-                &point_indeces,
-                &delta_x,
-                &delta_y,
-                &r,
-            );
+            let tuple = TupleDeltas {
+                region: &r,
+                points: &point_indeces,
+                x: &delta_x,
+                y: &delta_y,
+            };
+            apply_polymorphism(glyph, total_points, &tuple);
         }
         tsd_start = tsd_start.wrapping_add(variation_data_size as usize);
         tvh_offset = next_tvh_offset(gvar, tvh_offset, ctx.dimensions)?;
@@ -635,12 +624,6 @@ pub(super) fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut Glyf
             dimensions,
             shared_tuple_count,
             shared_tuples_offset: shared_tuples_offset as usize,
-            coord_dimensions: 2,
-            allow_iup: !glyph_slot
-                .as_deref()
-                .expect("read_glyf pushes Some for every glyph before polymorphize runs")
-                .contours
-                .is_empty(),
             n_phantom_points: ctx.n_phantom_points,
         };
         polymorphize_glyph(
@@ -770,7 +753,13 @@ mod gvar_polymorphize_tests {
         let points: [ShapeId; 2] = [0, 2];
         let delta_x: [Pos; 2] = [0.0, 100.0];
         let delta_y: [Pos; 2] = [0.0, 1000.0];
-        apply_polymorphism(3, &mut glyph, 2, &points, &delta_x, &delta_y, &r);
+        let tuple = TupleDeltas {
+            region: &r,
+            points: &points,
+            x: &delta_x,
+            y: &delta_y,
+        };
+        apply_polymorphism(&mut glyph, 3, &tuple);
 
         let p1 = &glyph.contours[0][1];
         // X: P1 sits 25% of the way from P0 to P2 -> interpolated
@@ -818,7 +807,13 @@ mod gvar_polymorphize_tests {
         let points: [ShapeId; 2] = [0, 1];
         let delta_x: [Pos; 2] = [5.0, 100.0];
         let delta_y: [Pos; 2] = [50.0, 200.0];
-        apply_polymorphism(2, &mut glyph, 2, &points, &delta_x, &delta_y, &r);
+        let tuple = TupleDeltas {
+            region: &r,
+            points: &points,
+            x: &delta_x,
+            y: &delta_y,
+        };
+        apply_polymorphism(&mut glyph, 2, &tuple);
 
         let p0 = &glyph.contours[0][0];
         assert_eq!(p0.x.shift.len(), 1);
