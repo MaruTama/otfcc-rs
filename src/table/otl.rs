@@ -34,6 +34,9 @@ use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 #[repr(transparent)]
 pub struct LookupType(u32);
 
+/// The known lookup types. gsub types are 16 plus the file's lookup type
+/// (1 to 8), gpos types 32 plus it (1 to 9); the `*_UNKNOWN` values are the bases
+/// themselves, and `OTL_TYPE_UNKNOWN` (0) is a lookup nothing is known about.
 pub const OTL_TYPE_GPOS_EXTEND: LookupType = LookupType(41);
 pub const OTL_TYPE_GPOS_CHAINING: LookupType = LookupType(40);
 pub const OTL_TYPE_GPOS_CONTEXT: LookupType = LookupType(39);
@@ -117,6 +120,9 @@ impl LookupType {
         }
     }
 }
+/// The contents of one lookup subtable, by kind. Contextual and chaining
+/// lookups of both tables share `Chaining`, and an extension subtable wraps
+/// whatever it points to.
 #[derive(Debug)]
 pub enum Subtable {
     GsubSingle(GsubSingleSubtable),
@@ -131,6 +137,9 @@ pub enum Subtable {
     GposMarkToLigature(GposMarkToLigatureSubtable),
     Extend(ExtendSubtable),
 }
+/// An extension subtable: `subtable` is the subtable it points to, of type
+/// `lookup_type`. It is `None` when resolving the extension failed (for example a
+/// type that does not match).
 #[derive(Debug)]
 pub struct ExtendSubtable {
     pub lookup_type: LookupType,
@@ -138,6 +147,8 @@ pub struct ExtendSubtable {
 }
 // Embedded by value in `Subtable::GposMarkToLigature` -- no `Copy`/`Clone`
 // needed once `mark_array`/`lig_array` own `Vec`s.
+/// A mark-to-ligature attachment: marks (with their mark class), and for each
+/// ligature one anchor per (component, mark class).
 #[derive(Debug)]
 pub struct GposMarkToLigatureSubtable {
     pub class_count: GlyphClass,
@@ -147,12 +158,16 @@ pub struct GposMarkToLigatureSubtable {
 /// Embedded by value in both `GposMarkToSingleSubtable` and
 /// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.
 pub type LigatureArray = Vec<LigatureBaseRecord>;
+/// One ligature glyph and its anchors: `anchors[component][mark_class]`, with
+/// `component_count` components.
 #[derive(Clone, Debug)]
 pub struct LigatureBaseRecord {
     pub glyph: GlyphHandle,
     pub component_count: GlyphId,
     pub anchors: Vec<Vec<Anchor>>,
 }
+/// An attachment point. `present` is false for a missing anchor, in which case
+/// `x` and `y` carry no meaning.
 #[derive(Copy, Clone, Debug)]
 pub struct Anchor {
     pub present: bool,
@@ -162,6 +177,7 @@ pub struct Anchor {
 /// Embedded by value in both `GposMarkToSingleSubtable` and
 /// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.
 pub type MarkArray = Vec<MarkRecord>;
+/// One mark glyph, its mark class, and the anchor on the mark that attaches it.
 #[derive(Clone, Debug)]
 pub struct MarkRecord {
     pub glyph: GlyphHandle,
@@ -170,6 +186,8 @@ pub struct MarkRecord {
 }
 // Embedded by value in `Subtable::GposMarkToSingle` -- no `Copy`/`Clone`
 // needed once `mark_array`/`base_array` own `Vec`s.
+/// A mark-to-base (or mark-to-mark) attachment: marks with their class, and for
+/// each base glyph one anchor per mark class.
 #[derive(Debug)]
 pub struct GposMarkToSingleSubtable {
     pub class_count: GlyphClass,
@@ -179,12 +197,16 @@ pub struct GposMarkToSingleSubtable {
 /// Embedded by value in `GposMarkToSingleSubtable`, not a `Subtable` union
 /// field itself.
 pub type BaseArray = Vec<BaseRecord>;
+/// One base glyph and its anchors, one per mark class.
 #[derive(Clone, Debug)]
 pub struct BaseRecord {
     pub glyph: GlyphHandle,
     pub anchors: Vec<Anchor>,
 }
+/// A cursive attachment subtable: one entry per glyph.
 pub type GposCursiveSubtable = Vec<GposCursiveEntry>;
+/// A glyph's cursive attachment: the anchor where the previous glyph joins
+/// (`enter`) and the anchor where the next one joins (`exit`).
 #[derive(Clone, Debug)]
 pub struct GposCursiveEntry {
     pub target: GlyphHandle,
@@ -193,6 +215,10 @@ pub struct GposCursiveEntry {
 }
 // `Copy` dropped: `first`/`second`/`first_values`/`second_values` all own
 // heap allocations now.
+/// A pair positioning subtable, always in class form: glyphs are grouped by the
+/// class definitions `first` and `second`, and `first_values` and `second_values`
+/// hold the adjustments for the first and second glyph of a pair, indexed by the
+/// class of the first glyph and then the class of the second.
 #[derive(Clone, Debug)]
 pub struct GposPairSubtable {
     pub first: Option<Box<ClassDef>>,
@@ -218,6 +244,8 @@ impl GposPairSubtable {
     }
 }
 const PAIR_HAS_CLASS_DEFS: &str = "a GposPairSubtable is built with both class definitions";
+/// A glyph position adjustment: placement (`dx`, `dy`) and advance
+/// (`d_width`, `d_height`) changes.
 #[derive(Copy, Clone, Debug)]
 pub struct PositionValue {
     pub dx: Pos,
@@ -225,12 +253,18 @@ pub struct PositionValue {
     pub d_width: Pos,
     pub d_height: Pos,
 }
+/// A single positioning subtable: one adjustment per glyph.
 pub type GposSingleSubtable = Vec<GposSingleEntry>;
+/// One glyph and the adjustment applied to it.
 #[derive(Clone, Debug)]
 pub struct GposSingleEntry {
     pub target: GlyphHandle,
     pub value: PositionValue,
 }
+/// A reverse chaining single substitution: `sequence` holds `match_count`
+/// coverages, the one at `input_index` being the input (earlier ones are the
+/// backtrack, in text order; later ones the lookahead). `to` gives the
+/// replacement glyphs, in the order of the input coverage.
 #[derive(Clone, Debug)]
 pub struct GsubReverseSubtable {
     pub match_count: TableId,
@@ -257,6 +291,10 @@ pub struct ChainingRuleSet {
     pub ic: Option<Box<ClassDef>>,
     pub fc: Option<Box<ClassDef>>,
 }
+/// One contextual or chaining rule. `sequence` holds `match_count` coverages in
+/// text order: the backtrack, then the input (`input_begins` to `input_ends`, end
+/// exclusive), then the lookahead. `apply` lists the lookups to run, with `index`
+/// counted from the start of `sequence`.
 #[derive(Default, Debug)]
 pub struct ChainingRule {
     pub match_count: TableId,
@@ -265,29 +303,39 @@ pub struct ChainingRule {
     pub sequence: Vec<Coverage>,
     pub apply: Vec<ChainLookupApplication>,
 }
+/// One lookup application of a chaining rule: run `lookup` at position `index`
+/// of the rule's sequence.
 #[derive(Clone, Debug)]
 pub struct ChainLookupApplication {
     pub index: TableId,
     pub lookup: LookupHandle,
 }
+/// A ligature substitution subtable.
 pub type GsubLigatureSubtable = Vec<GsubLigatureEntry>;
+/// A ligature: the sequence of glyphs `from` is replaced by the glyph `to`.
 #[derive(Clone, Debug)]
 pub struct GsubLigatureEntry {
     pub from: Coverage,
     pub to: GlyphHandle,
 }
+/// A multiple substitution subtable.
 pub type GsubMultiSubtable = Vec<GsubMultiEntry>;
+/// A multiple substitution: the glyph `from` is replaced by the glyphs in `to`.
 #[derive(Clone, Debug)]
 pub struct GsubMultiEntry {
     pub from: GlyphHandle,
     pub to: Coverage,
 }
+/// A single substitution subtable.
 pub type GsubSingleSubtable = Vec<GsubSingleEntry>;
+/// A single substitution: the glyph `from` is replaced by the glyph `to`.
 #[derive(Clone, Debug)]
 pub struct GsubSingleEntry {
     pub from: GlyphHandle,
     pub to: GlyphHandle,
 }
+/// One lookup: its name (generated when the file gives none), its type, the
+/// `lookupFlag` bits, and its subtables.
 #[derive(Debug)]
 pub struct Lookup {
     pub name: Vec<u8>,
@@ -327,6 +375,7 @@ pub(crate) fn lookup_at(list: &LookupList, idx: LookupIdx) -> Option<&Lookup> {
 }
 // Indices into `OtlTable.lookups`; owns nothing.
 pub type LookupRefList = Vec<LookupIdx>;
+/// A feature: a tag-like name and the lookups it runs, by index.
 #[derive(Debug)]
 pub struct Feature {
     pub name: Vec<u8>,
@@ -345,6 +394,8 @@ pub(crate) fn feature_at(list: &FeatureList, idx: FeatureIdx) -> Option<&Feature
 }
 // Indices into `OtlTable.features`; owns nothing.
 pub type FeatureRefList = Vec<FeatureIdx>;
+/// A script/language system: its name (script tag, `_`, language tag), an
+/// optional required feature, and its features.
 #[derive(Debug)]
 pub struct LanguageSystem {
     pub name: Vec<u8>,
@@ -353,6 +404,8 @@ pub struct LanguageSystem {
 }
 /// `required_feature` and `features` are indices into `OtlTable.features`.
 pub type LangSystemList = Vec<Box<LanguageSystem>>;
+/// A GSUB or GPOS table: lookups, features and language systems. Features refer
+/// to lookups, and language systems to features, by index.
 #[derive(Debug)]
 pub struct OtlTable {
     pub lookups: LookupList,
