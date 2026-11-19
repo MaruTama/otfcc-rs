@@ -10,12 +10,15 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// One SVG document and the range of glyph ids (`start` to `end`, inclusive) it
+/// draws.
 #[derive(Debug)]
 pub struct SvgAssignment {
     pub start: GlyphId,
     pub end: GlyphId,
     pub document: Vec<u8>,
 }
+/// The 'SVG ' table: the document assignments in the font.
 pub type SvgTable = Vec<SvgAssignment>;
 #[inline]
 fn svg_assignment_empty() -> SvgAssignment {
@@ -68,6 +71,8 @@ fn decode_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
     }
     Ok(svg)
 }
+/// Reads the 'SVG ' table from `packet`. Returns `None` when the table is absent
+/// or corrupted.
 pub fn read_svg(packet: &Packet) -> Option<SvgTable> {
     let table = packet
         .pieces
@@ -88,6 +93,9 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && i32::from(doc[3]) == 'm' as i32
             && i32::from(doc[4]) == 'l' as i32
 }
+/// Dumps the table as the `"SVG_"` array. A document that starts like an SVG or
+/// XML text is written as `plain`; anything else (for example a compressed
+/// document) is written as `base64`.
 pub fn dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
     let svg = match svg {
         Some(s) => s,
@@ -115,6 +123,9 @@ pub fn dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue) {
         stage.finish();
     }
 }
+/// Reads the `"SVG_"` array. `base64` documents are decoded (an invalid one is
+/// skipped with a warning), `plain` documents are taken as they are. Entries that
+/// are not objects or lack `format` or `document` are skipped.
 pub fn parse_svg(root: &ParsedValue) -> Option<SvgTable> {
     let svg_val = root.get_typed(b"SVG_", JsonType::Array)?;
     let mut svg: SvgTable = Vec::new();
@@ -148,6 +159,8 @@ pub fn parse_svg(root: &ParsedValue) -> Option<SvgTable> {
     }
     Some(svg)
 }
+/// Serializes the table, with the documents sorted by their first glyph id.
+/// Returns `None` when there are none.
 pub fn build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     let _svg = match _svg {
         Some(s) if !s.is_empty() => s,
