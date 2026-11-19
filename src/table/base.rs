@@ -8,26 +8,34 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// A baseline coordinate: the baseline named by `tag` (such as `ideo` or
+/// `romn`) sits at `coordinate`.
 #[derive(Copy, Clone, Debug)]
 pub struct BaseValue {
     pub tag: u32,
     pub coordinate: Pos,
 }
+/// The baselines of one script: the script `tag`, its default baseline, and
+/// the coordinate of each baseline it defines.
 #[derive(Debug)]
 pub struct BaseScriptEntry {
     pub tag: u32,
     pub default_baseline_tag: u32,
     pub base_values: Vec<BaseValue>,
 }
+/// One direction's baseline data: one entry per script.
 #[derive(Debug)]
 pub struct BaseAxis {
     pub entries: Vec<BaseScriptEntry>,
 }
+/// The `BASE` table: baseline data for the horizontal and the vertical axis,
+/// either of which may be absent.
 #[derive(Debug)]
 pub struct BaseTable {
     pub horizontal: Option<Box<BaseAxis>>,
     pub vertical: Option<Box<BaseAxis>>,
 }
+/// The distinct baseline tags used by an axis, collected when building it.
 #[derive(Debug)]
 pub struct BaseTagList {
     pub items: Vec<u32>,
@@ -173,6 +181,8 @@ fn decode_base(data: &[u8]) -> Result<BaseAxisPair, ReadError> {
         .flatten();
     Ok((horizontal, vertical))
 }
+/// Reads the `BASE` table from `packet`, or `None` if it is missing or
+/// malformed.
 pub fn read_base(packet: &Packet) -> Option<Box<BaseTable>> {
     let table = packet
         .pieces
@@ -216,6 +226,7 @@ fn axis_to_json(axis: &BaseAxis) -> BuiltValue {
     }
     _axis
 }
+/// Writes `base` into `root` as the JSON `BASE` object (nothing if `None`).
 pub fn dump_base(base: Option<&BaseTable>, root: &mut BuiltValue) {
     let Some(base) = base else { return };
     let stage = crate::logger::stage("BASE");
@@ -271,6 +282,7 @@ fn axis_from_json(axis: Option<&ParsedValue>) -> Option<Box<BaseAxis>> {
     entries.sort_by_key(|e| e.tag);
     Some(Box::new(BaseAxis { entries }))
 }
+/// Reads a `BASE` table from the JSON `root`, or `None` if it has none.
 pub fn parse_base(root: &ParsedValue) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
     let table = root.get_typed(b"BASE", JsonType::Object);
@@ -288,6 +300,7 @@ pub fn parse_base(root: &ParsedValue) -> Option<Box<BaseTable>> {
     }
     base
 }
+/// Lays out one axis as a block graph node, ready to be linked into the table.
 pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
     let mut taglist: BaseTagList = BaseTagList { items: Vec::new() };
     for entry in axis.entries.iter() {
@@ -377,6 +390,7 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
         bk_ptr(BkCellType::P16, Some(base_script_list)),
     ])
 }
+/// Builds the binary `BASE` table, or `None` if `base` is `None`.
 pub fn build_base(base: Option<&BaseTable>) -> Option<Buffer> {
     let base = base?;
     let horizontal_bk = base.horizontal.as_deref().map(axis_to_bk);
