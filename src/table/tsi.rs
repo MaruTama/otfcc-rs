@@ -10,6 +10,9 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// What a TSI entry holds: the source of one glyph's program, or of one of
+/// the font-wide programs. In the index, the font-wide entries take reserved
+/// glyph ids (`prep` 0xFFFA, `cvt` 0xFFFB, reserved 0xFFFC, `fpgm` 0xFFFD).
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum TsiEntryType {
@@ -19,20 +22,19 @@ pub enum TsiEntryType {
     Cvt = 3,
     ReservedFffc = 4,
 }
+/// One entry of a TSI table pair: its kind, the glyph it belongs to (empty
+/// for the font-wide entries) and its source text.
 #[derive(Clone, Debug)]
 pub struct TsiEntry {
     pub kind: TsiEntryType,
     pub glyph: GlyphHandle,
     pub content: Vec<u8>,
 }
+/// A VTT (Visual TrueType) source table pair: `TSI0`/`TSI1` hold the
+/// glyph program sources, `TSI2`/`TSI3` the VTT Talk sources. The first
+/// table of a pair is the index, the second the text it points into.
 pub type TsiTable = Vec<TsiEntry>;
-// `TsiEntry` derives only `Clone`, not `Copy` (it embeds `GlyphHandle`,
-// which owns its `sds` name for real -- `Handle`'s `Drop`/`Clone`, Stage
-// 6-4's `Handle` pilot -- and `content` is now a real `Vec<u8>`, also not
-// `Copy`). `TABLE_I_TSI.copy` (whole-table clone) was dead before this
-// conversion and is deleted below, not ported -- the one real duplicate
-// this file needs is per-element (`tsi_entry_dup`, used once from
-// `consolidate/tsi.rs`), not a `Vec::clone()`.
+/// A copy of one entry, for `consolidate/tsi.rs`.
 pub(crate) fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     TsiEntry {
         kind: e.kind,
@@ -40,6 +42,8 @@ pub(crate) fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
         content: e.content.clone(),
     }
 }
+/// The two tables `build_tsi` writes: the index (`TSI0`/`TSI2`) and the
+/// text (`TSI1`/`TSI3`). Both are `None` when there is no table to write.
 #[derive(Debug)]
 pub struct TsiBuildTarget {
     pub index_part: Option<Buffer>,
@@ -72,6 +76,11 @@ fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, Re
     })
 }
 
+/// Reads the TSI pair whose index table is `tag_index` and text table is
+/// `tag_text`, or `None` if either is missing. Index entries that point
+/// outside the text table, have zero length or use a reserved glyph id are
+/// skipped. A length of 0x8000 or more means "longer than fits": the text
+/// then runs to the next entry's offset, or to the end of the table.
 pub fn read_tsi(packet: &Packet, tag_index: u32, tag_text: u32) -> Option<TsiTable> {
     let index_part = packet.pieces.iter().find(|p| p.tag == tag_index)?;
     let text_part = packet.pieces.iter().find(|p| p.tag == tag_text)?;
@@ -145,6 +154,8 @@ pub fn read_tsi(packet: &Packet, tag_index: u32, tag_text: u32) -> Option<TsiTab
     }
     Some(tsi)
 }
+/// Writes `tsi` into `root` under `tag` as `{ "glyphs": { name: text },
+/// "extra": { "cvt" | "fpgm" | "prep": text } }` (nothing if `None`).
 pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
     let tsi = match tsi {
         Some(t) => t,
@@ -181,6 +192,9 @@ pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
         stage.finish();
     }
 }
+/// Reads the JSON object `tag` written by `dump_tsi`, or `None` if `root`
+/// has none. Values that are not strings, and `extra` keys other than
+/// `cvt`, `fpgm` and `prep`, are skipped.
 pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
     let _tsi = root.get_typed(tag, JsonType::Object)?;
     let mut tsi: TsiTable = Vec::new();
@@ -280,6 +294,10 @@ fn push_tsi_entries(
         index_part.write_u32be(text_pos as u32);
     }
 }
+/// Writes the index and text tables. The glyph entries come first, then the
+/// 0xFFFE marker record, then `prep`, `cvt`, the reserved entry and `fpgm`;
+/// each of those four is written at least once, as an empty record if the
+/// table has no such entry.
 pub fn build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
     let Some(tsi) = tsi else {
         return TsiBuildTarget {

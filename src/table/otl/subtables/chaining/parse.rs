@@ -6,6 +6,9 @@ use otfcc_json::JsonType;
 
 use crate::table::otl::coverage::parse_coverage;
 use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingSubtable, Subtable};
+/// Reads the object written by `otl_dump_chaining` into a single-rule
+/// subtable, or `None` if `match` or `apply` is missing. Without
+/// `inputBegins`/`inputEnds` the whole match is the input.
 pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let sv = _subtable;
     let match_val = sv.and_then(|v| v.get_typed(b"match", JsonType::Array));

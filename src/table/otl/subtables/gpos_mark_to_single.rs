@@ -21,14 +21,13 @@ use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr,
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
-// `2 * bases.len() * class_count` (the BaseArray's byte-length guard) is a
-// real, previously-undocumented overflow-defeats-guard bug: `bases.len()`
-// can be as large as the glyph count (bounded by `GlyphId`, up to 65535)
-// and `class_count` is an independent, unbounded `u16` read straight from
-// the file -- their product can exceed `i32::MAX` (65535*65535*2 is
-// ~8.6 billion), the same class of bug as `cmap.rs`'s `n_groups` guard,
-// just reached by two independently-large factors instead of one. Fixed
-// with `checked_mul` before ever calling `require_room`.
+// The BaseArray's byte length, `2 * bases.len() * class_count`, is computed
+// with `checked_mul` before `require_room`: both factors can be 65,535, and
+// the product (~8.6 billion) would otherwise overflow and defeat the check.
+/// Reads a mark-to-base or mark-to-mark subtable (GPOS 4 and 6, which share
+/// one layout): the marks with their classes and anchors, and for each base
+/// glyph one anchor per mark class. Returns `None` if the header, either
+/// coverage or the base array is malformed.
 pub fn otl_read_gpos_mark_to_single(
     data: &[u8],
     subtable_offset: u32,
@@ -137,6 +136,9 @@ pub fn otl_read_gpos_mark_to_single(
 
     None
 }
+/// Writes the subtable as `{ marks, bases }`. Mark classes are named
+/// `anchor<N>`; each base maps the class names it has an anchor for to
+/// `{ x, y }`.
 pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
     let Subtable::GposMarkToSingle(subtable) = st else {
         unreachable!()
@@ -154,10 +156,8 @@ pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
     }
     for base in subtable.base_array.iter() {
         let mut _base = BuiltValue::new_object(subtable.class_count as usize);
-        // `k`'s own value feeds the output key (`anchor<class id>`), so
-        // this needs `.enumerate()`; bounded by `subtable.class_count`,
-        // not assumed equal to `base.anchors.len()` (same count-vs-length
-        // caution as PR #422/#423/#426/#427).
+        // Bounded by `subtable.class_count`, which need not equal
+        // `base.anchors.len()`.
         for (k, anchor) in base
             .anchors
             .iter()
@@ -222,6 +222,9 @@ fn parse_bases(
         }
     }
 }
+/// Reads the object written by `otl_gpos_dump_mark_to_single`, or `None`
+/// if `marks` or `bases` is missing. A base anchor naming a class no mark
+/// uses is dropped with a warning.
 pub fn otl_gpos_parse_mark_to_single(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let marks = _subtable.and_then(|v| v.get_typed(b"marks", JsonType::Object));
     let bases = _subtable.and_then(|v| v.get_typed(b"bases", JsonType::Object));
@@ -239,6 +242,7 @@ pub fn otl_gpos_parse_mark_to_single(_subtable: Option<&ParsedValue>) -> Option<
         base_array,
     }))
 }
+/// Writes the subtable as MarkBasePos / MarkMarkPos format 1.
 pub fn build_gpos_mark_to_single(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GposMarkToSingle(subtable) = _subtable else {
         unreachable!()

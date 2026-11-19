@@ -26,10 +26,8 @@ use otfcc_binary::bk::graph::{
 use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 
-// `fv`/`sv` hold the matched cell's value directly now, not a pointer into
-// `first_values`/`second_values` -- `PositionValue` is `Copy`, and with the
-// grid a real `Vec<Vec<PositionValue>>` there is no backing array to point
-// into that outlives this struct's own use (a single build pass).
+/// One pair of a PairPos format 1 PairSet while it is being built: the
+/// second glyph and the values for the first and the second glyph.
 #[derive(Copy, Clone, Debug)]
 pub struct IndividualGposPair {
     pub gid: GlyphId,
@@ -66,6 +64,10 @@ fn pair_second_glyph(data: &[u8], pos: usize) -> u16 {
         .and_then(|mut r| r.u16())
         .expect("the PairSet's require_room covered every record")
 }
+/// Reads a pair adjustment subtable (GPOS 2) of either format. Both are kept
+/// in the format 2 shape: a class definition for each side and a value
+/// matrix per side. Returns `None` for an unknown format or a malformed
+/// subtable.
 pub fn otl_read_gpos_pair(
     data: &[u8],
     offset: u32,
@@ -282,6 +284,10 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     subtable.second_values = second_values;
     Some(Subtable::GposPair(subtable))
 }
+/// Writes the subtable as `{ first, second, matrix }`: the two class
+/// definitions and one row per first class. A cell is `0` when there is no
+/// adjustment, a bare number when only the first glyph's advance changes,
+/// and `{ first, second }` value records otherwise.
 pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
@@ -333,6 +339,8 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
 /// buildable subtable, and keeps the two matrices under 70 MB.
 const MAX_CLASS_MATRIX_ENTRIES: usize = 1 << 20;
 
+/// Reads the object written by `otl_gpos_dump_pair`, or `None` if `matrix`
+/// or either class definition is missing, or the matrix is too large.
 pub fn otl_gpos_parse_pair(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
     let sv = _subtable;
     let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array))?;
@@ -395,6 +403,8 @@ fn cov_from_cd(cd: &ClassDef) -> Coverage {
     }
     cov
 }
+/// Lays out the subtable as PairPos format 1, one pair record per glyph pair
+/// with a non-zero adjustment.
 pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
@@ -492,6 +502,7 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     }
     root
 }
+/// Lays out the subtable as PairPos format 2, the class matrix as is.
 pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
@@ -558,6 +569,8 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     }
     root
 }
+/// Writes whichever of PairPos format 1 and format 2 comes out smaller;
+/// format 1 on a tie.
 pub fn build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let format1: BkBlock = build_gpos_pair_individual(_subtable);
     let format2: BkBlock = build_gpos_pair_classes(_subtable);

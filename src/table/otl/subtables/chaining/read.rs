@@ -93,6 +93,8 @@ pub enum ContextKind {
     Input = 2,
     Lookahead = 3,
 }
+/// The coverage of one position of a format 1 rule, which stores glyph ids:
+/// just the glyph `gid`.
 pub fn single_coverage(
     mut _data: &[u8],
     gid: u16,
@@ -105,6 +107,11 @@ pub fn single_coverage(
     push_to_coverage(&mut cov, handle_from_index(gid) as GlyphHandle);
     cov
 }
+/// The coverage of one position of a format 2 rule, which stores class
+/// numbers: the glyphs given class `cls` by the backtrack, input or
+/// lookahead class definition, chosen by `kind`. Class 0 is every glyph
+/// below `max_glyphs` that the class definition gives no other class. The
+/// work is charged to `budget`; once it runs out, the coverage is cut short.
 pub fn class_coverage(
     mut _data: &[u8],
     cls: u16,
@@ -114,15 +121,8 @@ pub fn class_coverage(
     defs: &ClassDefs,
     budget: &mut OtlReadBudget,
 ) -> Coverage {
-    // `.expect()`, not a null-pointer deref: every caller that reaches here
-    // (`general_read_contextual_rule`/`general_read_chaining_rule` via
-    // `class_coverage`'s `coverage_of` slot) only ever asks for a `kind` whose
-    // matching field was populated by `read_contextual_format2`/
-    // `read_chaining_format2` beforehand -- `read_class_def` itself never
-    // returns null, so this can't actually fail; panicking instead of a
-    // would-be null deref matches this migration's general "UB becomes a
-    // panic" idiom (see e.g. `general_read_contextual_rule`'s own
-    // `.expect()` calls above).
+    // A contextual format 2 subtable sets only `ic`, but its rules only ask
+    // for `ContextKind::Input`; a chaining one sets all three.
     let cd: &ClassDef = match kind {
         ContextKind::Backtrack => defs.bc.as_deref(),
         ContextKind::Input => defs.ic.as_deref(),
@@ -199,6 +199,9 @@ pub fn class_coverage(
     }
     cov
 }
+/// The coverage of one position of a format 3 rule, which stores offsets to
+/// Coverage tables. `shift` is relative to the subtable, and `_offset` is
+/// the rule's position, two bytes past the subtable's start.
 pub fn format3_coverage(
     data: &[u8],
     shift: u16,
@@ -213,6 +216,12 @@ pub fn format3_coverage(
         budget,
     )
 }
+/// Reads one contextual rule (input sequence and lookup records) at
+/// `offset`, turning each stored input value into a coverage with
+/// `coverage_of`. With `minus_one` (formats 1 and 2) the first input
+/// position is not stored; it is `start_gid`, the covered glyph or class
+/// that selected this rule set. Returns `None` if the rule does not fit in
+/// `slice`.
 // The `FontReader` reads and `require_room` checks below never reserve
 // bytes the following reads do not use.
 pub fn general_read_contextual_rule(
@@ -505,6 +514,9 @@ fn read_contextual_format2(
         None
     }
 }
+/// Reads a contextual subtable (GSUB 5, GPOS 7) of any of the three formats
+/// into a rule set. Returns `None` for an unknown format or a malformed
+/// format 1 or 2 header; a single malformed rule is dropped instead.
 pub fn otl_read_contextual(
     data: &[u8],
     offset: u32,
@@ -549,6 +561,10 @@ pub fn otl_read_contextual(
     tracing::warn!("Unsupported format {}.\n", i32::from(format));
     None
 }
+/// Reads one chaining rule (backtrack, input and lookahead sequences, then
+/// lookup records) at `offset`; otherwise the same as
+/// `general_read_contextual_rule`. The backtrack sequence is stored in
+/// reading order, not the font's nearest-first order.
 pub fn general_read_chaining_rule(
     slice: &[u8],
     offset: u32,
@@ -872,22 +888,20 @@ fn read_chaining_format2(
         break 'parse Some(());
     };
 
-    // `cds` (a plain `Option<ClassDefs>` local, same as `read_contextual_
-    // format2`) auto-drops when this function returns -- no manual
-    // cleanup needed.
     if result.is_some() {
         Some(subtable)
     } else {
         None
     }
 }
+/// Reads a chaining contextual subtable (GSUB 6, GPOS 8); otherwise the
+/// same as `otl_read_contextual`.
 pub fn otl_read_chaining(
     data: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
-    // See the identical comment in `otl_read_contextual`.
     let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
     let mut format: u16 = 0;
     if let Ok(mut r) = FontReader::new(data).at(offset as usize)
