@@ -137,40 +137,43 @@ pub fn parse_colr(root: &ParsedValue) -> Option<ColrTable> {
     let mut colr: ColrTable = Vec::new();
     let stage = crate::logger::stage("COLR");
     if let Some(mappings) = colr_val.as_array() {
-        for mapping in mappings {
-            if mapping.as_object().is_none() {
-                continue;
-            }
-            let baseglyph = mapping.get_typed(b"from", JsonType::String);
-            let layers_val = mapping.get_typed(b"to", JsonType::Array);
-            if let (Some(baseglyph), Some(layers_val)) = (baseglyph, layers_val) {
-                let mut m: ColrMapping = ColrMapping {
-                    glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
-                    layers: Vec::new(),
-                };
-                m.glyph = handle_from_name(baseglyph.as_str_bytes().map(|b| b.to_vec()));
-                if let Some(layer_items) = layers_val.as_array() {
-                    for layer in layer_items {
-                        if layer.as_object().is_none() {
-                            continue;
-                        }
-                        if let Some(layerglyph) = layer.get_typed(b"layer", JsonType::String) {
-                            m.layers.push(ColrLayer {
-                                glyph: handle_from_name(
-                                    layerglyph.as_str_bytes().map(|b| b.to_vec()),
-                                ),
-                                palette_index: layer.get_int_or(b"paletteIndex", 0xffff) as ColorId,
-                            });
-                        }
-                    }
-                }
-                colr.push(m);
-            }
-        }
+        colr.extend(
+            mappings
+                .iter()
+                .filter(|mapping| mapping.as_object().is_some())
+                .filter_map(parse_colr_mapping),
+        );
     }
     stage.finish();
     Some(colr)
 }
+
+/// One `{from, to}` object. `None` when `from` or `to` is missing or has the
+/// wrong type.
+fn parse_colr_mapping(mapping: &ParsedValue) -> Option<ColrMapping> {
+    let baseglyph = mapping.get_typed(b"from", JsonType::String)?;
+    let layers_val = mapping.get_typed(b"to", JsonType::Array)?;
+    Some(ColrMapping {
+        glyph: handle_from_name(baseglyph.as_str_bytes().map(|b| b.to_vec())),
+        layers: layers_val
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|layer| layer.as_object().is_some())
+            .filter_map(parse_colr_layer)
+            .collect(),
+    })
+}
+
+/// One `{layer, paletteIndex}` object. `None` when `layer` is missing.
+fn parse_colr_layer(layer: &ParsedValue) -> Option<ColrLayer> {
+    let layerglyph = layer.get_typed(b"layer", JsonType::String)?;
+    Some(ColrLayer {
+        glyph: handle_from_name(layerglyph.as_str_bytes().map(|b| b.to_vec())),
+        palette_index: layer.get_int_or(b"paletteIndex", 0xffff) as ColorId,
+    })
+}
+
 /// Serializes the table (version 0). Returns `None` when there are no mappings.
 /// Base glyph records are sorted by glyph index, as the format requires, and the
 /// layers are numbered in that order.

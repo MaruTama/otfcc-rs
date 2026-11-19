@@ -2,8 +2,8 @@ use crate::support::primitives::ShapeId;
 use otfcc_binary::Buffer;
 
 use crate::table::glyf::{
-    ComponentFlags, GlyfAndLocaBuffers, GlyfTable, Glyph, MASK_ON_CURVE, PointFlags,
-    RefAnchorStatus,
+    ComponentFlags, ComponentReference, GlyfAndLocaBuffers, GlyfTable, Glyph, MASK_ON_CURVE,
+    PointFlags, RefAnchorStatus,
 };
 use crate::table::head::HeadTable;
 
@@ -123,39 +123,8 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         } else {
             ComponentFlags::empty()
         };
-        let output_anchor: bool = r.is_anchored.get() == RefAnchorStatus::AnchorConsolidated;
-        // `arg1`/`arg2` are point ids or signed offsets; either way they
-        // are written as raw 16-bit patterns (`as u16` keeps an `i16`'s
-        // bits).
-        let (arg1, arg2): (u16, u16) = if output_anchor {
-            let a1 = r.outer;
-            let a2 = r.inner;
-            if !(i32::from(a1) < 0x100 && i32::from(a2) < 0x100) {
-                flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
-            }
-            (a1, a2)
-        } else {
-            flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
-            let c1 = vq_get_still(r.x.borrow().clone()) as i16;
-            let c2 = vq_get_still(r.y.borrow().clone()) as i16;
-            if !(i32::from(c1) < 128
-                && i32::from(c1) >= -128
-                && i32::from(c2) < 128
-                && i32::from(c2) >= -128)
-            {
-                flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
-            }
-            (c1 as u16, c2 as u16)
-        };
-        if r.b.abs() > EPSILON || r.c.abs() > EPSILON {
-            flags.insert(ComponentFlags::WE_HAVE_A_TWO_BY_TWO);
-        } else if (r.a - 1.0).abs() > EPSILON || (r.d - 1.0).abs() > EPSILON {
-            if (r.a - r.d).abs() > EPSILON {
-                flags.insert(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE);
-            } else {
-                flags.insert(ComponentFlags::WE_HAVE_A_SCALE);
-            }
-        }
+        let (arg1, arg2) = component_arguments(r, &mut flags);
+        flags.insert(component_transform_flags(r));
         if r.round_to_grid {
             flags.insert(ComponentFlags::ROUND_XY_TO_GRID);
         }
@@ -172,21 +141,74 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
             gbuf.write_u8(arg1 as u8);
             gbuf.write_u8(arg2 as u8);
         }
-        if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
-            gbuf.write_u16be(to_f2dot14(r.a) as u16);
-        } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
-            gbuf.write_u16be(to_f2dot14(r.a) as u16);
-            gbuf.write_u16be(to_f2dot14(r.d) as u16);
-        } else if flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
-            gbuf.write_u16be(to_f2dot14(r.a) as u16);
-            gbuf.write_u16be(to_f2dot14(r.b) as u16);
-            gbuf.write_u16be(to_f2dot14(r.c) as u16);
-            gbuf.write_u16be(to_f2dot14(r.d) as u16);
-        }
+        write_component_transform(gbuf, flags, r);
     }
     if !g.instructions.is_empty() {
         gbuf.write_u16be(g.instructions.len() as u16);
         gbuf.write_bytes(&g.instructions);
+    }
+}
+
+/// The two placement arguments of a component, and the flags that describe
+/// them: either an anchor (a pair of point ids) or an x/y offset. They are
+/// returned as raw 16-bit patterns; `ARG_1_AND_2_ARE_WORDS` is set in `flags`
+/// when they do not fit in a byte.
+fn component_arguments(r: &ComponentReference, flags: &mut ComponentFlags) -> (u16, u16) {
+    let output_anchor: bool = r.is_anchored.get() == RefAnchorStatus::AnchorConsolidated;
+    // `arg1`/`arg2` are point ids or signed offsets; either way they
+    // are written as raw 16-bit patterns (`as u16` keeps an `i16`'s
+    // bits).
+    if output_anchor {
+        let a1 = r.outer;
+        let a2 = r.inner;
+        if !(i32::from(a1) < 0x100 && i32::from(a2) < 0x100) {
+            flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
+        }
+        (a1, a2)
+    } else {
+        flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
+        let c1 = vq_get_still(r.x.borrow().clone()) as i16;
+        let c2 = vq_get_still(r.y.borrow().clone()) as i16;
+        if !(i32::from(c1) < 128
+            && i32::from(c1) >= -128
+            && i32::from(c2) < 128
+            && i32::from(c2) >= -128)
+        {
+            flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
+        }
+        (c1 as u16, c2 as u16)
+    }
+}
+
+/// Which transform form a component needs: none, one scale, separate x/y
+/// scales, or a full 2x2 matrix, judged by how far `a`, `b`, `c`, `d` are
+/// from the identity.
+fn component_transform_flags(r: &ComponentReference) -> ComponentFlags {
+    if r.b.abs() > EPSILON || r.c.abs() > EPSILON {
+        ComponentFlags::WE_HAVE_A_TWO_BY_TWO
+    } else if (r.a - 1.0).abs() > EPSILON || (r.d - 1.0).abs() > EPSILON {
+        if (r.a - r.d).abs() > EPSILON {
+            ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE
+        } else {
+            ComponentFlags::WE_HAVE_A_SCALE
+        }
+    } else {
+        ComponentFlags::empty()
+    }
+}
+
+/// Writes the transform values selected by `flags`, as F2Dot14.
+fn write_component_transform(gbuf: &mut Buffer, flags: ComponentFlags, r: &ComponentReference) {
+    if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
+        gbuf.write_u16be(to_f2dot14(r.a) as u16);
+    } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
+        gbuf.write_u16be(to_f2dot14(r.a) as u16);
+        gbuf.write_u16be(to_f2dot14(r.d) as u16);
+    } else if flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
+        gbuf.write_u16be(to_f2dot14(r.a) as u16);
+        gbuf.write_u16be(to_f2dot14(r.b) as u16);
+        gbuf.write_u16be(to_f2dot14(r.c) as u16);
+        gbuf.write_u16be(to_f2dot14(r.d) as u16);
     }
 }
 pub fn build_glyf(table: Option<&GlyfTable>, head: Option<&mut HeadTable>) -> GlyfAndLocaBuffers {
