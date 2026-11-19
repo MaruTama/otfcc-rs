@@ -11,7 +11,8 @@ use crate::table::otl::subtables::chaining::common::{
     chaining_is_classified, chaining_rule_const, chaining_ruleset_const, chaining_subtable_ref,
 };
 use crate::table::otl::{
-    ChainingRule, ChainingSubtable, Lookup, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING,
+    ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, OTL_TYPE_GPOS_CHAINING,
+    OTL_TYPE_GSUB_CHAINING,
 };
 use otfcc_binary::bk::block::bk_new_block_from_buffer;
 use otfcc_binary::bk::graph::bk_build_block;
@@ -149,17 +150,7 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
         ),
         bk_int(BkCellType::B16, (i32::from(ic.maxclass) + 1) as u32),
     ]);
-    let mut rcpg: Vec<GlyphClass> = vec![0; (i32::from(ic.maxclass) + 1) as usize];
-    for slot in ruleset.rules.iter() {
-        let rule_j0: &ChainingRule = slot
-            .as_deref()
-            .expect("chaining rule slot should never be None at build time");
-        let ib: TableId = rule_j0.input_begins;
-        let start_class: TableId = rule_j0.sequence[ib as usize][0].index as TableId;
-        if i32::from(start_class) <= i32::from(ic.maxclass) {
-            rcpg[start_class as usize] = rcpg[start_class as usize].wrapping_add(1);
-        }
-    }
+    let rcpg = count_rules_per_start_class(ruleset, ic.maxclass);
     for (j_1, &count) in rcpg.iter().enumerate() {
         if count != 0 {
             let mut cset: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, u32::from(count))]);
@@ -170,65 +161,10 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
                 let class_of_first_input: GlyphClass =
                     rule.sequence[rule.input_begins as usize][0].index as GlyphClass;
                 if class_of_first_input as usize == j_1 {
-                    // Same clone-then-reverse-locally treatment as
-                    // `build_chaining_coverage` above.
-                    let mut backtrack: Vec<Coverage> =
-                        rule.sequence[..rule.input_begins as usize].to_vec();
-                    backtrack.reverse();
-                    let n_backtrack: TableId = rule.input_begins;
-                    let n_input: TableId =
-                        (i32::from(rule.input_ends) - i32::from(rule.input_begins)) as TableId;
-                    let n_lookahead: TableId =
-                        (i32::from(rule.match_count) - i32::from(rule.input_ends)) as TableId;
-                    let mut r: BkBlock = bk_new_block(Vec::new());
                     bk_push(
-                        &mut r,
-                        vec![bk_int(BkCellType::B16, i32::from(n_backtrack) as u32)],
+                        &mut cset,
+                        vec![bk_ptr(BkCellType::P16, Some(build_class_rule(rule)))],
                     );
-                    for cov in backtrack.iter() {
-                        bk_push(
-                            &mut r,
-                            vec![bk_int(BkCellType::B16, u32::from(cov[0].index))],
-                        );
-                    }
-                    bk_push(
-                        &mut r,
-                        vec![bk_int(BkCellType::B16, i32::from(n_input) as u32)],
-                    );
-                    let m_0_start = (i32::from(rule.input_begins) + 1) as usize;
-                    for cov in &rule.sequence[m_0_start..rule.input_ends as usize] {
-                        bk_push(
-                            &mut r,
-                            vec![bk_int(BkCellType::B16, u32::from(cov[0].index))],
-                        );
-                    }
-                    bk_push(
-                        &mut r,
-                        vec![bk_int(BkCellType::B16, i32::from(n_lookahead) as u32)],
-                    );
-                    for cov in &rule.sequence[rule.input_ends as usize..rule.match_count as usize] {
-                        bk_push(
-                            &mut r,
-                            vec![bk_int(BkCellType::B16, u32::from(cov[0].index))],
-                        );
-                    }
-                    bk_push(
-                        &mut r,
-                        vec![bk_int(BkCellType::B16, (rule.apply.len() as i32) as u32)],
-                    );
-                    for app in rule.apply.iter() {
-                        bk_push(
-                            &mut r,
-                            vec![
-                                bk_int(
-                                    BkCellType::B16,
-                                    (i32::from(app.index) - i32::from(n_backtrack)) as u32,
-                                ),
-                                bk_int(BkCellType::B16, u32::from(app.lookup.index)),
-                            ],
-                        );
-                    }
-                    bk_push(&mut cset, vec![bk_ptr(BkCellType::P16, Some(r))]);
                 }
             }
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(cset))]);
@@ -237,6 +173,86 @@ pub fn build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
         }
     }
     bk_build_block(root)
+}
+
+/// For each input class, how many rules start with it (the number of rules in
+/// that class's rule set). A start class above `maxclass` is not counted.
+fn count_rules_per_start_class(ruleset: &ChainingRuleSet, maxclass: GlyphClass) -> Vec<GlyphClass> {
+    let mut rcpg: Vec<GlyphClass> = vec![0; (i32::from(maxclass) + 1) as usize];
+    for slot in ruleset.rules.iter() {
+        let rule_j0: &ChainingRule = slot
+            .as_deref()
+            .expect("chaining rule slot should never be None at build time");
+        let ib: TableId = rule_j0.input_begins;
+        let start_class: TableId = rule_j0.sequence[ib as usize][0].index as TableId;
+        if i32::from(start_class) <= i32::from(maxclass) {
+            rcpg[start_class as usize] = rcpg[start_class as usize].wrapping_add(1);
+        }
+    }
+    rcpg
+}
+
+/// One class sequence rule: backtrack classes (nearest first), the input
+/// classes after the first, the lookahead classes, then the lookup records.
+/// The first input class is not stored: it selects the rule set.
+fn build_class_rule(rule: &ChainingRule) -> BkBlock {
+    // Same clone-then-reverse-locally treatment as `build_chaining_coverage`
+    // above.
+    let mut backtrack: Vec<Coverage> = rule.sequence[..rule.input_begins as usize].to_vec();
+    backtrack.reverse();
+    let n_backtrack: TableId = rule.input_begins;
+    let n_input: TableId = (i32::from(rule.input_ends) - i32::from(rule.input_begins)) as TableId;
+    let n_lookahead: TableId =
+        (i32::from(rule.match_count) - i32::from(rule.input_ends)) as TableId;
+    let mut r: BkBlock = bk_new_block(Vec::new());
+    bk_push(
+        &mut r,
+        vec![bk_int(BkCellType::B16, i32::from(n_backtrack) as u32)],
+    );
+    for cov in backtrack.iter() {
+        bk_push(
+            &mut r,
+            vec![bk_int(BkCellType::B16, u32::from(cov[0].index))],
+        );
+    }
+    bk_push(
+        &mut r,
+        vec![bk_int(BkCellType::B16, i32::from(n_input) as u32)],
+    );
+    let m_0_start = (i32::from(rule.input_begins) + 1) as usize;
+    for cov in &rule.sequence[m_0_start..rule.input_ends as usize] {
+        bk_push(
+            &mut r,
+            vec![bk_int(BkCellType::B16, u32::from(cov[0].index))],
+        );
+    }
+    bk_push(
+        &mut r,
+        vec![bk_int(BkCellType::B16, i32::from(n_lookahead) as u32)],
+    );
+    for cov in &rule.sequence[rule.input_ends as usize..rule.match_count as usize] {
+        bk_push(
+            &mut r,
+            vec![bk_int(BkCellType::B16, u32::from(cov[0].index))],
+        );
+    }
+    bk_push(
+        &mut r,
+        vec![bk_int(BkCellType::B16, (rule.apply.len() as i32) as u32)],
+    );
+    for app in rule.apply.iter() {
+        bk_push(
+            &mut r,
+            vec![
+                bk_int(
+                    BkCellType::B16,
+                    (i32::from(app.index) - i32::from(n_backtrack)) as u32,
+                ),
+                bk_int(BkCellType::B16, u32::from(app.lookup.index)),
+            ],
+        );
+    }
+    r
 }
 pub fn build_chaining(_subtable: &ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
