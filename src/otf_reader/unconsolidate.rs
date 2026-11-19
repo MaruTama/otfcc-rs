@@ -142,77 +142,96 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
         hash: digest.into(),
     }
 }
-fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
-    // Built as a plain local value rather than via `otfcc_glyph_order_create`
-    // (which stays `unsafe fn`, a genuine `Box::into_raw` ownership
-    // boundary) -- boxing only happens if/when a caller needs a raw
-    // pointer, which none of this function's callers do any more.
-    let mut glyph_order = GlyphOrder {
-        entries: Vec::new(),
-        by_gid: std::collections::BTreeMap::new(),
-        by_name: std::collections::HashMap::new(),
-    };
-    // Only ever called (from `unconsolidate_font`) under a
-    // `.glyf.is_some()` guard.
-    let num_glyphs: GlyphId = count_u16(font.glyf.as_ref().expect("glyf table is present").len());
-    let prefix: Vec<u8> = options.glyph_name_prefix.clone().unwrap_or_default();
+/// The glyph's SHA-1 name: the digest in upper-case hex, in dash-separated
+/// groups of four bytes.
+fn hash_glyph_name(glyf: &GlyfTable, j: GlyphId) -> Vec<u8> {
+    let h: GlyphHash = name_glyph_by_hash(
+        glyf[j as usize].as_deref().expect("glyph slot is filled"),
+        glyf,
+    );
+    let mut gname: Vec<u8> = Vec::new();
+    for (byte_idx, &byte) in h.hash.iter().enumerate() {
+        if byte_idx % 4 == 0 && byte_idx != 0 {
+            gname.extend_from_slice(b"-");
+        }
+        Hex2Upper(u32::from(byte)).append_to_vec(&mut gname);
+    }
+    gname
+}
+/// Gives glyph `j` the name `gname`, or `gname-<prefix><n>` for the first
+/// `n` from 2 that is not taken yet when glyphs have identical hashes.
+/// Returns the name the glyph order stored.
+fn name_glyph_uniquely(
+    glyph_order: &mut GlyphOrder,
+    j: GlyphId,
+    gname: Vec<u8>,
+    prefix: &[u8],
+) -> Vec<u8> {
+    if !gord_lookup_name(glyph_order, gname.clone()) {
+        return set_glyph_order_by_gid(glyph_order, j, gname);
+    }
+    let mut n: GlyphId = 2 as GlyphId;
+    let mut still_in: bool = false;
+    loop {
+        if still_in {
+            n = (i32::from(n) + 1) as GlyphId;
+        }
+        let newname: Vec<u8> = crate::bytesbuild!(&gname, b"-", prefix, i32::from(n));
+        still_in = gord_lookup_name(glyph_order, newname);
+        if !still_in {
+            break;
+        }
+    }
+    let unique_name: Vec<u8> = crate::bytesbuild!(&gname, b"-", prefix, i32::from(n));
+    set_glyph_order_by_gid(glyph_order, j, unique_name)
+}
+/// Names glyphs from what the font itself says about them: their hash with
+/// `--name-by-hash`, otherwise the name they already carry (unless the glyph
+/// order is being ignored or named by GID). The glyph's own `name` field
+/// is updated to the name the glyph order stored.
+fn name_glyphs_from_font(
+    font: &mut Font,
+    options: &Options,
+    prefix: &[u8],
+    glyph_order: &mut GlyphOrder,
+    num_glyphs: GlyphId,
+) {
     for j in 0..num_glyphs {
-        // Each iteration reads glyph `j` fully (`name_glyph_by_hash`/the
-        // `.name.is_empty()` check below, both immutable) before writing
-        // its `name` field -- never both at once -- so a fresh mutable
-        // reborrow of the same slot for the write never overlaps the
-        // read.
         let glyf = font.glyf.as_ref().expect("glyf table is present");
-        if options.name_glyphs_by_hash {
-            let h: GlyphHash = name_glyph_by_hash(
-                glyf[j as usize].as_deref().expect("glyph slot is filled"),
-                glyf,
-            );
-            let mut gname: Vec<u8> = Vec::new();
-            for (byte_idx, &byte) in h.hash.iter().enumerate() {
-                if byte_idx % 4 == 0 && byte_idx != 0 {
-                    gname.extend_from_slice(b"-");
-                }
-                Hex2Upper(u32::from(byte)).append_to_vec(&mut gname);
-            }
-            let shared_name = if gord_lookup_name(&glyph_order, gname.clone()) {
-                let mut n: GlyphId = 2 as GlyphId;
-                let mut still_in: bool = false;
-                loop {
-                    if still_in {
-                        n = (i32::from(n) + 1) as GlyphId;
-                    }
-                    let newname: Vec<u8> = crate::bytesbuild!(&gname, b"-", &prefix, i32::from(n));
-                    still_in = gord_lookup_name(&glyph_order, newname);
-                    if !still_in {
-                        break;
-                    }
-                }
-                let unique_name: Vec<u8> = crate::bytesbuild!(&gname, b"-", &prefix, i32::from(n));
-                set_glyph_order_by_gid(&mut glyph_order, j, unique_name)
-            } else {
-                set_glyph_order_by_gid(&mut glyph_order, j, gname)
-            };
-            font.glyf.as_mut().expect("glyf table is present")[j as usize]
-                .as_mut()
-                .expect("glyph slot is filled")
-                .name = shared_name;
+        let stored_name = if options.name_glyphs_by_hash {
+            let gname = hash_glyph_name(glyf, j);
+            Some(name_glyph_uniquely(glyph_order, j, gname, prefix))
         } else if !(options.ignore_glyph_order || options.name_glyphs_by_gid) {
             let existing_name = glyf[j as usize]
                 .as_deref()
                 .expect("glyph slot is filled")
                 .name
                 .clone();
-            if !existing_name.is_empty() {
-                let prefixed_name: Vec<u8> = crate::bytesbuild!(&prefix, &existing_name);
-                let renamed = set_glyph_order_by_gid(&mut glyph_order, j, prefixed_name);
-                font.glyf.as_mut().expect("glyf table is present")[j as usize]
-                    .as_mut()
-                    .expect("glyph slot is filled")
-                    .name = renamed;
+            if existing_name.is_empty() {
+                None
+            } else {
+                let prefixed_name: Vec<u8> = crate::bytesbuild!(prefix, &existing_name);
+                Some(set_glyph_order_by_gid(glyph_order, j, prefixed_name))
             }
+        } else {
+            None
+        };
+        if let Some(name) = stored_name {
+            font.glyf.as_mut().expect("glyf table is present")[j as usize]
+                .as_mut()
+                .expect("glyph slot is filled")
+                .name = name;
         }
     }
+}
+/// Names glyphs from the `post` table's glyph names, unless names are being
+/// ignored or made from GIDs.
+fn name_glyphs_from_post(
+    font: &Font,
+    options: &Options,
+    prefix: &[u8],
+    glyph_order: &mut GlyphOrder,
+) {
     let post_name_map: Option<&GlyphOrder> = font
         .post
         .as_deref()
@@ -223,44 +242,82 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
     {
         for &idx in post_name_map.by_gid.values() {
             let entry = &post_name_map.entries[idx];
-            let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
-            set_glyph_order_by_gid(&mut glyph_order, entry.gid, gname_1);
+            let gname: Vec<u8> = crate::bytesbuild!(prefix, &entry.name);
+            set_glyph_order_by_gid(glyph_order, entry.gid, gname);
         }
     }
-    if let Some(cmap) = font.cmap.as_ref().filter(|_| !options.name_glyphs_by_gid) {
-        for (&unicode, glyph) in cmap.unicodes.iter() {
-            if i32::from(glyph.index) > 0 {
-                let aglfn_name = if unicode > 0 && unicode < 0xffff {
-                    aglfn_name(unicode as u32)
-                } else {
-                    None
-                };
-                let name: Vec<u8> = match aglfn_name {
-                    Some(n) => crate::bytesbuild!(&prefix, n),
-                    None => crate::bytesbuild!(&prefix, b"uni", Hex4Upper(unicode as u32)),
-                };
-                set_glyph_order_by_gid(&mut glyph_order, glyph.index, name);
-            }
+}
+/// Names glyphs after the first Unicode value in `cmap` that reaches them: the
+/// AGLFN name when there is one for a BMP value, else `uniXXXX`.
+fn name_glyphs_from_cmap(
+    font: &Font,
+    options: &Options,
+    prefix: &[u8],
+    glyph_order: &mut GlyphOrder,
+) {
+    let Some(cmap) = font.cmap.as_ref().filter(|_| !options.name_glyphs_by_gid) else {
+        return;
+    };
+    for (&unicode, glyph) in cmap.unicodes.iter() {
+        if i32::from(glyph.index) > 0 {
+            let aglfn_name = if unicode > 0 && unicode < 0xffff {
+                aglfn_name(unicode as u32)
+            } else {
+                None
+            };
+            let name: Vec<u8> = match aglfn_name {
+                Some(n) => crate::bytesbuild!(prefix, n),
+                None => crate::bytesbuild!(prefix, b"uni", Hex4Upper(unicode as u32)),
+            };
+            set_glyph_order_by_gid(glyph_order, glyph.index, name);
         }
     }
+}
+/// Names every glyph still unnamed: `.notdef` for GID 0, `.null` for an empty
+/// GID 1, and `glyph<N>` for the rest.
+fn name_remaining_glyphs(
+    font: &Font,
+    prefix: &[u8],
+    glyph_order: &mut GlyphOrder,
+    num_glyphs: GlyphId,
+) {
     let glyf = font.glyf.as_ref().expect("glyf table is present");
     for gid in 0..num_glyphs {
         let glyph_name: Vec<u8> = if gid > 1 {
-            crate::bytesbuild!(&prefix, b"glyph", i32::from(gid))
+            crate::bytesbuild!(prefix, b"glyph", i32::from(gid))
         } else if gid == 1 {
             if glyf[1]
                 .as_deref()
                 .is_some_and(|g| g.contours.is_empty() && g.references.is_empty())
             {
-                crate::bytesbuild!(&prefix, b".null")
+                crate::bytesbuild!(prefix, b".null")
             } else {
-                crate::bytesbuild!(&prefix, b"glyph", i32::from(gid))
+                crate::bytesbuild!(prefix, b"glyph", i32::from(gid))
             }
         } else {
-            crate::bytesbuild!(&prefix, b".notdef")
+            crate::bytesbuild!(prefix, b".notdef")
         };
-        set_glyph_order_by_gid(&mut glyph_order, gid, glyph_name);
+        set_glyph_order_by_gid(glyph_order, gid, glyph_name);
     }
+}
+/// Builds the glyph order of a font read from binary, trying name sources in
+/// order: the font's own names or hashes, then `post`, then `cmap`, then the
+/// generated fallbacks. `set_glyph_order_by_gid` keeps the first name a GID
+/// gets, so an earlier source wins over a later one.
+fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
+    let mut glyph_order = GlyphOrder {
+        entries: Vec::new(),
+        by_gid: std::collections::BTreeMap::new(),
+        by_name: std::collections::HashMap::new(),
+    };
+    // Only ever called (from `unconsolidate_font`) under a
+    // `.glyf.is_some()` guard.
+    let num_glyphs: GlyphId = count_u16(font.glyf.as_ref().expect("glyf table is present").len());
+    let prefix: Vec<u8> = options.glyph_name_prefix.clone().unwrap_or_default();
+    name_glyphs_from_font(font, options, &prefix, &mut glyph_order, num_glyphs);
+    name_glyphs_from_post(font, options, &prefix, &mut glyph_order);
+    name_glyphs_from_cmap(font, options, &prefix, &mut glyph_order);
+    name_remaining_glyphs(font, &prefix, &mut glyph_order, num_glyphs);
     glyph_order
 }
 fn name_glyphs(font: &mut Font, gord: &GlyphOrder) {

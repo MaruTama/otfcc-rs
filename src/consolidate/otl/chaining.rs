@@ -9,7 +9,7 @@ use crate::support::glyph_order::GlyphOrder;
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_mut};
-use crate::table::otl::{ChainingRule, LookupList, Subtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, LookupList, Subtable};
 
 /// See `Options::consolidate_warning_budget`'s own doc comment: bounds the
 /// total "invalid lookup reference" warnings this function will log across
@@ -46,10 +46,41 @@ pub(crate) fn consolidate_chaining(
         return false;
     }
     let rule: &mut ChainingRule = chaining_rule_mut(subtable);
-    // Guaranteed `Some`: `consolidate_otl` (and hence every caller that
-    // reaches here) only ever runs when `glyf` is present, and
-    // `consolidate_font` always populates `glyph_order` before
-    // that, whenever `glyf` is present.
+    let possible = consolidate_match_sequence(glyph_order, rule);
+    let self_lookup = SelfLookup {
+        index: self_index,
+        name: self_name,
+    };
+    for app in rule.apply.iter_mut() {
+        if !app.lookup.name.is_empty() {
+            resolve_apply_by_name(app, lookups, &self_lookup, options);
+        } else if app.lookup.state == HandleState::Index {
+            resolve_apply_by_index(app, lookups, &self_lookup, options);
+        }
+    }
+    if !rule.apply.is_empty() {
+        // Was a manual compact-in-place loop over `apply_count` before
+        // `.apply` became a `Vec` -- `retain` is the direct translation.
+        rule.apply.retain(|app| !app.lookup.name.is_empty());
+        if rule.apply.is_empty() {
+            return true;
+        }
+    }
+    !possible
+}
+
+/// The lookup that owns the rule being consolidated. Its slot in the lookup
+/// list is a `None` hole (see `consolidate_chaining`'s `lookups` comment), so
+/// anything that refers to it is answered from this instead.
+struct SelfLookup<'a> {
+    index: TableId,
+    name: &'a [u8],
+}
+
+/// Consolidates the match (backtrack/input/lookahead) coverages and clamps the
+/// input range to the match count. Returns `false` when some coverage ended up
+/// empty, i.e. the rule can never match.
+fn consolidate_match_sequence(glyph_order: &GlyphOrder, rule: &mut ChainingRule) -> bool {
     let mut possible: bool = true;
     let match_count = rule.match_count as usize;
     for cov in rule.sequence.iter_mut().take(match_count) {
@@ -63,110 +94,117 @@ pub(crate) fn consolidate_chaining(
     if i32::from(rule.input_ends) > i32::from(rule.match_count) {
         rule.input_ends = rule.match_count;
     }
-    for app in rule.apply.iter_mut() {
-        let mut found_lookup: bool = false;
-        if !app.lookup.name.is_empty() {
-            // Deliberately no early exit on the first match: a later `k`
-            // matching the same name overwrites `app.lookup` again -- "last
-            // matching index wins" for a font with duplicate lookup names,
-            // as upstream otfcc does.
-            for (k, slot) in lookups.iter().enumerate() {
-                let k = k as TableId;
-                // `k == self_index` is answered from `self_name` instead
-                // of `slot` (a `None` hole left by the caller's `take()`,
-                // see this function's own doc comment) -- see also why
-                // "exists" doesn't need checking for that case: reaching
-                // this call at all means `self_index`'s own subtable list
-                // still has at least one slot (`consolidate_lookup`
-                // bails out before ever calling in here otherwise, and the
-                // `Vec`'s length -- as opposed to its slots' contents --
-                // never shrinks mid-pass, only at that function's trailing
-                // `retain()`), so "self" is unconditionally present.
-                let (exists, name) = if k == self_index {
-                    (true, self_name)
-                } else {
-                    // A `None` slot here is a hole an earlier iteration of
-                    // the caller's own fixed-point loop already punched
-                    // (see `consolidate_otl_table`) -- nothing to match
-                    // against.
-                    match slot.as_deref() {
-                        Some(lookup) if !lookup.subtables.is_empty() => {
-                            (true, lookup.name.as_slice())
-                        }
-                        _ => (false, [].as_slice()),
-                    }
-                };
-                if exists && handle_name_eq_bytes(&app.lookup.name, name) {
-                    found_lookup = true;
-                    app.lookup =
-                        Handle::new(HandleState::Consolidated, k, name.to_vec()) as LookupHandle;
-                }
+    possible
+}
+
+/// Spends one unit of the whole-font warning budget; `true` when the caller
+/// may still log. See `CONSOLIDATE_WARNING_BUDGET`.
+fn take_warning_budget(options: &Options) -> bool {
+    let budget = options.consolidate_warning_budget.get();
+    if budget > 0 {
+        options.consolidate_warning_budget.set(budget - 1);
+        true
+    } else {
+        false
+    }
+}
+
+/// Resolves an apply entry that names its lookup. An unresolvable name drops
+/// the application (its handle is reset, and `retain` removes it afterwards).
+fn resolve_apply_by_name(
+    app: &mut ChainLookupApplication,
+    lookups: &LookupList,
+    self_lookup: &SelfLookup<'_>,
+    options: &Options,
+) {
+    let mut found_lookup: bool = false;
+    // Deliberately no early exit on the first match: a later `k`
+    // matching the same name overwrites `app.lookup` again -- "last
+    // matching index wins" for a font with duplicate lookup names,
+    // as upstream otfcc does.
+    for (k, slot) in lookups.iter().enumerate() {
+        let k = k as TableId;
+        // `k == self_index` is answered from `self_name` instead of `slot`.
+        // "exists" needn't be checked for that case: reaching this call at
+        // all means the own subtable list still has at least one slot
+        // (`consolidate_lookup` bails out before calling in here otherwise,
+        // and the `Vec`'s length never shrinks mid-pass, only at that
+        // function's trailing `retain()`), so "self" is unconditionally
+        // present.
+        let (exists, name) = if k == self_lookup.index {
+            (true, self_lookup.name)
+        } else {
+            // A `None` slot here is a hole an earlier iteration of
+            // the caller's own fixed-point loop already punched
+            // (see `consolidate_otl_table`) -- nothing to match
+            // against.
+            match slot.as_deref() {
+                Some(lookup) if !lookup.subtables.is_empty() => (true, lookup.name.as_slice()),
+                _ => (false, [].as_slice()),
             }
-            if !found_lookup {
-                // See `CONSOLIDATE_WARNING_BUDGET`'s doc comment: a font
-                // whose rules apply thousands of unresolvable lookups can
-                // still reach this point despite the per-rule/per-subtable/
-                // per-lookup caps upstream, since those caps bound each
-                // factor individually, not their product -- this budget
-                // bounds the actual cost (heap-allocating log calls), while
-                // the dispose below (which the warning exists to explain)
-                // still always runs.
-                let budget = options.consolidate_warning_budget.get();
-                if budget > 0 {
-                    options.consolidate_warning_budget.set(budget - 1);
-                    tracing::warn!(
-                        "[Consolidate] Quoting an invalid lookup {}. This lookup application is ignored.",
-                        ByteStr(&app.lookup.name)
-                    );
-                }
-                app.lookup = Handle::default();
-            }
-        } else if app.lookup.state == HandleState::Index {
-            // Invalid now covers both "out of range" (unchanged) and
-            // "in range but a hole" (new -- see the `None`-slot comment
-            // above): either way there is no real `Lookup` at this index
-            // to resolve against. Same self-reference treatment as the
-            // name-based branch above: `idx == self_index` never actually
-            // reads `lookups[self_index]` (a `None` hole), answering from
-            // `self_name` instead.
-            let target_exists = if app.lookup.index == self_index {
-                true
-            } else {
-                lookups
-                    .get(app.lookup.index as usize)
-                    .and_then(Option::as_deref)
-                    .is_some()
-            };
-            if !target_exists {
-                let budget = options.consolidate_warning_budget.get();
-                if budget > 0 {
-                    options.consolidate_warning_budget.set(budget - 1);
-                    tracing::warn!(
-                        "[Consolidate] Quoting an invalid lookup #{}.",
-                        i32::from(app.lookup.index)
-                    );
-                }
-                app.lookup.index = 0 as GlyphId;
-            }
-            let idx = app.lookup.index;
-            let name = if idx == self_index {
-                self_name.to_vec()
-            } else {
-                lookups
-                    .get(idx as usize)
-                    .and_then(Option::as_deref)
-                    .map_or_else(Vec::new, |lookup| lookup.name.clone())
-            };
-            app.lookup = Handle::new(HandleState::Consolidated, idx, name) as LookupHandle;
+        };
+        if exists && handle_name_eq_bytes(&app.lookup.name, name) {
+            found_lookup = true;
+            app.lookup = Handle::new(HandleState::Consolidated, k, name.to_vec()) as LookupHandle;
         }
     }
-    if !rule.apply.is_empty() {
-        // Was a manual compact-in-place loop over `apply_count` before
-        // `.apply` became a `Vec` -- `retain` is the direct translation.
-        rule.apply.retain(|app| !app.lookup.name.is_empty());
-        if rule.apply.is_empty() {
-            return true;
+    if !found_lookup {
+        // See `CONSOLIDATE_WARNING_BUDGET`'s doc comment: a font
+        // whose rules apply thousands of unresolvable lookups can
+        // still reach this point despite the per-rule/per-subtable/
+        // per-lookup caps upstream, since those caps bound each
+        // factor individually, not their product -- this budget
+        // bounds the actual cost (heap-allocating log calls), while
+        // the dispose below (which the warning exists to explain)
+        // still always runs.
+        if take_warning_budget(options) {
+            tracing::warn!(
+                "[Consolidate] Quoting an invalid lookup {}. This lookup application is ignored.",
+                ByteStr(&app.lookup.name)
+            );
         }
+        app.lookup = Handle::default();
     }
-    !possible
+}
+
+/// Resolves an apply entry that refers to its lookup by index and fills in the
+/// lookup's name. An invalid index (out of range, or a hole) falls back to
+/// index 0.
+fn resolve_apply_by_index(
+    app: &mut ChainLookupApplication,
+    lookups: &LookupList,
+    self_lookup: &SelfLookup<'_>,
+    options: &Options,
+) {
+    // Invalid covers both "out of range" and "in range but a hole": either
+    // way there is no real `Lookup` at this index to resolve against.
+    // `idx == self_index` never reads `lookups[self_index]` (a `None` hole);
+    // it is answered from `self_name` instead.
+    let target_exists = if app.lookup.index == self_lookup.index {
+        true
+    } else {
+        lookups
+            .get(app.lookup.index as usize)
+            .and_then(Option::as_deref)
+            .is_some()
+    };
+    if !target_exists {
+        if take_warning_budget(options) {
+            tracing::warn!(
+                "[Consolidate] Quoting an invalid lookup #{}.",
+                i32::from(app.lookup.index)
+            );
+        }
+        app.lookup.index = 0 as GlyphId;
+    }
+    let idx = app.lookup.index;
+    let name = if idx == self_lookup.index {
+        self_lookup.name.to_vec()
+    } else {
+        lookups
+            .get(idx as usize)
+            .and_then(Option::as_deref)
+            .map_or_else(Vec::new, |lookup| lookup.name.clone())
+    };
+    app.lookup = Handle::new(HandleState::Consolidated, idx, name) as LookupHandle;
 }

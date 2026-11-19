@@ -845,82 +845,82 @@ fn stat_ltsh(font: &mut Font) {
         y_pels,
     }));
 }
-pub fn stat_font(font: &mut Font, options: &Options) {
-    if font.glyf.is_some() && font.head.is_some() {
-        stat_glyf(font);
-        if !options.keep_modified_time {
-            // Whole seconds since 1970-01-01 UTC; `unwrap_or(0)` only
-            // matters for a system clock set before the epoch.
-            let now = ::std::time::SystemTime::now()
-                .duration_since(::std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0);
-            font.head
-                .as_deref_mut()
-                .expect("head table is present")
-                .modified = 2082844800 + now;
-        }
+/// The `FontMatrix` a CFF font or subfont needs for `units_per_em`: none for
+/// the CFF default of 1000, otherwise `1/units_per_em` on both axes.
+fn cff_font_matrix_for(units_per_em: u16) -> Option<Box<CffFontMatrix>> {
+    if i32::from(units_per_em) == 1000 {
+        return None;
     }
-    if font.head.is_some() && font.cff.is_some() {
-        let head_y_min = font.head.as_deref().expect("head table is present").y_min;
-        let head_y_max = font.head.as_deref().expect("head table is present").y_max;
-        let head_x_min = font.head.as_deref().expect("head table is present").x_min;
-        let head_x_max = font.head.as_deref().expect("head table is present").x_max;
-        let units_per_em = font
-            .head
-            .as_deref()
-            .expect("head table is present")
-            .units_per_em;
-        let glyf_len = font.glyf.as_ref().map(|g| g.len() as u32);
-        let cff = font.cff.as_deref_mut().expect("cff table is present");
-        if cff.font_b_box_bottom > f64::from(i32::from(head_y_min)) {
-            cff.font_b_box_bottom = f64::from(i32::from(head_y_min));
-        }
-        if cff.font_b_box_top < f64::from(i32::from(head_y_max)) {
-            cff.font_b_box_top = f64::from(i32::from(head_y_max));
-        }
-        if cff.font_b_box_left < f64::from(i32::from(head_x_min)) {
-            cff.font_b_box_left = f64::from(i32::from(head_x_min));
-        }
-        if cff.font_b_box_right < f64::from(i32::from(head_x_max)) {
-            cff.font_b_box_right = f64::from(i32::from(head_x_max));
-        }
-        if let Some(len) = glyf_len
-            && cff.is_cid
-        {
-            cff.cid_count = len;
-        }
-        if cff.is_cid {
-            cff.font_matrix = None;
-            for fd in cff.fd_array.iter_mut() {
-                fd.font_matrix = None;
-                if i32::from(units_per_em) == 1000 {
-                    fd.font_matrix = None;
-                } else {
-                    fd.font_matrix = Some(Box::new(CffFontMatrix {
-                        a: (1.0 / f64::from(i32::from(units_per_em))) as Scale,
-                        b: 0.0 as Scale,
-                        c: 0.0 as Scale,
-                        d: (1.0 / f64::from(i32::from(units_per_em))) as Scale,
-                        x: vq_neutral(),
-                        y: vq_neutral(),
-                    }));
-                }
-            }
-        } else if i32::from(units_per_em) == 1000 {
-            cff.font_matrix = None;
-        } else {
-            cff.font_matrix = Some(Box::new(CffFontMatrix {
-                a: (1.0 / f64::from(i32::from(units_per_em))) as Scale,
-                b: 0.0 as Scale,
-                c: 0.0 as Scale,
-                d: (1.0 / f64::from(i32::from(units_per_em))) as Scale,
-                x: vq_neutral(),
-                y: vq_neutral(),
-            }));
-        }
-        stat_cff_widths(font);
+    let scale = (1.0 / f64::from(i32::from(units_per_em))) as Scale;
+    Some(Box::new(CffFontMatrix {
+        a: scale,
+        b: 0.0 as Scale,
+        c: 0.0 as Scale,
+        d: scale,
+        x: vq_neutral(),
+        y: vq_neutral(),
+    }))
+}
+/// Stamps `head.modified` with the current time, unless the options ask to
+/// keep the one the font has.
+fn stat_head_modified(font: &mut Font, options: &Options) {
+    if options.keep_modified_time {
+        return;
     }
+    // Whole seconds since 1970-01-01 UTC; `unwrap_or(0)` only matters for a
+    // system clock set before the epoch.
+    let now = ::std::time::SystemTime::now()
+        .duration_since(::std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    font.head
+        .as_deref_mut()
+        .expect("head table is present")
+        .modified = 2082844800 + now;
+}
+/// Brings a CFF font's header in line with the glyphs and `head`: grows the
+/// font bounding box to cover `head`'s, sets the CID count and the font
+/// matrices from `units_per_em`, and recomputes the default and nominal
+/// widths. Called only when both `head` and `cff` exist.
+fn stat_cff_header(font: &mut Font) {
+    let head = font.head.as_deref().expect("head table is present");
+    let (head_y_min, head_y_max) = (head.y_min, head.y_max);
+    let (head_x_min, head_x_max) = (head.x_min, head.x_max);
+    let units_per_em = head.units_per_em;
+    let glyf_len = font.glyf.as_ref().map(|g| g.len() as u32);
+    let cff = font.cff.as_deref_mut().expect("cff table is present");
+    if cff.font_b_box_bottom > f64::from(i32::from(head_y_min)) {
+        cff.font_b_box_bottom = f64::from(i32::from(head_y_min));
+    }
+    if cff.font_b_box_top < f64::from(i32::from(head_y_max)) {
+        cff.font_b_box_top = f64::from(i32::from(head_y_max));
+    }
+    if cff.font_b_box_left < f64::from(i32::from(head_x_min)) {
+        cff.font_b_box_left = f64::from(i32::from(head_x_min));
+    }
+    if cff.font_b_box_right < f64::from(i32::from(head_x_max)) {
+        cff.font_b_box_right = f64::from(i32::from(head_x_max));
+    }
+    if let Some(len) = glyf_len
+        && cff.is_cid
+    {
+        cff.cid_count = len;
+    }
+    if cff.is_cid {
+        // In a CID font the matrix lives on each subfont, not the top dict.
+        cff.font_matrix = None;
+        for fd in cff.fd_array.iter_mut() {
+            fd.font_matrix = cff_font_matrix_for(units_per_em);
+        }
+    } else {
+        cff.font_matrix = cff_font_matrix_for(units_per_em);
+    }
+    stat_cff_widths(font);
+}
+/// Sets the glyph count in `maxp` and `post`, and for a version 1.0 `maxp`
+/// recomputes the glyph-derived limits, raising the instruction size to
+/// cover `fpgm` and `prep`.
+fn stat_glyph_counts_and_maxp(font: &mut Font) {
     if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u16)
         && let Some(maxp) = font.maxp.as_deref_mut()
     {
@@ -935,19 +935,28 @@ pub fn stat_font(font: &mut Font, options: &Options) {
         font.maxp.as_deref().map(|m| m.version) == Some(0x10000 as F16Dot16);
     if font.glyf.is_some() && font.maxp.is_some() && maxp_version_is_10000 {
         stat_maxp(font);
-        if let Some(fpgm_length) = font.fpgm.as_ref().map(|f| f.bytes.len() as u32) {
-            let maxp = font.maxp.as_deref_mut().expect("maxp table is present");
-            if fpgm_length > u32::from(maxp.max_size_of_instructions) {
-                maxp.max_size_of_instructions = fpgm_length as u16;
-            }
-        }
-        if let Some(prep_length) = font.prep.as_ref().map(|p| p.bytes.len() as u32) {
-            let maxp = font.maxp.as_deref_mut().expect("maxp table is present");
-            if prep_length > u32::from(maxp.max_size_of_instructions) {
-                maxp.max_size_of_instructions = prep_length as u16;
+        let fpgm_length = font.fpgm.as_ref().map(|f| f.bytes.len() as u32);
+        let prep_length = font.prep.as_ref().map(|p| p.bytes.len() as u32);
+        let maxp = font.maxp.as_deref_mut().expect("maxp table is present");
+        for length in [fpgm_length, prep_length].into_iter().flatten() {
+            if length > u32::from(maxp.max_size_of_instructions) {
+                maxp.max_size_of_instructions = length as u16;
             }
         }
     }
+}
+/// Recomputes everything derived from the glyphs before the font is built:
+/// `head.modified`, the CFF header, `maxp` and `post` counts, `OS/2`, and
+/// the metric tables (`hmtx`, `vmtx`, `VORG`, `LTSH`).
+pub fn stat_font(font: &mut Font, options: &Options) {
+    if font.glyf.is_some() && font.head.is_some() {
+        stat_glyf(font);
+        stat_head_modified(font, options);
+    }
+    if font.head.is_some() && font.cff.is_some() {
+        stat_cff_header(font);
+    }
+    stat_glyph_counts_and_maxp(font);
     if font.os_2.is_some() && font.cmap.is_some() && font.glyf.is_some() {
         stat_os_2(font, options);
     }
