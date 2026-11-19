@@ -18,10 +18,18 @@ use crate::table::otl::{
 /// subtable, which `class_coverage` turns into coverages. A contextual
 /// subtable has only `ic`.
 #[derive(Debug)]
-pub struct ClassDefs {
-    pub bc: Option<Box<ClassDef>>,
-    pub ic: Option<Box<ClassDef>>,
-    pub fc: Option<Box<ClassDef>>,
+struct ClassDefs {
+    bc: Option<Box<ClassDef>>,
+    ic: Option<Box<ClassDef>>,
+    fc: Option<Box<ClassDef>>,
+}
+/// The GSUB or GPOS table being read, the font's glyph count, and the
+/// table-wide allowance the readers draw from. Every reader of this file
+/// takes it in place of those three values.
+struct TableReader<'a> {
+    data: &'a [u8],
+    max_glyphs: GlyphId,
+    budget: &'a mut OtlReadBudget,
 }
 /// The `class_zero_glyphs` limit of `OtlReadBudget`, shared by a whole
 /// GSUB or GPOS table. Each `class_coverage` call can scan every glyph of
@@ -91,21 +99,14 @@ const MAX_POSITIONS_PER_RULE: u16 = 50;
 /// numbering of a format 2 rule's three `ClassDef`s. Only `class_coverage`
 /// uses it.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum ContextKind {
+enum ContextKind {
     Backtrack = 1,
     Input = 2,
     Lookahead = 3,
 }
 /// The coverage of one position of a format 1 rule, which stores glyph ids:
 /// just the glyph `gid`.
-pub fn single_coverage(
-    mut _data: &[u8],
-    gid: u16,
-    mut _offset: u32,
-    mut _kind: ContextKind,
-    _max_glyphs: GlyphId,
-    _budget: &mut OtlReadBudget,
-) -> Coverage {
+fn single_coverage(gid: u16) -> Coverage {
     let mut cov = Coverage::new();
     push_to_coverage(&mut cov, handle_from_index(gid) as GlyphHandle);
     cov
@@ -113,17 +114,17 @@ pub fn single_coverage(
 /// The coverage of one position of a format 2 rule, which stores class
 /// numbers: the glyphs given class `cls` by the backtrack, input or
 /// lookahead class definition, chosen by `kind`. Class 0 is every glyph
-/// below `max_glyphs` that the class definition gives no other class. The
-/// work is charged to `budget`; once it runs out, the coverage is cut short.
-pub fn class_coverage(
-    mut _data: &[u8],
+/// below `t.max_glyphs` that the class definition gives no other class. The
+/// work is charged to `t.budget`; once it runs out, the coverage is cut
+/// short.
+fn class_coverage(
+    t: &mut TableReader<'_>,
     cls: u16,
-    mut _offset: u32,
     kind: ContextKind,
-    max_glyphs: GlyphId,
     defs: &ClassDefs,
-    budget: &mut OtlReadBudget,
 ) -> Coverage {
+    let max_glyphs = t.max_glyphs;
+    let budget = &mut *t.budget;
     // A contextual format 2 subtable sets only `ic`, but its rules only ask
     // for `ContextKind::Input`; a chaining one sets all three.
     let cd: &ClassDef = match kind {
@@ -203,56 +204,48 @@ pub fn class_coverage(
     cov
 }
 /// The coverage of one position of a format 3 rule, which stores offsets to
-/// Coverage tables. `shift` is relative to the subtable, and `_offset` is
-/// the rule's position, two bytes past the subtable's start.
-pub fn format3_coverage(
-    data: &[u8],
-    shift: u16,
-    mut _offset: u32,
-    mut _kind: ContextKind,
-    _max_glyphs: GlyphId,
-    budget: &mut OtlReadBudget,
-) -> Coverage {
+/// Coverage tables. `shift` is relative to the subtable, and `rule_offset`
+/// is the rule's position, two bytes past the subtable's start.
+fn format3_coverage(t: &mut TableReader<'_>, shift: u16, rule_offset: u32) -> Coverage {
     read_coverage(
-        data,
-        _offset.wrapping_add(u32::from(shift)).wrapping_sub(2),
-        budget,
+        t.data,
+        rule_offset.wrapping_add(u32::from(shift)).wrapping_sub(2),
+        t.budget,
     )
 }
 /// Reads one contextual rule (input sequence and lookup records) at
 /// `offset`, turning each stored input value into a coverage with
-/// `coverage_of`. With `minus_one` (formats 1 and 2) the first input
-/// position is not stored; it is `start_gid`, the covered glyph or class
-/// that selected this rule set. Returns `None` if the rule does not fit in
+/// `coverage_of`. In formats 1 and 2 the first input position is not
+/// stored; `first_input` gives it: the covered glyph or class that selected
+/// this rule set. Returns `None` if the rule does not fit in
 /// `slice`.
 // The `FontReader` reads and `require_room` checks below never reserve
 // bytes the following reads do not use.
-pub fn general_read_contextual_rule(
-    slice: &[u8],
+fn general_read_contextual_rule(
+    t: &mut TableReader<'_>,
     offset: u32,
-    start_gid: u16,
-    minus_one: bool,
-    mut coverage_of: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
-    max_glyphs: GlyphId,
-    budget: &mut OtlReadBudget,
+    first_input: Option<u16>,
+    mut coverage_of: impl FnMut(&mut TableReader<'_>, u16, u32, ContextKind) -> Coverage,
 ) -> Option<Box<ChainingRule>> {
-    let minus_one_q: u16 = u16::from(minus_one);
+    let slice = t.data;
+    // 1 when the first input position comes from `first_input`, else 0.
+    let implied_inputs: u16 = u16::from(first_input.is_some());
 
     let mut header = FontReader::new(slice).at(offset as usize).ok()?;
     let n_input = header.u16().ok()?;
     let n_apply = header.u16().ok()?;
-    // Reserves `2 * n_input` bytes even on the `minus_one` path, which reads
+    // Reserves `2 * n_input` bytes even when `first_input` is given, which reads
     // one entry fewer; kept so the same inputs are accepted.
     let needed = (n_input as usize) * 2 + (n_apply as usize) * 4;
     header.require_room(needed, 1).ok()?;
 
-    // A malformed `n_input < minus_one_q` reads nothing, rather than
+    // A malformed `n_input < implied_inputs` reads nothing, rather than
     // underflowing.
-    let n_input_read = n_input.saturating_sub(minus_one_q);
+    let n_input_read = n_input.saturating_sub(implied_inputs);
     // Only the build loop below is capped (see `MAX_POSITIONS_PER_RULE`);
     // `n_input_read` still sets `lookup_base`.
     let n_input_built = n_input_read.min(MAX_POSITIONS_PER_RULE);
-    let match_count = minus_one_q.wrapping_add(n_input_built);
+    let match_count = implied_inputs.wrapping_add(n_input_built);
 
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
         match_count: match_count as TableId,
@@ -261,28 +254,16 @@ pub fn general_read_contextual_rule(
         sequence: Vec::new(),
         apply: Vec::new(),
     });
-    // Filled in order: the `minus_one` slot first, then the rest.
+    // Filled in order: the `first_input` slot first, then the rest.
     rule.sequence = Vec::with_capacity(rule.match_count as usize);
-    if minus_one {
-        rule.sequence.push(coverage_of(
-            slice,
-            start_gid,
-            offset,
-            ContextKind::Input,
-            max_glyphs,
-            budget,
-        ));
+    if let Some(first) = first_input {
+        rule.sequence
+            .push(coverage_of(t, first, offset, ContextKind::Input));
     }
     for j in 0..n_input_built {
         let gid = u16_at(slice, offset as usize + 4 + 2 * j as usize);
-        rule.sequence.push(coverage_of(
-            slice,
-            gid,
-            offset,
-            ContextKind::Input,
-            max_glyphs,
-            budget,
-        ));
+        rule.sequence
+            .push(coverage_of(t, gid, offset, ContextKind::Input));
     }
 
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
@@ -311,26 +292,24 @@ fn u16_at(slice: &[u8], pos: usize) -> u16 {
 /// lookup records) at `offset`; otherwise the same as
 /// `general_read_contextual_rule`. The backtrack sequence is stored in
 /// reading order, not the font's nearest-first order.
-pub fn general_read_chaining_rule(
-    slice: &[u8],
+fn general_read_chaining_rule(
+    t: &mut TableReader<'_>,
     offset: u32,
-    start_gid: u16,
-    minus_one: bool,
-    mut coverage_of: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
-    max_glyphs: GlyphId,
-    budget: &mut OtlReadBudget,
+    first_input: Option<u16>,
+    mut coverage_of: impl FnMut(&mut TableReader<'_>, u16, u32, ContextKind) -> Coverage,
 ) -> Option<Box<ChainingRule>> {
-    let minus_one_q: u16 = u16::from(minus_one);
+    let slice = t.data;
+    let implied_inputs: u16 = u16::from(first_input.is_some());
 
     // Four counts, each followed by the array it introduces: backtrack,
-    // input (without the `minus_one` slot), lookahead, then the lookup
+    // input (without the `first_input` slot), lookahead, then the lookup
     // records. Each read checks the bytes it needs.
     let mut header = FontReader::new(slice).at(offset as usize).ok()?;
     let n_back = header.u16().ok()?;
     header.require_room(n_back as usize, 2).ok()?;
     header.skip(n_back as usize * 2).ok()?;
     let n_input = header.u16().ok()?;
-    let n_input_read = n_input.saturating_sub(minus_one_q);
+    let n_input_read = n_input.saturating_sub(implied_inputs);
     header.require_room(n_input_read as usize, 2).ok()?;
     header.skip(n_input_read as usize * 2).ok()?;
     let n_lookaround = header.u16().ok()?;
@@ -348,7 +327,7 @@ pub fn general_read_chaining_rule(
     let n_lookaround_built = n_lookaround.min(MAX_POSITIONS_PER_RULE);
     let input_begins = n_back_built;
     let input_ends = n_back_built
-        .wrapping_add(minus_one_q)
+        .wrapping_add(implied_inputs)
         .wrapping_add(n_input_built);
     let match_count = input_ends.wrapping_add(n_lookaround_built);
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
@@ -358,54 +337,30 @@ pub fn general_read_chaining_rule(
         sequence: Vec::new(),
         apply: Vec::new(),
     });
-    // Filled in order: backtrack, the `minus_one` slot, input, lookahead.
+    // Filled in order: backtrack, the `first_input` slot, input, lookahead.
     rule.sequence = Vec::with_capacity(match_count as usize);
     for j in 0..n_back_built {
         let gid = u16_at(slice, offset as usize + 2 + 2 * j as usize);
-        rule.sequence.push(coverage_of(
-            slice,
-            gid,
-            offset,
-            ContextKind::Backtrack,
-            max_glyphs,
-            budget,
-        ));
+        rule.sequence
+            .push(coverage_of(t, gid, offset, ContextKind::Backtrack));
     }
-    if minus_one {
-        rule.sequence.push(coverage_of(
-            slice,
-            start_gid,
-            offset,
-            ContextKind::Input,
-            max_glyphs,
-            budget,
-        ));
+    if let Some(first) = first_input {
+        rule.sequence
+            .push(coverage_of(t, first, offset, ContextKind::Input));
     }
     // Array positions from the counts as read, by addition, so a malformed
-    // `n_input < minus_one_q` cannot underflow.
+    // `n_input < implied_inputs` cannot underflow.
     let input_base = offset as usize + 4 + 2 * n_back as usize;
     for j0 in 0..n_input_built {
         let gid = u16_at(slice, input_base + 2 * j0 as usize);
-        rule.sequence.push(coverage_of(
-            slice,
-            gid,
-            offset,
-            ContextKind::Input,
-            max_glyphs,
-            budget,
-        ));
+        rule.sequence
+            .push(coverage_of(t, gid, offset, ContextKind::Input));
     }
     let lookaround_base = input_base + 2 * n_input_read as usize + 2;
     for j1 in 0..n_lookaround_built {
         let gid = u16_at(slice, lookaround_base + 2 * j1 as usize);
-        rule.sequence.push(coverage_of(
-            slice,
-            gid,
-            offset,
-            ContextKind::Lookahead,
-            max_glyphs,
-            budget,
-        ));
+        rule.sequence
+            .push(coverage_of(t, gid, offset, ContextKind::Lookahead));
     }
 
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
@@ -434,33 +389,16 @@ enum RuleShape {
 impl RuleShape {
     fn read_rule(
         self,
-        slice: &[u8],
+        t: &mut TableReader<'_>,
         offset: u32,
-        start_gid: u16,
-        minus_one: bool,
-        coverage_of: impl FnMut(&[u8], u16, u32, ContextKind, GlyphId, &mut OtlReadBudget) -> Coverage,
-        max_glyphs: GlyphId,
-        budget: &mut OtlReadBudget,
+        first_input: Option<u16>,
+        coverage_of: impl FnMut(&mut TableReader<'_>, u16, u32, ContextKind) -> Coverage,
     ) -> Option<Box<ChainingRule>> {
         match self {
-            RuleShape::Contextual => general_read_contextual_rule(
-                slice,
-                offset,
-                start_gid,
-                minus_one,
-                coverage_of,
-                max_glyphs,
-                budget,
-            ),
-            RuleShape::Chaining => general_read_chaining_rule(
-                slice,
-                offset,
-                start_gid,
-                minus_one,
-                coverage_of,
-                max_glyphs,
-                budget,
-            ),
+            RuleShape::Contextual => {
+                general_read_contextual_rule(t, offset, first_input, coverage_of)
+            }
+            RuleShape::Chaining => general_read_chaining_rule(t, offset, first_input, coverage_of),
         }
     }
 }
@@ -475,17 +413,16 @@ fn checked_rule_count(slice: &[u8], set_offset: usize) -> Option<u16> {
 /// Format 1: one rule set per covered glyph, rules written in glyph ids.
 fn read_format1(
     shape: RuleShape,
-    slice: &[u8],
+    t: &mut TableReader<'_>,
     offset: u32,
-    max_glyphs: GlyphId,
     subtable: &mut ChainingSubtable,
-    budget: &mut OtlReadBudget,
 ) -> Option<()> {
+    let slice = t.data;
     let mut header = FontReader::new(slice).at(offset as usize + 2).ok()?;
     let cov_rel = header.u16().ok()?;
     let rule_set_count = header.u16().ok()?;
     let cov_offset = offset.wrapping_add(u32::from(cov_rel));
-    let first_coverage: Coverage = read_coverage(slice, cov_offset, budget);
+    let first_coverage: Coverage = read_coverage(slice, cov_offset, t.budget);
     if rule_set_count as usize != first_coverage.len() {
         return None;
     }
@@ -508,20 +445,15 @@ fn read_format1(
         let srs_offset = offset.wrapping_add(u32::from(srs_rel));
         let srs_count = u16_at(slice, srs_offset as usize);
         for k in 0..srs_count {
-            if !budget.take_rule() {
+            if !t.budget.take_rule() {
                 break 'rulesets;
             }
             let sr_rel = u16_at(slice, srs_offset as usize + 2 + 2 * k as usize);
             let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
-            let rule = shape.read_rule(
-                slice,
-                sr_offset,
-                first_coverage[j as usize].index as u16,
-                true,
-                single_coverage,
-                max_glyphs,
-                budget,
-            );
+            let first_glyph = first_coverage[j as usize].index as u16;
+            let rule = shape.read_rule(t, sr_offset, Some(first_glyph), |_, gid, _, _| {
+                single_coverage(gid)
+            });
             push_rule(&mut ruleset.rules, rule);
         }
     }
@@ -530,12 +462,11 @@ fn read_format1(
 /// Format 2: one rule set per input class, rules written in class numbers.
 fn read_format2(
     shape: RuleShape,
-    slice: &[u8],
+    t: &mut TableReader<'_>,
     offset: u32,
-    max_glyphs: GlyphId,
     subtable: &mut ChainingSubtable,
-    budget: &mut OtlReadBudget,
 ) -> Option<()> {
+    let slice = t.data;
     let class_def_at = |rel: u16| {
         Some(Box::new(read_class_def(
             slice,
@@ -591,7 +522,7 @@ fn read_format2(
         }
         let srs_count = u16_at(slice, offset as usize + src_rel as usize);
         for k in 0..srs_count {
-            if !budget.take_rule() {
+            if !t.budget.take_rule() {
                 break 'class_sets;
             }
             let sr_rel = u16_at(
@@ -601,17 +532,9 @@ fn read_format2(
             let sr_offset = offset
                 .wrapping_add(u32::from(src_rel))
                 .wrapping_add(u32::from(sr_rel));
-            let rule = shape.read_rule(
-                slice,
-                sr_offset,
-                j,
-                true,
-                |slice, cls, offset, kind, max_glyphs, budget: &mut OtlReadBudget| {
-                    class_coverage(slice, cls, offset, kind, max_glyphs, &cds, budget)
-                },
-                max_glyphs,
-                budget,
-            );
+            let rule = shape.read_rule(t, sr_offset, Some(j), |t, cls, _, kind| {
+                class_coverage(t, cls, kind, &cds)
+            });
             push_rule(&mut ruleset.rules, rule);
         }
     }
@@ -634,23 +557,25 @@ fn read_subtable(
     max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
+    let mut t = TableReader {
+        data,
+        max_glyphs,
+        budget,
+    };
     let mut subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
     let format = FontReader::new(data)
         .at(offset as usize)
         .and_then(|mut r| r.u16())
         .unwrap_or(0);
     match format {
-        1 => read_format1(shape, data, offset, max_glyphs, &mut subtable, budget)?,
-        2 => read_format2(shape, data, offset, max_glyphs, &mut subtable, budget)?,
+        1 => read_format1(shape, &mut t, offset, &mut subtable)?,
+        2 => read_format2(shape, &mut t, offset, &mut subtable)?,
         3 => {
             let rule = shape.read_rule(
-                data,
+                &mut t,
                 offset.wrapping_add(2),
-                0,
-                false,
-                format3_coverage,
-                max_glyphs,
-                budget,
+                None,
+                |t, shift, rule_offset, _| format3_coverage(t, shift, rule_offset),
             );
             push_rule(&mut chaining_ruleset_mut(&mut subtable).rules, rule);
         }
@@ -729,7 +654,12 @@ mod chaining_read_tests {
             fc: None,
         };
 
-        let cov = class_coverage(&[], 0, 0, ContextKind::Backtrack, 10, &defs, &mut budget);
+        let mut t = TableReader {
+            data: &[],
+            max_glyphs: 10,
+            budget: &mut budget,
+        };
+        let cov = class_coverage(&mut t, 0, ContextKind::Backtrack, &defs);
 
         assert_eq!(
             budget.class_zero_glyphs, 0,
@@ -776,7 +706,7 @@ mod chaining_read_tests {
         // format=1, coverageOffset -> 16 (one glyph, id 5),
         // chainSubRuleSetCount=1, srsOffset[0] -> 8.
         // ChainSubRuleSet at 8: count=1, ruleOffset[0] -> 4 (abs 12).
-        // ChainSubRule at 12 (minus_one=true): nInput=1 (the coverage's own
+        // ChainSubRule at 12 (with a first input): nInput=1 (the coverage's own
         // glyph fills the one slot), nApply=0.
         let mut data = [0u8; 22];
         data[0..2].copy_from_slice(&1u16.to_be_bytes()); // format
@@ -898,10 +828,10 @@ mod chaining_read_tests {
     }
 
     #[test]
-    fn chaining_rule_with_input_count_below_the_minus_one_slot_does_not_panic() {
-        // A malformed `nInput` of 0 while this call site always wants the
-        // `minus_one` (coverage-implied) slot filled: `nInput - minus_one`
-        // must give zero array reads rather than panic on `u16` underflow.
+    fn chaining_rule_with_input_count_below_the_first_input_slot_does_not_panic() {
+        // A malformed `nInput` of 0 while this call site gives a
+        // `first_input` (coverage-implied) slot: `nInput - 1` must give zero
+        // array reads rather than panic on `u16` underflow.
         // Reached via `general_read_chaining_rule` directly since
         // `read_chaining_format1` (the real caller of this path) also
         // requires a fully valid, consistent outer coverage/ruleset
@@ -911,17 +841,16 @@ mod chaining_read_tests {
         data[2..4].copy_from_slice(&0u16.to_be_bytes()); // nInput (malformed: 0)
         data[4..6].copy_from_slice(&0u16.to_be_bytes()); // nLookaround
         data[6..8].copy_from_slice(&0u16.to_be_bytes()); // nApply
-        let rule = general_read_chaining_rule(
-            &data,
-            0,
-            7,
-            true,
-            single_coverage,
-            100,
-            &mut OtlReadBudget::new(),
-        );
+        let mut budget = OtlReadBudget::new();
+        let mut t = TableReader {
+            data: &data,
+            max_glyphs: 100,
+            budget: &mut budget,
+        };
+        let rule =
+            general_read_chaining_rule(&mut t, 0, Some(7), |_, gid, _, _| single_coverage(gid));
         let rule = rule.unwrap();
-        // Only the `minus_one` slot (glyph 7, from `start_gid`) is
+        // Only the `first_input` slot (glyph 7) is
         // filled; the (empty) input array contributes nothing.
         assert_eq!(rule.sequence.len(), 1);
         assert_eq!(glyphs_of(&rule.sequence[0]), vec![7]);
