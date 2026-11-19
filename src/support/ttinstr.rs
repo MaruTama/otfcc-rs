@@ -384,206 +384,259 @@ fn instr_name_matches(token: &[u8], name: &[u8]) -> bool {
 fn instr_name_has_prefix(token: &[u8], name: &[u8]) -> bool {
     token.len() <= name.len() && token.eq_ignore_ascii_case(&name[..token.len()])
 }
+/// How many values the most recent `PUSH*` instruction still expects, and
+/// whether they are bytes or words. `left` is `-1` right after `NPUSHB` or
+/// `NPUSHW`, when the count byte has not been read yet.
+struct PushState {
+    left: i32,
+    size: i32,
+}
+fn skip_blanks(text: &[u8], pt: &mut usize) {
+    while matches!(peek(text, *pt), b' ' | b'\t') {
+        *pt += 1;
+    }
+}
+fn at_line_end(text: &[u8], pt: usize) -> bool {
+    matches!(peek(text, pt), b'\r' | b'\n' | 0)
+}
+/// Reads up to 256 numbers from the current line into `stack`, stopping at
+/// the first token that is not a number. Returns how many were read, or
+/// `None` (after reporting) if one does not fit in an `i16`.
+fn read_number_run(
+    text: &[u8],
+    pt: &mut usize,
+    stack: &mut [i16; 256],
+    iv_error: &mut impl FnMut(&[u8], i32),
+) -> Option<usize> {
+    let mut npos = 0usize;
+    while npos < 256 {
+        skip_blanks(text, pt);
+        let c = peek(text, *pt);
+        if !(c.is_ascii_digit() || c == b'-') {
+            break;
+        }
+        let (raw_val, consumed) = strtol_base0(&text[*pt..]);
+        let val = raw_val as i32;
+        if !(-32768..=32767).contains(&val) {
+            iv_error(b"A value must be between [-32768,32767]", *pt as i32);
+            return None;
+        }
+        *pt += consumed;
+        stack[npos] = val as i16;
+        npos += 1;
+    }
+    Some(npos)
+}
+/// Matches the numbers on a line against the push the previous instruction
+/// opened (`state`): reads the `NPUSH*` count byte if it is due, then writes
+/// as many values as the push still expects. Returns how many of the first
+/// `npos` numbers were used, or `None` (after reporting) when the line
+/// contradicts the push.
+fn consume_pushed_values(
+    text: &[u8],
+    pt: usize,
+    state: &mut PushState,
+    stack: &[i16; 256],
+    npos: usize,
+    instrs: &mut Vec<u8>,
+    iv_error: &mut impl FnMut(&[u8], i32),
+) -> Option<usize> {
+    let npos = npos as i32;
+    let mut nread: i32 = 0;
+    if state.left == -1 {
+        if npos == 0 {
+            iv_error(b"Expected a number for a push count", pt as i32);
+        } else if i32::from(stack[0]) > 255 || i32::from(stack[0]) <= 0 {
+            iv_error(
+                b"The push count must be a number between 0 and 255",
+                pt as i32,
+            );
+            return None;
+        } else {
+            nread = 1;
+            instrs.push(stack[0] as u8);
+            state.left = i32::from(stack[0]);
+        }
+    }
+    if state.left != 0 && state.left < npos - nread && at_line_end(text, pt) {
+        iv_error(b"More pushes specified than needed", pt as i32);
+        return None;
+    }
+    while state.left > 0 && nread < npos {
+        if state.size == 2 {
+            instrs.push((i32::from(stack[nread as usize]) >> 8) as u8);
+            instrs.push((i32::from(stack[nread as usize]) & 0xff) as u8);
+            nread += 1;
+        } else if i32::from(stack[0]) > 255 || i32::from(stack[0]) < 0 {
+            iv_error(
+                b"A value to be pushed by a byte push must be between 0 and 255",
+                pt as i32,
+            );
+            return None;
+        } else {
+            instrs.push(stack[nread as usize] as u8);
+            nread += 1;
+        }
+        state.left -= 1;
+    }
+    if nread < npos && state.left == 0 && at_line_end(text, pt) {
+        iv_error(b"Unexpected number", pt as i32);
+        return None;
+    }
+    Some(nread as usize)
+}
+/// Writes `stack[nread..npos]` as the shortest run of `PUSHB`/`NPUSHB` and
+/// `PUSHW`/`NPUSHW` instructions: each run is a maximal stretch of values that
+/// all fit in a byte (0..=255) or all need a word.
+fn emit_implicit_pushes(stack: &[i16; 256], nread: usize, npos: usize, instrs: &mut Vec<u8>) {
+    let (mut nread, npos) = (nread as i32, npos as i32);
+    while nread < npos {
+        let mut i = nread;
+        let fits_byte = |v: i16| (0..=255).contains(&i32::from(v));
+        if fits_byte(stack[nread as usize]) {
+            while i < npos && fits_byte(stack[i as usize]) {
+                i += 1;
+            }
+            if i - nread <= 8 {
+                instrs.push((i32::from(TTF_PUSHB) + (i - nread) - 1) as u8);
+            } else {
+                instrs.push(TTF_NPUSHB);
+                instrs.push((i - nread) as u8);
+            }
+            while nread < i {
+                instrs.push(stack[nread as usize] as u8);
+                nread += 1;
+            }
+        } else {
+            while i < npos && !fits_byte(stack[i as usize]) {
+                i += 1;
+            }
+            if i - nread <= 8 {
+                instrs.push((i32::from(TTF_PUSHW) + (i - nread) - 1) as u8);
+            } else {
+                instrs.push(TTF_NPUSHW);
+                instrs.push((i - nread) as u8);
+            }
+            while nread < i {
+                instrs.push((i32::from(stack[nread as usize]) >> 8) as u8);
+                instrs.push((i32::from(stack[nread as usize]) & 0xff) as u8);
+                nread += 1;
+            }
+        }
+    }
+}
+/// Reads the instruction name starting at `pt`, up to a space, line end or
+/// NUL, and returns its opcode and where the name ends. A name that is not
+/// in the table is retried as a bracketed family such as `MDRP[01101]`, whose
+/// bracket digits are added to the family's base opcode. Returns `None`
+/// (after reporting) if the bracket is not closed or its value is 32 or more.
+/// A name that matches nothing gives opcode 256, which the caller truncates
+/// to a byte.
+fn read_instruction_name(
+    text: &[u8],
+    pt: usize,
+    iv_error: &mut impl FnMut(&[u8], i32),
+) -> Option<(i32, usize)> {
+    let mut brack: Option<usize> = None;
+    let mut end = pt;
+    while !matches!(peek(text, end), b'\r' | b'\n' | b' ' | 0) {
+        if matches!(peek(text, end), b'[' | b'_') {
+            brack = Some(end);
+        }
+        end += 1;
+    }
+    let mut i: i32 = 0;
+    while i < 256 {
+        if instr_name_matches(&text[pt..end], FF_TTF_INSTRNAMES[i as usize]) {
+            break;
+        }
+        i += 1;
+    }
+    if i == 256
+        && let Some(brack) = brack
+    {
+        i = 0;
+        while i < 256 {
+            if instr_name_has_prefix(&text[pt..=brack], FF_TTF_INSTRNAMES[i as usize]) {
+                break;
+            }
+            i += 1;
+        }
+        let (raw_val, consumed) = strtol_base2(&text[brack + 1..]);
+        let val = raw_val as i32;
+        let mut bend = brack + 1 + consumed;
+        while peek(text, bend) == b' ' || peek(text, bend) == b'\t' {
+            bend += 1;
+        }
+        if peek(text, bend) != b']' {
+            iv_error(
+                b"Missing right bracket in command (or bad binary value in bracket)",
+                pt as i32,
+            );
+            return None;
+        }
+        if val >= 32 {
+            iv_error(b"Bracketted value is too large", pt as i32);
+            return None;
+        }
+        i += val;
+    }
+    Some((i, end))
+}
+impl PushState {
+    /// Records what a just-written opcode `i` expects next: `PUSHB`/`PUSHW`
+    /// name their count, `NPUSHB`/`NPUSHW` read it from the next number.
+    fn after_opcode(&mut self, i: i32) {
+        let pushb = i32::from(TTF_PUSHB);
+        let pushw = i32::from(TTF_PUSHW);
+        let is_npush = i == i32::from(TTF_NPUSHB) || i == i32::from(TTF_NPUSHW);
+        if is_npush || (i >= pushb && i <= pushw + 7) {
+            self.size = if i == i32::from(TTF_NPUSHB) || (i >= pushb && i <= pushb + 7) {
+                1
+            } else {
+                2
+            };
+            if is_npush {
+                self.left = -1;
+            } else if i >= pushb && i <= pushb + 7 {
+                self.left = i - pushb + 1;
+            } else {
+                self.left = i - pushw + 1;
+            }
+        }
+    }
+}
 // `iv_error` is called with the offending token and its position for every
 // word that is neither a known instruction nor a number in range; each
 // caller (`table/fpgm_prep.rs`, `table/glyf.rs`) supplies its own warning.
 fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec<u8>> {
     let mut numberstack: [i16; 256] = [0; 256];
-    let mut npos: i32;
-    let mut nread: i32;
-    let mut i: i32;
-    let mut push_left: i32 = 0;
-    let mut push_size: i32 = 0;
-    let mut end: usize;
-    let mut bend: usize;
-    let mut brack: Option<usize>;
-    let mut val: i32;
+    let mut push = PushState { left: 0, size: 0 };
     let mut instrs: Vec<u8> = Vec::with_capacity(text.len());
     let mut pt: usize = 0;
     while peek(text, pt) != 0 {
-        npos = 0;
-        while npos < 256 {
-            while peek(text, pt) == b' ' || peek(text, pt) == b'\t' {
-                pt += 1;
-            }
-            let c = peek(text, pt);
-            if !(c.is_ascii_digit() || c == b'-') {
-                break;
-            }
-            let (raw_val, consumed) = strtol_base0(&text[pt..]);
-            val = raw_val as i32;
-            if !(-32768..=32767).contains(&val) {
-                iv_error(b"A value must be between [-32768,32767]", pt as i32);
-                return None;
-            }
-            pt += consumed;
-            numberstack[npos as usize] = val as i16;
-            npos += 1;
-        }
-        while peek(text, pt) == b' ' || peek(text, pt) == b'\t' {
-            pt += 1;
-        }
-        let c = peek(text, pt);
-        if !(npos == 0 && (c == b'\r' || c == b'\n' || c == 0)) {
-            nread = 0;
-            if push_left == -1 {
-                if npos == 0 {
-                    iv_error(b"Expected a number for a push count", pt as i32);
-                } else if i32::from(numberstack[0_usize]) > 255
-                    || i32::from(numberstack[0_usize]) <= 0
-                {
-                    iv_error(
-                        b"The push count must be a number between 0 and 255",
-                        pt as i32,
-                    );
-                    return None;
-                } else {
-                    nread = 1;
-                    instrs.push(numberstack[0_usize] as u8);
-                    push_left = i32::from(numberstack[0_usize]);
-                }
-            }
-            let c = peek(text, pt);
-            if push_left != 0 && push_left < npos - nread && (c == b'\r' || c == b'\n' || c == 0) {
-                iv_error(b"More pushes specified than needed", pt as i32);
-                return None;
-            }
-            while push_left > 0 && nread < npos {
-                if push_size == 2 {
-                    instrs.push((i32::from(numberstack[nread as usize]) >> 8) as u8);
-                    instrs.push((i32::from(numberstack[nread as usize]) & 0xff) as u8);
-                    nread += 1;
-                } else if i32::from(numberstack[0_usize]) > 255
-                    || i32::from(numberstack[0_usize]) < 0
-                {
-                    iv_error(
-                        b"A value to be pushed by a byte push must be between 0 and 255",
-                        pt as i32,
-                    );
-                    return None;
-                } else {
-                    instrs.push(numberstack[nread as usize] as u8);
-                    nread += 1;
-                }
-                push_left -= 1;
-            }
-            let c = peek(text, pt);
-            if nread < npos && push_left == 0 && (c == b'\r' || c == b'\n' || c == 0) {
-                iv_error(b"Unexpected number", pt as i32);
-                return None;
-            }
-            let c = peek(text, pt);
-            if !(c == b'\r' || c == b'\n' || c == 0) {
-                if push_left > 0 {
+        let npos = read_number_run(text, &mut pt, &mut numberstack, &mut iv_error)?;
+        skip_blanks(text, &mut pt);
+        if !(npos == 0 && at_line_end(text, pt)) {
+            let nread = consume_pushed_values(
+                text,
+                pt,
+                &mut push,
+                &numberstack,
+                npos,
+                &mut instrs,
+                &mut iv_error,
+            )?;
+            if !at_line_end(text, pt) {
+                if push.left > 0 {
                     iv_error(b"Missing pushes", pt as i32);
                     return None;
                 }
-                while nread < npos {
-                    i = nread;
-                    if i32::from(numberstack[nread as usize]) >= 0
-                        && i32::from(numberstack[nread as usize]) <= 255
-                    {
-                        while i < npos
-                            && i32::from(numberstack[i as usize]) >= 0
-                            && i32::from(numberstack[i as usize]) <= 255
-                        {
-                            i += 1;
-                        }
-                        if i - nread <= 8 {
-                            instrs.push((i32::from(TTF_PUSHB) + (i - nread) - 1) as u8);
-                        } else {
-                            instrs.push(TTF_NPUSHB);
-                            instrs.push((i - nread) as u8);
-                        }
-                        while nread < i {
-                            instrs.push(numberstack[nread as usize] as u8);
-                            nread += 1;
-                        }
-                    } else {
-                        while i < npos
-                            && (i32::from(numberstack[i as usize]) < 0
-                                || i32::from(numberstack[i as usize]) > 255)
-                        {
-                            i += 1;
-                        }
-                        if i - nread <= 8 {
-                            instrs.push((i32::from(TTF_PUSHW) + (i - nread) - 1) as u8);
-                        } else {
-                            instrs.push(TTF_NPUSHW);
-                            instrs.push((i - nread) as u8);
-                        }
-                        while nread < i {
-                            instrs.push((i32::from(numberstack[nread as usize]) >> 8) as u8);
-                            instrs.push((i32::from(numberstack[nread as usize]) & 0xff) as u8);
-                            nread += 1;
-                        }
-                    }
-                }
-                brack = None;
-                end = pt;
-                while !matches!(peek(text, end), b'\r' | b'\n' | b' ' | 0) {
-                    if matches!(peek(text, end), b'[' | b'_') {
-                        brack = Some(end);
-                    }
-                    end += 1;
-                }
-                i = 0;
-                while i < 256 {
-                    if instr_name_matches(&text[pt..end], FF_TTF_INSTRNAMES[i as usize]) {
-                        break;
-                    }
-                    i += 1;
-                }
-                if i == 256
-                    && let Some(brack) = brack
-                {
-                    i = 0;
-                    while i < 256 {
-                        if instr_name_has_prefix(&text[pt..=brack], FF_TTF_INSTRNAMES[i as usize]) {
-                            break;
-                        }
-                        i += 1;
-                    }
-                    let (raw_val, consumed) = strtol_base2(&text[brack + 1..]);
-                    val = raw_val as i32;
-                    bend = brack + 1 + consumed;
-                    while peek(text, bend) == b' ' || peek(text, bend) == b'\t' {
-                        bend += 1;
-                    }
-                    if peek(text, bend) != b']' {
-                        iv_error(
-                            b"Missing right bracket in command (or bad binary value in bracket)",
-                            pt as i32,
-                        );
-                        return None;
-                    }
-                    if val >= 32 {
-                        iv_error(b"Bracketted value is too large", pt as i32);
-                        return None;
-                    }
-                    i += val;
-                }
+                emit_implicit_pushes(&numberstack, nread, npos, &mut instrs);
+                let (opcode, end) = read_instruction_name(text, pt, &mut iv_error)?;
                 pt = end;
-                instrs.push(i as u8);
-                if i == i32::from(TTF_NPUSHB)
-                    || i == i32::from(TTF_NPUSHW)
-                    || i >= i32::from(TTF_PUSHB) && i <= i32::from(TTF_PUSHW) + 7
-                {
-                    push_size = if i == i32::from(TTF_NPUSHB)
-                        || i >= i32::from(TTF_PUSHB) && i <= i32::from(TTF_PUSHB) + 7
-                    {
-                        1
-                    } else {
-                        2
-                    };
-                    if i == i32::from(TTF_NPUSHB) || i == i32::from(TTF_NPUSHW) {
-                        push_left = -1;
-                    } else if i >= i32::from(TTF_PUSHB) && i <= i32::from(TTF_PUSHB) + 7 {
-                        push_left = i - i32::from(TTF_PUSHB) + 1;
-                    } else {
-                        push_left = i - i32::from(TTF_PUSHW) + 1;
-                    }
-                }
+                instrs.push(opcode as u8);
+                push.after_opcode(opcode);
                 if peek(text, pt) == 0 {
                     break;
                 }
@@ -593,135 +646,71 @@ fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec
     }
     Some(instrs)
 }
-fn instr_typify(id: &mut InstrData) -> i32 {
-    let mut i: i32;
+/// Marks the `cnt` operands that follow the push instruction at `*i`, as
+/// bytes or as high/low halves of words, leaving `*i` on the last operand
+/// marked. Returns `false` when the operands run off the end of the
+/// instruction block, with `*i == len`; the stream is then left untypified
+/// from there on instead of being read or written past `len`.
+///
+/// `bts` is sized to exactly `len + 1` slots, so no write may land past
+/// `len`. A `WordHi` marker promises `dump_ttinstr` a paired `WordLo` right
+/// after it, so a word operand with only one byte left is marked `Byte`
+/// instead (and `*i` advanced to `len` so the caller's `ImpliedReturn` write
+/// does not clobber it). Both cases were heap overflows found by fuzzing.
+fn mark_push_operands(id: &mut InstrData, i: &mut i32, cnt: i32, words: bool) -> bool {
     let len: i32 = id.instr_cnt as i32;
-    let mut cnt: i32;
-    let mut j: i32;
-    let mut lh: i32;
+    for _ in 0..cnt {
+        *i += 1;
+        if *i >= len {
+            return false;
+        }
+        if !words {
+            id.bts[*i as usize] = ByteType::Byte;
+        } else if *i + 1 >= len {
+            id.bts[*i as usize] = ByteType::Byte;
+            *i += 1;
+            return false;
+        } else {
+            id.bts[*i as usize] = ByteType::WordHi;
+            *i += 1;
+            id.bts[*i as usize] = ByteType::WordLo;
+        }
+    }
+    true
+}
+fn instr_typify(id: &mut InstrData) -> i32 {
+    let len: i32 = id.instr_cnt as i32;
     if id.bts.is_empty() {
         id.bts = vec![ByteType::Instr; (len + 1) as usize];
     }
-    lh = 0;
-    i = lh;
-    // `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` each carry their own
-    // attacker-controlled operand count, skipped by advancing `i` several
-    // steps within a single outer-loop iteration -- nothing previously
-    // stopped that skip from running `i` past `len` (this instruction
-    // block's own declared length). `bts` is sized to exactly `len + 1`
-    // slots (0..=len, the last for the trailing `ImpliedReturn` marker
-    // below), so any write at an `i` past that -- reachable via a
-    // `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` whose declared count runs
-    // off the end -- is a heap-buffer-overflow (ASan-confirmed: a
-    // fuzz-found font's hinting bytecode did exactly this). `'outer`
-    // breaks the moment `i` would go out of range, leaving the rest of a
-    // truncated/malformed instruction stream untypified instead of
-    // reading or writing past `bts` or `instrs` (whose own declared
-    // length is the same `len`) -- breaking exactly when `i` reaches
-    // `len` lands on the same position the loop's own normal exit
-    // condition would anyway, so the trailing `ImpliedReturn` write below
-    // needs no separate guard.
-    'outer: while i < len {
+    let mut lh: i32 = 0;
+    let mut i: i32 = 0;
+    while i < len {
         id.bts[i as usize] = ByteType::Instr;
         lh += 1;
-        if id.instrs[i as usize] == TTF_NPUSHB {
+        let opcode = id.instrs[i as usize];
+        if opcode == TTF_NPUSHB || opcode == TTF_NPUSHW {
+            // The count byte follows the opcode; the operands follow the count.
             i += 1;
             if i >= len {
-                break 'outer;
+                break;
             }
             id.bts[i as usize] = ByteType::Cnt;
-            cnt = i32::from(id.instrs[i as usize]);
-            j = 0;
-            while j < cnt {
-                i += 1;
-                if i >= len {
-                    break 'outer;
-                }
-                id.bts[i as usize] = ByteType::Byte;
-                j += 1;
+            let words = opcode == TTF_NPUSHW;
+            if words {
+                lh += 1;
+            }
+            let cnt = i32::from(id.instrs[i as usize]);
+            if !mark_push_operands(id, &mut i, cnt, words) {
+                break;
             }
             lh += 1 + cnt;
-        } else if id.instrs[i as usize] == TTF_NPUSHW {
-            i += 1;
-            if i >= len {
-                break 'outer;
-            }
-            id.bts[i as usize] = ByteType::Cnt;
-            lh += 1;
-            cnt = i32::from(id.instrs[i as usize]);
-            j = 0;
-            while j < cnt {
-                i += 1;
-                if i >= len {
-                    break 'outer;
-                }
-                // A `WordHi` marker promises `dump_ttinstr` a paired
-                // `WordLo` right after it (it reads `instrs[i+1]`
-                // unconditionally whenever it sees `WordHi`) -- if this
-                // operand's declared count runs off the end with only one
-                // byte of a two-byte word actually present, mark that
-                // trailing byte `Byte` instead so nothing later reads past
-                // `instrs`'s own `len` bytes (ASan-confirmed: a fuzz-found
-                // font's truncated `NPUSHW`/`PUSHW[n]` operand did exactly
-                // this, a 1-byte heap-buffer-overflow read in
-                // `dump_ttinstr`).
-                if i + 1 >= len {
-                    id.bts[i as usize] = ByteType::Byte;
-                    // Advance `i` to `len` before breaking -- every other
-                    // break path in this loop leaves `i == len`, which the
-                    // unconditional `ImpliedReturn` write right after this
-                    // loop relies on (it writes at the *current* `i`, on
-                    // the assumption that's the slot past everything this
-                    // loop already wrote). Breaking with `i` still at this
-                    // byte's own index would let that write silently
-                    // clobber the `Byte` marker just set above.
-                    i += 1;
-                    break 'outer;
-                }
-                id.bts[i as usize] = ByteType::WordHi;
-                i += 1;
-                id.bts[i as usize] = ByteType::WordLo;
-                j += 1;
-            }
-            lh += 1 + cnt;
-        } else if i32::from(id.instrs[i as usize]) & 0xf8 == 0xb0 {
-            cnt = (i32::from(id.instrs[i as usize]) & 7) + 1;
-            j = 0;
-            while j < cnt {
-                i += 1;
-                if i >= len {
-                    break 'outer;
-                }
-                id.bts[i as usize] = ByteType::Byte;
-                j += 1;
-            }
-            lh += cnt;
-        } else if i32::from(id.instrs[i as usize]) & 0xf8 == 0xb8 {
-            cnt = (i32::from(id.instrs[i as usize]) & 7) + 1;
-            j = 0;
-            while j < cnt {
-                i += 1;
-                if i >= len {
-                    break 'outer;
-                }
-                // Same "no orphaned WordHi" fix as the NPUSHW branch above.
-                if i + 1 >= len {
-                    id.bts[i as usize] = ByteType::Byte;
-                    // Advance `i` to `len` before breaking -- every other
-                    // break path in this loop leaves `i == len`, which the
-                    // unconditional `ImpliedReturn` write right after this
-                    // loop relies on (it writes at the *current* `i`, on
-                    // the assumption that's the slot past everything this
-                    // loop already wrote). Breaking with `i` still at this
-                    // byte's own index would let that write silently
-                    // clobber the `Byte` marker just set above.
-                    i += 1;
-                    break 'outer;
-                }
-                id.bts[i as usize] = ByteType::WordHi;
-                i += 1;
-                id.bts[i as usize] = ByteType::WordLo;
-                j += 1;
+        } else if i32::from(opcode) & 0xf8 == 0xb0 || i32::from(opcode) & 0xf8 == 0xb8 {
+            // `PUSHB[n]` / `PUSHW[n]`: the count is in the opcode's low bits.
+            let words = i32::from(opcode) & 0xf8 == 0xb8;
+            let cnt = (i32::from(opcode) & 7) + 1;
+            if !mark_push_operands(id, &mut i, cnt, words) {
+                break;
             }
             lh += cnt;
         }
