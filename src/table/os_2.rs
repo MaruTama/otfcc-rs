@@ -389,73 +389,35 @@ pub static UNICODE_RANGE_LABELS4: [&str; 27] = [
     "Carian_and_Lycian",
     "Domino_and_Mahjong_Tiles",
 ];
+fn push_int(object: &mut BuiltValue, name: &[u8], value: impl Into<i64>) {
+    object.push_field(name, BuiltValue::Int(value.into()));
+}
+
 pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
     let stage = crate::logger::stage("OS/2");
     let mut os_2 = BuiltValue::new_object(30);
-    os_2.push_field(b"version", BuiltValue::Int(i64::from(table.version)));
-    os_2.push_field(
-        b"xAvgCharWidth",
-        BuiltValue::Int(i64::from(table.x_avg_char_width)),
-    );
-    os_2.push_field(
-        b"usWeightClass",
-        BuiltValue::Int(i64::from(table.us_weight_class)),
-    );
-    os_2.push_field(
-        b"usWidthClass",
-        BuiltValue::Int(i64::from(table.us_width_class)),
-    );
+    push_int(&mut os_2, b"version", table.version);
+    push_int(&mut os_2, b"xAvgCharWidth", table.x_avg_char_width);
+    push_int(&mut os_2, b"usWeightClass", table.us_weight_class);
+    push_int(&mut os_2, b"usWidthClass", table.us_width_class);
     os_2.push_field(
         b"fsType",
         BuiltValue::dump_flags(i32::from(table.fs_type), &FS_TYPE_LABELS),
     );
-    os_2.push_field(
-        b"ySubscriptXSize",
-        BuiltValue::Int(i64::from(table.y_subscript_x_size)),
-    );
-    os_2.push_field(
-        b"ySubscriptYSize",
-        BuiltValue::Int(i64::from(table.y_subscript_y_size)),
-    );
-    os_2.push_field(
-        b"ySubscriptXOffset",
-        BuiltValue::Int(i64::from(table.y_subscript_x_offset)),
-    );
-    os_2.push_field(
-        b"ySubscriptYOffset",
-        BuiltValue::Int(i64::from(table.y_subscript_y_offset)),
-    );
-    os_2.push_field(
-        b"ySupscriptXSize",
-        BuiltValue::Int(i64::from(table.y_supscript_x_size)),
-    );
-    os_2.push_field(
-        b"ySupscriptYSize",
-        BuiltValue::Int(i64::from(table.y_supscript_y_size)),
-    );
-    os_2.push_field(
-        b"ySupscriptXOffset",
-        BuiltValue::Int(i64::from(table.y_supscript_x_offset)),
-    );
-    os_2.push_field(
-        b"ySupscriptYOffset",
-        BuiltValue::Int(i64::from(table.y_supscript_y_offset)),
-    );
-    os_2.push_field(
-        b"yStrikeoutSize",
-        BuiltValue::Int(i64::from(table.y_strikeout_size)),
-    );
-    os_2.push_field(
-        b"yStrikeoutPosition",
-        BuiltValue::Int(i64::from(table.y_strikeout_position)),
-    );
-    os_2.push_field(
-        b"sFamilyClass",
-        BuiltValue::Int(i64::from(table.s_family_class)),
-    );
+    push_int(&mut os_2, b"ySubscriptXSize", table.y_subscript_x_size);
+    push_int(&mut os_2, b"ySubscriptYSize", table.y_subscript_y_size);
+    push_int(&mut os_2, b"ySubscriptXOffset", table.y_subscript_x_offset);
+    push_int(&mut os_2, b"ySubscriptYOffset", table.y_subscript_y_offset);
+    push_int(&mut os_2, b"ySupscriptXSize", table.y_supscript_x_size);
+    push_int(&mut os_2, b"ySupscriptYSize", table.y_supscript_y_size);
+    push_int(&mut os_2, b"ySupscriptXOffset", table.y_supscript_x_offset);
+    push_int(&mut os_2, b"ySupscriptYOffset", table.y_supscript_y_offset);
+    push_int(&mut os_2, b"yStrikeoutSize", table.y_strikeout_size);
+    push_int(&mut os_2, b"yStrikeoutPosition", table.y_strikeout_position);
+    push_int(&mut os_2, b"sFamilyClass", table.s_family_class);
     let mut panose = BuiltValue::new_array(10);
     for &p in &table.panose {
         panose.push_item(BuiltValue::Int(i64::from(p)));
@@ -485,34 +447,13 @@ pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
         b"fsSelection",
         BuiltValue::dump_flags(i32::from(table.fs_selection), &FS_SELECTION_LABELS),
     );
-    os_2.push_field(
-        b"usFirstCharIndex",
-        BuiltValue::Int(i64::from(table.us_first_char_index)),
-    );
-    os_2.push_field(
-        b"usLastCharIndex",
-        BuiltValue::Int(i64::from(table.us_last_char_index)),
-    );
-    os_2.push_field(
-        b"sTypoAscender",
-        BuiltValue::Int(i64::from(table.s_typo_ascender)),
-    );
-    os_2.push_field(
-        b"sTypoDescender",
-        BuiltValue::Int(i64::from(table.s_typo_descender)),
-    );
-    os_2.push_field(
-        b"sTypoLineGap",
-        BuiltValue::Int(i64::from(table.s_typo_line_gap)),
-    );
-    os_2.push_field(
-        b"usWinAscent",
-        BuiltValue::Int(i64::from(table.us_win_ascent)),
-    );
-    os_2.push_field(
-        b"usWinDescent",
-        BuiltValue::Int(i64::from(table.us_win_descent)),
-    );
+    push_int(&mut os_2, b"usFirstCharIndex", table.us_first_char_index);
+    push_int(&mut os_2, b"usLastCharIndex", table.us_last_char_index);
+    push_int(&mut os_2, b"sTypoAscender", table.s_typo_ascender);
+    push_int(&mut os_2, b"sTypoDescender", table.s_typo_descender);
+    push_int(&mut os_2, b"sTypoLineGap", table.s_typo_line_gap);
+    push_int(&mut os_2, b"usWinAscent", table.us_win_ascent);
+    push_int(&mut os_2, b"usWinDescent", table.us_win_descent);
     os_2.push_field(
         b"ulCodePageRange1",
         BuiltValue::dump_flags(table.ul_code_page_range1 as i32, &CODE_PAGE_LABELS1),
@@ -521,30 +462,20 @@ pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
         b"ulCodePageRange2",
         BuiltValue::dump_flags(table.ul_code_page_range2 as i32, &CODE_PAGE_LABELS2),
     );
-    os_2.push_field(b"sxHeight", BuiltValue::Int(i64::from(table.sx_height)));
-    os_2.push_field(
-        b"sCapHeight",
-        BuiltValue::Int(i64::from(table.s_cap_height)),
-    );
-    os_2.push_field(
-        b"usDefaultChar",
-        BuiltValue::Int(i64::from(table.us_default_char)),
-    );
-    os_2.push_field(
-        b"usBreakChar",
-        BuiltValue::Int(i64::from(table.us_break_char)),
-    );
-    os_2.push_field(
-        b"usMaxContext",
-        BuiltValue::Int(i64::from(table.us_max_context)),
-    );
-    os_2.push_field(
+    push_int(&mut os_2, b"sxHeight", table.sx_height);
+    push_int(&mut os_2, b"sCapHeight", table.s_cap_height);
+    push_int(&mut os_2, b"usDefaultChar", table.us_default_char);
+    push_int(&mut os_2, b"usBreakChar", table.us_break_char);
+    push_int(&mut os_2, b"usMaxContext", table.us_max_context);
+    push_int(
+        &mut os_2,
         b"usLowerOpticalPointSize",
-        BuiltValue::Int(i64::from(table.us_lower_optical_point_size)),
+        table.us_lower_optical_point_size,
     );
-    os_2.push_field(
+    push_int(
+        &mut os_2,
         b"usUpperOpticalPointSize",
-        BuiltValue::Int(i64::from(table.us_upper_optical_point_size)),
+        table.us_upper_optical_point_size,
     );
     root.push_field(b"OS_2", os_2);
     stage.finish();

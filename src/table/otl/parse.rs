@@ -409,6 +409,37 @@ fn figure_out_features_from_json(
 pub fn is_valid_language_name(name: &[u8]) -> bool {
     name.len() == 9 && name[4] == SCRIPT_LANGUAGE_SEPARATOR
 }
+/// The feature a name refers to. When several features share a name the last
+/// one wins, as in upstream otfcc.
+fn find_feature_by_name(fh: &PendingFeatures, name: &[u8]) -> Option<PendingFeatureId> {
+    fh.entries
+        .iter()
+        .rev()
+        .find(|e| e.name == name)
+        .map(|e| e.feature_id)
+}
+
+/// Reads one language's `requiredFeature` and `features` list. Names that
+/// match no feature are silently dropped.
+fn read_language_features(
+    language_val: &ParsedValue,
+    fh: &PendingFeatures,
+) -> (Option<PendingFeatureId>, Vec<PendingFeatureId>) {
+    let required_feature = language_val
+        .get_typed(b"requiredFeature", JsonType::String)
+        .and_then(ParsedValue::as_str_bytes)
+        .and_then(|name| find_feature_by_name(fh, name));
+    let features = language_val
+        .get_typed(b"features", JsonType::Array)
+        .and_then(ParsedValue::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(ParsedValue::as_str_bytes)
+        .filter_map(|name| find_feature_by_name(fh, name))
+        .collect();
+    (required_feature, features)
+}
+
 fn figure_out_languages_from_json(
     languages: Option<&ParsedValue>,
     fh: &PendingFeatures,
@@ -421,64 +452,35 @@ fn figure_out_languages_from_json(
     };
     for (key, language_val) in fields {
         let language_name = &key[..key.len() - 1];
-        if is_valid_language_name(language_name) && language_val.as_object().is_some() {
-            let mut required_feature: Option<PendingFeatureId> = None;
-            if let Some(rf_bytes) = language_val
-                .get_typed(b"requiredFeature", JsonType::String)
-                .and_then(ParsedValue::as_str_bytes)
-            {
-                let rf_owned = rf_bytes.to_vec();
-                if let Some(rf) = fh.entries.iter().rev().find(|e| e.name == rf_owned) {
-                    required_feature = Some(rf.feature_id);
-                }
-            }
-            let mut af: Vec<PendingFeatureId> = Vec::new();
-            if let Some(items) = language_val
-                .get_typed(b"features", JsonType::Array)
-                .and_then(ParsedValue::as_array)
-            {
-                for term in items {
-                    if let Some(term_bytes) = term.as_str_bytes() {
-                        let term_owned = term_bytes.to_vec();
-                        if let Some(item) = fh.entries.iter().rev().find(|e| e.name == term_owned) {
-                            af.push(item.feature_id);
-                        }
-                    }
-                }
-            }
-            if required_feature.is_some() || !af.is_empty() {
-                let language_name_bytes: Vec<u8> = language_name.to_vec();
-                if !sh.contains_key(&language_name_bytes) {
-                    // Built as a local owned value, only actually
-                    // allocated into `OtlTable.languages` at the very end
-                    // (`parse_otl`'s remap) -- unlike
-                    // `LookupEntry`/`FeatureEntry`, `LanguageHash` has no
-                    // alias mechanism at all (no JSON string-value case is
-                    // handled for `"languages"`, confirmed by grep before
-                    // starting), so every entry here really is unique and
-                    // really does get pushed.
-                    sh.insert(
-                        language_name_bytes.clone(),
-                        PendingLanguage {
-                            name: language_name_bytes,
-                            required_feature,
-                            features: af,
-                        },
-                    );
-                } else {
-                    tracing::warn!(
-                        "[OTFCC-fea] Duplicate language item [{}/{}]. This language term will be ignored.\n",
-                        ByteStr(tag),
-                        ByteStr(language_name)
-                    );
-                }
-            } else {
-                tracing::warn!(
-                    "[OTFCC-fea] There is no valid feature assignments for [{}/{}]. This language term will be ignored.\n",
-                    ByteStr(tag),
-                    ByteStr(language_name)
-                );
-            }
+        if !is_valid_language_name(language_name) || language_val.as_object().is_none() {
+            continue;
+        }
+        let (required_feature, features) = read_language_features(language_val, fh);
+        if required_feature.is_none() && features.is_empty() {
+            tracing::warn!(
+                "[OTFCC-fea] There is no valid feature assignments for [{}/{}]. This language term will be ignored.\n",
+                ByteStr(tag),
+                ByteStr(language_name)
+            );
+        } else if sh.contains_key(language_name) {
+            tracing::warn!(
+                "[OTFCC-fea] Duplicate language item [{}/{}]. This language term will be ignored.\n",
+                ByteStr(tag),
+                ByteStr(language_name)
+            );
+        } else {
+            // Built as a local owned value, only actually allocated into
+            // `OtlTable.languages` at the very end (`parse_otl`'s remap).
+            // Unlike `LookupEntry`/`FeatureEntry`, `LanguageHash` has no
+            // alias mechanism, so every entry here is unique.
+            sh.insert(
+                language_name.to_vec(),
+                PendingLanguage {
+                    name: language_name.to_vec(),
+                    required_feature,
+                    features,
+                },
+            );
         }
     }
     sh
