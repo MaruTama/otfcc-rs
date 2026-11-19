@@ -1,3 +1,6 @@
+//! GPOS lookup type 5, mark-to-ligature: like mark-to-base, but each
+//! ligature has one set of anchors per component.
+
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;

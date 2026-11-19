@@ -1,3 +1,6 @@
+//! GPOS lookup type 3, cursive attachment: an entry and an exit anchor per
+//! glyph.
+
 use crate::support::handle::{GlyphHandle, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
@@ -20,6 +23,8 @@ use otfcc_json::BuiltValue;
 /// Reads a cursive attachment subtable: an entry and an exit anchor for
 /// each covered glyph. Returns `None` if the header does not fit, the
 /// coverage is empty, or the record count differs from the coverage size.
+/// A null anchor offset reads as an absent anchor. `_max_glyphs` is not
+/// used.
 pub fn otl_read_gpos_cursive(
     data: &[u8],
     offset: u32,
@@ -115,7 +120,10 @@ pub fn otl_gpos_parse_cursive(_subtable: Option<&ParsedValue>) -> Option<Subtabl
     }
     Some(Subtable::GposCursive(subtable))
 }
-/// Writes the subtable as CursivePos format 1.
+/// Writes the subtable as CursivePos format 1. The entries must be
+/// consolidated first (glyph ids resolved, in ascending order, each glyph
+/// once): the coverage is written sorted and the records in entry order.
+/// An absent anchor is written as a null offset.
 pub fn build_gpos_cursive(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
     let Subtable::GposCursive(subtable) = _subtable else {
         unreachable!()

@@ -1,3 +1,6 @@
+//! GPOS lookup type 2, pair adjustment. Both formats are held as a class
+//! matrix; building writes whichever format comes out smaller.
+
 use crate::support::handle::{GlyphHandle, handle_from_index};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::classdef::{ClassDef, expand_class_def, read_class_def};

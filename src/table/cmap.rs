@@ -1,3 +1,7 @@
+//! The `cmap` table: the mapping from code points, and from variation
+//! sequences, to glyphs. This file holds the data model and the JSON
+//! dump and parse; `read` and `build` handle the binary table.
+
 pub mod build;
 pub mod read;
 
@@ -132,15 +136,12 @@ pub fn dump_cmap(table: Option<&CmapTable>, sink: &mut dyn DumpSink, options: &O
     }
     stage.finish();
 }
-// `unicode_str` borrows the object key's own storage directly (the trailing
-// storage NUL stripped by the caller, same as every other `ParsedValue`
-// object-key consumer in this crate) instead of going through an owned
-// C-string copy -- no allocation or `unsafe` `libc` call needed any more.
-//
-// A key is `U+` followed by hex digits, or decimal digits; anything else
-// (signs, spaces, trailing text, `0x`, an empty number, one too large for
-// `u32`) is not a code point and gives `None`. The digit check comes first
-// because `from_str_radix` would also accept a leading `+`.
+/// The code point a JSON `cmap` key names: `U+` followed by hex digits, or
+/// decimal digits. Anything else (signs, spaces, trailing text, `0x`, an
+/// empty number, one too large for `u32`) gives `None`. `unicode_str` is
+/// the key without its trailing NUL.
+// The digit check comes first because `from_str_radix` would also accept a
+// leading `+`.
 pub(crate) fn parse_unicode(unicode_str: &[u8]) -> Option<Unicode> {
     let (digits, radix) = match unicode_str.strip_prefix(b"U+") {
         Some(hex) => (hex, 16),

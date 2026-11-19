@@ -1,3 +1,7 @@
+//! GPOS lookup types 4 and 6, mark-to-base and mark-to-mark, which share
+//! one layout: marks with classes and anchors, and one anchor per class on
+//! each base.
+
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;

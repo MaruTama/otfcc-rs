@@ -177,8 +177,15 @@ fn build_cmap_format12(cmap: &CmapTable) -> Buffer {
     buf.write_u32be(n_groups);
     buf
 }
+/// The length of the per-code-point tables in format 14 building: every
+/// code point up to U+10FFFF, plus one last slot kept empty so every range
+/// ends inside the table.
 pub const MAX_UNICODE: Unicode = 0x110001;
+/// A selector has default variation sequences: ones whose glyph is the
+/// code point's plain `cmap` glyph.
 pub const HAS_DEFAULT: u8 = 1;
+/// A selector has non-default variation sequences: ones with a glyph of
+/// their own.
 pub const HAS_NON_DEFAULT: u8 = 2;
 #[inline]
 /// Writes the default UVS range `start..=end`, split into ranges of at most

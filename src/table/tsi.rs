@@ -1,3 +1,7 @@
+//! The VTT (Visual TrueType) source tables `TSI0`–`TSI3`: the hinting
+//! sources VTT keeps beside the compiled instructions, carried through
+//! dump and build as text.
+
 use crate::font::sfnt::Packet;
 use crate::logger::ByteStr;
 use crate::support::handle::{
