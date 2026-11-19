@@ -10,6 +10,13 @@ use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
 
+/// The 'post' table: italic angle, underline and fixed-pitch information, and
+/// (for version 2.0 only) the glyph names.
+///
+/// `post_name_map` is filled in only when a version 2.0 table is read, and only
+/// serves as one source of glyph names (see `create_glyph_order`). It is never
+/// dumped or built from; [`build_post`] writes names from the font's own glyph
+/// order.
 #[derive(Debug)]
 pub struct PostTable {
     pub version: F16Dot16,
@@ -382,6 +389,8 @@ fn decode_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
     })
 }
 
+/// Reads the 'post' table from `packet`. Returns `None` when the table is absent
+/// or corrupted (the warning "table 'post' corrupted" is logged).
 pub fn read_post(packet: &Packet) -> Option<Box<PostTable>> {
     let table = packet
         .pieces
@@ -420,6 +429,9 @@ pub fn read_post(packet: &Packet) -> Option<Box<PostTable>> {
     }
     Some(Box::new(post_val))
 }
+/// Dumps the table as the `"post"` object. The glyph names are not part of it:
+/// they live in the glyph order. `italicAngle` is written as an integer, so a
+/// fractional angle is truncated in the dump.
 pub fn dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -459,6 +471,9 @@ pub fn dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     root.push_field(b"post", post);
     stage.finish();
 }
+/// Reads the `"post"` object. A missing `"post"` object gives a version 3.0
+/// table (no glyph names). With `options.short_post` the version is forced to 3.0
+/// whatever the JSON says.
 pub fn parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
     // is absent (never overwritten below in that case, unlike every other
@@ -494,6 +509,9 @@ pub fn parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable
     }
     Some(Box::new(post))
 }
+/// Serializes the table. For version 2.0 the glyph names follow the fixed
+/// header, taken from `glyphorder` in glyph id order, which must therefore be
+/// present. Any other version is just the fixed header.
 pub fn build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> Option<Buffer> {
     let post = post?;
     let mut buf = Buffer::new();

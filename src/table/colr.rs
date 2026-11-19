@@ -12,16 +12,21 @@ use otfcc_json::JsonType;
 
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
+/// One layer of a color glyph: the glyph to draw and the CPAL palette entry to
+/// paint it with.
 #[derive(Clone, Debug)]
 pub struct ColrLayer {
     pub glyph: GlyphHandle,
     pub palette_index: ColorId,
 }
+/// A base glyph and the layers (bottom to top) that replace it when colors are
+/// supported.
 #[derive(Clone, Debug)]
 pub struct ColrMapping {
     pub glyph: GlyphHandle,
     pub layers: Vec<ColrLayer>,
 }
+/// The 'COLR' table: one mapping per color glyph.
 pub type ColrTable = Vec<ColrMapping>;
 
 const BASE_GLYPH_REC_LENGTH: usize = 6;
@@ -76,6 +81,8 @@ fn decode_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     }
     Ok(colr)
 }
+/// Reads the 'COLR' table from `packet`. Returns `None` when the table is absent
+/// or corrupted (the warning "Table 'COLR' corrupted" is logged).
 pub fn read_colr(packet: &Packet) -> Option<ColrTable> {
     let table = packet
         .pieces
@@ -89,6 +96,8 @@ pub fn read_colr(packet: &Packet) -> Option<ColrTable> {
         }
     }
 }
+/// Dumps the table as the `"COLR"` array of `{from, to: [{layer,
+/// paletteIndex}]}` objects, naming glyphs by name.
 pub fn dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
     let Some(mappings) = colr else {
         return;
@@ -120,6 +129,9 @@ pub fn dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue) {
     root.push_field(b"COLR", _colr);
     stage.finish();
 }
+/// Reads the `"COLR"` array. Mappings without `from` or `to` are skipped, as are
+/// layers without a `layer` name; a missing `paletteIndex` becomes 0xFFFF
+/// ("use the text foreground color").
 pub fn parse_colr(root: &ParsedValue) -> Option<ColrTable> {
     let colr_val = root.get_typed(b"COLR", JsonType::Array)?;
     let mut colr: ColrTable = Vec::new();
@@ -159,6 +171,9 @@ pub fn parse_colr(root: &ParsedValue) -> Option<ColrTable> {
     stage.finish();
     Some(colr)
 }
+/// Serializes the table (version 0). Returns `None` when there are no mappings.
+/// Base glyph records are sorted by glyph index, as the format requires, and the
+/// layers are numbered in that order.
 pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
     let src = match _colr {
         Some(c) if !c.is_empty() => c,

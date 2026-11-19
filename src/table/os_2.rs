@@ -4,6 +4,15 @@ use otfcc_binary::{FontReader, ReadError};
 use otfcc_json::BuiltValue;
 use otfcc_json::JsonType;
 use otfcc_json::ParsedValue;
+/// The 'OS/2' table: font-wide metrics and classification (weight/width class,
+/// embedding and selection flags, Unicode and code page coverage, typographic and
+/// Windows ascent/descent, and, in newer versions, x/cap height and optical
+/// sizes).
+///
+/// `version` decides how much of the table exists. The fields from
+/// `sx_height` on are only meaningful for version 2 and up, and the optical point
+/// sizes only for version 5; for a lower version they are left at 0 and are not
+/// written back by [`build_os_2`].
 #[derive(Copy, Clone, Debug)]
 pub struct Os2Table {
     pub version: u16,
@@ -181,6 +190,9 @@ fn decode_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     }
     Ok(os2)
 }
+/// Reads the 'OS/2' table from `packet`. Returns `None` when the table is
+/// absent, or when it is shorter than its declared version needs (the warning
+/// "table 'OS/2' corrupted" is logged in that case).
 pub fn read_os_2(packet: &Packet) -> Option<Box<Os2Table>> {
     let table = packet
         .pieces
@@ -393,6 +405,10 @@ fn push_int(object: &mut BuiltValue, name: &[u8], value: impl Into<i64>) {
     object.push_field(name, BuiltValue::Int(value.into()));
 }
 
+/// Dumps the table as the `"OS_2"` object. The flag fields (`fsType`,
+/// `fsSelection`, the Unicode range and code page words) are written as
+/// lists of flag names, see the `*_LABELS` tables above, and `achVendID` is cut
+/// at its first NUL.
 pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -480,6 +496,10 @@ pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
     root.push_field(b"OS_2", os_2);
     stage.finish();
 }
+/// Reads the `"OS_2"` object. Missing numbers are 0 and missing flags are empty,
+/// so a partial object still produces a table. A missing `"OS_2"` object is
+/// not an error either: the result is a table of defaults. The version is raised
+/// to at least 1, and `achVendID` is padded with spaces.
 pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     let mut os_2 = Os2Table {
         version: 4,
@@ -599,6 +619,9 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     }
     Some(Box::new(os_2))
 }
+/// Serializes the table. Only the fields the table's `version` has are written:
+/// the 0/1 layout ends after the code page ranges, version 2 to 4 adds the height
+/// and character fields, and version 5 adds the optical point sizes.
 pub fn build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
     let os_2 = os_2?;
     let mut buf = Buffer::new();
