@@ -18,6 +18,9 @@ use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_still};
 use otfcc_json::BuiltValue;
 use otfcc_json::ParsedValue;
 
+/// An outline point. `x`/`y` are variable quantities (a still value plus
+/// per-region deltas for variable fonts); `on_curve` is 1 for an on-curve
+/// point and 0 for a quadratic off-curve control point (see [`MASK_ON_CURVE`]).
 #[derive(Clone, Debug)]
 pub struct Point {
     pub x: VQ,
@@ -26,13 +29,17 @@ pub struct Point {
 }
 /// A single outline contour.
 pub type Contour = Vec<Point>;
+/// All contours of a glyph, in outline order.
 pub type ContourList = Vec<Contour>;
+/// A CFF stem hint: a horizontal or vertical stem at `position` of the given
+/// `width`. `map` is the stem's index among all stems of that axis.
 #[derive(Copy, Clone, Debug)]
 pub struct PostscriptStemDef {
     pub position: Pos,
     pub width: Pos,
     pub map: u16,
 }
+/// A glyph's stem hints along one axis.
 pub type StemDefList = Vec<PostscriptStemDef>;
 /// One axis of a hint mask: an on/off flag per stem hint, for up to 256
 /// stems, packed into bits (a CID font can have tens of thousands of hinted
@@ -64,6 +71,9 @@ impl StemMask {
         (0..Self::LEN).map(|i| self.get(i))
     }
 }
+/// A CFF hint mask, valid from the point where `points_before` points of
+/// `contours_before` contours have been drawn. `mask_h`/`mask_v` say which
+/// horizontal and vertical stems are active from there.
 #[derive(Copy, Clone, Debug)]
 pub struct PostscriptHintMask {
     pub points_before: u16,
@@ -71,7 +81,15 @@ pub struct PostscriptHintMask {
     pub mask_h: StemMask,
     pub mask_v: StemMask,
 }
+/// A glyph's hint masks, in drawing order.
 pub type MaskList = Vec<PostscriptHintMask>;
+/// How a component reference is placed, and how far consolidation has got in
+/// turning an anchor (a pair of point ids) into an x/y offset.
+///
+/// `Xy` and `Anchor*` are what the reader or JSON parser produced; the
+/// `*Consolidating*` states mark a resolution in progress, which is how a
+/// reference cycle is detected; `AnchorConsolidated` means the anchor has been
+/// resolved and is written back out as an anchor.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum RefAnchorStatus {
@@ -105,6 +123,10 @@ pub enum RefAnchorStatus {
 // call could try to borrow that same one again. See `consolidate/glyf.rs`'s
 // own doc comments on `get_point_coordinates`/`consolidate_anchor_ref` for
 // the full trace this reasoning is based on.
+/// One component of a composite glyph: the glyph it draws (`glyph`), a 2x2
+/// transform (`a`, `b`, `c`, `d`), and where it goes, either an x/y offset
+/// (`x`, `y`) or an anchor given by the point ids `outer` (in the parent) and
+/// `inner` (in the component), per `is_anchored`.
 #[derive(Clone, Debug)]
 pub struct ComponentReference {
     pub x: std::cell::RefCell<VQ>,
@@ -122,6 +144,9 @@ pub struct ComponentReference {
 }
 /// A glyph's component references.
 pub type ReferenceList = Vec<ComponentReference>;
+/// Measurements of a glyph, filled in by `stat_glyf`: its bounding box,
+/// component nesting depth, and point and contour counts (`n_composite_*`
+/// count those of its components too).
 #[derive(Copy, Clone, Debug)]
 pub struct GlyphStat {
     pub x_min: Pos,
@@ -134,6 +159,10 @@ pub struct GlyphStat {
     pub n_composite_points: u16,
     pub n_composite_contours: u16,
 }
+/// One glyph. A glyph has contours, or references (a composite), or neither
+/// (an empty glyph such as a space). The metrics, hints and `fd_select` are
+/// the TrueType- and CFF-specific data it carries through a round trip;
+/// `cid` is its CID in a CID-keyed CFF font.
 #[derive(Clone, Debug)]
 pub struct Glyph {
     pub name: Vec<u8>,
@@ -157,20 +186,23 @@ pub struct Glyph {
 /// filled: `table_glyf_create_n` sizes the table to the glyph count before
 /// reading, and `consolidate_glyf` fills any slot left empty.
 pub type GlyfTable = Vec<Option<Box<Glyph>>>;
-/// Iterate a fully populated `GlyfTable` as `&Glyph`s in GID order,
-/// panicking on the first unset slot reached (lazily, like the indexed
-/// `glyf[j].as_deref().unwrap()` loops this replaces). For the passes that
-/// run after `consolidate_glyf` has patched every hole -- not for a
-/// hole-tolerant scan, which wants `.iter().flatten()` instead.
 /// Message for the `expect` on a `glyf` slot: `read_glyf` pushes `Some` for
 /// every GID and `consolidate_glyf` fills any hole, so a slot reached by a
 /// pass that runs after either is never empty.
 pub(crate) const GLYF_SLOT_FILLED: &str =
     "glyf slots are filled by read_glyf or consolidate_glyf before dump/build/stat passes";
+/// Iterate a fully populated `GlyfTable` as `&Glyph`s in GID order,
+/// panicking on the first unset slot reached (lazily, like the indexed
+/// `glyf[j].as_deref().unwrap()` loops this replaces). For the passes that
+/// run after `consolidate_glyf` has patched every hole -- not for a
+/// hole-tolerant scan, which wants `.iter().flatten()` instead.
 pub(crate) fn iter_glyphs(glyf: &GlyfTable) -> impl Iterator<Item = &Glyph> {
     glyf.iter()
         .map(|slot| slot.as_deref().expect(GLYF_SLOT_FILLED))
 }
+/// What the glyf reader, dumper and parser need to know about the rest of the
+/// font: the `loca` format, glyph and phantom-point counts, the `fvar` table
+/// (for variable fonts), and which optional data to include.
 #[derive(Debug)]
 pub struct GlyfIOContext<'a> {
     pub loca_is_long: bool,

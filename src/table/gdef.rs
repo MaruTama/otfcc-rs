@@ -15,23 +15,31 @@ use crate::table::otl::coverage::build_coverage;
 use otfcc_binary::bk::block::bk_new_block_from_buffer;
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
+/// One ligature caret: `format` is the GDEF CaretValue format (1: a
+/// coordinate, 2: a contour point index; device tables are not kept).
+/// `coordiante` [sic] holds the coordinate and `point_index` the point.
 #[derive(Copy, Clone, Debug)]
 pub struct CaretValue {
     pub format: i8,
     pub coordiante: Pos,
     pub point_index: i16,
 }
+/// The carets of one ligature glyph, in order.
 pub type CaretValueList = Vec<CaretValue>;
+/// The carets of a single ligature `glyph`.
 #[derive(Debug)]
 pub struct CaretValueRecord {
     pub glyph: GlyphHandle,
     pub carets: CaretValueList,
 }
+/// All ligature caret records of the font.
 pub type LigCaretTable = Vec<CaretValueRecord>;
 // Shared by `dispose_gdef` and `consolidate_gdef`.
 pub(crate) fn clear_lig_carets(lc: &mut LigCaretTable) {
     lc.clear();
 }
+/// The `GDEF` table: glyph classes, mark attachment classes and ligature
+/// carets (the other GDEF parts are not kept).
 #[derive(Debug)]
 pub struct GdefTable {
     pub glyph_class_def: Option<Box<ClassDef>>,
@@ -119,6 +127,8 @@ fn read_lig_carets(
     }
     Some(result)
 }
+/// Reads the `GDEF` table from `packet`, or `None` if it is missing or
+/// malformed.
 pub fn read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     let table = packet
         .pieces
@@ -176,6 +186,7 @@ fn dump_gdef_lig_carets(gdef: &GdefTable) -> BuiltValue {
     }
     _carets
 }
+/// Writes `gdef` into `root` as the JSON `GDEF` object (nothing if `None`).
 pub fn dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue) {
     let Some(gdef) = gdef else {
         return;
@@ -226,6 +237,7 @@ fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
         lc.push(v);
     }
 }
+/// Reads a `GDEF` table from the JSON `root`, or `None` if it has none.
 pub fn parse_gdef(root: &ParsedValue) -> Option<Box<GdefTable>> {
     let table = root.get_typed(b"GDEF", JsonType::Object)?;
     let stage = crate::logger::stage("GDEF");
@@ -285,6 +297,7 @@ fn write_lig_carets(records: &LigCaretTable) -> BkBlock {
     }
     lct
 }
+/// Builds the binary `GDEF` table, or `None` if `gdef` is `None`.
 pub fn build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
     let gdef = gdef?;
     let mut b_glyph_class_def: Option<BkBlock> = None;
