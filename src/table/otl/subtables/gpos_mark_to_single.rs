@@ -5,19 +5,17 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;
-use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use crate::table::otl::coverage::{Coverage, push_to_coverage};
 use otfcc_json::ParsedValue;
 
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
-    bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array, otl_read_anchor,
-    otl_read_mark_array,
+    MarkAttachHeader, bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array,
+    otl_read_mark_array, read_anchor_row, read_mark_attach_header,
 };
-use crate::table::otl::{
-    Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable,
-};
+use crate::table::otl::{BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable};
 use otfcc_binary::Buffer;
 use otfcc_binary::FontReader;
 use otfcc_binary::bk::block::bk_new_block_from_buffer;
@@ -38,107 +36,66 @@ pub fn otl_read_gpos_mark_to_single(
     _max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
-    let mut subtable = GposMarkToSingleSubtable {
-        class_count: 0,
-        mark_array: Vec::new(),
-        base_array: Vec::new(),
-    };
-
-    'parse: {
-        let mut header = match FontReader::new(data).at(subtable_offset as usize) {
-            Ok(r) => r,
-            Err(_) => break 'parse,
-        };
-        if header.skip(2).is_err() {
-            break 'parse; // format, unused
-        }
-        let Ok(marks_rel) = header.u16() else {
-            break 'parse;
-        };
-        let Ok(bases_rel) = header.u16() else {
-            break 'parse;
-        };
-        let Ok(class_count) = header.u16() else {
-            break 'parse;
-        };
-        let Ok(mark_array_rel) = header.u16() else {
-            break 'parse;
-        };
-        let Ok(base_array_rel) = header.u16() else {
-            break 'parse;
-        };
-
-        let marks: Coverage = read_coverage(
-            data,
-            subtable_offset.wrapping_add(u32::from(marks_rel)),
-            budget,
-        );
-        let bases: Coverage = read_coverage(
-            data,
-            subtable_offset.wrapping_add(u32::from(bases_rel)),
-            budget,
-        );
-        if marks.is_empty() || bases.is_empty() {
-            break 'parse;
-        }
-
-        subtable.class_count = class_count as GlyphClass;
-        let mark_array_offset = subtable_offset.wrapping_add(u32::from(mark_array_rel));
-        otl_read_mark_array(&mut subtable.mark_array, &marks, data, mark_array_offset);
-
-        let base_array_offset = subtable_offset.wrapping_add(u32::from(base_array_rel));
-        let Ok(mut base_reader) = FontReader::new(data).at(base_array_offset as usize) else {
-            break 'parse;
-        };
-        let Ok(base_count) = base_reader.u16() else {
-            break 'parse;
-        };
-        if base_count as usize != bases.len() {
-            break 'parse;
-        }
-        let Some(total_anchors) = bases.len().checked_mul(class_count as usize) else {
-            break 'parse;
-        };
-        if base_reader.require_room(total_anchors, 2).is_err() {
-            break 'parse;
-        }
-
-        for base in &bases {
-            // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
-            // (`gpos_common.rs`): this loop's single sequential `base_
-            // reader` (unlike `gpos_mark_to_ligature.rs`'s per-entry
-            // fresh readers) already keeps *this* subtable's own total
-            // bounded to the real buffer -- it can't be re-aliased from
-            // within one call. What this closes is many separate MarkTo-
-            // Single/MarkToLigature subtables each independently pointing
-            // their BaseArray at the very same maximal-cost bytes; a
-            // table-wide budget is the only thing that can see that.
-            if !budget.try_spend_mark_attach_anchors(class_count as usize) {
-                break;
-            }
-            let mut base_anchors: Vec<Anchor> = Vec::with_capacity(class_count as usize);
-            for _ in 0..class_count {
-                let anchor_rel = base_reader
-                    .u16()
-                    .expect("require_room above covered this read");
-                if anchor_rel != 0 {
-                    base_anchors.push(otl_read_anchor(
-                        data,
-                        base_array_offset.wrapping_add(u32::from(anchor_rel)),
-                    ));
-                } else {
-                    base_anchors.push(otl_anchor_absent());
-                }
-            }
-            subtable.base_array.push(BaseRecord {
-                glyph: base.clone(),
-                anchors: base_anchors,
-            });
-        }
-        return Some(Subtable::GposMarkToSingle(subtable));
+    let header = read_mark_attach_header(data, subtable_offset, budget)?;
+    let mut mark_array = Vec::new();
+    otl_read_mark_array(
+        &mut mark_array,
+        &header.marks,
+        data,
+        header.mark_array_offset,
+    );
+    let base_array = read_base_array(data, &header, budget)?;
+    Some(Subtable::GposMarkToSingle(GposMarkToSingleSubtable {
+        class_count: header.class_count as GlyphClass,
+        mark_array,
+        base_array,
+    }))
+}
+/// Reads the BaseArray: one anchor per mark class for each base glyph.
+/// Returns `None` if its count differs from the base coverage or its
+/// records do not fit. Stops early, keeping the bases read so far, once
+/// the table's anchor budget runs out.
+fn read_base_array(
+    data: &[u8],
+    header: &MarkAttachHeader,
+    budget: &mut OtlReadBudget,
+) -> Option<BaseArray> {
+    let class_count = header.class_count;
+    let mut base_reader = FontReader::new(data)
+        .at(header.base_array_offset as usize)
+        .ok()?;
+    let base_count = base_reader.u16().ok()?;
+    if base_count as usize != header.bases.len() {
+        return None;
     }
-
-    None
+    let total_anchors = header.bases.len().checked_mul(class_count as usize)?;
+    base_reader.require_room(total_anchors, 2).ok()?;
+    let mut base_array: BaseArray = Vec::new();
+    for base in &header.bases {
+        // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
+        // (`gpos_common.rs`): this loop's single sequential `base_
+        // reader` (unlike `gpos_mark_to_ligature.rs`'s per-entry
+        // fresh readers) already keeps *this* subtable's own total
+        // bounded to the real buffer -- it can't be re-aliased from
+        // within one call. What this closes is many separate MarkTo-
+        // Single/MarkToLigature subtables each independently pointing
+        // their BaseArray at the very same maximal-cost bytes; a
+        // table-wide budget is the only thing that can see that.
+        if !budget.try_spend_mark_attach_anchors(class_count as usize) {
+            break;
+        }
+        let anchors = read_anchor_row(
+            &mut base_reader,
+            data,
+            header.base_array_offset,
+            class_count,
+        );
+        base_array.push(BaseRecord {
+            glyph: base.clone(),
+            anchors,
+        });
+    }
+    Some(base_array)
 }
 /// Writes the subtable as `{ marks, bases }`. Mark classes are named
 /// `anchor<N>`; each base maps the class names it has an anchor for to

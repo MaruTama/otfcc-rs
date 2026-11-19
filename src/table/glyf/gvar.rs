@@ -171,72 +171,94 @@ fn read_packed_delta(
     }
     Some(r.pos())
 }
+/// The nearest touched point after `j` within `j_min..j_max`, wrapping
+/// round the contour, or `j` itself if no other point is touched.
+fn next_touched(nudges: &[VqSegment], j: ShapeId, j_min: ShapeId, j_max: ShapeId) -> ShapeId {
+    let mut j_next: ShapeId = j;
+    while !nudges[j_next as usize].is_touched() {
+        if i32::from(j_next) == i32::from(j_max) - 1 {
+            j_next = j_min;
+        } else {
+            j_next = (i32::from(j_next) + 1) as ShapeId;
+        }
+        if i32::from(j_next) == i32::from(j) {
+            break;
+        }
+    }
+    j_next
+}
+/// The nearest touched point before `j`; otherwise like `next_touched`.
+fn prev_touched(nudges: &[VqSegment], j: ShapeId, j_min: ShapeId, j_max: ShapeId) -> ShapeId {
+    let mut j_prev: ShapeId = j;
+    while !nudges[j_prev as usize].is_touched() {
+        if i32::from(j_prev) == i32::from(j_min) {
+            j_prev = (i32::from(j_max) - 1) as ShapeId;
+        } else {
+            j_prev = (i32::from(j_prev) - 1) as ShapeId;
+        }
+        if i32::from(j_prev) == i32::from(j) {
+            break;
+        }
+    }
+    j_prev
+}
+/// The delta of an untouched point at coordinate `at`, from its two touched
+/// neighbours, each given as (coordinate, delta). Outside the neighbours'
+/// span it takes the nearer one's delta; inside it is interpolated, in
+/// 16.16 fixed point.
+fn interpolate_delta(at: Pos, prev: (Pos, Pos), next: (Pos, Pos)) -> Pos {
+    let untouch_j: F16Dot16 = to_fixed(at);
+    let untouch_prev: F16Dot16 = to_fixed(prev.0);
+    let untouch_next: F16Dot16 = to_fixed(next.0);
+    let delta_prev: F16Dot16 = to_fixed(prev.1);
+    let delta_next: F16Dot16 = to_fixed(next.1);
+    let mut u_min: F16Dot16 = untouch_prev;
+    let mut u_max: F16Dot16 = untouch_next;
+    let mut d_min: F16Dot16 = delta_prev;
+    let mut d_max: F16Dot16 = delta_next;
+    if untouch_prev > untouch_next {
+        u_min = untouch_next;
+        u_max = untouch_prev;
+        d_min = delta_next;
+        d_max = delta_prev;
+    }
+    if untouch_j <= u_min {
+        from_fixed(d_min) as Pos
+    } else if untouch_j >= u_max {
+        from_fixed(d_max) as Pos
+    } else {
+        from_fixed(f1616_muldiv(
+            d_max - d_min,
+            untouch_j - u_min,
+            u_max - u_min,
+        )) as Pos
+    }
+}
+/// Gives every untouched point of the contour `j_min..j_max` a delta
+/// interpolated from its touched neighbours (IUP). A contour with no
+/// touched point is left as it is.
 #[inline]
-// `nudges`/`kernel` are borrowed slices: this function neither owns nor
-// frees either array, only reads (`kernel`) or reads-then-writes
-// (`nudges`) into them by index.
 fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kernel: &[Pos]) {
     for j in j_min..j_max {
-        if !nudges[j as usize].is_touched() {
-            let mut j_next: ShapeId = j;
-            while !nudges[j_next as usize].is_touched() {
-                if i32::from(j_next) == i32::from(j_max) - 1 {
-                    j_next = j_min;
-                } else {
-                    j_next = (i32::from(j_next) + 1) as ShapeId;
-                }
-                if i32::from(j_next) == i32::from(j) {
-                    break;
-                }
-            }
-            let mut j_prev: ShapeId = j;
-            while !nudges[j_prev as usize].is_touched() {
-                if i32::from(j_prev) == i32::from(j_min) {
-                    j_prev = (i32::from(j_max) - 1) as ShapeId;
-                } else {
-                    j_prev = (i32::from(j_prev) - 1) as ShapeId;
-                }
-                if i32::from(j_prev) == i32::from(j) {
-                    break;
-                }
-            }
-            if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
-                let untouch_j: F16Dot16 = to_fixed(kernel[j as usize]);
-                let untouch_prev: F16Dot16 = to_fixed(kernel[j_prev as usize] as f64);
-                let untouch_next: F16Dot16 = to_fixed(kernel[j_next as usize] as f64);
-                let delta_prev: F16Dot16 =
-                    to_fixed(nudges[j_prev as usize].unwrap_delta().quantity as f64);
-                let delta_next: F16Dot16 =
-                    to_fixed(nudges[j_next as usize].unwrap_delta().quantity as f64);
-                let mut u_min: F16Dot16 = untouch_prev;
-                let mut u_max: F16Dot16 = untouch_next;
-                let mut d_min: F16Dot16 = delta_prev;
-                let mut d_max: F16Dot16 = delta_next;
-                if untouch_prev > untouch_next {
-                    u_min = untouch_next;
-                    u_max = untouch_prev;
-                    d_min = delta_next;
-                    d_max = delta_prev;
-                }
-                if untouch_j <= u_min {
-                    nudges[j as usize].delta_mut().quantity = from_fixed(d_min) as Pos;
-                } else if untouch_j >= u_max {
-                    nudges[j as usize].delta_mut().quantity = from_fixed(d_max) as Pos;
-                } else {
-                    nudges[j as usize].delta_mut().quantity = from_fixed(f1616_muldiv(
-                        d_max - d_min,
-                        untouch_j - u_min,
-                        u_max - u_min,
-                    )) as Pos;
-                }
-            }
+        if nudges[j as usize].is_touched() {
+            continue;
+        }
+        let j_next = next_touched(nudges, j, j_min, j_max);
+        let j_prev = prev_touched(nudges, j, j_min, j_max);
+        if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
+            let prev = (
+                kernel[j_prev as usize],
+                nudges[j_prev as usize].unwrap_delta().quantity,
+            );
+            let next = (
+                kernel[j_next as usize],
+                nudges[j_next as usize].unwrap_delta().quantity,
+            );
+            nudges[j as usize].delta_mut().quantity =
+                interpolate_delta(kernel[j as usize], prev, next);
         }
     }
 }
-// Computes one axis' nudges (`VqSegment`s that `apply_polymorphism` adds to
-// that axis' `.shift`). `contour_lens` gives each contour's point count, in
-// the order `apply_polymorphism` flattened them, because gap filling never
-// crosses a contour.
 /// One tuple's deltas: the region they apply in, the points they touch,
 /// and each touched point's x and y delta, in the same order as `points`.
 struct TupleDeltas<'a> {
@@ -253,7 +275,8 @@ struct FlatOutline {
 }
 /// The nudge of every point along one axis: `deltas` (the tuple's x or y
 /// deltas) on the touched points, and interpolated ones on the rest of each
-/// contour. `kernel` is every point's coordinate on that axis.
+/// contour; interpolation never crosses a contour. `kernel` is every point's
+/// coordinate on that axis.
 fn apply_coords(
     outline: &FlatOutline,
     kernel: &[Pos],

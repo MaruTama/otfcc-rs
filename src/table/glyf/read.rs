@@ -43,6 +43,44 @@ fn next_point<'a>(
 fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = new_glyf_glyph();
     let mut r = FontReader::new(body);
+    let points_in_glyph = read_contour_ends(&mut r, number_of_contours, &mut g.contours)?;
+    let instruction_length: u16 = r.u16().ok()?;
+    let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
+    g.instructions = instruction_bytes.to_vec();
+    let flags = read_point_flags(&mut r, points_in_glyph, &mut g.contours)?;
+    let mut current_contour: ShapeId = 0 as ShapeId;
+    let mut current_contour_point_index: ShapeId = 0 as ShapeId;
+    for &f in flags.iter() {
+        let x = read_coordinate(&mut r, PointFlags::from_bits_retain(f), &X_FLAGS)?;
+        next_point(
+            &mut g.contours,
+            &mut current_contour,
+            &mut current_contour_point_index,
+        )
+        .x = vq_create_still(Pos::from(x));
+    }
+    current_contour = 0 as ShapeId;
+    current_contour_point_index = 0 as ShapeId;
+    for &f in flags.iter() {
+        let y = read_coordinate(&mut r, PointFlags::from_bits_retain(f), &Y_FLAGS)?;
+        next_point(
+            &mut g.contours,
+            &mut current_contour,
+            &mut current_contour_point_index,
+        )
+        .y = vq_create_still(Pos::from(y));
+    }
+    make_coordinates_absolute(&mut g.contours);
+    Some(g)
+}
+/// Reads `endPtsOfContours` and pushes one contour of the right length per
+/// entry onto `contours`. Returns the glyph's point count, or `None` if the
+/// array does not fit or the end points go backwards.
+fn read_contour_ends(
+    r: &mut FontReader<'_>,
+    number_of_contours: ShapeId,
+    contours: &mut ContourList,
+) -> Option<u32> {
     r.require_room(number_of_contours as usize, 2).ok()?;
     // `u32`, not `ShapeId` (`u16`): the running total is `lastPoint + 1`,
     // and a wire-legal `lastPoint` of 0xFFFF makes that 65536 -- one past
@@ -62,12 +100,19 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         }
         let mut contour: Contour = Vec::new();
         glyf_contour_fill(&mut contour, n as usize);
-        g.contours.push(contour);
+        contours.push(contour);
         points_in_glyph = u32::from(last_point_in_current_contour) + 1;
     }
-    let instruction_length: u16 = r.u16().ok()?;
-    let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
-    g.instructions = instruction_bytes.to_vec();
+    Some(points_in_glyph)
+}
+/// Reads the run-length coded flags of `points_in_glyph` points, one byte
+/// per point in the result, and sets each point's `on_curve`. Returns `None`
+/// if the flags run past the glyph or a repeat run past the point count.
+fn read_point_flags(
+    r: &mut FontReader<'_>,
+    points_in_glyph: u32,
+    contours: &mut ContourList,
+) -> Option<Vec<u8>> {
     let mut flags: Vec<u8> = vec![0u8; points_in_glyph as usize];
     let mut flags_read_sofar: usize = 0;
     let mut current_contour: ShapeId = 0 as ShapeId;
@@ -77,7 +122,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         flags[flags_read_sofar] = flag.bits();
         flags_read_sofar += 1;
         next_point(
-            &mut g.contours,
+            contours,
             &mut current_contour,
             &mut current_contour_point_index,
         )
@@ -91,7 +136,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
             for _ in 0..repeat {
                 flags[flags_read_sofar] = flag.bits();
                 next_point(
-                    &mut g.contours,
+                    contours,
                     &mut current_contour,
                     &mut current_contour_point_index,
                 )
@@ -100,55 +145,48 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
             }
         }
     }
-    current_contour = 0 as ShapeId;
-    current_contour_point_index = 0 as ShapeId;
-    for &f in flags.iter() {
-        let x_flags: PointFlags = PointFlags::from_bits_retain(f);
-        let x: i16 = if x_flags.contains(PointFlags::X_SHORT) {
-            let mag = i16::from(r.u8().ok()?);
-            if x_flags.contains(PointFlags::POSITIVE_X) {
-                mag
-            } else {
-                -mag
-            }
-        } else if x_flags.contains(PointFlags::SAME_X) {
-            0
+    Some(flags)
+}
+/// The three flag bits that say how one axis' coordinate is stored.
+struct AxisFlags {
+    short: PointFlags,
+    positive: PointFlags,
+    same: PointFlags,
+}
+const X_FLAGS: AxisFlags = AxisFlags {
+    short: PointFlags::X_SHORT,
+    positive: PointFlags::POSITIVE_X,
+    same: PointFlags::SAME_X,
+};
+const Y_FLAGS: AxisFlags = AxisFlags {
+    short: PointFlags::Y_SHORT,
+    positive: PointFlags::POSITIVE_Y,
+    same: PointFlags::SAME_Y,
+};
+/// Reads one point's coordinate change along one axis: a signed byte when
+/// the short bit is set, nothing (zero) when the same bit is set, else a
+/// 16-bit value.
+fn read_coordinate(r: &mut FontReader<'_>, flags: PointFlags, axis: &AxisFlags) -> Option<i16> {
+    let value = if flags.contains(axis.short) {
+        let mag = i16::from(r.u8().ok()?);
+        if flags.contains(axis.positive) {
+            mag
         } else {
-            r.i16().ok()?
-        };
-        next_point(
-            &mut g.contours,
-            &mut current_contour,
-            &mut current_contour_point_index,
-        )
-        .x = vq_create_still(Pos::from(x));
-    }
-    current_contour = 0 as ShapeId;
-    current_contour_point_index = 0 as ShapeId;
-    for &f in flags.iter() {
-        let y_flags: PointFlags = PointFlags::from_bits_retain(f);
-        let y: i16 = if y_flags.contains(PointFlags::Y_SHORT) {
-            let mag = i16::from(r.u8().ok()?);
-            if y_flags.contains(PointFlags::POSITIVE_Y) {
-                mag
-            } else {
-                -mag
-            }
-        } else if y_flags.contains(PointFlags::SAME_Y) {
-            0
-        } else {
-            r.i16().ok()?
-        };
-        next_point(
-            &mut g.contours,
-            &mut current_contour,
-            &mut current_contour_point_index,
-        )
-        .y = vq_create_still(Pos::from(y));
-    }
+            -mag
+        }
+    } else if flags.contains(axis.same) {
+        0
+    } else {
+        r.i16().ok()?
+    };
+    Some(value)
+}
+/// Turns the stored coordinate changes into absolute coordinates, running
+/// on from one contour to the next.
+fn make_coordinates_absolute(contours: &mut ContourList) {
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
-    for contour in g.contours.iter_mut() {
+    for contour in contours.iter_mut() {
         for z in contour.iter_mut() {
             vq_inplace_plus(&mut cx, z.x.clone());
             vq_inplace_plus(&mut cy, z.y.clone());
@@ -157,8 +195,7 @@ fn read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Gly
         }
         contour.shrink_to_fit();
     }
-    g.contours.shrink_to_fit();
-    Some(g)
+    contours.shrink_to_fit();
 }
 fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = new_glyf_glyph();

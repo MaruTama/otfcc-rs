@@ -4,15 +4,15 @@
 use crate::logger::ByteStr;
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::table::otl::budget::OtlReadBudget;
-use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use crate::table::otl::coverage::{Coverage, push_to_coverage};
 use otfcc_json::ParsedValue;
 
 use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
-    bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array, otl_read_anchor,
-    otl_read_mark_array,
+    MarkAttachHeader, bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array,
+    otl_read_mark_array, read_anchor_row, read_mark_attach_header,
 };
 use crate::table::otl::{
     Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
@@ -38,124 +38,84 @@ pub fn otl_read_gpos_mark_to_ligature(
     _max_glyphs: GlyphId,
     budget: &mut OtlReadBudget,
 ) -> Option<Subtable> {
-    let mut subtable = GposMarkToLigatureSubtable {
-        class_count: 0,
-        mark_array: Vec::new(),
-        lig_array: Vec::new(),
-    };
-
-    'parse: {
-        let mut header = match FontReader::new(data).at(offset as usize) {
-            Ok(r) => r,
-            Err(_) => break 'parse,
-        };
-        if header.skip(2).is_err() {
-            break 'parse; // format, unused
-        }
-        let Ok(marks_rel) = header.u16() else {
-            break 'parse;
-        };
-        let Ok(bases_rel) = header.u16() else {
-            break 'parse;
-        };
-        let Ok(class_count) = header.u16() else {
-            break 'parse;
-        };
-        let Ok(mark_array_rel) = header.u16() else {
-            break 'parse;
-        };
-        let Ok(lig_array_rel) = header.u16() else {
-            break 'parse;
-        };
-
-        let marks: Coverage =
-            read_coverage(data, offset.wrapping_add(u32::from(marks_rel)), budget);
-        let bases: Coverage =
-            read_coverage(data, offset.wrapping_add(u32::from(bases_rel)), budget);
-        if marks.is_empty() || bases.is_empty() {
-            break 'parse;
-        }
-
-        subtable.class_count = class_count as GlyphClass;
-        let mark_array_offset = offset.wrapping_add(u32::from(mark_array_rel));
-        otl_read_mark_array(&mut subtable.mark_array, &marks, data, mark_array_offset);
-
-        let lig_array_offset = offset.wrapping_add(u32::from(lig_array_rel));
-        let Ok(mut lr) = FontReader::new(data).at(lig_array_offset as usize) else {
-            break 'parse;
-        };
-        let Ok(lig_count) = lr.u16() else {
-            break 'parse;
-        };
-        if lig_count as usize != bases.len() {
-            break 'parse;
-        }
-        if lr.require_room(lig_count as usize, 2).is_err() {
-            break 'parse;
-        }
-        let mut lig_attach_offsets = Vec::with_capacity(lig_count as usize);
-        for _ in 0..lig_count {
-            lig_attach_offsets.push(lig_array_offset.wrapping_add(u32::from(
-                lr.u16().expect("require_room above covered this read"),
-            )));
-        }
-
-        for (j, &lig_attach_offset) in lig_attach_offsets.iter().enumerate() {
-            let Ok(mut ar) = FontReader::new(data).at(lig_attach_offset as usize) else {
-                break 'parse;
-            };
-            let Ok(component_count) = ar.u16() else {
-                break 'parse;
-            };
-            let Some(total_anchors) = (component_count as usize).checked_mul(class_count as usize)
-            else {
-                break 'parse;
-            };
-            if ar.require_room(total_anchors, 2).is_err() {
-                break 'parse;
-            }
-            // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
-            // (`gpos_common.rs`): each ligAttachOffset is read via its own
-            // fresh reader, so `require_room` above only ever bounds THIS
-            // entry's cost against the buffer -- it can't see that an
-            // earlier entry already claimed (and, for a crafted font
-            // aliasing the same bytes, already fully accounted for) the
-            // same allowance. This table-wide budget is what actually
-            // stops `lig_count` separate entries each maxing out that
-            // per-entry allowance from multiplying into an unbounded
-            // total. Exhausting it stops processing further lig_attach
-            // entries (not just this one) -- there's no reason to expect
-            // a later entry to fare any better, and the entries already
-            // built stay valid.
-            if !budget.try_spend_mark_attach_anchors(total_anchors) {
-                break;
-            }
-            let mut lig = LigatureBaseRecord {
-                glyph: bases[j].clone(),
-                component_count,
-                anchors: Vec::with_capacity(component_count as usize),
-            };
-            for _ in 0..component_count {
-                let mut component: Vec<Anchor> = Vec::with_capacity(class_count as usize);
-                for _ in 0..class_count {
-                    let anchor_rel = ar.u16().expect("require_room above covered this read");
-                    if anchor_rel != 0 {
-                        component.push(otl_read_anchor(
-                            data,
-                            lig_attach_offset.wrapping_add(u32::from(anchor_rel)),
-                        ));
-                    } else {
-                        component.push(otl_anchor_absent());
-                    }
-                }
-                lig.anchors.push(component);
-            }
-            subtable.lig_array.push(lig);
-        }
-
-        return Some(Subtable::GposMarkToLigature(subtable));
+    let header = read_mark_attach_header(data, offset, budget)?;
+    let mut mark_array = Vec::new();
+    otl_read_mark_array(
+        &mut mark_array,
+        &header.marks,
+        data,
+        header.mark_array_offset,
+    );
+    let lig_array = read_ligature_array(data, &header, budget)?;
+    Some(Subtable::GposMarkToLigature(GposMarkToLigatureSubtable {
+        class_count: header.class_count as GlyphClass,
+        mark_array,
+        lig_array,
+    }))
+}
+/// Reads the LigatureArray: for each ligature, one anchor per mark class
+/// for each of its components. Returns `None` if its count differs from the
+/// ligature coverage, or any LigatureAttach does not fit. Stops early,
+/// keeping the ligatures read so far, once the table's anchor budget runs
+/// out.
+fn read_ligature_array(
+    data: &[u8],
+    header: &MarkAttachHeader,
+    budget: &mut OtlReadBudget,
+) -> Option<LigatureArray> {
+    let class_count = header.class_count;
+    let lig_array_offset = header.base_array_offset;
+    let mut lr = FontReader::new(data).at(lig_array_offset as usize).ok()?;
+    let lig_count = lr.u16().ok()?;
+    if lig_count as usize != header.bases.len() {
+        return None;
     }
-    None
+    lr.require_room(lig_count as usize, 2).ok()?;
+    let mut lig_attach_offsets = Vec::with_capacity(lig_count as usize);
+    for _ in 0..lig_count {
+        lig_attach_offsets.push(lig_array_offset.wrapping_add(u32::from(
+            lr.u16().expect("require_room above covered this read"),
+        )));
+    }
+
+    let mut lig_array: LigatureArray = Vec::new();
+    for (j, &lig_attach_offset) in lig_attach_offsets.iter().enumerate() {
+        let mut ar = FontReader::new(data).at(lig_attach_offset as usize).ok()?;
+        let component_count = ar.u16().ok()?;
+        let total_anchors = (component_count as usize).checked_mul(class_count as usize)?;
+        ar.require_room(total_anchors, 2).ok()?;
+        // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
+        // (`gpos_common.rs`): each ligAttachOffset is read via its own
+        // fresh reader, so `require_room` above only ever bounds THIS
+        // entry's cost against the buffer -- it can't see that an
+        // earlier entry already claimed (and, for a crafted font
+        // aliasing the same bytes, already fully accounted for) the
+        // same allowance. This table-wide budget is what actually
+        // stops `lig_count` separate entries each maxing out that
+        // per-entry allowance from multiplying into an unbounded
+        // total. Exhausting it stops processing further lig_attach
+        // entries (not just this one) -- there's no reason to expect
+        // a later entry to fare any better, and the entries already
+        // built stay valid.
+        if !budget.try_spend_mark_attach_anchors(total_anchors) {
+            break;
+        }
+        let mut lig = LigatureBaseRecord {
+            glyph: header.bases[j].clone(),
+            component_count,
+            anchors: Vec::with_capacity(component_count as usize),
+        };
+        for _ in 0..component_count {
+            lig.anchors.push(read_anchor_row(
+                &mut ar,
+                data,
+                lig_attach_offset,
+                class_count,
+            ));
+        }
+        lig_array.push(lig);
+    }
+    Some(lig_array)
 }
 /// Writes the subtable as `{ classCount, marks, bases }`. Mark classes are
 /// named `ac_<N>`; each ligature maps to an array with one object per

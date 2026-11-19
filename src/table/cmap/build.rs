@@ -9,121 +9,163 @@ use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr,
 use otfcc_binary::bk::block::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
 use otfcc_binary::bk::graph::bk_build_block;
 
-fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
-    let mut buf = Buffer::new();
-    let mut end_count = Buffer::new();
-    let mut start_count = Buffer::new();
-    let mut id_delta = Buffer::new();
-    let mut id_range_offset = Buffer::new();
-    let mut glyph_id_array = Buffer::new();
-    let mut started: bool = false;
-    let mut last_unicode_start: i32 = 0xffffff;
-    let mut last_unicode_end: i32 = 0xffffff;
-    let mut last_gid_start: i32 = 0xffffff;
-    let mut last_gid_end: i32 = 0xffffff;
-    let mut last_glyph_id_array_offset: usize = 0;
-    let mut is_sequencial: bool = true;
-    let mut segments_count: u16 = 0;
-    for (&unicode, glyph) in cmap.unicodes.iter() {
-        if unicode <= 0xffff {
-            if !started {
-                started = true;
-                last_unicode_end = unicode;
-                last_unicode_start = last_unicode_end;
-                last_gid_end = i32::from(glyph.index);
-                last_gid_start = last_gid_end;
-                is_sequencial = true;
-            } else if unicode == last_unicode_end + 1
-                && !(i32::from(glyph.index) != last_gid_end + 1
-                    && i32::from(is_sequencial) != 0
-                    && last_gid_end - last_gid_start >= 4)
-            {
-                if i32::from(is_sequencial) != 0 && !(i32::from(glyph.index) == last_gid_end + 1) {
-                    last_glyph_id_array_offset = glyph_id_array.cursor;
-                    for j in last_gid_start..=last_gid_end {
-                        glyph_id_array.write_u16be(j as u16);
-                    }
-                }
-                last_unicode_end = unicode;
-                is_sequencial =
-                    i32::from(is_sequencial) != 0 && i32::from(glyph.index) == last_gid_end + 1;
-                last_gid_end = i32::from(glyph.index);
-                if !is_sequencial {
-                    glyph_id_array.write_u16be(last_gid_end as u16);
-                }
-            } else {
-                end_count.write_u16be(last_unicode_end as u16);
-                start_count.write_u16be(last_unicode_start as u16);
-                if is_sequencial {
-                    id_delta.write_u16be((last_gid_start - last_unicode_start) as u16);
-                    id_range_offset.write_u16be(0);
-                } else {
-                    id_delta.write_u16be(0);
-                    id_range_offset.write_u16be((last_glyph_id_array_offset + 1) as u16);
-                }
-                segments_count = segments_count.wrapping_add(1);
-                last_unicode_end = unicode;
-                last_unicode_start = last_unicode_end;
-                last_gid_end = i32::from(glyph.index);
-                last_gid_start = last_gid_end;
-                is_sequencial = true;
+/// The segment `build_cmap_format4` is growing: a run of consecutive code
+/// points, and either a run of consecutive glyph ids (`is_sequencial`,
+/// written as an idDelta) or glyph ids listed in the glyph ID array from
+/// `glyph_id_array_offset`.
+struct Format4Segment {
+    unicode_start: i32,
+    unicode_end: i32,
+    gid_start: i32,
+    gid_end: i32,
+    glyph_id_array_offset: usize,
+    is_sequencial: bool,
+}
+impl Format4Segment {
+    fn starting_at(unicode: i32, gid: i32) -> Self {
+        Format4Segment {
+            unicode_start: unicode,
+            unicode_end: unicode,
+            gid_start: gid,
+            gid_end: gid,
+            glyph_id_array_offset: 0,
+            is_sequencial: true,
+        }
+    }
+}
+/// The parallel arrays of a format 4 subtable, filled one segment at a time.
+#[derive(Default)]
+struct Format4Arrays {
+    end_count: Buffer,
+    start_count: Buffer,
+    id_delta: Buffer,
+    id_range_offset: Buffer,
+    glyph_id_array: Buffer,
+    segments_count: u16,
+}
+impl Format4Arrays {
+    /// Writes one finished segment. A listed segment's idRangeOffset is
+    /// stored as its glyph ID array position plus one, made relative later
+    /// by `relativize_range_offsets`.
+    fn push_segment(&mut self, seg: &Format4Segment) {
+        self.end_count.write_u16be(seg.unicode_end as u16);
+        self.start_count.write_u16be(seg.unicode_start as u16);
+        if seg.is_sequencial {
+            self.id_delta
+                .write_u16be((seg.gid_start - seg.unicode_start) as u16);
+            self.id_range_offset.write_u16be(0);
+        } else {
+            self.id_delta.write_u16be(0);
+            self.id_range_offset
+                .write_u16be((seg.glyph_id_array_offset + 1) as u16);
+        }
+        self.segments_count = self.segments_count.wrapping_add(1);
+    }
+    /// Writes the segment for U+FFFF that every format 4 subtable ends with.
+    fn push_closing_segment(&mut self) {
+        self.end_count.write_u16be(0xffff);
+        self.start_count.write_u16be(0xffff);
+        self.id_delta.write_u16be(1);
+        self.id_range_offset.write_u16be(0);
+        self.segments_count = self.segments_count.wrapping_add(1);
+    }
+    /// Each idRangeOffset so far is the glyph ID array position plus one;
+    /// makes it relative to the entry itself, which sits (segCount - j)
+    /// entries before the glyph ID array.
+    fn relativize_range_offsets(&mut self) {
+        let segments_count = self.segments_count;
+        let id_range_offset = &mut self.id_range_offset;
+        for j in 0..segments_count as usize {
+            let at = j * 2;
+            let ro = u16::from_be_bytes([id_range_offset.data[at], id_range_offset.data[at + 1]]);
+            if ro != 0 {
+                let distance = 2 * (u32::from(segments_count) - j as u32);
+                id_range_offset.seek(at);
+                id_range_offset.write_u16be((ro - 1).wrapping_add(distance as u16));
             }
         }
     }
-    end_count.write_u16be(last_unicode_end as u16);
-    start_count.write_u16be(last_unicode_start as u16);
-    if is_sequencial {
-        id_delta.write_u16be((last_gid_start - last_unicode_start) as u16);
-        id_range_offset.write_u16be(0);
-    } else {
-        id_delta.write_u16be(0);
-        id_range_offset.write_u16be((last_glyph_id_array_offset + 1) as u16);
+    /// The whole subtable: the header, then the arrays.
+    fn into_subtable(self) -> Buffer {
+        let segments_count = self.segments_count;
+        let mut buf = Buffer::new();
+        buf.write_u16be(4); // format
+        buf.write_u16be(0); // length, patched below
+        buf.write_u16be(0); // language
+        buf.write_u16be(segments_count << 1);
+        // searchRange is twice the largest power of two not above segCount,
+        // entrySelector the log2 of that power, and rangeShift what remains.
+        let mut search_range: u32 = 1;
+        let mut entry_selector: u32 = 0;
+        while search_range <= u32::from(segments_count) {
+            search_range <<= 1;
+            entry_selector += 1;
+        }
+        buf.write_u16be(search_range as u16);
+        buf.write_u16be((entry_selector - 1) as u16);
+        buf.write_u16be((2 * u32::from(segments_count) - search_range) as u16);
+        buf.write_buffer(&self.end_count);
+        buf.write_u16be(0); // reservedPad
+        buf.write_buffer(&self.start_count);
+        buf.write_buffer(&self.id_delta);
+        buf.write_buffer(&self.id_range_offset);
+        buf.write_buffer(&self.glyph_id_array);
+        buf.seek(2);
+        buf.write_u16be(buf.len() as u16);
+        buf
     }
-    segments_count = segments_count.wrapping_add(1);
-    // The closing segment for U+FFFF.
-    if last_gid_end < 0xffff {
-        end_count.write_u16be(0xffff);
-        start_count.write_u16be(0xffff);
-        id_delta.write_u16be(1);
-        id_range_offset.write_u16be(0);
-        segments_count = segments_count.wrapping_add(1);
-    }
-    // Each idRangeOffset so far is the glyph ID array position plus one;
-    // make it relative to the entry itself, which sits (segCount - j)
-    // entries before the glyph ID array.
-    for j in 0..segments_count as usize {
-        let at = j * 2;
-        let ro = u16::from_be_bytes([id_range_offset.data[at], id_range_offset.data[at + 1]]);
-        if ro != 0 {
-            let distance = 2 * (u32::from(segments_count) - j as u32);
-            id_range_offset.seek(at);
-            id_range_offset.write_u16be((ro - 1).wrapping_add(distance as u16));
+}
+fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
+    let mut arrays = Format4Arrays::default();
+    let mut seg: Option<Format4Segment> = None;
+    for (&unicode, glyph) in cmap.unicodes.iter() {
+        if unicode > 0xffff {
+            continue;
+        }
+        let gid = i32::from(glyph.index);
+        let Some(cur) = seg.as_mut() else {
+            seg = Some(Format4Segment::starting_at(unicode, gid));
+            continue;
+        };
+        // A long run of consecutive glyph ids is kept as its own segment
+        // rather than switched to a listed one.
+        let breaks_long_run =
+            gid != cur.gid_end + 1 && cur.is_sequencial && cur.gid_end - cur.gid_start >= 4;
+        if unicode == cur.unicode_end + 1 && !breaks_long_run {
+            extend_segment(cur, &mut arrays.glyph_id_array, unicode, gid);
+        } else {
+            arrays.push_segment(cur);
+            *cur = Format4Segment::starting_at(unicode, gid);
         }
     }
-    buf.write_u16be(4); // format
-    buf.write_u16be(0); // length, patched below
-    buf.write_u16be(0); // language
-    buf.write_u16be(segments_count << 1);
-    // searchRange is twice the largest power of two not above segCount,
-    // entrySelector the log2 of that power, and rangeShift what remains.
-    let mut search_range: u32 = 1;
-    let mut entry_selector: u32 = 0;
-    while search_range <= u32::from(segments_count) {
-        search_range <<= 1;
-        entry_selector += 1;
+    // With no BMP mapping, an empty sequential segment at 0xFFFFFF is
+    // written, as otfcc does.
+    let last = seg.unwrap_or_else(|| Format4Segment::starting_at(0xffffff, 0xffffff));
+    arrays.push_segment(&last);
+    if last.gid_end < 0xffff {
+        arrays.push_closing_segment();
     }
-    buf.write_u16be(search_range as u16);
-    buf.write_u16be((entry_selector - 1) as u16);
-    buf.write_u16be((2 * u32::from(segments_count) - search_range) as u16);
-    buf.write_buffer(&end_count);
-    buf.write_u16be(0); // reservedPad
-    buf.write_buffer(&start_count);
-    buf.write_buffer(&id_delta);
-    buf.write_buffer(&id_range_offset);
-    buf.write_buffer(&glyph_id_array);
-    buf.seek(2);
-    buf.write_u16be(buf.len() as u16);
-    buf
+    arrays.relativize_range_offsets();
+    arrays.into_subtable()
+}
+/// Adds `unicode` → `gid` to the end of `seg`. The first glyph id that
+/// breaks a sequential run turns the segment into a listed one: its glyph
+/// ids so far are copied to the glyph ID array, and every later one is
+/// appended there.
+fn extend_segment(seg: &mut Format4Segment, glyph_id_array: &mut Buffer, unicode: i32, gid: i32) {
+    let continues_run = gid == seg.gid_end + 1;
+    if seg.is_sequencial && !continues_run {
+        seg.glyph_id_array_offset = glyph_id_array.cursor;
+        for j in seg.gid_start..=seg.gid_end {
+            glyph_id_array.write_u16be(j as u16);
+        }
+    }
+    seg.unicode_end = unicode;
+    seg.is_sequencial = seg.is_sequencial && continues_run;
+    seg.gid_end = gid;
+    if !seg.is_sequencial {
+        glyph_id_array.write_u16be(gid as u16);
+    }
 }
 fn try_build_cmap_format4(cmap: &CmapTable) -> Option<Buffer> {
     let buf = build_cmap_format4(cmap);
