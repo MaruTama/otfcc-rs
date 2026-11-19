@@ -1,5 +1,5 @@
 use crate::font::sfnt::Packet;
-use crate::support::base64::base64_encode;
+use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::primitives::GlyphId;
 use otfcc_binary::Buffer;
 use otfcc_binary::bk::block::bk_new_block_from_buffer_copy;
@@ -131,8 +131,13 @@ pub fn parse_svg(root: &ParsedValue) -> Option<SvgTable> {
                         asg.end = a.get_int(b"end") as GlyphId;
                         if format == b"plain" {
                             asg.document = doc;
+                        } else if let Some(decoded) = base64_decode(&doc) {
+                            asg.document = decoded;
                         } else {
-                            asg.document = base64_encode(&doc);
+                            tracing::warn!(
+                                "[OTFCC-svg] Ignoring an SVG document whose base64 is invalid."
+                            );
+                            continue;
                         }
                         svg.push(asg);
                     }
@@ -234,5 +239,62 @@ mod parse_svg_tests {
         let svg = decode_svg(&data).unwrap();
         assert_eq!(svg.len(), 1);
         assert!(svg[0].document.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod parse_svg_json_tests {
+    use super::*;
+    use otfcc_json::parse_json;
+
+    fn parse(json: &str) -> SvgTable {
+        let root = parse_json(json.as_bytes()).expect("test JSON parses");
+        parse_svg(&root).expect("SVG_ array is present")
+    }
+
+    #[test]
+    fn base64_documents_are_decoded_not_encoded_again() {
+        let svg = parse(
+            r#"{"SVG_":[{"start":0,"end":1,"format":"base64","document":"PHN2Zz48L3N2Zz4="}]}"#,
+        );
+        assert_eq!(svg.len(), 1);
+        assert_eq!(svg[0].document, b"<svg></svg>");
+    }
+
+    #[test]
+    fn plain_documents_are_kept_as_is() {
+        let svg = parse(r#"{"SVG_":[{"start":2,"end":3,"format":"plain","document":"<svg/>"}]}"#);
+        assert_eq!(svg[0].document, b"<svg/>");
+    }
+
+    #[test]
+    fn invalid_base64_drops_only_that_entry() {
+        let svg = parse(
+            r#"{"SVG_":[{"start":0,"end":0,"format":"base64","document":"abc"},
+                        {"start":1,"end":1,"format":"plain","document":"<svg/>"}]}"#,
+        );
+        assert_eq!(svg.len(), 1);
+        assert_eq!(svg[0].start, 1);
+    }
+
+    #[test]
+    fn dump_then_parse_round_trips_a_binary_document() {
+        let table: SvgTable = vec![SvgAssignment {
+            start: 4,
+            end: 6,
+            document: vec![0x1f, 0x8b, 0x08, 0x00, 0xff],
+        }];
+        let mut root = BuiltValue::new_object(1);
+        dump_svg(Some(&table), &mut root);
+        let json = otfcc_json::json_serialize_ex(
+            &root,
+            otfcc_json::JsonSerializeOpts {
+                mode: otfcc_json::JSON_SERIALIZE_MODE_SINGLE_LINE,
+                opts: 0,
+                indent_size: 0,
+            },
+        );
+        let back = parse(&String::from_utf8(json).expect("JSON is UTF-8"));
+        assert_eq!(back[0].document, table[0].document);
     }
 }
