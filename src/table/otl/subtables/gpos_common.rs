@@ -1,3 +1,6 @@
+//! Pieces shared by the GPOS subtables: anchors, mark arrays and value
+//! records, read, dumped, parsed and written the same way everywhere.
+
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::table::otl::coverage::Coverage;
 use otfcc_json::ParsedValue;
@@ -218,11 +221,15 @@ pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
         bk_int(BkCellType::B16, i32::from(a.y as i16) as u32),
     ]))
 }
-// ValueFormat bits for the four fields otfcc keeps: XPlacement,
-// YPlacement, XAdvance and YAdvance. Device table offsets are not read.
+// ValueFormat bits for the four fields otfcc keeps. Device table offsets
+// are not read.
+/// ValueFormat bit for XPlacement (`dx`).
 pub const FORMAT_DX: u16 = 1;
+/// ValueFormat bit for YPlacement (`dy`).
 pub const FORMAT_DY: u16 = 2;
+/// ValueFormat bit for XAdvance (`dWidth`).
 pub const FORMAT_DWIDTH: u16 = 4;
+/// ValueFormat bit for YAdvance (`dHeight`).
 pub const FORMAT_DHEIGHT: u16 = 8;
 /// Size in bytes of a GPOS ValueRecord with this ValueFormat: 2 bytes per
 /// field whose bit is set among the low 8 bits (`XPlacement` through

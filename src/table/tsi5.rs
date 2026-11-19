@@ -1,3 +1,5 @@
+//! The VTT `TSI5` table: VTT's character group for each glyph.
+
 use crate::table::otl::classdef::{ClassDef, push_class_def};
 use otfcc_json::ParsedValue;
 

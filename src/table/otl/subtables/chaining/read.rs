@@ -1,3 +1,6 @@
+//! Reading contextual and chaining contextual subtables of all three
+//! formats into rule sets, within the table's `OtlReadBudget`.
+
 use crate::support::handle::{GlyphHandle, LookupHandle, handle_from_index};
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::classdef::{ClassDef, read_class_def};
@@ -11,9 +14,9 @@ use crate::table::otl::subtables::chaining::common::chaining_ruleset_mut;
 use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Subtable,
 };
-// The class definitions of a format 2 subtable, which `class_coverage`
-// turns into coverages. The readers take the coverage reader as a closure,
-// so this one can capture them.
+/// The backtrack, input and lookahead class definitions of a format 2
+/// subtable, which `class_coverage` turns into coverages. A contextual
+/// subtable has only `ic`.
 #[derive(Debug)]
 pub struct ClassDefs {
     pub bc: Option<Box<ClassDef>>,

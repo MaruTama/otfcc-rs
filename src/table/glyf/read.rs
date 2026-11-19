@@ -1,3 +1,6 @@
+//! Reading the `glyf` and `loca` tables into outlines. When the font has
+//! variation axes, `gvar` is applied afterwards (see `gvar`).
+
 use crate::font::sfnt::Packet;
 use crate::support::handle::{GlyphHandle, handle_from_index};
 use crate::support::primitives::{F2Dot14, GlyphId, Pos, Scale, ShapeId, from_f2dot14};
@@ -246,6 +249,11 @@ fn read_glyph(body: &[u8], offset: usize, length: usize) -> Option<Box<Glyph>> {
     g.stat.y_max = y_max;
     Some(g)
 }
+/// Reads every glyph's outline, using `ctx.num_glyphs` and
+/// `ctx.loca_is_long` to read `loca`. Returns `None` if `loca` or `glyf` is missing or
+/// `loca` is malformed; a single malformed glyph is read as empty instead.
+/// The table always holds `ctx.num_glyphs` glyphs, each `Some`. If
+/// `ctx.fvar` has axes, `gvar` is applied before returning.
 pub fn read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTable> {
     let num_glyphs = ctx.num_glyphs;
     let mut offsets: Vec<u32> = vec![0u32; num_glyphs as usize + 1];

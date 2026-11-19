@@ -331,6 +331,10 @@ fn is_valid_cmap_encoding(platform: u16, encoding: u16) -> bool {
         (0, 3) | (0, 4) | (0, 5) | (3, 1) | (3, 10)
     )
 }
+/// The mapping subtable formats, in the order they are read: every format
+/// 12 subtable, then every format 4 one. The first mapping of a code point
+/// is kept, so format 12 wins where both map it. The trailing 0 ends the
+/// list.
 pub static FORMAT_PRIORITIES: [TableId; 3] = [12, 4, 0];
 // `FORMAT_PRIORITIES` ends with a `0` sentinel that is also, confusingly,
 // a real cmap subtable format number (Apple standard byte encoding) --

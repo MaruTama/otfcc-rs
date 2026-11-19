@@ -1,3 +1,6 @@
+//! The `meta` table: tagged metadata records, such as the design and
+//! supported languages (`dlng`, `slng`).
+
 use crate::font::sfnt::Packet;
 use crate::support::base64::{base64_decode, base64_encode};
 use otfcc_binary::Buffer;

@@ -11,11 +11,15 @@ use crate::vf::vq::{VqSegment, VqSegmentDelta, vq_add_delta};
 use otfcc_binary::FontReader;
 use std::rc::Rc;
 
+/// What applying one glyph's variation data needs from the rest of the
+/// font: `fvar` to register regions in, the axis count, the shared tuples
+/// and the number of phantom points after the outline's own points.
 // `gvar` is read field by field at byte offsets through `FontReader`, so
 // every read is checked against the table's length.
 #[derive(Debug)]
 pub struct TuplePolymorphizerCtx<'a> {
     pub fvar: Option<&'a mut FvarTable>,
+    /// The number of axes, which is the length of every tuple.
     pub dimensions: u16,
     pub shared_tuple_count: u16,
     // An absolute byte offset into `gvar` instead of a `*mut F2Dot14` --
@@ -27,21 +31,32 @@ pub struct TuplePolymorphizerCtx<'a> {
     pub allow_iup: bool,
     pub n_phantom_points: ShapeId,
 }
+/// The header of one run of packed deltas: how many, whether they are
+/// 16-bit, and whether they are all zero (and so not stored).
 #[derive(Copy, Clone, Debug)]
 pub struct PackedDeltaRun {
     pub length: ShapeId,
     pub wide: bool,
     pub zero: bool,
 }
+/// The header of one run of packed point numbers: how many, and whether
+/// they are 16-bit.
 #[derive(Copy, Clone, Debug)]
 pub struct PackedPointRun {
     pub length: ShapeId,
     pub wide: bool,
 }
+/// `gvar` header flag: the glyph data offsets are 32-bit, not 16-bit
+/// halves.
 pub const GVAR_OFFSETS_ARE_LONG: u16 = 1;
+/// `tupleIndex` flag: the header carries its own peak tuple.
 pub const EMBEDDED_PEAK_TUPLE: u16 = 0x8000;
+/// `tupleIndex` flag: the header carries a start and an end tuple.
 pub const INTERMEDIATE_REGION: u16 = 0x4000;
+/// `tupleIndex` flag: the variation data has its own point numbers.
 pub const PRIVATE_POINT_NUMBERS: u16 = 0x2000;
+/// `tupleIndex` mask: the shared tuple used as the peak, when there is no
+/// embedded one.
 pub const TUPLE_INDEX_MASK: u16 = 0xfff;
 // A `TupleVariationHeader` array has no length of its own -- each header's
 // end (and so the next one's start) is only known after reading *this*
@@ -62,9 +77,13 @@ fn next_tvh_offset(gvar: &[u8], tvh_offset: usize, dimensions: u16) -> Option<us
     }
     Some(tvh_offset + bump)
 }
+/// Packed point count: the count takes two bytes.
 pub const POINT_COUNT_IS_WORD: u8 = 0x80;
+/// Packed point count: the count's bits when it takes two bytes.
 pub const POINT_COUNT_LONG_MASK: u16 = 0x7fff;
+/// Packed point run header: the run length minus one.
 pub const POINT_RUN_COUNT_MASK: u8 = 0x7f;
+/// Packed point run header: the point numbers are 16-bit.
 pub const POINTS_ARE_WORDS: u8 = 0x80;
 /// Reads a packed point-number list at `offset`. Returns the offset just
 /// past it and the point indices, or `None` if it runs past `gvar`.
@@ -117,8 +136,11 @@ fn parse_point_numbers(
     }
     Some((r.pos(), point_indeces))
 }
+/// Packed delta run header: the deltas are all zero and not stored.
 pub const DELTAS_ARE_ZERO: u8 = 0x80;
+/// Packed delta run header: the deltas are 16-bit.
 pub const DELTAS_ARE_WORDS: u8 = 0x40;
+/// Packed delta run header: the run length minus one.
 pub const DELTA_RUN_COUNT_MASK: u8 = 0x3f;
 #[inline]
 fn read_packed_delta(
@@ -531,6 +553,9 @@ fn polymorphize_glyph(
     }
     Some(())
 }
+/// Applies `gvar` to every glyph of `glyf`, turning point and component
+/// offsets into variable quantities. Does nothing unless `ctx.fvar` has
+/// axes and the font has a `gvar` whose axis count matches.
 // Every `GVARHeader`/`glyphVariationDataOffsets` read below is checked: the
 // per-glyph offset array (`glyphVariationDataOffsets[j]` for every `j` up
 // to `num_glyphs`) must fit the `gvar` table, and so must each
