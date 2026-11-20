@@ -2,7 +2,8 @@
 //! records, read, dumped, parsed and written the same way everywhere.
 
 use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
-use crate::table::otl::coverage::Coverage;
+use crate::table::otl::budget::OtlReadBudget;
+use crate::table::otl::coverage::{Coverage, read_coverage};
 use otfcc_json::ParsedValue;
 
 use otfcc_binary::FontReader;
@@ -59,6 +60,67 @@ use otfcc_json::JsonType;
 /// bounding worst-case memory to a few tens of MB instead of exhausting
 /// all available RAM.
 pub(crate) const MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE: u32 = 2_000_000;
+/// The start shared by MarkBasePos, MarkMarkPos and MarkLigPos: the mark
+/// and base (or ligature) coverages, the mark class count, and where the
+/// MarkArray and the BaseArray (or LigatureArray) start in `data`.
+pub(crate) struct MarkAttachHeader {
+    pub marks: Coverage,
+    pub bases: Coverage,
+    pub class_count: u16,
+    pub mark_array_offset: u32,
+    pub base_array_offset: u32,
+}
+/// Reads the header of a mark attachment subtable at `offset` and its two
+/// coverages. Returns `None` if the header does not fit or either coverage
+/// is empty.
+pub(crate) fn read_mark_attach_header(
+    data: &[u8],
+    offset: u32,
+    budget: &mut OtlReadBudget,
+) -> Option<MarkAttachHeader> {
+    let mut header = FontReader::new(data).at(offset as usize).ok()?;
+    header.skip(2).ok()?; // format, unused
+    let marks_rel = header.u16().ok()?;
+    let bases_rel = header.u16().ok()?;
+    let class_count = header.u16().ok()?;
+    let mark_array_rel = header.u16().ok()?;
+    let base_array_rel = header.u16().ok()?;
+    let marks = read_coverage(data, offset.wrapping_add(u32::from(marks_rel)), budget);
+    let bases = read_coverage(data, offset.wrapping_add(u32::from(bases_rel)), budget);
+    if marks.is_empty() || bases.is_empty() {
+        return None;
+    }
+    Some(MarkAttachHeader {
+        marks,
+        bases,
+        class_count,
+        mark_array_offset: offset.wrapping_add(u32::from(mark_array_rel)),
+        base_array_offset: offset.wrapping_add(u32::from(base_array_rel)),
+    })
+}
+/// Reads `count` anchor offsets from `r`, each relative to `base`, and the
+/// anchors they point at; a null offset is an absent anchor. The caller
+/// has already checked with `require_room` that the offsets fit.
+pub(crate) fn read_anchor_row(
+    r: &mut FontReader<'_>,
+    data: &[u8],
+    base: u32,
+    count: u16,
+) -> Vec<Anchor> {
+    let mut row: Vec<Anchor> = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let anchor_rel = r.u16().expect("require_room above covered this read");
+        if anchor_rel != 0 {
+            row.push(otl_read_anchor(
+                data,
+                base.wrapping_add(u32::from(anchor_rel)),
+            ));
+        } else {
+            row.push(otl_anchor_absent());
+        }
+    }
+    row
+}
 /// Reads a MarkArray at `offset`. Its record count is checked against the
 /// table, and the marks are capped at `cov.len()`: the MarkArray's count and
 /// the Coverage's glyph count come from the font independently and need not
