@@ -1,6 +1,7 @@
 pub mod base64;
 pub mod error;
 pub mod fmt;
+pub mod glyph_file_name;
 pub mod glyph_order;
 pub mod handle;
 pub mod json_limits;

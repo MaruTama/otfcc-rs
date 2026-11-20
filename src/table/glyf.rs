@@ -303,7 +303,12 @@ pub(crate) fn table_glyf_create_n(n: usize) -> GlyfTable {
     v.resize_with(n, || None);
     v
 }
-fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOContext<'_>) {
+fn glyf_glyph_dump_contours(
+    g: &Glyph,
+    target: &mut BuiltValue,
+    ctx: &GlyfIOContext<'_>,
+    compact: bool,
+) {
     if g.contours.is_empty() {
         return;
     }
@@ -311,12 +316,25 @@ fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCont
     for c in g.contours.iter() {
         let mut contour = BuiltValue::new_array(c.len());
         for p in c.iter() {
-            let mut point = BuiltValue::new_object(4);
             // `json_new_vq` only reads the fvar table, so reborrow it shared.
-            point.push_field(b"x", json_new_vq(p.x.clone(), ctx.fvar.as_deref()));
-            point.push_field(b"y", json_new_vq(p.y.clone(), ctx.fvar.as_deref()));
-            point.push_field(b"on", BuiltValue::Bool(p.on_curve & MASK_ON_CURVE != 0));
-            contour.push_item(point);
+            let x = json_new_vq(p.x.clone(), ctx.fvar.as_deref());
+            let y = json_new_vq(p.y.clone(), ctx.fvar.as_deref());
+            let on = p.on_curve & MASK_ON_CURVE != 0;
+            if compact {
+                let mut point = BuiltValue::new_array(3);
+                point.push_item(x);
+                point.push_item(y);
+                if !on {
+                    point.push_item(BuiltValue::Int(0));
+                }
+                contour.push_item(point);
+            } else {
+                let mut point = BuiltValue::new_object(4);
+                point.push_field(b"x", x);
+                point.push_field(b"y", y);
+                point.push_field(b"on", BuiltValue::Bool(on));
+                contour.push_item(point);
+            }
         }
         contours.push_item(contour.preserialize());
     }
@@ -415,7 +433,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
             json_new_vq(g.vertical_origin.clone(), ctx.fvar.as_deref()),
         );
     }
-    glyf_glyph_dump_contours(g, &mut glyph, ctx);
+    glyf_glyph_dump_contours(g, &mut glyph, ctx, options.compact_points);
     glyf_glyph_dump_references(g, &mut glyph, ctx);
     if ctx.export_fd_select {
         glyph.push_field(
@@ -484,8 +502,23 @@ pub fn dump_glyf(
     }
     stage.finish();
 }
+/// Reads one point, written either as `{x, y, on}` or as `[x, y]` /
+/// `[x, y, on]`, where a missing `on` means on-curve and `on` may be a
+/// boolean or a number (0 is off-curve).
 fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
     let mut point = origin_point();
+    if let Some(items) = pointdump.as_array() {
+        point.x = json_vq_of(items.first());
+        point.y = json_vq_of(items.get(1));
+        let on = match items.get(2) {
+            None => true,
+            Some(v) => v
+                .as_bool()
+                .unwrap_or_else(|| v.as_num().is_some_and(|n| n != 0.0)),
+        };
+        point.on_curve = i8::from(on);
+        return point;
+    }
     let Some(fields) = pointdump.as_object() else {
         return point;
     };
