@@ -89,9 +89,8 @@ pub struct CffAndGlyfOwned {
 /// fields, reborrowed for the duration of one build. `meta` is `&mut`
 /// (`writecff_cid_keyed` mutates it -- `cff_compile_nameindex` clears
 /// `font_name` once it's been written out) and required, matching every
-/// call site's existing assumption that a CFF-subtype font has a CFF
-/// table (previously an unchecked null deref if it didn't; now an
-/// explicit, documented one at the one call site that builds this).
+/// call site's assumption that a CFF-subtype font has a CFF table; the
+/// one call site that builds this checks it.
 /// `glyphs` is `Option<&GlyfTable>` -- a font with a `CFF_` table but no
 /// `glyf` table at all is a real, reachable case (`writecff_cid_keyed`
 /// substitutes a local empty `GlyfTable` for `None`), and nothing here

@@ -37,12 +37,8 @@ fn class_compatible(
                     _ => return 0,
                 }
             }
-            // Original built a throwaway `revh` -- a hash of `cov`'s own
-            // (deduped) glyph ids, values unused (only ever a presence
-            // check) -- to answer the *reverse* question below. Only
-            // presence and position matter, same finding as
-            // `PairClassifierHash`, so a bare `HashSet<GlyphId>` replaces
-            // it, with no `gname`/`cls` payload to carry at all.
+            // `cov`'s own (deduped) glyph ids, to answer the *reverse*
+            // question below; only presence matters.
             let mut revset: std::collections::HashSet<GlyphId> = std::collections::HashSet::new();
             for entry in cov.iter() {
                 revset.insert(entry.index);
@@ -92,11 +88,8 @@ fn build_rule(
         sequence: Vec::with_capacity(rule.match_count as usize),
         apply: Vec::new(),
     });
-    // Bounded by `rule.match_count`, not assumed equal to
-    // `rule.match_0.len()` (it is `Vec::with_capacity`d to that count by
-    // callers, but this function itself has no reason to rely on the
-    // two agreeing) -- `.take(rule.match_count as usize)` preserves the
-    // original's own bound exactly.
+    // Bounded by `rule.match_count`, which need not equal
+    // `rule.sequence.len()`.
     for (m, match_entry) in rule
         .sequence
         .iter()

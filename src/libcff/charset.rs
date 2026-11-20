@@ -112,9 +112,6 @@ fn count_ranges(
     }
     Ok(size)
 }
-// Takes `&CffCharset` instead of by value -- it only ever reads the data,
-// same reasoning as every other builder function in this migration that
-// doesn't need ownership.
 pub fn build_charset(cset: &CffCharset) -> Buffer {
     match cset {
         CffCharset::IsoAdobe | CffCharset::Expert | CffCharset::ExpertSubset => Buffer::new(),

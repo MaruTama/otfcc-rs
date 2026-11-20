@@ -93,15 +93,9 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32, budget: &mut OtlReadBudget
                 let start = r.u16().expect("require_room above covered this read");
                 let end = r.u16().expect("require_room above covered this read");
                 let start_coverage_index = r.u16().expect("require_room above covered this read");
-                // `start as i32..=end as i32`: both ends are fixed once
-                // read above and don't depend on the budget, so this walks
-                // exactly the same range the `while` did one step at a
-                // time (empty when `start > end`, matching the `while`'s
-                // own zero-iteration case). The budget check keeps its
-                // exact original position -- first thing in the body,
-                // still `break 'ranges` (the *outer* per-range loop, not
-                // just this expanded range) on exhaustion, unchanged by
-                // this loop's own shape becoming a `for`.
+                // Empty when `start > end`. The budget check comes first in
+                // the body and breaks `'ranges` (the outer per-range loop,
+                // not just this expanded range) once it runs out.
                 for k in i32::from(start)..=i32::from(end) {
                     if !budget.take_coverage_entry() {
                         break 'ranges;

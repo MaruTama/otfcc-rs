@@ -16,12 +16,9 @@ use otfcc_binary::bk::block::bk_new_block_from_buffer;
 use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
 // Each Sequence subtable (`seq_offset`, resolved from the per-entry
-// `sequenceOffsets[]` array) had *no* length guard at all before this
-// rewrite: neither `seq_offset` itself nor `n` (the Sequence's own
-// glyphCount, a full attacker-controlled u16) were checked against the
-// table's actual length before reading `n` glyph IDs from it -- a real,
-// previously-undocumented unchecked read, same class as `otl/read.rs`'s
-// `langSysRecords` bug. `FontReader::at`/`require_room` close both.
+// `sequenceOffsets[]` array) is checked against the table's length, both
+// its offset and its `n` glyph IDs (a full u16 from the font), with
+// `FontReader::at`/`require_room`.
 //
 // `seq_count` (bounded by `from`'s coverage length, itself cheap to make
 // large via a coverage-format-2 range record) and each sequence's own `n`

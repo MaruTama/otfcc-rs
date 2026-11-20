@@ -363,9 +363,8 @@ fn il_matchop(il: &CffCharstringIl, j: u32, op: CffCharstringOperator) -> bool {
 }
 /// Collapse `op` into `op2` when the operands flagged in `zeros` are all zero.
 ///
-/// `zeros` was a vararg list of `arity` ints -- the count implied by
-/// `get_standard_arity(op)` and trusted, never checked. As a slice the two can
-/// be compared, and the flags read as the booleans they always were.
+/// `zeros` has one flag per operand of `op`, so its length must equal
+/// `get_standard_arity(op)` (checked in debug builds).
 fn zroll(
     il: &mut CffCharstringIl,
     j: u32,

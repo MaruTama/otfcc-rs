@@ -663,8 +663,6 @@ pub fn read_cff_and_glyf_tables(packet: &Packet, head: Option<&HeadTable>) -> Cf
             ret.meta = Some(meta);
             ret.glyphs = Some(glyphs);
         }
-        // `cff_file`'s own `Drop` glue runs here, at the end of its scope
-        // -- no explicit `Box::from_raw` + `drop` needed any more.
     }
     ret
 }

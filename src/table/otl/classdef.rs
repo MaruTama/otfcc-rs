@@ -127,9 +127,9 @@ pub(crate) fn parse_class_def(cd: Option<&ParsedValue>) -> Option<ClassDef> {
         } else {
             0
         };
-        // Classes are 16-bit. A value outside that range used to wrap (-1
-        // became 65535), which made a pair-positioning class count wrap to
-        // 0 and panic when the subtable was built.
+        // Classes are 16-bit. A value outside that range is rejected rather
+        // than wrapped (-1 would become 65535, and a pair-positioning class
+        // count would then wrap to 0 and panic when the subtable is built).
         let Ok(cls) = GlyphClass::try_from(number) else {
             tracing::warn!(
                 "[OTFCC-fea] Class {} of glyph /{} is out of range. This class assignment is ignored.\n",

@@ -59,8 +59,7 @@ pub(crate) fn consolidate_chaining(
         }
     }
     if !rule.apply.is_empty() {
-        // Was a manual compact-in-place loop over `apply_count` before
-        // `.apply` became a `Vec` -- `retain` is the direct translation.
+        // Drop applications whose lookup did not resolve.
         rule.apply.retain(|app| !app.lookup.name.is_empty());
         if rule.apply.is_empty() {
             return true;

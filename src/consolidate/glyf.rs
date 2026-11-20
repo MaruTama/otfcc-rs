@@ -33,8 +33,8 @@ fn by_mask_pointindex(a: &PostscriptHintMask, b: &PostscriptHintMask) -> i32 {
 }
 fn consolidate_glyph_contours(g: &mut Glyph) {
     // `Vec::retain` visits every element once, in order, regardless of
-    // whether earlier ones were kept -- so `j` here tracks the same
-    // "original index" the C-shaped loop counted, and dropped contours are
+    // whether earlier ones were kept -- so `j` here is each contour's index
+    // before any is dropped, and dropped contours are
     // freed automatically (a `Contour`'s only owned resources are its
     // points' `VQ` `Vec`s; no `Handle` involved, unlike `ReferenceList`).
     let mut j: ShapeId = 0 as ShapeId;

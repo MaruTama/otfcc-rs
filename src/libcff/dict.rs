@@ -52,8 +52,7 @@ pub(crate) fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffV
     let mut res = CffValue::Unset;
     // `idx` is a 0-based operand index, so a valid read needs `idx < top`
     // (there are exactly `top` operands, at indices `0..top`). An operator
-    // with fewer operands than `idx + 1` counts as "not found" (an
-    // `idx <= top` check here was a fuzz-found out-of-bounds panic).
+    // with fewer operands than `idx + 1` counts as "not found".
     parse_to_callback(data, |cur_op, top, stack| {
         if cur_op == op && idx < u32::from(top) {
             res = stack[idx as usize];

@@ -239,9 +239,8 @@ fn read_lookup_list(
         let mut lookup: Box<Lookup> = new_lookup();
         let lookup_offset = lookup_list_offset.wrapping_add(u32::from(lr.u16()?));
         // Needs 6 bytes at `lookup_offset` (lookupType/lookupFlag/
-        // subtableCount): only the first 2 are read here, but the
-        // original required all 6 up front, before the lookup was even
-        // pushed, so this is checked the same way.
+        // subtableCount): only the first 2 are read here, but all 6 must be
+        // present before the lookup is pushed, as otfcc required.
         let mut hr = FontReader::new(data).at(lookup_offset as usize)?;
         hr.require_room(6, 1)?;
         lookup._offset = lookup_offset;

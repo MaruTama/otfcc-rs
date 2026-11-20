@@ -52,9 +52,8 @@ fn arena_cell_is_pointer(cell: &ArenaCell) -> bool {
 
 // The arena-resident counterpart of a converted `BkBlock`, addressable by
 // `BlockId`. `visitstate`/`depth` are scratch state for this file's own
-// `attract_bkgraph`/`dfs_attract_cells` untangling pass (unrelated to
-// `dfs_convert`'s walk over the raw tree, which no longer needs any
-// scratch fields on `BkBlock` itself now that it's an owned `Box` tree).
+// `attract_bkgraph`/`dfs_attract_cells` untangling pass; `dfs_convert`'s
+// walk over the `BkBlock` tree needs none.
 #[derive(Debug)]
 struct ArenaBlock {
     visitstate: BkCellVisitState,
