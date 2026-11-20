@@ -93,9 +93,8 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
         return;
     }
 
-    // All four parallel arrays are subtable-relative, matching the
-    // original's `start.offset(...)` layout: endCode[] at 14, a 2-byte
-    // reserved pad, then startCode[]/idDelta[]/idRangeOffset[], each
+    // All four parallel arrays are subtable-relative: endCode[] at 14, a
+    // 2-byte reserved pad, then startCode[]/idDelta[]/idRangeOffset[], each
     // `segments_count` u16s.
     let end_code_rel = 14usize;
     let start_code_rel = end_code_rel + segments_count * 2 + 2;
@@ -149,8 +148,7 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
                 }
                 *budget -= 1;
                 // idRangeOffset's value is a byte distance measured from the
-                // idRangeOffset array *entry itself* -- matches the
-                // original's `.wrapping_add(id_range_offset_offset)`.
+                // idRangeOffset array *entry itself*.
                 let glyph_offset_rel = u32::from(id_range_offset)
                     .wrapping_add(c.wrapping_sub(u32::from(start_code)).wrapping_mul(2))
                     .wrapping_add(id_range_offset_entry_rel as u32);
@@ -338,9 +336,8 @@ fn is_valid_cmap_encoding(platform: u16, encoding: u16) -> bool {
 pub static FORMAT_PRIORITIES: [TableId; 3] = [12, 4, 0];
 // `FORMAT_PRIORITIES` ends with a `0` sentinel that is also, confusingly,
 // a real cmap subtable format number (Apple standard byte encoding) --
-// `take_while(|&f| f != 0)` stops before reaching it, matching the
-// original's `while FORMAT_PRIORITIES[k] != 0` loop exactly: only formats
-// 12 and 4 are ever dispatched as a `required_format`, never 0.
+// `take_while(|&f| f != 0)` stops before reaching it: only formats 12 and 4
+// are ever dispatched as a `required_format`, never 0.
 fn decode_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     let mut header = FontReader::new(data);
     header.skip(2)?; // version

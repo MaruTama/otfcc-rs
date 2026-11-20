@@ -10,11 +10,9 @@
 //! end.
 //!
 //! `require()` guards the multiply-then-compare shape a `count`-driven loop
-//! needs (`count * stride` bytes available) with `checked_mul`/`checked_add`
-//! rather than the wrapping arithmetic several existing hand-written guards
-//! use, which is itself an unchecked-overflow bug class this migration
-//! closes as it goes (see `table/cmap.rs`'s `n_groups` guard in the plan's
-//! own writeup, for the shape being replaced).
+//! needs (`count * stride` bytes available) with `checked_mul`/`checked_add`:
+//! with wrapping arithmetic, a large enough count makes the product wrap to
+//! a small number and the check pass.
 
 /// A read that would go past the end of the buffer. Carries enough to write
 /// a useful log line, but table readers migrated onto this generally just

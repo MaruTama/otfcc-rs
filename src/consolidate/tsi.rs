@@ -41,8 +41,6 @@ pub(crate) fn consolidate_tsi(
                 );
             }
         } else {
-            // `tsi_entry_dup` is a safe fn now that this stack includes
-            // #364's `tsi.rs` conversion.
             consolidated.push(tsi_entry_dup(entry));
         }
     }

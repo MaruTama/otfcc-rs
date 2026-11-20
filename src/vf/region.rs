@@ -7,14 +7,9 @@ pub struct VqAxisSpan {
     pub peak: Pos,
     pub end: Pos,
 }
-// Was a C "flexible array member" struct (`spans: [VqAxisSpan; 0]`,
-// allocated as one `dimensions`-header-plus-trailing-spans block, indexed
-// everywhere via manual pointer arithmetic past the struct's own address).
-// Now a plain `Vec`-backed struct: `spans` owns its storage independently,
-// so this can no longer be `Copy` (and doesn't need `#[repr(C)]` -- nothing
-// reinterprets the whole struct as a contiguous byte blob any more; see
-// `RegionKey` in `table/fvar.rs`, which now hashes/compares `dimensions`
-// and `spans` as two separate byte views instead of one).
+/// A variation region: one span per axis. `spans` owns its storage, so the
+/// struct is not `Copy`. `RegionKey` in `table/fvar.rs` hashes and compares
+/// `dimensions` and `spans` as two separate byte views.
 #[derive(Clone, Debug)]
 pub struct VqRegion {
     pub dimensions: ShapeId,

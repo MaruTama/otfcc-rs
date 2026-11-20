@@ -295,9 +295,6 @@ pub fn read_glyf(packet: &Packet, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTab
     let num_glyphs = ctx.num_glyphs;
     let mut offsets: Vec<u32> = vec![0u32; num_glyphs as usize + 1];
 
-    // `__fortable_*`/`current_block` (goto emulation) -> the same
-    // `.iter().find()` idiom every other already-migrated table reader in
-    // this crate uses.
     let loca_corrupted = || {
         tracing::warn!("table 'loca' corrupted.\n");
     };
