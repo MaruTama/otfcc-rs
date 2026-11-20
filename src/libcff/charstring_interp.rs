@@ -5,7 +5,7 @@
 //! `parse_outline` reads tokens and pushes operands; each operator is
 //! one `op_*` function below, named after its `OP_*` constant, and families
 //! of operators that differ only in direction or arity share a helper. An
-//! operator returns [`Flow::Stop`] when the rest of the outline must be
+//! operator returns `Flow::Stop` when the rest of the outline must be
 //! ignored (operand stack overflow, malformed hint mask data).
 
 use crate::libcff::codecs::decode_cs2_token;

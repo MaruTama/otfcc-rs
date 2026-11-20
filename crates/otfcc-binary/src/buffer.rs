@@ -106,7 +106,7 @@ impl Buffer {
     pub fn write_buffer(&mut self, that: &Buffer) {
         self.push_bytes(&that.data);
     }
-    /// [`write_buffer`], consuming `that`.
+    /// [`write_buffer`](Self::write_buffer), consuming `that`.
     pub fn write_buffer_owned(&mut self, that: Buffer) {
         self.write_buffer(&that);
     }

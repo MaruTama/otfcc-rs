@@ -13,13 +13,14 @@
 //! - [`consolidate`] resolves the reader's raw offset-based tables into
 //!   the linked-up in-memory model; [`vf`] holds the variable-font
 //!   (variation-quantity) math shared by several tables.
-//! - [`libcff`]/[`bk`] are lower-level support libraries (CFF DICT/
-//!   CharString codecs, and the bitmap/graph "block" allocator used by
-//!   the CFF/CharString builders) transpiled alongside otfcc itself.
-//! - [`support`] has shared primitives (`Buffer`, numeric/glyph-id types,
-//!   CLI `Options`); [`logger`], [`tag`], [`vendor`] and [`version`] are
+//! - [`libcff`] holds the lower-level CFF support: DICT and CharString
+//!   codecs, INDEX reading and writing, and subroutinization. Binary tables
+//!   are written with [`otfcc_binary::bk`], which lays a table out as
+//!   blocks linked by offsets.
+//! - [`support`] has shared primitives (numeric and glyph-id types, glyph
+//!   handles, CLI `Options`); [`logger`], [`tag`] and [`version`] are
 //!   smaller standalone utilities; [`ffi`] is the `extern "C"` boundary
-//!   this crate is called through.
+//!   this crate is called through. `Buffer` lives in `otfcc_binary`.
 
 pub mod consolidate;
 pub mod ffi;
