@@ -30,27 +30,38 @@ pub struct CmapTable {
     pub unicodes: std::collections::BTreeMap<i32, GlyphHandle>,
     pub uvs: std::collections::BTreeMap<CmapUvsKey, GlyphHandle>,
 }
-/// Maps code point `c` to glyph id `gid`. Returns `false`, keeping the existing
-/// mapping, when `c` is already mapped.
-pub fn encode_cmap_by_index(cmap: &mut CmapTable, c: i32, gid: u16) -> bool {
-    match cmap.unicodes.entry(c) {
+/// Maps `key` to `glyph` unless it is already mapped; returns whether it
+/// was added. The first mapping of a key always wins.
+fn map_if_absent<K: Ord>(
+    map: &mut std::collections::BTreeMap<K, GlyphHandle>,
+    key: K,
+    glyph: GlyphHandle,
+) -> bool {
+    match map.entry(key) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_index(gid as GlyphId) as GlyphHandle);
+            v.insert(glyph);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
+/// Maps code point `c` to glyph id `gid`. Returns `false`, keeping the existing
+/// mapping, when `c` is already mapped.
+pub fn encode_cmap_by_index(cmap: &mut CmapTable, c: i32, gid: u16) -> bool {
+    map_if_absent(
+        &mut cmap.unicodes,
+        c,
+        handle_from_index(gid as GlyphId) as GlyphHandle,
+    )
+}
 /// Maps `c` to the glyph named `name`. Returns `false`, keeping the existing
 /// mapping, when `c` is already mapped.
 pub fn encode_cmap_by_name(cmap: &mut CmapTable, c: i32, name: Vec<u8>) -> bool {
-    match cmap.unicodes.entry(c) {
-        std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_name(Some(name)) as GlyphHandle);
-            true
-        }
-        std::collections::btree_map::Entry::Occupied(_) => false,
-    }
+    map_if_absent(
+        &mut cmap.unicodes,
+        c,
+        handle_from_name(Some(name)) as GlyphHandle,
+    )
 }
 /// Removes the mapping of `c`. Returns whether there was one.
 pub fn unmap_cmap(cmap: &mut CmapTable, c: i32) -> bool {
@@ -62,23 +73,19 @@ pub fn cmap_lookup(cmap: &CmapTable, c: i32) -> Option<&GlyphHandle> {
 }
 /// Like [`encode_cmap_by_index`], for a variation sequence.
 pub fn encode_cmap_uvs_by_index(cmap: &mut CmapTable, c: CmapUvsKey, gid: u16) -> bool {
-    match cmap.uvs.entry(c) {
-        std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_index(gid as GlyphId) as GlyphHandle);
-            true
-        }
-        std::collections::btree_map::Entry::Occupied(_) => false,
-    }
+    map_if_absent(
+        &mut cmap.uvs,
+        c,
+        handle_from_index(gid as GlyphId) as GlyphHandle,
+    )
 }
 /// Like [`encode_cmap_by_name`], for a variation sequence.
 pub fn encode_cmap_uvs_by_name(cmap: &mut CmapTable, c: CmapUvsKey, name: Vec<u8>) -> bool {
-    match cmap.uvs.entry(c) {
-        std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_name(Some(name)) as GlyphHandle);
-            true
-        }
-        std::collections::btree_map::Entry::Occupied(_) => false,
-    }
+    map_if_absent(
+        &mut cmap.uvs,
+        c,
+        handle_from_name(Some(name)) as GlyphHandle,
+    )
 }
 /// Removes the mapping of the variation sequence `c`. Returns whether there was
 /// one.
@@ -152,6 +159,10 @@ pub(crate) fn parse_unicode(unicode_str: &[u8]) -> Option<Unicode> {
     }
     Unicode::from_str_radix(std::str::from_utf8(digits).ok()?, radix).ok()
 }
+/// Whether `u` may be mapped: U+0001 to U+10FFFF.
+fn is_code_point(u: Unicode) -> bool {
+    u > 0 && u <= 0x10ffff
+}
 fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
@@ -168,7 +179,7 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
-        if !(unicode > 0 as Unicode && unicode <= 0x10ffff as Unicode) {
+        if !is_code_point(unicode) {
             continue;
         }
         let gname: Vec<u8> = bytes.to_vec();
@@ -209,7 +220,7 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
-        if !(k.unicode > 0 && k.unicode <= 0x10ffff && k.selector > 0 && k.selector <= 0x10ffff) {
+        if !(is_code_point(k.unicode) && is_code_point(k.selector)) {
             continue;
         }
         let gname: Vec<u8> = bytes.to_vec();

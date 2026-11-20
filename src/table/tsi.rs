@@ -5,7 +5,7 @@
 use crate::font::sfnt::Packet;
 use crate::logger::ByteStr;
 use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_empty, handle_from_index, handle_from_name,
+    GlyphHandle, Handle, handle_empty, handle_from_index, handle_from_name,
 };
 use crate::support::primitives::GlyphId;
 use otfcc_binary::Buffer;
@@ -25,6 +25,57 @@ pub enum TsiEntryType {
     Prep = 2,
     Cvt = 3,
     ReservedFffc = 4,
+}
+// The glyph ids the index uses for records that are not a glyph's.
+const PREP_GID: GlyphId = 0xfffa;
+const CVT_GID: GlyphId = 0xfffb;
+const RESERVED_GID: GlyphId = 0xfffc;
+const FPGM_GID: GlyphId = 0xfffd;
+/// The record that separates the glyph entries from the font-wide ones.
+const MARKER_GID: GlyphId = 0xfffe;
+/// The text offset the marker record carries; it points at no text.
+const MARKER_TEXT_OFFSET: u32 = 0xabfc1f34;
+impl TsiEntryType {
+    /// The glyph id that stands for this entry in the index, or `None` for a
+    /// glyph's own entry.
+    fn reserved_gid(self) -> Option<GlyphId> {
+        match self {
+            TsiEntryType::Glyph => None,
+            TsiEntryType::Prep => Some(PREP_GID),
+            TsiEntryType::Cvt => Some(CVT_GID),
+            TsiEntryType::ReservedFffc => Some(RESERVED_GID),
+            TsiEntryType::Fpgm => Some(FPGM_GID),
+        }
+    }
+    /// The font-wide entry an index glyph id stands for, if any. The reserved
+    /// 0xFFFC entry is not read back.
+    fn from_reserved_gid(gid: u16) -> Option<Self> {
+        match gid {
+            PREP_GID => Some(TsiEntryType::Prep),
+            CVT_GID => Some(TsiEntryType::Cvt),
+            FPGM_GID => Some(TsiEntryType::Fpgm),
+            _ => None,
+        }
+    }
+    /// The key of a font-wide entry in the JSON `extra` object.
+    fn json_key(self) -> &'static [u8] {
+        match self {
+            TsiEntryType::Cvt => b"cvt",
+            TsiEntryType::Fpgm => b"fpgm",
+            TsiEntryType::Prep => b"prep",
+            TsiEntryType::Glyph | TsiEntryType::ReservedFffc => b"reserved",
+        }
+    }
+    /// The font-wide entry a JSON `extra` key names. `reserved` is not read
+    /// back.
+    fn from_json_key(key: &[u8]) -> Option<Self> {
+        match key {
+            b"cvt" => Some(TsiEntryType::Cvt),
+            b"fpgm" => Some(TsiEntryType::Fpgm),
+            b"prep" => Some(TsiEntryType::Prep),
+            _ => None,
+        }
+    }
 }
 /// One entry of a TSI table pair: its kind, the glyph it belongs to (empty
 /// for the font-wide entries) and its source text.
@@ -53,12 +104,15 @@ pub struct TsiBuildTarget {
     pub index_part: Option<Buffer>,
     pub text_part: Option<Buffer>,
 }
+/// Whether an index record is read as an entry: in `TSI0` anything but the
+/// marker and the reserved record, in `TSI2` only glyph entries (every id
+/// below the first reserved one).
 #[inline]
 fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
-        i32::from(gid) != 0xfffe && i32::from(gid) != 0xfffc
+        gid != MARKER_GID && gid != RESERVED_GID
     } else {
-        i32::from(gid) < 0xfffa
+        gid < PREP_GID
     }
 }
 // One 8-byte record: gid(u16) + text_length(u16, widened) + text_offset(u32).
@@ -99,7 +153,7 @@ pub fn read_tsi(packet: &Packet, tag_index: u32, tag_text: u32) -> Option<TsiTab
             let mut predicted_text_length: u32 = text_len.wrapping_sub(entry.text_offset);
             let mut k: u32 = j.wrapping_add(1);
             while let Ok(entry_k) = read_tsi_index_entry(&index_part.data, k) {
-                if i32::from(entry_k.gid) != 0xfffe
+                if entry_k.gid != MARKER_GID
                     && entry_k.text_offset < text_len
                     && entry_k.text_offset > entry.text_offset
                 {
@@ -129,30 +183,18 @@ pub fn read_tsi(packet: &Packet, tag_index: u32, tag_text: u32) -> Option<TsiTab
                     continue;
                 }
             };
-            let mut tsi_entry: TsiEntry = TsiEntry {
-                kind: TsiEntryType::Glyph,
-                glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
-                content,
+            let (kind, glyph) = match TsiEntryType::from_reserved_gid(entry.gid) {
+                Some(kind) => (kind, Handle::default()),
+                None => (
+                    TsiEntryType::Glyph,
+                    handle_from_index(entry.gid as GlyphId) as GlyphHandle,
+                ),
             };
-            match i32::from(entry.gid) {
-                65530 => {
-                    tsi_entry.kind = TsiEntryType::Prep;
-                    tsi_entry.glyph = Handle::default();
-                }
-                65531 => {
-                    tsi_entry.kind = TsiEntryType::Cvt;
-                    tsi_entry.glyph = Handle::default();
-                }
-                65533 => {
-                    tsi_entry.kind = TsiEntryType::Fpgm;
-                    tsi_entry.glyph = Handle::default();
-                }
-                _ => {
-                    tsi_entry.kind = TsiEntryType::Glyph;
-                    tsi_entry.glyph = handle_from_index(entry.gid as GlyphId) as GlyphHandle;
-                }
-            }
-            tsi.push(tsi_entry);
+            tsi.push(TsiEntry {
+                kind,
+                glyph,
+                content,
+            });
         }
         j = j.wrapping_add(1);
     }
@@ -181,13 +223,10 @@ pub fn dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, tag: &[u8]) {
         let mut _extra = BuiltValue::new_object(entries.len());
         for entry in entries.iter() {
             if entry.kind != TsiEntryType::Glyph {
-                let extra_key: &[u8] = match entry.kind as u32 {
-                    3 => b"cvt",
-                    1 => b"fpgm",
-                    2 => b"prep",
-                    _ => b"reserved",
-                };
-                _extra.push_field(extra_key, BuiltValue::Str(entry.content.clone()));
+                _extra.push_field(
+                    entry.kind.json_key(),
+                    BuiltValue::Str(entry.content.clone()),
+                );
             }
         }
         _tsi.push_field(b"glyphs", _glyphs);
@@ -226,11 +265,8 @@ pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
             let Some(bytes) = _content_0.as_str_bytes() else {
                 continue;
             };
-            let kind = match &key[..key.len() - 1] {
-                b"cvt" => TsiEntryType::Cvt,
-                b"fpgm" => TsiEntryType::Fpgm,
-                b"prep" => TsiEntryType::Prep,
-                _ => continue,
+            let Some(kind) = TsiEntryType::from_json_key(&key[..key.len() - 1]) else {
+                continue;
             };
             tsi.push(TsiEntry {
                 kind,
@@ -244,23 +280,17 @@ pub fn parse_tsi(root: &ParsedValue, tag: &[u8]) -> Option<TsiTable> {
 }
 /// `build_tsi` creates both buffers before it calls `push_tsi_entries`.
 const BOTH_PARTS: &str = "build_tsi creates both buffers before pushing entries";
-// The reserved glyph ids TSI uses for the non-glyph entries. `entry` is
-// only needed for `Glyph`, and `push_tsi_entries` only passes `None` from
-// its `min_n` padding loop, which never runs for `Glyph` (`min_n` is 0
-// there; see `build_tsi`'s call sites).
+// The glyph id an index record is written with. `entry` is only needed for
+// `Glyph`, and `push_tsi_entries` only passes `None` from its `min_n`
+// padding loop, which never runs for `Glyph` (`min_n` is 0 there; see
+// `build_tsi`'s call sites).
 fn propergid(entry: Option<&TsiEntry>, kind: TsiEntryType) -> GlyphId {
-    match kind {
-        TsiEntryType::Cvt => 0xfffb as GlyphId,
-        TsiEntryType::Fpgm => 0xfffd as GlyphId,
-        TsiEntryType::Prep => 0xfffa as GlyphId,
-        TsiEntryType::ReservedFffc => 0xfffc as GlyphId,
-        TsiEntryType::Glyph => {
-            entry
-                .expect("a Glyph entry is always passed with its entry")
-                .glyph
-                .index
-        }
-    }
+    kind.reserved_gid().unwrap_or_else(|| {
+        entry
+            .expect("a Glyph entry is always passed with its entry")
+            .glyph
+            .index
+    })
 }
 fn push_tsi_entries(
     target: &mut TsiBuildTarget,
@@ -315,9 +345,9 @@ pub fn build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
     };
     push_tsi_entries(&mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
     let index_part = target.index_part.as_mut().expect(BOTH_PARTS);
-    index_part.write_u16be(0xfffe);
+    index_part.write_u16be(MARKER_GID);
     index_part.write_u16be(0);
-    index_part.write_u32be(0xabfc1f34);
+    index_part.write_u32be(MARKER_TEXT_OFFSET);
     push_tsi_entries(&mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
     push_tsi_entries(&mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
     push_tsi_entries(&mut target, tsi, TsiEntryType::ReservedFffc, 1 as GlyphId);
