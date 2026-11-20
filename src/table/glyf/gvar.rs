@@ -204,8 +204,8 @@ fn prev_touched(nudges: &[VqSegment], j: ShapeId, j_min: ShapeId, j_max: ShapeId
 }
 /// The delta of an untouched point at coordinate `at`, from its two touched
 /// neighbours, each given as (coordinate, delta). Outside the neighbours'
-/// span it takes the nearer one's delta; inside it is interpolated, in
-/// 16.16 fixed point.
+/// span it takes the nearer one's delta; inside it is interpolated
+/// linearly between the two deltas, in 16.16 fixed point.
 fn interpolate_delta(at: Pos, prev: (Pos, Pos), next: (Pos, Pos)) -> Pos {
     let untouch_j: F16Dot16 = to_fixed(at);
     let untouch_prev: F16Dot16 = to_fixed(prev.0);
@@ -227,11 +227,8 @@ fn interpolate_delta(at: Pos, prev: (Pos, Pos), next: (Pos, Pos)) -> Pos {
     } else if untouch_j >= u_max {
         from_fixed(d_max) as Pos
     } else {
-        from_fixed(f1616_muldiv(
-            d_max - d_min,
-            untouch_j - u_min,
-            u_max - u_min,
-        )) as Pos
+        let offset = f1616_muldiv(d_max - d_min, untouch_j - u_min, u_max - u_min);
+        from_fixed(d_min.wrapping_add(offset)) as Pos
     }
 }
 /// Gives every untouched point of the contour `j_min..j_max` a delta
@@ -663,6 +660,23 @@ pub(super) fn polymorphize(packet: &Packet, glyf: &mut GlyfTable, ctx: &mut Glyf
 #[cfg(test)]
 mod gvar_polymorphize_tests {
     use super::*;
+
+    #[test]
+    fn interpolated_delta_starts_from_the_lower_neighbours_delta() {
+        // Neighbours at x = 0 (delta 10) and x = 20 (delta 30): a point a
+        // quarter of the way along moves 10 + 0.25 * 20 = 15.
+        assert_eq!(interpolate_delta(5.0, (0.0, 10.0), (20.0, 30.0)), 15.0);
+        // The neighbours' order does not matter.
+        assert_eq!(interpolate_delta(5.0, (20.0, 30.0), (0.0, 10.0)), 15.0);
+        // A falling delta: 30 down to 10.
+        assert_eq!(interpolate_delta(15.0, (0.0, 30.0), (20.0, 10.0)), 15.0);
+    }
+
+    #[test]
+    fn delta_outside_the_neighbours_span_is_the_nearer_neighbours() {
+        assert_eq!(interpolate_delta(-5.0, (0.0, 10.0), (20.0, 30.0)), 10.0);
+        assert_eq!(interpolate_delta(25.0, (0.0, 10.0), (20.0, 30.0)), 30.0);
+    }
     use crate::table::glyf::{Contour, Point, glyf_component_reference_empty, new_glyf_glyph};
     use crate::vf::region::vq_create_region;
     use crate::vf::vq::vq_create_still;
@@ -795,6 +809,38 @@ mod gvar_polymorphize_tests {
         // X's ratio.
         assert_eq!(p1.y.shift.len(), 1);
         assert_eq!(p1.y.shift[0].unwrap_delta().quantity, 750.0);
+    }
+
+    #[test]
+    fn apply_polymorphism_interpolates_between_two_nonzero_deltas() {
+        // P0 (x = 0) moves 10 and P2 (x = 20) moves 30; untouched P1 at
+        // x = 5 must move 10 + 25% of 20 = 15.
+        let mut glyph = new_glyf_glyph();
+        let mut contour: Contour = Vec::new();
+        for x in [0.0, 5.0, 20.0] {
+            contour.push(Point {
+                x: vq_create_still(x),
+                y: vq_create_still(0.0),
+                on_curve: 1,
+            });
+        }
+        glyph.contours.push(contour);
+
+        let r: Rc<VqRegion> = Rc::from(vq_create_region(1));
+        let points: [ShapeId; 2] = [0, 2];
+        let delta_x: [Pos; 2] = [10.0, 30.0];
+        let delta_y: [Pos; 2] = [0.0, 0.0];
+        let tuple = TupleDeltas {
+            region: &r,
+            points: &points,
+            x: &delta_x,
+            y: &delta_y,
+        };
+        apply_polymorphism(&mut glyph, 3, &tuple);
+
+        let p1 = &glyph.contours[0][1];
+        assert_eq!(p1.x.shift.len(), 1);
+        assert_eq!(p1.x.shift[0].unwrap_delta().quantity, 15.0);
     }
 
     #[test]

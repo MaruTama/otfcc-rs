@@ -142,7 +142,8 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
     // written, as otfcc does.
     let last = seg.unwrap_or_else(|| Format4Segment::starting_at(0xffffff, 0xffffff));
     arrays.push_segment(&last);
-    if last.gid_end < 0xffff {
+    // The last segment must end at U+FFFF.
+    if last.unicode_end < 0xffff {
         arrays.push_closing_segment();
     }
     arrays.relativize_range_offsets();
@@ -479,4 +480,48 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         );
     }
     Some(bk_build_block(root))
+}
+
+#[cfg(test)]
+mod format4_tests {
+    use super::*;
+    use crate::table::cmap::encode_cmap_by_index;
+
+    fn cmap_of(pairs: &[(i32, u16)]) -> CmapTable {
+        let mut cmap = CmapTable {
+            unicodes: std::collections::BTreeMap::new(),
+            uvs: std::collections::BTreeMap::new(),
+        };
+        for &(u, gid) in pairs {
+            encode_cmap_by_index(&mut cmap, u, gid);
+        }
+        cmap
+    }
+
+    /// The endCode of every segment of a format 4 subtable.
+    fn end_codes(subtable: &Buffer) -> Vec<u16> {
+        let d = &subtable.data;
+        let seg_count = usize::from(u16::from_be_bytes([d[6], d[7]]) / 2);
+        (0..seg_count)
+            .map(|j| u16::from_be_bytes([d[14 + 2 * j], d[15 + 2 * j]]))
+            .collect()
+    }
+
+    #[test]
+    fn closing_segment_is_added_after_the_last_mapping() {
+        let sub = build_cmap_format4(&cmap_of(&[(0x41, 3)]));
+        assert_eq!(end_codes(&sub), vec![0x41, 0xffff]);
+    }
+
+    #[test]
+    fn a_mapping_of_u_ffff_is_not_followed_by_a_second_ffff_segment() {
+        let sub = build_cmap_format4(&cmap_of(&[(0x41, 3), (0xffff, 5)]));
+        assert_eq!(end_codes(&sub), vec![0x41, 0xffff]);
+    }
+
+    #[test]
+    fn closing_segment_is_added_when_the_last_glyph_id_is_ffff() {
+        let sub = build_cmap_format4(&cmap_of(&[(0x41, 0xffff)]));
+        assert_eq!(end_codes(&sub), vec![0x41, 0xffff]);
+    }
 }
