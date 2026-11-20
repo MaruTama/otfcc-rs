@@ -398,11 +398,12 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     // `ComponentReference.is_anchored`/`x`/`y` (`Cell`/`RefCell`), so a
     // single shared `&GlyfTable` serves the whole walk below.
     let table: &GlyfTable = glyf;
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < table.len() {
-        let g: &Glyph = table[j_0 as usize]
-            .as_deref()
-            .expect(FILLED_BY_CONSOLIDATE_GLYF);
+    // At most 65,535 glyphs (the binary count is 16-bit, and
+    // `support::json_limits` bounds the JSON one), so every index fits a
+    // `GlyphId`.
+    for (j, slot) in table.iter().enumerate() {
+        let j_0 = j as GlyphId;
+        let g: &Glyph = slot.as_deref().expect(FILLED_BY_CONSOLIDATE_GLYF);
         let stage = crate::logger::stage(ByteStr(&g.name));
         let mut gr: ComponentReference = (glyf_component_reference_empty)();
         gr.glyph = handle_from_index(j_0) as GlyphHandle;
@@ -413,7 +414,6 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
         // goes out of scope at the end of this iteration, so no
         // explicit dispose call is needed.
         stage.finish();
-        j_0 = j_0.wrapping_add(1);
     }
 }
 

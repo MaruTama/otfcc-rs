@@ -405,11 +405,7 @@ fn write_exponent(mut k_out: i32, buffer: &mut [u8]) {
 fn prettify(buffer: &mut [u8], length: i32, k: i32) {
     let kk: i32 = length + k;
     if length <= kk && kk <= 21 {
-        let mut i: i32 = length;
-        while i < kk {
-            buffer[i as usize] = b'0';
-            i += 1;
-        }
+        buffer[length as usize..kk as usize].fill(b'0');
         buffer[kk as usize] = b'.';
         buffer[(kk + 1) as usize] = b'0';
         buffer[(kk + 2) as usize] = 0;
@@ -422,11 +418,8 @@ fn prettify(buffer: &mut [u8], length: i32, k: i32) {
         buffer.copy_within(0..length as usize, offset as usize);
         buffer[0] = b'0';
         buffer[1] = b'.';
-        let mut i_0: i32 = 2;
-        while i_0 < offset {
-            buffer[i_0 as usize] = b'0';
-            i_0 += 1;
-        }
+        // `kk <= 0`, so `offset >= 2`.
+        buffer[2..offset as usize].fill(b'0');
         buffer[(length + offset) as usize] = 0;
     } else if length == 1 {
         buffer[1] = b'e';

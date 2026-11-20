@@ -545,23 +545,18 @@ fn read_instruction_name(
         }
         end += 1;
     }
-    let mut i: i32 = 0;
-    while i < 256 {
-        if instr_name_matches(&text[pt..end], FF_TTF_INSTRNAMES[i as usize]) {
-            break;
-        }
-        i += 1;
-    }
+    // The opcode whose name matches the token, or 256 when none does.
+    let mut i = FF_TTF_INSTRNAMES
+        .iter()
+        .position(|name| instr_name_matches(&text[pt..end], name))
+        .map_or(256, |p| p as i32);
     if i == 256
         && let Some(brack) = brack
     {
-        i = 0;
-        while i < 256 {
-            if instr_name_has_prefix(&text[pt..=brack], FF_TTF_INSTRNAMES[i as usize]) {
-                break;
-            }
-            i += 1;
-        }
+        i = FF_TTF_INSTRNAMES
+            .iter()
+            .position(|name| instr_name_has_prefix(&text[pt..=brack], name))
+            .map_or(256, |p| p as i32);
         let (raw_val, consumed) = strtol_base2(&text[brack + 1..]);
         let val = raw_val as i32;
         let mut bend = brack + 1 + consumed;
