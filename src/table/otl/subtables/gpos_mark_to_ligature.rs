@@ -11,8 +11,11 @@ use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
-    MarkAttachHeader, bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array,
-    otl_read_mark_array, read_anchor_row, read_mark_attach_header,
+    bk_from_anchor, otl_anchor_absent, otl_parse_anchor,
+};
+use crate::table::otl::subtables::gpos_mark_common::{
+    MarkAttachHeader, otl_parse_mark_array, otl_read_mark_array, read_anchor_row,
+    read_mark_attach_header,
 };
 use crate::table::otl::{
     Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
@@ -85,7 +88,7 @@ fn read_ligature_array(
         let total_anchors = (component_count as usize).checked_mul(class_count as usize)?;
         ar.require_room(total_anchors, 2).ok()?;
         // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
-        // (`gpos_common.rs`): each ligAttachOffset is read via its own
+        // (`gpos_mark_common.rs`): each ligAttachOffset is read via its own
         // fresh reader, so `require_room` above only ever bounds THIS
         // entry's cost against the buffer -- it can't see that an
         // earlier entry already claimed (and, for a crafted font
@@ -326,7 +329,7 @@ pub fn build_gpos_mark_to_ligature(
 #[cfg(test)]
 mod otl_read_gpos_mark_to_ligature_tests {
     use super::*;
-    use crate::table::otl::subtables::gpos_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE;
+    use crate::table::otl::subtables::gpos_mark_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE;
 
     // format(2)@0, marksOffset(2)@2 -> 12, ligatureOffset(2)@4 -> 18,
     // classCount(2)@6, markArrayOffset(2)@8 -> 24, ligatureArrayOffset(2)
@@ -399,7 +402,7 @@ mod otl_read_gpos_mark_to_ligature_tests {
     // regardless of `n`) whose `n` ligAttachOffsets ALL alias one shared
     // LigatureAttach blob (`componentCount` components, one class each).
     // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
-    // (`gpos_common.rs`) for why this specific shape -- every entry's own
+    // (`gpos_mark_common.rs`) for why this specific shape -- every entry's own
     // `require_room` check is individually satisfied against the same
     // small blob, so nothing but the table-wide budget bounds the total.
     fn mark_to_ligature_aliased_data(n: u16, component_count: u16) -> Vec<u8> {

@@ -2,6 +2,7 @@ pub mod chaining;
 pub mod extend;
 pub mod gpos_common;
 pub mod gpos_cursive;
+pub mod gpos_mark_common;
 pub mod gpos_mark_to_ligature;
 pub mod gpos_mark_to_single;
 pub mod gpos_pair;

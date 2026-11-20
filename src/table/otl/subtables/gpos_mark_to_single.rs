@@ -12,8 +12,11 @@ use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
-    MarkAttachHeader, bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array,
-    otl_read_mark_array, read_anchor_row, read_mark_attach_header,
+    bk_from_anchor, otl_anchor_absent, otl_parse_anchor,
+};
+use crate::table::otl::subtables::gpos_mark_common::{
+    MarkAttachHeader, otl_parse_mark_array, otl_read_mark_array, read_anchor_row,
+    read_mark_attach_header,
 };
 use crate::table::otl::{BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable};
 use otfcc_binary::Buffer;
@@ -73,7 +76,7 @@ fn read_base_array(
     let mut base_array: BaseArray = Vec::new();
     for base in &header.bases {
         // See `MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`'s doc comment
-        // (`gpos_common.rs`): this loop's single sequential `base_
+        // (`gpos_mark_common.rs`): this loop's single sequential `base_
         // reader` (unlike `gpos_mark_to_ligature.rs`'s per-entry
         // fresh readers) already keeps *this* subtable's own total
         // bounded to the real buffer -- it can't be re-aliased from
