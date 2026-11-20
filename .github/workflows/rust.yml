@@ -109,6 +109,11 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --release --all-targets --locked -- -D warnings
 
+      # `warnings = "deny"` in Cargo.toml also covers rustdoc's lints, so a
+      # broken or private intra-doc link fails this step.
+      - name: cargo doc
+        run: cargo doc --workspace --no-deps --locked
+
       # Default (parallel) test runner: the OTL read budgets are per-table
       # values rather than process-wide statics, and each tests/golden.rs
       # test writes to its own scratch subdirectory, so tests no longer
