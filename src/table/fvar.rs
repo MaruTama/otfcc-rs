@@ -326,10 +326,18 @@ pub fn json_new_v_vp(x: &VV, fvar: &FvarTable) -> BuiltValue {
         coord.preserialize()
     }
 }
-/// Reads a value as a still, non-varying number. Anything that is not a number
-/// reads as 0.
+/// Reads a value as a still, non-varying number: a plain number, or the
+/// first element of a `[kernel, segment...]` array as `json_new_vq` writes
+/// it. Anything else reads as 0.
 pub fn json_vq_of(cv: Option<&ParsedValue>) -> VQ {
-    let n = cv.and_then(ParsedValue::as_num).unwrap_or(0.0);
+    // `json_new_vq` writes a varying value as `[kernel, segment...]`. Only
+    // the kernel, the value at the default instance, is read back: variation
+    // data is not rebuilt, so the segments are dropped.
+    let kernel = match cv.and_then(ParsedValue::as_array) {
+        Some(items) => items.first(),
+        None => cv,
+    };
+    let n = kernel.and_then(ParsedValue::as_num).unwrap_or(0.0);
     vq_create_still(n as Pos)
 }
 /// One axis span of a region as JSON: `"*"` when it covers the whole axis,
@@ -546,5 +554,37 @@ mod fvar_register_region_tests {
         assert_eq!(fvar.masters.len(), 2);
         let names: Vec<&[u8]> = fvar.masters.values().map(|m| m.name.as_slice()).collect();
         assert_eq!(names, vec![b"m1".as_slice(), b"m2".as_slice()]);
+    }
+}
+
+#[cfg(test)]
+mod json_vq_of_tests {
+    use super::*;
+    use crate::vf::vq::vq_get_still;
+    use otfcc_json::parse_json;
+
+    fn read(json: &str) -> Pos {
+        let v = parse_json(json.as_bytes()).expect("test JSON parses");
+        vq_get_still(json_vq_of(Some(&v)))
+    }
+
+    #[test]
+    fn a_plain_number_is_read_as_is() {
+        assert_eq!(read("250"), 250.0);
+        assert_eq!(read("-12.5"), -12.5);
+    }
+
+    #[test]
+    fn a_varying_value_reads_back_its_kernel() {
+        // What `json_new_vq` writes for a gvar-varied coordinate: the
+        // default-instance value first, then its deltas.
+        assert_eq!(read(r#"[250, {"delta": 50, "on": "m1"}]"#), 250.0);
+    }
+
+    #[test]
+    fn anything_else_reads_as_zero() {
+        assert_eq!(read(r#""250""#), 0.0);
+        assert_eq!(read("[]"), 0.0);
+        assert_eq!(vq_get_still(json_vq_of(None)), 0.0);
     }
 }
