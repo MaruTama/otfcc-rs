@@ -58,6 +58,7 @@ apply them.
 cargo build --release -p otfcc_rust
 cargo test --workspace --release   # includes tests/golden checksums
 cargo clippy --workspace --all-targets -- -D warnings
+cargo doc --workspace --no-deps          # broken or private doc links fail
 ```
 
 `jevlint --ast-only` (local, no API key) can point at long functions and
