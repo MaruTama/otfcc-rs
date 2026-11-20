@@ -10,14 +10,14 @@
 //! - `class_zero_glyphs`, `class_coverage_calls`, `rules`:
 //!   `chaining::read`'s `MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS`,
 //!   `MAX_TOTAL_CLASS_COVERAGE_CALLS` and `MAX_TOTAL_RULES_PER_TABLE`
-//! - `mark_attach_anchors`: `gpos_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`
+//! - `mark_attach_anchors`: `gpos_mark_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`
 //! - `pair_grid_cells`: `gpos_pair::MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE`
 
 use crate::table::otl::coverage::MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE;
 use crate::table::otl::subtables::chaining::read::{
     MAX_TOTAL_CLASS_COVERAGE_CALLS, MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS, MAX_TOTAL_RULES_PER_TABLE,
 };
-use crate::table::otl::subtables::gpos_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE;
+use crate::table::otl::subtables::gpos_mark_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE;
 use crate::table::otl::subtables::gpos_pair::MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE;
 
 /// The remaining allowance of each kind of work for the table being read.
