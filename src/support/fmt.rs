@@ -1,6 +1,6 @@
 //! Byte-oriented `printf`-shaped formatting for names and log/JSON text that
 //! must survive non-UTF-8 bytes unchanged: [`BytePart`], which decides how
-//! one typed piece is appended to a growing `Vec<u8>`, and [`bytesbuild!`],
+//! one typed piece is appended to a growing `Vec<u8>`, and [`bytesbuild!`](crate::bytesbuild),
 //! which chains pieces together. Glyph names, lookup names and cmap keys are
 //! built this way, and log messages render their byte strings through the
 //! same trait (`logger::ByteStr`).
@@ -13,7 +13,7 @@ use std::io::Write;
 
 use crate::support::primitives::until_nul;
 
-/// One piece of a [`bytesbuild!`] call: knows how to append itself to a
+/// One piece of a [`bytesbuild!`](crate::bytesbuild) call: knows how to append itself to a
 /// growing `Vec<u8>`.
 ///
 /// Text may not always go through this as UTF-8 -- a glyph name that isn't
@@ -50,7 +50,7 @@ impl BytePart for &str {
 
 /// A `Handle`'s `name` (a `Vec<u8>`): appends up to the first embedded NUL,
 /// matching a C `%s`/`strlen` conversion's truncation, since every existing
-/// call site passing a `Handle.name` into [`bytesbuild!`] relied on that.
+/// call site passing a `Handle.name` into [`bytesbuild!`](crate::bytesbuild) relied on that.
 /// An empty `Vec` (an unset `Handle`) appends nothing.
 impl BytePart for &Vec<u8> {
     fn append_to_vec(self, v: &mut Vec<u8>) {

@@ -17,7 +17,7 @@ use otfcc_binary::bk::graph::bk_build_block;
 use otfcc_json::BuiltValue;
 /// One ligature caret: `format` is the GDEF CaretValue format (1: a
 /// coordinate, 2: a contour point index; device tables are not kept).
-/// `coordiante` [sic] holds the coordinate and `point_index` the point.
+/// `coordiante` (sic) holds the coordinate and `point_index` the point.
 #[derive(Copy, Clone, Debug)]
 pub struct CaretValue {
     pub format: i8,

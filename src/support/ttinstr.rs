@@ -19,7 +19,7 @@ pub struct InstrData<'a> {
     pub instrs: &'a [u8],
     pub instr_cnt: u32,
     /// What each byte of `instrs` *is*, one entry per byte, filled in by
-    /// [`instr_typify`]. Not part of the instruction stream: the two arrays run
+    /// `instr_typify`. Not part of the instruction stream: the two arrays run
     /// in parallel, which is why this one is typed and `instrs` stays `u8`.
     pub bts: Vec<ByteType>,
 }

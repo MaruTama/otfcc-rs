@@ -17,7 +17,7 @@
 //! collection inside a table with 16-bit counts can legitimately be bigger,
 //! so a table added later is covered without anyone remembering to add a
 //! limit for it. The exceptions are the tables whose size is a byte or entry
-//! count with a 32-bit length in the font, listed in [`UNBOUNDED_TABLES`].
+//! count with a 32-bit length in the font, listed in `UNBOUNDED_TABLES`.
 
 use otfcc_json::ParsedValue;
 
@@ -38,7 +38,7 @@ pub struct OversizedCollection {
 }
 
 /// The first array or object in `root` with more than [`MAX_ENTRIES`] members,
-/// outside [`UNBOUNDED_TABLES`].
+/// outside `UNBOUNDED_TABLES`.
 pub fn find_oversized_collection(root: &ParsedValue) -> Option<OversizedCollection> {
     let fields = root.as_object()?;
     for (key, value) in fields {

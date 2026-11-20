@@ -40,7 +40,7 @@ pub enum BuiltValue {
     Double(f64),
     Str(Vec<u8>),
     /// Pre-rendered bytes spliced in verbatim by the serializer, matching
-    /// `JsonType::PreSerialized`'s role exactly -- see [`preserialize`].
+    /// `JsonType::PreSerialized`'s role exactly -- see [`preserialize`](Self::preserialize).
     PreSerialized(Vec<u8>),
     Array(Vec<BuiltValue>),
     /// `Vec`, not `HashMap`/`BTreeMap`: object member order must survive
