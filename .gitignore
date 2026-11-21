@@ -45,5 +45,7 @@ target/
 makefile
 .compile_commands.native.json
 
-# Claude Code harness state (agent worktrees, etc.) -- not repo content
-.claude/
+# Claude Code harness state (agent worktrees, etc.) -- not repo content.
+# The skills are repo content.
+.claude/*
+!.claude/skills/
