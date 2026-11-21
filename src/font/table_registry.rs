@@ -753,8 +753,8 @@ impl FontTable for Layout {
             *self.slot(font) = parse_otl(root, options, self.key());
         }
     }
-    fn dump(&self, font: &mut Font, root: &mut BuiltValue, _options: &Options) {
-        dump_otl(self.slot(font).as_deref(), root, self.key());
+    fn dump(&self, font: &mut Font, root: &mut BuiltValue, options: &Options) {
+        dump_otl(self.slot(font).as_deref(), root, self.key(), options);
     }
     fn build(
         &self,

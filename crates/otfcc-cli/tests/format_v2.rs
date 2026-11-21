@@ -1,5 +1,6 @@
 //! `otfccdump --format v2`: a directory with `font.json` and one file per
-//! glyph under `glyf/`, contour points as `[x, y]` arrays. Building from it
+//! glyph under `glyf/`, contour points as `[x, y]` arrays, and glyph lists
+//! that several chaining rules share named in their lookup. Building from it
 //! must give the same font, byte for byte, as building from the v1 dump of
 //! the same input, and `otfccbuild` must not follow a glyph file path out of
 //! the directory.
@@ -80,6 +81,8 @@ fn a_v2_dump_builds_the_same_font_as_a_v1_dump() {
             "Molengo-Regular.ttf",
             &["--ignore-glyph-order"],
         ),
+        // Class-based chaining lookups, written with named glyph classes.
+        ("NotoNastaliqUrdu", "NotoNastaliqUrdu-Regular.ttf", &[]),
     ];
     for (name, file, extra) in cases {
         let (v1, v2) = dump_and_build(&build, name, &payload(file), extra);
@@ -88,6 +91,12 @@ fn a_v2_dump_builds_the_same_font_as_a_v1_dump() {
             "{name}: the v2 dump built a different font from the v1 dump"
         );
     }
+    let noto = std::fs::read_to_string(build.join("NotoNastaliqUrdu.v2/font.json"))
+        .expect("the v2 dump wrote font.json");
+    assert!(
+        noto.contains(r#""classes": {"#) && noto.contains(r#""@c1""#),
+        "the v2 dump names the glyph lists that chaining rules share"
+    );
 }
 
 #[test]

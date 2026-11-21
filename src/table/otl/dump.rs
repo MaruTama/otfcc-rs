@@ -1,9 +1,10 @@
 use crate::logger::ByteStr;
+use crate::support::options::Options;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::{Feature, Lookup, OtlTable};
 use otfcc_json::BuiltValue;
-fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
+fn _dump_lookup(lookup: &Lookup, options: &Options) -> BuiltValue {
     let mut dump = BuiltValue::new_object(5);
     // A lookup of no known kind dumps as an empty object.
     let Some(kind) = lookup_kind(lookup.lookup_type) else {
@@ -23,14 +24,10 @@ fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
             BuiltValue::Int(i64::from(i32::from(lookup.flags) >> 8)),
         );
     }
-    let mut subtables = BuiltValue::new_array(lookup.subtables.len());
-    for sub in lookup.subtables.iter().flatten() {
-        subtables.push_item(kind.dump_subtable(sub.as_ref()));
-    }
-    dump.push_field(b"subtables", subtables);
+    kind.dump_subtables(lookup, options, &mut dump);
     dump
 }
-pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
+pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8], options: &Options) {
     let Some(table) = table else { return };
     // `table.lookups`/`.features` are hole-preserving now -- a `None`-only
     // `Vec` (every lookup/feature punched by consolidation) is the "empty"
@@ -106,7 +103,7 @@ pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8]) {
             let mut lookups = BuiltValue::new_object(live_lookups.len());
             let mut lookup_order = BuiltValue::new_array(live_lookups.len());
             for lookup in &live_lookups {
-                let _lookup = _dump_lookup(lookup);
+                let _lookup = _dump_lookup(lookup, options);
                 lookups.push_field_bytes_key(&lookup.name, _lookup);
                 lookup_order.push_item(BuiltValue::str_truncated_at_nul(&lookup.name));
             }

@@ -31,7 +31,9 @@ use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::build::{LookupWriteCtx, write_each_subtable, write_each_subtable_split};
 use crate::table::otl::subtables::chaining::classifier::classified_build_chaining;
 use crate::table::otl::subtables::chaining::common::chaining_rule_const;
-use crate::table::otl::subtables::chaining::dump::otl_dump_chaining;
+use crate::table::otl::subtables::chaining::dump::{
+    ChainingClassNames, otl_dump_chaining, otl_dump_chaining_named,
+};
 use crate::table::otl::subtables::chaining::parse::otl_parse_chaining;
 use crate::table::otl::subtables::chaining::read::otl_read_chaining;
 use crate::table::otl::subtables::gpos_cursive::{
@@ -72,7 +74,7 @@ use crate::table::otl::{
     Subtable, iter_subtables,
 };
 use otfcc_json::BuiltValue;
-use otfcc_json::ParsedValue;
+use otfcc_json::{JsonType, ParsedValue};
 
 /// What consolidating one subtable may need besides the subtable itself.
 /// Only chaining subtables use more than the glyph order: they resolve the
@@ -101,6 +103,20 @@ pub trait LookupKind: Sync {
     fn parse_subtable(&self, json: Option<&ParsedValue>) -> Option<Subtable>;
     /// Writes one subtable as otfcc's JSON.
     fn dump_subtable(&self, subtable: &Subtable) -> BuiltValue;
+    /// Reads one subtable of the JSON lookup object `lookup`. Kinds whose
+    /// subtables refer to fields of the lookup override it.
+    fn parse_subtable_in(&self, json: &ParsedValue, _lookup: &ParsedValue) -> Option<Subtable> {
+        self.parse_subtable(Some(json))
+    }
+    /// Writes the `subtables` of `lookup` into its JSON object `dump`, with
+    /// any lookup-level fields they refer to.
+    fn dump_subtables(&self, lookup: &Lookup, _options: &Options, dump: &mut BuiltValue) {
+        let mut subtables = BuiltValue::new_array(lookup.subtables.len());
+        for sub in lookup.subtables.iter().flatten() {
+            subtables.push_item(self.dump_subtable(sub));
+        }
+        dump.push_field(b"subtables", subtables);
+    }
     /// Builds every subtable of `lookup` into `ctx.subtables` and returns how
     /// many there are. Builds a whole lookup rather than one subtable because
     /// chaining lookups classify their subtables together.
@@ -231,10 +247,27 @@ impl LookupKind for Chaining {
         otl_read_chaining(data, offset, max_glyphs, budget)
     }
     fn parse_subtable(&self, json: Option<&ParsedValue>) -> Option<Subtable> {
-        otl_parse_chaining(json)
+        otl_parse_chaining(json, None)
+    }
+    fn parse_subtable_in(&self, json: &ParsedValue, lookup: &ParsedValue) -> Option<Subtable> {
+        otl_parse_chaining(Some(json), lookup.get_typed(b"classes", JsonType::Object))
     }
     fn dump_subtable(&self, subtable: &Subtable) -> BuiltValue {
         otl_dump_chaining(subtable)
+    }
+    /// With `options.chaining_classes`, glyph lists that several rules
+    /// share go in the lookup's `classes` and are written by name.
+    fn dump_subtables(&self, lookup: &Lookup, options: &Options, dump: &mut BuiltValue) {
+        let names = ChainingClassNames::of(lookup);
+        let names = (options.chaining_classes && !names.is_empty()).then_some(names);
+        if let Some(names) = &names {
+            dump.push_field(b"classes", names.dump());
+        }
+        let mut subtables = BuiltValue::new_array(lookup.subtables.len());
+        for sub in lookup.subtables.iter().flatten() {
+            subtables.push_item(otl_dump_chaining_named(sub, names.as_ref()));
+        }
+        dump.push_field(b"subtables", subtables);
     }
     fn build_lookup(&self, lookup: &Lookup, ctx: &mut LookupWriteCtx) -> TableId {
         classified_build_chaining(lookup, ctx.subtables, ctx.last_offset)
