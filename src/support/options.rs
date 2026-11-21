@@ -24,6 +24,9 @@ pub struct Options {
     /// Dump contour points as `[x, y]` (on-curve) or `[x, y, 0]`
     /// (off-curve) arrays instead of `{x, y, on}` objects.
     pub compact_points: bool,
+    /// In chaining lookups, put glyph lists that several rules share in the
+    /// lookup's `classes` object and write them by name (`@c1`, ...).
+    pub chaining_classes: bool,
     pub name_glyphs_by_hash: bool,
     pub name_glyphs_by_gid: bool,
     /// `None` = no `--glyph-name-prefix` given; `Some(bytes)` (possibly empty)

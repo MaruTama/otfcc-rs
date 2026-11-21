@@ -167,7 +167,7 @@ fn _declare_lookup_parser(
     {
         for _subtable in subtable_items {
             if _subtable.as_object().is_some() {
-                let st = kind.parse_subtable(Some(_subtable));
+                let st = kind.parse_subtable_in(_subtable, lv.expect("subtables came from lv"));
                 lookup.subtables.push(st.map(Box::new));
             }
         }
