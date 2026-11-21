@@ -8,7 +8,7 @@ use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use otfcc_binary::FontReader;
 
-use crate::support::primitives::{GlyphId, TableId};
+use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 
 use crate::table::otl::subtables::chaining::common::chaining_ruleset_mut;
 use crate::table::otl::{
@@ -216,15 +216,15 @@ fn format3_coverage(t: &mut TableReader<'_>, shift: u16, rule_offset: u32) -> Co
 /// Reads one contextual rule (input sequence and lookup records) at
 /// `offset`, turning each stored input value into a coverage with
 /// `coverage_of`. In formats 1 and 2 the first input position is not
-/// stored; `first_input` gives it: the covered glyph or class that selected
-/// this rule set. Returns `None` if the rule does not fit in
-/// `slice`.
+/// stored; `first_input` gives its coverage: the covered glyph, or the
+/// covered glyphs of the class, that selected this rule set. Returns `None`
+/// if the rule does not fit in `slice`.
 // The `FontReader` reads and `require_room` checks below never reserve
 // bytes the following reads do not use.
 fn general_read_contextual_rule(
     t: &mut TableReader<'_>,
     offset: u32,
-    first_input: Option<u16>,
+    first_input: Option<Coverage>,
     mut coverage_of: impl FnMut(&mut TableReader<'_>, u16, u32, ContextKind) -> Coverage,
 ) -> Option<Box<ChainingRule>> {
     let slice = t.data;
@@ -257,8 +257,7 @@ fn general_read_contextual_rule(
     // Filled in order: the `first_input` slot first, then the rest.
     rule.sequence = Vec::with_capacity(rule.match_count as usize);
     if let Some(first) = first_input {
-        rule.sequence
-            .push(coverage_of(t, first, offset, ContextKind::Input));
+        rule.sequence.push(first);
     }
     for j in 0..n_input_built {
         let gid = u16_at(slice, offset as usize + 4 + 2 * j as usize);
@@ -295,7 +294,7 @@ fn u16_at(slice: &[u8], pos: usize) -> u16 {
 fn general_read_chaining_rule(
     t: &mut TableReader<'_>,
     offset: u32,
-    first_input: Option<u16>,
+    first_input: Option<Coverage>,
     mut coverage_of: impl FnMut(&mut TableReader<'_>, u16, u32, ContextKind) -> Coverage,
 ) -> Option<Box<ChainingRule>> {
     let slice = t.data;
@@ -345,8 +344,7 @@ fn general_read_chaining_rule(
             .push(coverage_of(t, gid, offset, ContextKind::Backtrack));
     }
     if let Some(first) = first_input {
-        rule.sequence
-            .push(coverage_of(t, first, offset, ContextKind::Input));
+        rule.sequence.push(first);
     }
     // Array positions from the counts as read, by addition, so a malformed
     // `n_input < implied_inputs` cannot underflow.
@@ -391,7 +389,7 @@ impl RuleShape {
         self,
         t: &mut TableReader<'_>,
         offset: u32,
-        first_input: Option<u16>,
+        first_input: Option<Coverage>,
         coverage_of: impl FnMut(&mut TableReader<'_>, u16, u32, ContextKind) -> Coverage,
     ) -> Option<Box<ChainingRule>> {
         match self {
@@ -451,9 +449,12 @@ fn read_format1(
             let sr_rel = u16_at(slice, srs_offset as usize + 2 + 2 * k as usize);
             let sr_offset = srs_offset.wrapping_add(u32::from(sr_rel));
             let first_glyph = first_coverage[j as usize].index as u16;
-            let rule = shape.read_rule(t, sr_offset, Some(first_glyph), |_, gid, _, _| {
-                single_coverage(gid)
-            });
+            let rule = shape.read_rule(
+                t,
+                sr_offset,
+                Some(single_coverage(first_glyph)),
+                |_, gid, _, _| single_coverage(gid),
+            );
             push_rule(&mut ruleset.rules, rule);
         }
     }
@@ -473,7 +474,8 @@ fn read_format2(
             offset.wrapping_add(u32::from(rel)),
         )))
     };
-    let mut header = FontReader::new(slice).at(offset as usize + 4).ok()?;
+    let mut header = FontReader::new(slice).at(offset as usize + 2).ok()?;
+    let cov_rel = header.u16().ok()?;
     // The class definition offsets, then the class set count and offsets.
     let (cds, class_set_count, sets_base) = match shape {
         RuleShape::Contextual => {
@@ -513,11 +515,24 @@ fn read_format2(
         total_rules = total_rules.saturating_add(srs_count as usize);
     }
 
+    // The first input glyph must be in the subtable's coverage, so the first
+    // position of a class set's rules is the covered glyphs of that class,
+    // not every glyph of it. A class set none of whose glyphs is covered
+    // can never match and is skipped.
+    let first_coverage = read_coverage(slice, offset.wrapping_add(u32::from(cov_rel)), t.budget);
+    let first_by_class = covered_glyphs_by_class(
+        &first_coverage,
+        cds.ic
+            .as_deref()
+            .expect("format 2 always reads an input ClassDef"),
+        class_set_count,
+    );
+
     let ruleset = chaining_ruleset_mut(subtable);
     ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
     'class_sets: for j in 0..class_set_count {
         let src_rel = u16_at(slice, sets_base + 2 * j as usize);
-        if src_rel == 0 {
+        if src_rel == 0 || first_by_class[j as usize].is_empty() {
             continue;
         }
         let srs_count = u16_at(slice, offset as usize + src_rel as usize);
@@ -532,13 +547,33 @@ fn read_format2(
             let sr_offset = offset
                 .wrapping_add(u32::from(src_rel))
                 .wrapping_add(u32::from(sr_rel));
-            let rule = shape.read_rule(t, sr_offset, Some(j), |t, cls, _, kind| {
+            let first = first_by_class[j as usize].clone();
+            let rule = shape.read_rule(t, sr_offset, Some(first), |t, cls, _, kind| {
                 class_coverage(t, cls, kind, &cds)
             });
             push_rule(&mut ruleset.rules, rule);
         }
     }
     Some(())
+}
+/// The glyphs of `coverage` grouped by their class in `ic`, one coverage per
+/// class below `class_count`. A glyph `ic` does not list is class 0; a glyph
+/// whose class has no class set is dropped.
+fn covered_glyphs_by_class(coverage: &Coverage, ic: &ClassDef, class_count: u16) -> Vec<Coverage> {
+    let class_of: std::collections::HashMap<GlyphId, GlyphClass> = ic
+        .glyphs
+        .iter()
+        .zip(ic.classes.iter())
+        .map(|(g, &c)| (g.index, c))
+        .collect();
+    let mut by_class: Vec<Coverage> = (0..class_count).map(|_| Coverage::new()).collect();
+    for g in coverage.iter() {
+        let cls = class_of.get(&g.index).copied().unwrap_or(0);
+        if let Some(cov) = by_class.get_mut(cls as usize) {
+            push_to_coverage(cov, g.clone());
+        }
+    }
+    by_class
 }
 /// Adds a rule read by `RuleShape::read_rule`, or nothing if it was `None`.
 /// `None` means this one rule's own header was malformed; the rule set
@@ -761,6 +796,59 @@ mod chaining_read_tests {
         assert!(otl_read_contextual(&data, 0, 100, &mut OtlReadBudget::new()).is_none());
     }
 
+    /// A contextual format 2 subtable with one single-glyph rule in each of
+    /// class sets 0 and 1. Coverage: glyphs 3 and 7. ClassDef: glyphs 5, 6
+    /// and 7 are class 1, every other glyph class 0.
+    fn context_format2_with_coverage() -> Vec<u8> {
+        #[rustfmt::skip]
+        let words: [u16; 24] = [
+            2,                  // format
+            28,                 // coverageOffset
+            36,                 // classDefOffset
+            2,                  // classSetCount
+            12,                 // classSetOffset[0]
+            20,                 // classSetOffset[1]
+            1, 4,               // class set 0 at 12: one rule, at 16
+            1, 0,               // rule at 16: glyphCount 1, no lookups
+            1, 4,               // class set 1 at 20: one rule, at 24
+            1, 0,               // rule at 24
+            1, 2, 3, 7,         // coverage at 28: format 1, glyphs 3 and 7
+            1, 5, 3, 1, 1, 1,   // class def at 36: format 1, glyphs 5..=7 class 1
+        ];
+        words.iter().flat_map(|w| w.to_be_bytes()).collect()
+    }
+
+    fn first_positions(data: &[u8]) -> Vec<Vec<GlyphId>> {
+        let sub = otl_read_contextual(data, 0, 100, &mut OtlReadBudget::new()).unwrap();
+        let Subtable::Chaining(ChainingSubtable::Poly(ruleset)) = sub else {
+            unreachable!()
+        };
+        ruleset
+            .rules
+            .iter()
+            .map(|r| glyphs_of(&r.as_ref().unwrap().sequence[0]))
+            .collect()
+    }
+
+    #[test]
+    fn context_format2_first_input_is_limited_to_the_coverage() {
+        // Class 0 is not every unclassified glyph, only covered glyph 3;
+        // class 1 is not glyphs 5, 6 and 7, only covered glyph 7.
+        assert_eq!(
+            first_positions(&context_format2_with_coverage()),
+            vec![vec![3], vec![7]]
+        );
+    }
+
+    #[test]
+    fn context_format2_class_set_with_no_covered_glyph_is_skipped() {
+        // Glyph 7 removed from the coverage: no covered glyph is class 1, so
+        // class set 1's rule can never match and is not read.
+        let mut data = context_format2_with_coverage();
+        data[34..36].copy_from_slice(&3u16.to_be_bytes());
+        assert_eq!(first_positions(&data), vec![vec![3]]);
+    }
+
     #[test]
     fn context_format2_zero_class_set_offset_is_skipped() {
         // classSetOffset == 0 is a documented "no ruleset for this class"
@@ -848,7 +936,9 @@ mod chaining_read_tests {
             budget: &mut budget,
         };
         let rule =
-            general_read_chaining_rule(&mut t, 0, Some(7), |_, gid, _, _| single_coverage(gid));
+            general_read_chaining_rule(&mut t, 0, Some(single_coverage(7)), |_, gid, _, _| {
+                single_coverage(gid)
+            });
         let rule = rule.unwrap();
         // Only the `first_input` slot (glyph 7) is
         // filled; the (empty) input array contributes nothing.
