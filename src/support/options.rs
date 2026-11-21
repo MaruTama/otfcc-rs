@@ -21,6 +21,9 @@ pub struct Options {
     pub cff_do_subroutinize: bool,
     pub stub_cmap4: bool,
     pub decimal_cmap: bool,
+    /// Dump contour points as `[x, y]` (on-curve) or `[x, y, 0]`
+    /// (off-curve) arrays instead of `{x, y, on}` objects.
+    pub compact_points: bool,
     pub name_glyphs_by_hash: bool,
     pub name_glyphs_by_gid: bool,
     /// `None` = no `--glyph-name-prefix` given; `Some(bytes)` (possibly empty)

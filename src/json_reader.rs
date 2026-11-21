@@ -1,6 +1,6 @@
 use crate::logger::ByteStr;
 use crate::support::json_limits::{MAX_ENTRIES, find_oversized_collection};
-use otfcc_json::ParsedValue;
+use otfcc_json::{ParsedValue, parse_json};
 
 use crate::font::model::{Font, FontSubtype};
 use crate::font::table_registry::PARSE_ORDER;
@@ -8,6 +8,46 @@ use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry, GlyphOrderPass};
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 use otfcc_json::JsonType;
+
+/// Reads a `v2` dump directory (see `json_writer::write_split_dir`) back into
+/// the single JSON tree a `v1` dump parses to: `font.json`, with each member
+/// of its `glyf` index replaced by the parsed contents of the file it names.
+/// Only files directly under `glyf/` are read, so an index entry cannot reach
+/// outside the directory.
+pub fn load_split_dir(dir: &std::path::Path) -> Result<ParsedValue, String> {
+    use crate::json_writer::{SPLIT_GLYPH_DIR, SPLIT_MAIN_FILE};
+    let read = |path: &std::path::Path| -> Result<ParsedValue, String> {
+        let bytes =
+            std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        parse_json(&bytes).ok_or_else(|| format!("cannot parse {} as JSON", path.display()))
+    };
+    let mut root = read(&dir.join(SPLIT_MAIN_FILE))?;
+    let ParsedValue::Object(members) = &mut root else {
+        return Err(format!("{SPLIT_MAIN_FILE} is not a JSON object"));
+    };
+    let glyf_key = [SPLIT_GLYPH_DIR.as_bytes(), b"\0"].concat();
+    let Some((_, ParsedValue::Object(glyphs))) = members.iter_mut().find(|(k, _)| *k == glyf_key)
+    else {
+        return Ok(root);
+    };
+    for (_, entry) in glyphs.iter_mut() {
+        let Some(path) = entry.as_str_bytes() else {
+            continue;
+        };
+        let file = std::str::from_utf8(path)
+            .ok()
+            .and_then(|p| p.strip_prefix(SPLIT_GLYPH_DIR)?.strip_prefix('/'))
+            .filter(|f| !f.is_empty() && !f.contains(['/', '\\']) && *f != "." && *f != "..")
+            .ok_or_else(|| {
+                format!(
+                    "glyph file {:?} is not a file directly under {SPLIT_GLYPH_DIR}/",
+                    String::from_utf8_lossy(path)
+                )
+            })?;
+        *entry = read(&dir.join(SPLIT_GLYPH_DIR).join(file))?;
+    }
+    Ok(root)
+}
 
 fn decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
     if root.get_typed(b"CFF_", JsonType::Object).is_some() {

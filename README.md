@@ -63,18 +63,52 @@ otfccdump [OPTIONS] input.[otf|ttf|ttc]
  --glyph-name-prefix pfx : Add a prefix to the glyph names.
  --ignore-hints          : Do not export hinting information.
  --decimal-cmap          : Export 'cmap' keys as decimal number.
+ --format <v1|v2>        : Output format. v1 (the default) is one JSON file.
+                           v2 writes the directory given by -o: font.json,
+                           plus one file per glyph under glyf/, with contour
+                           points as [x, y] arrays ([x, y, 0] off-curve).
  --name-by-hash          : Name glyphs using its hash value.
  --add-bom               : Add BOM mark in the output. (It is default on Windows
                            when redirecting to another program. Use --no-bom to
                            turn it off.)
 ```
 
+#### The v2 format
+
+`otfccdump --format v2 -o font.otfccdir font.ttf` writes a directory meant
+for reading and editing by hand. The output directory must not exist yet or
+must be empty.
+
+```
+font.otfccdir/
+  font.json      every table but the glyphs; "glyf" maps each glyph name,
+                 in glyph order, to its file
+  glyf/
+    A_.json      one glyph per file, laid out for reading
+    a.json
+    _notdef.json
+```
+
+- A glyph's file name comes from its name so that it is safe on every file
+  system: an upper-case letter is followed by `_` (so `A` and `a` stay apart
+  where case is ignored), other characters outside `A-Z a-z 0-9 - _ .` and a
+  leading `.` become `_`, Windows device names (`con`, `aux`, ...) get a `_`
+  prefix, and a name that would still clash gets `~2`, `~3`, ... The real
+  name is the key in `font.json`.
+- A contour point is `[x, y]` on the curve and `[x, y, 0]` off it, instead of
+  `{"x": x, "y": y, "on": true}`. In a variable font a coordinate can be the
+  same `[default, {"delta": ...}]` array as in v1.
+- `otfccbuild font.otfccdir -o font.ttf` reads it back; the result is the same
+  font, byte for byte, as building from the v1 dump. It only reads glyph files
+  directly under `glyf/`.
+
 ### `otfccbuild` : Build an OpenType font file from JSON
 ```
 Usage : otfccbuild [OPTIONS] [input.json] -o output.[ttf|otf]
 
  input.json                : Path to input file. When absent the input will be
-                             read from the STDIN.
+                             read from the STDIN. A directory is read as a
+                             v2 dump (otfccdump --format v2).
 
  -h, --help                : Display this help message and exit.
  -v, --version             : Display version information and exit.

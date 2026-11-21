@@ -13,14 +13,14 @@ use otfcc_json::{
 };
 use otfcc_rust::consolidate::consolidate_font;
 use otfcc_rust::font::sfnt::read_sfnt;
-use otfcc_rust::json_writer::stream_json;
+use otfcc_rust::json_writer::{stream_json, write_split_dir};
 use otfcc_rust::otf_reader::read_otf;
 use std::io::{IsTerminal, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
 pub fn print_help() {
     print!(
-        "\nUsage : otfccdump [OPTIONS] input.[otf|ttf|ttc]\n\n -h, --help              : Display this help message and exit.\n -v, --version           : Display version information and exit.\n -o <file>               : Set output file path to <file>. When absent the dump\n                           will be written to STDOUT.\n -n <n>, --ttc-index <n> : Use the <n>th subfont within the input font.\n --pretty                : Prettify the output JSON.\n --ugly                  : Force uglify the output JSON.\n --verbose               : Show more information when building.\n -q, --quiet             : Be silent when building.\n\n --ignore-glyph-order    : Do not export glyph order information.\n --glyph-name-prefix pfx : Add a prefix to the glyph names.\n --ignore-hints          : Do not export hinting information.\n --decimal-cmap          : Export 'cmap' keys as decimal number.\n --hex-cmap              : Export 'cmap' keys as hex number (U+FFFF).\n --name-by-hash          : Name glyphs using its hash value.\n --name-by-gid           : Name glyphs using its glyph id.\n --add-bom               : Add BOM mark in the output. (It is default on Windows\n                           when redirecting to another program. Use --no-bom to\n                           turn it off.)\n\n"
+        "\nUsage : otfccdump [OPTIONS] input.[otf|ttf|ttc]\n\n -h, --help              : Display this help message and exit.\n -v, --version           : Display version information and exit.\n -o <file>               : Set output file path to <file>. When absent the dump\n                           will be written to STDOUT.\n -n <n>, --ttc-index <n> : Use the <n>th subfont within the input font.\n --pretty                : Prettify the output JSON.\n --ugly                  : Force uglify the output JSON.\n --verbose               : Show more information when building.\n -q, --quiet             : Be silent when building.\n\n --ignore-glyph-order    : Do not export glyph order information.\n --glyph-name-prefix pfx : Add a prefix to the glyph names.\n --ignore-hints          : Do not export hinting information.\n --decimal-cmap          : Export 'cmap' keys as decimal number.\n --hex-cmap              : Export 'cmap' keys as hex number (U+FFFF).\n --format <v1|v2>       : Output format. v1 (the default) is one JSON file.\n                           v2 writes the directory given by -o: font.json,\n                           plus one file per glyph under glyf/, with contour\n                           points as [x, y] arrays ([x, y, 0] off-curve).\n --name-by-hash          : Name glyphs using its hash value.\n --name-by-gid           : Name glyphs using its glyph id.\n --add-bom               : Add BOM mark in the output. (It is default on Windows\n                           when redirecting to another program. Use --no-bom to\n                           turn it off.)\n\n"
     );
 }
 /// The JSON layout: packed, unless `--pretty` is given or the dump goes to a
@@ -72,6 +72,7 @@ struct DumpArgs {
     show_ugly: bool,
     add_bom: bool,
     ttcindex: u32,
+    format_v2: bool,
     invalid_argument: bool,
     options: Box<Options>,
     output_path: Option<::std::ffi::CString>,
@@ -85,6 +86,7 @@ fn parse_args(args: &[String]) -> DumpArgs {
     let mut add_bom: bool = false;
     let mut _no_bom: bool = false;
     let mut ttcindex: u32 = 0;
+    let mut format_v2 = false;
     let mut invalid_argument = false;
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
@@ -109,6 +111,7 @@ fn parse_args(args: &[String]) -> DumpArgs {
     const OPT_ADD_BOM: i32 = 266;
     const OPT_NO_BOM: i32 = 267;
     const OPT_DEBUG_WAIT_ON_START: i32 = 268;
+    const OPT_FORMAT: i32 = 269;
     const LONGOPTS: &[LongOpt] = &[
         LongOpt {
             name: "version",
@@ -154,6 +157,11 @@ fn parse_args(args: &[String]) -> DumpArgs {
             name: "decimal-cmap",
             has_arg: false,
             val: OPT_DECIMAL_CMAP,
+        },
+        LongOpt {
+            name: "format",
+            has_arg: true,
+            val: OPT_FORMAT,
         },
         LongOpt {
             name: "instr-as-bytes",
@@ -249,6 +257,18 @@ fn parse_args(args: &[String]) -> DumpArgs {
                 OPT_VERBOSE => options.verbose = true,
                 OPT_IGNORE_HINTS => options.ignore_hints = true,
                 OPT_DECIMAL_CMAP => options.decimal_cmap = true,
+                OPT_FORMAT => {
+                    let arg =
+                        arg.expect("getopt yields this option only with its required argument");
+                    match arg.as_str() {
+                        "v1" => format_v2 = false,
+                        "v2" => format_v2 = true,
+                        _ => {
+                            eprintln!("otfccdump: unknown format '{arg}' (expected v1 or v2)");
+                            invalid_argument = true;
+                        }
+                    }
+                }
                 OPT_HEX_CMAP => options.decimal_cmap = false,
                 OPT_NAME_BY_HASH => options.name_glyphs_by_hash = true,
                 OPT_NAME_BY_GID => options.name_glyphs_by_gid = true,
@@ -272,6 +292,7 @@ fn parse_args(args: &[String]) -> DumpArgs {
         show_ugly,
         add_bom,
         ttcindex,
+        format_v2,
         invalid_argument,
         options,
         output_path,
@@ -286,8 +307,9 @@ fn run(args: Vec<String>) -> i32 {
         show_ugly,
         add_bom,
         ttcindex,
+        format_v2,
         invalid_argument,
-        options,
+        mut options,
         output_path,
         positionals,
     } = parse_args(&args);
@@ -321,6 +343,31 @@ fn run(args: Vec<String>) -> i32 {
         print_help();
         return EXIT_FAILURE;
     }
+    // The v2 directory, checked before any work: it must be given, and must
+    // not already hold anything, so no glyph file of an earlier dump is left
+    // behind among the new ones.
+    let split_dir: Option<std::path::PathBuf> = if format_v2 {
+        let Some(ref output_path) = output_path else {
+            tracing::error!("--format v2 writes a directory: give it with -o. Exit.\n");
+            return EXIT_FAILURE;
+        };
+        let dir = std::path::PathBuf::from(std::ffi::OsStr::from_bytes(output_path.as_bytes()));
+        let occupied = match std::fs::read_dir(&dir) {
+            Ok(mut entries) => entries.next().is_some(),
+            Err(_) => dir.exists(),
+        };
+        if occupied {
+            tracing::error!(
+                "Output \"{}\" already exists and is not an empty directory. Exit.\n",
+                ByteStr(output_path.as_bytes())
+            );
+            return EXIT_FAILURE;
+        }
+        options.compact_points = true;
+        Some(dir)
+    } else {
+        None
+    };
     let mut begin = std::time::Instant::now();
     let mut sfnt: Option<SplineFontContainer>;
     let stage = otfcc_rust::logger::stage("Read SFNT");
@@ -389,6 +436,33 @@ fn run(args: Vec<String>) -> i32 {
     // and the output opened before the Dump step. The steps and their log
     // lines stay as they were: Serialize to JSON now only flushes, and a
     // file that cannot be opened or written is still reported in Output.
+    if let Some(dir) = split_dir {
+        // Always laid out for reading, whatever --pretty/--ugly say: the point
+        // of v2 is a dump to read and edit.
+        let pretty = json_layout(true, false, true);
+        let stage = otfcc_rust::logger::stage("Dump");
+        let result = write_split_dir(
+            font.as_mut()
+                .expect("a font that failed to read has already returned"),
+            &options,
+            &dir,
+            pretty,
+        );
+        log_step_time(&mut begin);
+        stage.finish();
+        let stage = otfcc_rust::logger::stage("Output");
+        if let Err(e) = result {
+            tracing::error!(
+                "Cannot write to directory \"{}\": {e}. Exit.",
+                dir.display()
+            );
+            return EXIT_FAILURE;
+        }
+        log_step_time(&mut begin);
+        stage.finish();
+        drop(font.take());
+        return 0;
+    }
     let json_options = json_layout(show_pretty, show_ugly, output_path.is_some());
     // Whether writing the output file has failed so far. Writes to stdout
     // are not checked.
