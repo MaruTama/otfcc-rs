@@ -337,16 +337,19 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     st.push_field(b"matrix", mat);
     st
 }
-/// The largest class matrix a JSON pair positioning subtable may describe.
-/// A binary PairPos format 2 subtable reaches its class definitions through
-/// 16-bit offsets placed after the matrix, so with any non-zero value it
-/// holds at most 32,767 entries; this limit is 32 times that, far above any
-/// buildable subtable, and keeps the two matrices under 70 MB.
-const MAX_CLASS_MATRIX_ENTRIES: usize = 1 << 20;
 
 /// Reads the object written by `otl_gpos_dump_pair`, or `None` if `matrix`
 /// or either class definition is missing, or the matrix is too large.
-pub fn otl_gpos_parse_pair(_subtable: Option<&ParsedValue>) -> Option<Subtable> {
+///
+/// The matrix is held in full, as when reading a binary subtable, so it is
+/// limited the same way: `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS` cells for one
+/// subtable and `budget`'s pair cells for the whole table. Whatever the
+/// binary reader accepts, and so whatever `otfccdump` writes, is accepted
+/// back.
+pub fn otl_gpos_parse_pair(
+    _subtable: Option<&ParsedValue>,
+    budget: &mut OtlReadBudget,
+) -> Option<Subtable> {
     let sv = _subtable;
     let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array))?;
     let first: Option<ClassDef> =
@@ -359,19 +362,23 @@ pub fn otl_gpos_parse_pair(_subtable: Option<&ParsedValue>) -> Option<Subtable> 
     // second class, numbered from 0 to the largest class used. Both counts
     // are written as 16-bit fields, so the largest class must be below
     // 65,535. And since a class number costs nothing to write in JSON, the
-    // matrix size is capped too: past `MAX_CLASS_MATRIX_ENTRIES` a few
-    // bytes of input would allocate gigabytes.
+    // matrix size is capped too: past `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS` a
+    // few bytes of input would allocate gigabytes, and many subtables of a
+    // few bytes each would do the same without the table-wide budget.
     let class1_count = first_cd.maxclass as usize + 1;
     let class2_count = second_cd.maxclass as usize + 1;
     if class1_count > u16::MAX as usize
         || class2_count > u16::MAX as usize
-        || class1_count * class2_count > MAX_CLASS_MATRIX_ENTRIES
+        || class1_count * class2_count > MAX_TOTAL_GPOS_PAIR_CLASS_CELLS
     {
         tracing::warn!(
             "[OTFCC-fea] Pair positioning subtable with {} x {} classes is too large. This subtable is ignored.\n",
             class1_count,
             class2_count
         );
+        return None;
+    }
+    if !budget.try_spend_pair_grid_cells(class1_count * class2_count) {
         return None;
     }
     let mut first_values: Vec<Vec<PositionValue>> =
@@ -825,7 +832,10 @@ mod otl_gpos_parse_pair_class_limit_tests {
     use otfcc_json::parse_json;
 
     fn parse(json: &str) -> Option<Subtable> {
-        otl_gpos_parse_pair(Some(&parse_json(json.as_bytes()).unwrap()))
+        otl_gpos_parse_pair(
+            Some(&parse_json(json.as_bytes()).unwrap()),
+            &mut OtlReadBudget::new(),
+        )
     }
 
     #[test]
@@ -867,6 +877,27 @@ mod otl_gpos_parse_pair_class_limit_tests {
             parse(r#"{"first": {"a": 65534}, "second": {"b": 65534}, "matrix": []}"#).is_none()
         );
         // Just under the limit is fine.
-        assert!(parse(r#"{"first": {"a": 1023}, "second": {"b": 1023}, "matrix": []}"#).is_some());
+        assert!(parse(r#"{"first": {"a": 1413}, "second": {"b": 1413}, "matrix": []}"#).is_some());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "allocates a million-entry matrix")]
+    fn a_matrix_the_binary_reader_accepts_is_accepted_back() {
+        // EB Garamond has a format 1 subtable that reads as 1,006 x 1,133
+        // classes; the JSON parser used to stop at 2^20 entries, so its
+        // kerning was lost when the dump was built.
+        assert!(parse(r#"{"first": {"a": 1005}, "second": {"b": 1132}, "matrix": []}"#).is_some());
+    }
+
+    #[test]
+    fn the_table_wide_budget_is_shared_by_every_subtable() {
+        let json = parse_json(br#"{"first": {"a": 9}, "second": {"b": 9}, "matrix": []}"#).unwrap();
+        let mut budget = OtlReadBudget {
+            pair_grid_cells: 150,
+            ..OtlReadBudget::new()
+        };
+        assert!(otl_gpos_parse_pair(Some(&json), &mut budget).is_some());
+        assert!(otl_gpos_parse_pair(Some(&json), &mut budget).is_none());
+        assert_eq!(budget.pair_grid_cells, 50);
     }
 }

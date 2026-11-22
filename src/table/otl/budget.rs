@@ -7,9 +7,10 @@
 //! Every limit keeps its value, and its doc comment explaining why, next to
 //! the code that spends it:
 //! - `coverage_entries`: `coverage::MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE`
-//! - `class_zero_glyphs`, `class_coverage_calls`, `rules`:
+//! - `class_zero_glyphs`, `class_coverage_calls`, `rules`, `rule_positions`:
 //!   `chaining::read`'s `MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS`,
-//!   `MAX_TOTAL_CLASS_COVERAGE_CALLS` and `MAX_TOTAL_RULES_PER_TABLE`
+//!   `MAX_TOTAL_CLASS_COVERAGE_CALLS`, `MAX_TOTAL_RULES_PER_TABLE` and
+//!   `MAX_TOTAL_RULE_POSITIONS_PER_TABLE`
 //! - `mark_attach_anchors`: `gpos_mark_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`
 //! - `pair_grid_cells`: `gpos_pair::MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE`
 //! - `subtables`, `feature_lookup_refs`: `read`'s
@@ -25,7 +26,8 @@ use crate::table::otl::read::{
     MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE, MAX_TOTAL_SUBTABLES_PER_TABLE,
 };
 use crate::table::otl::subtables::chaining::read::{
-    MAX_TOTAL_CLASS_COVERAGE_CALLS, MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS, MAX_TOTAL_RULES_PER_TABLE,
+    MAX_TOTAL_CLASS_COVERAGE_CALLS, MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS,
+    MAX_TOTAL_RULE_POSITIONS_PER_TABLE, MAX_TOTAL_RULES_PER_TABLE,
 };
 use crate::table::otl::subtables::gpos_mark_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE;
 use crate::table::otl::subtables::gpos_pair::MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE;
@@ -38,6 +40,7 @@ pub(crate) enum Limit {
     ClassZeroGlyphs,
     ClassCoverageCalls,
     Rules,
+    AllRulePositions,
     MarkAttachAnchors,
     PairGridCells,
     Subtables,
@@ -57,6 +60,7 @@ impl Limit {
             Limit::ClassZeroGlyphs => "glyphs in contextual class 0",
             Limit::ClassCoverageCalls => "contextual class references",
             Limit::Rules => "contextual rules",
+            Limit::AllRulePositions => "glyph positions in contextual rules",
             Limit::MarkAttachAnchors => "mark attachment anchors",
             Limit::PairGridCells => "pair positioning cells",
             Limit::Subtables => "lookup subtables",
@@ -83,6 +87,8 @@ pub struct OtlReadBudget {
     pub(crate) class_coverage_calls: u32,
     /// Contextual and chaining rules built.
     pub(crate) rules: u32,
+    /// Glyph positions of those rules.
+    pub(crate) rule_positions: u32,
     /// Anchor slots allocated by the mark-attachment readers.
     pub(crate) mark_attach_anchors: u32,
     /// Cells of the pair-positioning value grids (`gpos_pair`).
@@ -111,6 +117,7 @@ impl OtlReadBudget {
             class_zero_glyphs: MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS,
             class_coverage_calls: MAX_TOTAL_CLASS_COVERAGE_CALLS,
             rules: MAX_TOTAL_RULES_PER_TABLE,
+            rule_positions: MAX_TOTAL_RULE_POSITIONS_PER_TABLE,
             mark_attach_anchors: MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE,
             pair_grid_cells: MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE,
             subtables: MAX_TOTAL_SUBTABLES_PER_TABLE,
@@ -146,6 +153,7 @@ impl OtlReadBudget {
             Limit::ClassZeroGlyphs => &mut self.class_zero_glyphs,
             Limit::ClassCoverageCalls => &mut self.class_coverage_calls,
             Limit::Rules => &mut self.rules,
+            Limit::AllRulePositions => &mut self.rule_positions,
             Limit::MarkAttachAnchors => &mut self.mark_attach_anchors,
             Limit::PairGridCells => &mut self.pair_grid_cells,
             Limit::Subtables => &mut self.subtables,
@@ -229,6 +237,12 @@ impl OtlReadBudget {
     /// gone.
     pub(crate) fn take_rule(&mut self) -> bool {
         self.try_spend(Limit::Rules, 1)
+    }
+
+    /// Spends the `n` glyph positions of one rule if all are available;
+    /// `false` once they are not.
+    pub(crate) fn try_spend_rule_positions(&mut self, n: u32) -> bool {
+        self.try_spend(Limit::AllRulePositions, n)
     }
 
     /// Spends `n` anchor slots if all of them are available.

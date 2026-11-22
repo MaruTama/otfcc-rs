@@ -51,9 +51,22 @@ pub(crate) const MAX_TOTAL_CLASS_COVERAGE_CALLS: u32 = 70_000;
 /// Bounds the number of contextual/chaining rules built across a whole table
 /// (`OtlReadBudget::rules`). Each rule set's count fits the table, but many
 /// sets can each carry a huge count: a fuzzed format 2 subtable summed past
-/// 500,000 rules. Real fonts have at most a few hundred rules per subtable,
-/// so this is far above legitimate use.
-pub(crate) const MAX_TOTAL_RULES_PER_TABLE: u32 = 15_000;
+/// 500,000 rules.
+///
+/// This used to be 15,000, which is what bounded memory, as 15,000 rules of
+/// up to 150 positions each. Real fonts have more rules than that: Gulzar's
+/// GSUB has 27,937, and lost the rest. The positions are what cost memory,
+/// so they have a budget of their own now
+/// (`MAX_TOTAL_RULE_POSITIONS_PER_TABLE`, the same 2,250,000), and the rule
+/// count only needs to stop the per-rule overhead: 100,000 is over three
+/// times Gulzar's.
+pub(crate) const MAX_TOTAL_RULES_PER_TABLE: u32 = 100_000;
+/// Bounds the glyph positions built across every contextual/chaining rule of
+/// a whole table (`OtlReadBudget::rule_positions`): 15,000 rules of up to
+/// 150 positions, the most the earlier rule limit allowed. Real fonts use a
+/// fraction of it (Gulzar's GSUB about 150,000, Noto Nastaliq Urdu's about
+/// 60,000). A rule that does not fit is dropped whole.
+pub(crate) const MAX_TOTAL_RULE_POSITIONS_PER_TABLE: u32 = 2_250_000;
 /// Bounds how many `ChainLookupApplication` entries a single contextual/
 /// chaining rule builds. `n_apply` is a raw `u16` read straight from the
 /// rule header; the only existing guard (`require_room`) just checks the
@@ -248,6 +261,10 @@ fn general_read_contextual_rule(
     if n_input_built < n_input_read {
         t.budget.reached(Limit::RulePositions);
     }
+    // See `MAX_TOTAL_RULE_POSITIONS_PER_TABLE`.
+    if !t.budget.try_spend_rule_positions(u32::from(n_input_built)) {
+        return None;
+    }
     let match_count = implied_inputs.wrapping_add(n_input_built);
 
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
@@ -332,6 +349,12 @@ fn general_read_chaining_rule(
     let n_lookaround_built = n_lookaround.min(MAX_POSITIONS_PER_RULE);
     if n_back_built < n_back || n_input_built < n_input_read || n_lookaround_built < n_lookaround {
         t.budget.reached(Limit::RulePositions);
+    }
+    // See `MAX_TOTAL_RULE_POSITIONS_PER_TABLE`.
+    let positions =
+        u32::from(n_back_built) + u32::from(n_input_built) + u32::from(n_lookaround_built);
+    if !t.budget.try_spend_rule_positions(positions) {
+        return None;
     }
     let input_begins = n_back_built;
     let input_ends = n_back_built
@@ -449,7 +472,11 @@ fn read_format1(
 
     // Second pass: build, re-deriving each offset as the first pass did.
     let ruleset = chaining_ruleset_mut(subtable);
-    ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+    // Grown as rules are built rather than reserved from `total_rules`:
+    // the counts come from the file, and a rule set that builds nothing
+    // (skipped, or out of budget) would still hold the reservation, once
+    // per subtable.
+    ruleset.rules = Vec::new();
     'rulesets: for j in 0..rule_set_count {
         let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
         let srs_offset = offset.wrapping_add(u32::from(srs_rel));
@@ -541,7 +568,11 @@ fn read_format2(
     );
 
     let ruleset = chaining_ruleset_mut(subtable);
-    ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+    // Grown as rules are built rather than reserved from `total_rules`:
+    // the counts come from the file, and a rule set that builds nothing
+    // (skipped, or out of budget) would still hold the reservation, once
+    // per subtable.
+    ruleset.rules = Vec::new();
     'class_sets: for j in 0..class_set_count {
         let src_rel = u16_at(slice, sets_base + 2 * j as usize);
         if src_rel == 0 || first_by_class[j as usize].is_empty() {
@@ -778,6 +809,68 @@ mod chaining_read_tests {
         let rule = ruleset.rules[0].as_ref().unwrap();
         assert_eq!(rule.match_count, 1);
         assert_eq!(glyphs_of(&rule.sequence[0]), vec![5]);
+    }
+
+    /// A format 1 context subtable with one rule set of `rules` rules, all
+    /// pointing at one rule of `inputs` input glyphs (the first one is the
+    /// coverage's glyph).
+    fn context_format1_with_rules(rules: u16, inputs: u16) -> Vec<u8> {
+        let rule_set = 8usize;
+        let rule = rule_set + 2 + 2 * rules as usize;
+        let coverage = rule + 4 + 2 * (inputs as usize - 1);
+        let mut data = vec![0u8; coverage + 6];
+        let put = |data: &mut Vec<u8>, at: usize, v: u16| {
+            data[at..at + 2].copy_from_slice(&v.to_be_bytes())
+        };
+        put(&mut data, 0, 1); // format
+        put(&mut data, 2, coverage as u16);
+        put(&mut data, 4, 1); // ruleSetCount
+        put(&mut data, 6, rule_set as u16);
+        put(&mut data, rule_set, rules);
+        for k in 0..rules as usize {
+            put(&mut data, rule_set + 2 + 2 * k, (rule - rule_set) as u16);
+        }
+        put(&mut data, rule, inputs);
+        put(&mut data, rule + 2, 0); // nApply
+        for j in 1..inputs as usize {
+            put(&mut data, rule + 2 + 2 * j, 6);
+        }
+        put(&mut data, coverage, 1); // coverage format 1
+        put(&mut data, coverage + 2, 1);
+        put(&mut data, coverage + 4, 5);
+        data
+    }
+
+    fn rule_count(sub: &Subtable) -> usize {
+        let Subtable::Chaining(ChainingSubtable::Poly(ruleset)) = sub else {
+            unreachable!()
+        };
+        ruleset.rules.len()
+    }
+
+    #[test]
+    fn more_rules_than_the_old_limit_of_15000_are_read() {
+        // Gulzar's GSUB has 27,937 rules.
+        let data = context_format1_with_rules(30_000, 3);
+        let mut budget = OtlReadBudget::new();
+        let sub = otl_read_contextual(&data, 0, 100, &mut budget).unwrap();
+        assert_eq!(rule_count(&sub), 30_000);
+        assert!(!budget.has_reached(Limit::Rules));
+        assert!(!budget.has_reached(Limit::AllRulePositions));
+    }
+
+    #[test]
+    fn rules_stop_when_the_positions_budget_is_spent() {
+        let data = context_format1_with_rules(10, 4);
+        let mut budget = OtlReadBudget {
+            rule_positions: 10,
+            ..OtlReadBudget::new()
+        };
+        // Each rule builds three positions after the coverage's glyph.
+        let sub = otl_read_contextual(&data, 0, 100, &mut budget).unwrap();
+        assert_eq!(rule_count(&sub), 3);
+        assert_eq!(budget.rule_positions, 1);
+        assert!(budget.has_reached(Limit::AllRulePositions));
     }
 
     #[test]
