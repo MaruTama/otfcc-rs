@@ -88,13 +88,19 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> ClassDef {
 // `ocd` is consumed here (its entries are read once, then it's dropped),
 // so taking it by value lets the compiler's own drop glue replace the old
 // explicit `otl_class_def_free(ocd)` call at the end.
+/// The class of every glyph of `cov`: its class in `ocd`, or 0. A glyph of
+/// `ocd` that `cov` does not list is left out, as a lookup never reaches its
+/// class.
 pub(crate) fn expand_class_def(cov: &Coverage, ocd: ClassDef) -> ClassDef {
     // Insertion order, deduped by gid (first occurrence wins): `ocd`'s
-    // entries first, in `ocd`'s own order; then every glyph in `cov` not
-    // already present, with class 0, in `cov`'s order.
+    // covered entries first, in `ocd`'s own order; then every glyph in `cov`
+    // not already present, with class 0, in `cov`'s order.
+    let covered: std::collections::HashSet<GlyphId> = cov.iter().map(|g| g.index).collect();
     let mut h: indexmap::IndexMap<GlyphId, GlyphClass> = indexmap::IndexMap::new();
     for j in 0..ocd.glyphs.len() {
-        h.entry(ocd.glyphs[j].index).or_insert(ocd.classes[j]);
+        if covered.contains(&ocd.glyphs[j].index) {
+            h.entry(ocd.glyphs[j].index).or_insert(ocd.classes[j]);
+        }
     }
     for g in cov.iter() {
         h.entry(g.index).or_insert(0 as GlyphClass);
