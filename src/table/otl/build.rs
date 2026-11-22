@@ -1,5 +1,6 @@
 use crate::logger::ByteStr;
 use crate::support::primitives::TableId;
+use crate::table::otl::constants::USE_MARK_FILTERING_SET;
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::chaining::build::chaining_lookup_is_contextual_lookup;
@@ -226,7 +227,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
         }) as u16;
         let mut blk: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, i32::from(lookup_type) as u32),
-            bk_int(BkCellType::B16, i32::from(live_lookup.flags) as u32),
+            bk_int(BkCellType::B16, u32::from(lookup_flag(live_lookup))),
             bk_int(BkCellType::B16, i32::from(subtable_quantity[j_1]) as u32),
         ]);
         // Bounded by `subtable_quantity[j_1]` rather than assumed equal
@@ -259,10 +260,27 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
                 );
             }
         }
-        bk_push(&mut blk, vec![bk_int(BkCellType::B16, 0)]);
+        // `markFilteringSet`. It is always written, 0 when the flag bit
+        // is clear, as otfcc always has.
+        bk_push(
+            &mut blk,
+            vec![bk_int(
+                BkCellType::B16,
+                u32::from(live_lookup.mark_filtering_set.unwrap_or(0)),
+            )],
+        );
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(blk))]);
     }
     root
+}
+/// The `lookupFlag` written for `lookup`: its flags, with
+/// `USE_MARK_FILTERING_SET` when it has a mark filtering set.
+fn lookup_flag(lookup: &Lookup) -> u16 {
+    if lookup.mark_filtering_set.is_some() {
+        lookup.flags | USE_MARK_FILTERING_SET
+    } else {
+        lookup.flags
+    }
 }
 fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock {
     // Same "storage index, holes skipped, dense position is the binary

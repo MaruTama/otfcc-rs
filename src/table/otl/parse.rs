@@ -1,8 +1,8 @@
 use crate::logger::ByteStr;
 use crate::support::options::Options;
 use crate::table::otl::budget::OtlReadBudget;
-use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
+use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS, USE_MARK_FILTERING_SET};
 use crate::table::otl::kind::{LOOKUP_KINDS, LookupKind};
 use crate::table::otl::{
     Feature, FeatureIdx, FeatureRefList, LanguageSystem, Lookup, LookupIdx, LookupRefList, OtlTable,
@@ -165,6 +165,12 @@ fn _declare_lookup_parser(
     if mark_attachment_type != 0 {
         lookup.flags = (i32::from(lookup.flags) | i32::from(mark_attachment_type) << 8) as u16;
     }
+    // The flag bit comes from whether a set is named, never from `flags`.
+    lookup.flags &= !USE_MARK_FILTERING_SET;
+    lookup.mark_filtering_set = lv
+        .and_then(|v| v.get_typed(b"markFilteringSet", JsonType::Integer))
+        .and_then(ParsedValue::as_int)
+        .and_then(|set| u16::try_from(set).ok());
     let subtable_items = subtables.as_array().expect("get_typed returned an Array");
     let stage = crate::logger::stage(ByteStr(lookup_name));
     {

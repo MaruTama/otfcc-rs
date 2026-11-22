@@ -3,7 +3,9 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name}
 use crate::support::primitives::Pos;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::classdef::{ClassDef, read_class_def};
-use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
+use crate::table::otl::coverage::{
+    Coverage, dump_coverage, parse_coverage, push_to_coverage, read_coverage,
+};
 use otfcc_binary::Buffer;
 use otfcc_binary::FontReader;
 use otfcc_binary::bk::block::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -38,13 +40,46 @@ pub type LigCaretTable = Vec<CaretValueRecord>;
 pub(crate) fn clear_lig_carets(lc: &mut LigCaretTable) {
     lc.clear();
 }
-/// The `GDEF` table: glyph classes, mark attachment classes and ligature
-/// carets (the other GDEF parts are not kept).
+/// The `GDEF` table: glyph classes, mark attachment classes, ligature
+/// carets and mark glyph sets (the other GDEF parts are not kept).
 #[derive(Debug)]
 pub struct GdefTable {
     pub glyph_class_def: Option<Box<ClassDef>>,
     pub mark_attach_class_def: Option<Box<ClassDef>>,
     pub lig_carets: LigCaretTable,
+    /// The mark glyph sets (GDEF 1.2), which lookups name by index in
+    /// their `markFilteringSet`. A set left empty keeps its place, so the
+    /// indices of the others do not change.
+    pub mark_glyph_sets: Vec<Coverage>,
+}
+/// GDEF version 1.2, the first with a `markGlyphSetsDefOffset`.
+const GDEF_VERSION_1_2: u32 = 0x0001_0002;
+/// Reads the MarkGlyphSets table at `offset`: format 1, a count, and one
+/// 32-bit coverage offset per set from the table's start. A set whose
+/// coverage cannot be read is empty; a table that cannot be read has none.
+fn read_mark_glyph_sets(data: &[u8], offset: usize, budget: &mut OtlReadBudget) -> Vec<Coverage> {
+    let header = FontReader::new(data).at(offset).and_then(|mut r| {
+        let format = r.u16()?;
+        let count = r.u16()?;
+        r.require_room(usize::from(count), 4)?;
+        let mut offsets = Vec::with_capacity(usize::from(count));
+        for _ in 0..count {
+            offsets.push(r.u32()?);
+        }
+        Ok((format, offsets))
+    });
+    let Ok((1, offsets)) = header else {
+        return Vec::new();
+    };
+    offsets
+        .into_iter()
+        .map(
+            |rel| match u32::try_from(offset).ok().and_then(|o| o.checked_add(rel)) {
+                Some(at) => read_coverage(data, at, budget),
+                None => Coverage::new(),
+            },
+        )
+        .collect()
 }
 fn read_caret_value(data: &[u8], offset: usize) -> CaretValue {
     let mut v: CaretValue = CaretValue {
@@ -162,10 +197,26 @@ pub fn read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
         None
     };
 
+    let version = FontReader::new(data).at(0).ok()?.u32().ok()?;
+    let mark_glyph_sets_offset = if version >= GDEF_VERSION_1_2 {
+        FontReader::new(data)
+            .at(12)
+            .and_then(|mut r| r.u16())
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    let mark_glyph_sets = if mark_glyph_sets_offset != 0 {
+        read_mark_glyph_sets(data, usize::from(mark_glyph_sets_offset), &mut budget)
+    } else {
+        Vec::new()
+    };
+
     Some(Box::new(GdefTable {
         glyph_class_def,
         mark_attach_class_def,
         lig_carets,
+        mark_glyph_sets,
     }))
 }
 fn dump_gdef_lig_carets(gdef: &GdefTable) -> BuiltValue {
@@ -201,6 +252,13 @@ pub fn dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue) {
     }
     if !gdef.lig_carets.is_empty() {
         _gdef.push_field(b"ligCarets", dump_gdef_lig_carets(gdef));
+    }
+    if !gdef.mark_glyph_sets.is_empty() {
+        let mut sets = BuiltValue::new_array(gdef.mark_glyph_sets.len());
+        for set in &gdef.mark_glyph_sets {
+            sets.push_item(dump_coverage(set));
+        }
+        _gdef.push_field(b"markGlyphSets", sets);
     }
     root.push_field(b"GDEF", _gdef);
     stage.finish();
@@ -245,11 +303,19 @@ pub fn parse_gdef(root: &ParsedValue) -> Option<Box<GdefTable>> {
         glyph_class_def: None,
         mark_attach_class_def: None,
         lig_carets: Vec::new(),
+        mark_glyph_sets: Vec::new(),
     });
     // is purely a narrow bridge.
     gdef.glyph_class_def = parse_class_def(table.get(b"glyphClassDef")).map(Box::new);
     gdef.mark_attach_class_def = parse_class_def(table.get(b"markAttachClassDef")).map(Box::new);
     lig_caret_from_json(table.get(b"ligCarets"), &mut gdef.lig_carets);
+    if let Some(sets) = table
+        .get_typed(b"markGlyphSets", JsonType::Array)
+        .and_then(ParsedValue::as_array)
+    {
+        // Every item keeps its index, as lookups refer to sets by it.
+        gdef.mark_glyph_sets = sets.iter().map(|set| parse_coverage(Some(set))).collect();
+    }
     stage.finish();
     Some(gdef)
 }
@@ -313,13 +379,38 @@ pub fn build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
     if let Some(cd) = gdef.mark_attach_class_def.as_deref() {
         b_mark_attach_class_def = bk_new_block_from_buffer(Some(build_class_def(cd)));
     }
-    let root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B32, 0x10000),
+    // Version 1.0 unless there are mark glyph sets, which need 1.2.
+    let has_mark_glyph_sets = !gdef.mark_glyph_sets.is_empty();
+    let mut root: BkBlock = bk_new_block(vec![
+        bk_int(
+            BkCellType::B32,
+            if has_mark_glyph_sets {
+                GDEF_VERSION_1_2
+            } else {
+                0x10000
+            },
+        ),
         bk_ptr(BkCellType::P16, b_glyph_class_def),
         bk_ptr(BkCellType::P16, b_attach_list),
         bk_ptr(BkCellType::P16, b_lig_caret_list),
         bk_ptr(BkCellType::P16, b_mark_attach_class_def),
     ]);
+    if has_mark_glyph_sets {
+        let mut sets: BkBlock = bk_new_block(vec![
+            bk_int(BkCellType::B16, 1),
+            bk_int(BkCellType::B16, gdef.mark_glyph_sets.len() as u32),
+        ]);
+        for set in &gdef.mark_glyph_sets {
+            bk_push(
+                &mut sets,
+                vec![bk_ptr(
+                    BkCellType::P32,
+                    bk_new_block_from_buffer(Some(build_coverage(set))),
+                )],
+            );
+        }
+        bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(sets))]);
+    }
     Some(bk_build_block(root))
 }
 
@@ -420,5 +511,89 @@ mod read_gdef_tests {
         data[8..10].copy_from_slice(&1000u16.to_be_bytes()); // LigCaretListOffset
         let packet = packet_with_gdef(data);
         assert!(read_gdef(&packet).is_none());
+    }
+}
+
+#[cfg(test)]
+mod mark_glyph_sets_tests {
+    use super::*;
+    use crate::font::sfnt::PacketPiece;
+
+    fn packet(data: Vec<u8>) -> Packet {
+        Packet {
+            sfnt_version: 0,
+            num_tables: 1,
+            search_range: 0,
+            entry_selector: 0,
+            range_shift: 0,
+            pieces: vec![PacketPiece {
+                tag: crate::tag::TAG_GDEF,
+                check_sum: 0,
+                offset: 0,
+                length: data.len() as u32,
+                data,
+            }],
+        }
+    }
+
+    fn glyphs(set: &Coverage) -> Vec<u16> {
+        set.iter().map(|g| g.index).collect()
+    }
+
+    /// GDEF 1.2 with two mark glyph sets, {3, 5} and {9}.
+    fn gdef_1_2() -> Vec<u8> {
+        let mut b = Vec::new();
+        let put = |b: &mut Vec<u8>, v: u16| b.extend_from_slice(&v.to_be_bytes());
+        put(&mut b, 1);
+        put(&mut b, 2); // version 1.2
+        for _ in 0..4 {
+            put(&mut b, 0); // no class defs, attach list or carets
+        }
+        put(&mut b, 14); // markGlyphSetsDefOffset
+        // MarkGlyphSets @14: format, count, two Offset32 from @14.
+        put(&mut b, 1);
+        put(&mut b, 2);
+        b.extend_from_slice(&12u32.to_be_bytes());
+        b.extend_from_slice(&20u32.to_be_bytes());
+        // Coverage @26: {3, 5}; @34: {9}.
+        for v in [1, 2, 3, 5, 1, 1, 9] {
+            put(&mut b, v);
+        }
+        b
+    }
+
+    #[test]
+    fn mark_glyph_sets_are_read_from_gdef_1_2() {
+        let gdef = read_gdef(&packet(gdef_1_2())).unwrap();
+        let sets: Vec<Vec<u16>> = gdef.mark_glyph_sets.iter().map(glyphs).collect();
+        assert_eq!(sets, [vec![3, 5], vec![9]]);
+    }
+
+    #[test]
+    fn gdef_1_0_has_no_mark_glyph_sets() {
+        // The same bytes labelled 1.0: offset 12 is not a field there.
+        let mut data = gdef_1_2();
+        data[2..4].copy_from_slice(&0u16.to_be_bytes());
+        assert!(read_gdef(&packet(data)).unwrap().mark_glyph_sets.is_empty());
+    }
+
+    #[test]
+    fn mark_glyph_sets_are_written_back_as_gdef_1_2() {
+        let gdef = read_gdef(&packet(gdef_1_2())).unwrap();
+        let built = build_gdef(Some(&gdef)).unwrap();
+        let bytes = built.data;
+        assert_eq!(&bytes[0..4], &0x0001_0002u32.to_be_bytes());
+        let again = read_gdef(&packet(bytes)).unwrap();
+        let sets: Vec<Vec<u16>> = again.mark_glyph_sets.iter().map(glyphs).collect();
+        assert_eq!(sets, [vec![3, 5], vec![9]]);
+    }
+
+    #[test]
+    fn a_gdef_without_mark_glyph_sets_is_still_written_as_1_0() {
+        let mut gdef = read_gdef(&packet(gdef_1_2())).unwrap();
+        gdef.mark_glyph_sets.clear();
+        let built = build_gdef(Some(&gdef)).unwrap();
+        assert_eq!(built.data[0..4], 0x0001_0000u32.to_be_bytes());
+        assert_eq!(built.data.len(), 12);
     }
 }

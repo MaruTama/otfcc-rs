@@ -24,6 +24,9 @@ fn _dump_lookup(lookup: &Lookup, options: &Options) -> BuiltValue {
             BuiltValue::Int(i64::from(i32::from(lookup.flags) >> 8)),
         );
     }
+    if let Some(set) = lookup.mark_filtering_set {
+        dump.push_field(b"markFilteringSet", BuiltValue::Int(i64::from(set)));
+    }
     kind.dump_subtables(lookup, options, &mut dump);
     dump
 }

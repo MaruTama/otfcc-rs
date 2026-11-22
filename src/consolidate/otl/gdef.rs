@@ -8,8 +8,10 @@ use crate::support::glyph_order::GlyphOrder;
 use crate::table::gdef::{CaretValueList, CaretValueRecord, GdefTable, clear_lig_carets};
 
 use crate::consolidate::otl::common::fontop_consolidate_class_def;
+use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::gord_consolidate_handle;
 use crate::table::otl::classdef::shrink_class_def;
+use crate::table::otl::coverage::shrink_coverage;
 
 pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut GdefTable>) {
     let (Some(gdef), Some(glyph_order)) = (gdef, glyph_order) else {
@@ -36,6 +38,12 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
         if cd.glyphs.is_empty() {
             gdef.mark_attach_class_def = None;
         }
+    }
+    // A set that loses every glyph stays, empty, so that the sets after it
+    // keep the indices lookups name them by.
+    for set in gdef.mark_glyph_sets.iter_mut() {
+        fontop_consolidate_coverage(glyph_order, set);
+        shrink_coverage(set, true);
     }
     if !gdef.lig_carets.is_empty() {
         let lig_carets: &mut Vec<CaretValueRecord> = &mut gdef.lig_carets;
