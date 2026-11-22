@@ -192,7 +192,7 @@ impl LookupKind for GsubMulti {
         write_each_subtable_split(lookup, ctx, build_gsub_multi_subtable_split)
     }
     fn consolidate_subtable(&self, subtable: &mut Subtable, ctx: &LookupConsolidateCtx) -> bool {
-        consolidate_gsub_multi(ctx.glyph_order, subtable)
+        consolidate_gsub_multi(ctx.glyph_order, subtable, self.0 == OTL_TYPE_GSUB_MULTIPLE)
     }
 }
 

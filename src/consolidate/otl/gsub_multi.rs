@@ -11,7 +11,20 @@ use crate::table::otl::{GsubMultiEntry, Subtable};
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::gord_consolidate_handle;
 
-pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable) -> bool {
+/// Resolves the glyphs of a multiple (`deletions_allowed`) or alternate
+/// substitution subtable and drops what does not resolve.
+///
+/// A multiple substitution to no glyphs deletes its glyph. The OpenType
+/// specification prohibits it, but fonts use it (Noto Sans Javanese) and
+/// HarfBuzz applies it, so one the font already has is kept, with a warning.
+/// A sequence emptied here, because none of its glyphs exists, is dropped
+/// as before rather than turned into a deletion. An empty alternate set
+/// does nothing and is dropped.
+pub fn consolidate_gsub_multi(
+    glyph_order: &GlyphOrder,
+    _subtable: &mut Subtable,
+    deletions_allowed: bool,
+) -> bool {
     let Subtable::GsubMulti(subtable) = _subtable else {
         unreachable!()
     };
@@ -33,9 +46,16 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
                 ByteStr(&entry.from.name)
             );
         } else {
+            let deletion = deletions_allowed && entry.to.is_empty();
             fontop_consolidate_coverage(glyph_order, &mut entry.to);
             shrink_coverage(&mut entry.to, false);
-            if entry.to.is_empty() {
+            if deletion {
+                tracing::warn!(
+                    "[Consolidate] Multiple substitution of glyph /{} to no glyphs is against the OpenType specification; it is kept.\n",
+                    ByteStr(&entry.from.name)
+                );
+            }
+            if entry.to.is_empty() && !deletion {
                 tracing::warn!(
                     "[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /{}.\n",
                     ByteStr(&entry.from.name)
