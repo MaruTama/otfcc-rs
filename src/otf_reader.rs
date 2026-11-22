@@ -104,8 +104,8 @@ mod regression_tests {
     /// ~1.8GB OOM, and once that was capped it became a 30+ second hang
     /// (millions of `class_coverage` calls, each allocating a `Coverage`
     /// it immediately discards). Fixed with a chain of budgets: `otl/
-    /// read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP` caps subtables per
-    /// lookup; `chaining/read.rs`'s `MAX_TOTAL_RULES_PER_TABLE` (a global,
+    /// read.rs`'s subtable cap (then 1,000 per lookup, now
+    /// `MAX_TOTAL_SUBTABLES_PER_TABLE` for the whole table); `chaining/read.rs`'s `MAX_TOTAL_RULES_PER_TABLE` (a global,
     /// per-`read_otl`-call budget, not per-subtable -- an earlier,
     /// per-subtable-only version of this cap still let many subtables
     /// each spend their own full allowance) caps rules built across the
@@ -206,10 +206,15 @@ mod regression_tests {
             .into_iter()
             .flatten()
         {
+            let total_subtables: usize = otl
+                .lookups
+                .iter()
+                .flatten()
+                .map(|lookup| lookup.subtables.len())
+                .sum();
             assert!(
-                otl.lookups.len() <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
-                "lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
-                otl.lookups.len()
+                total_subtables <= crate::table::otl::read::MAX_TOTAL_SUBTABLES_PER_TABLE as usize,
+                "total subtables = {total_subtables} exceeds MAX_TOTAL_SUBTABLES_PER_TABLE"
             );
             let total_feature_refs: usize =
                 otl.languages.iter().map(|lang| lang.features.len()).sum();
@@ -240,8 +245,9 @@ mod regression_tests {
     /// reads scale with `feature_count * lookup_count_0` rather than the
     /// table's real size -- CI hung for 25+ seconds and exceeded
     /// libFuzzer's 2048MB `-rss_limit_mb`. Fixed by capping both factors
-    /// independently: `MAX_TOTAL_FEATURES_PER_TABLE` on the outer loop,
-    /// `MAX_TOTAL_LOOKUPS_PER_TABLE` (reused) on the inner one.
+    /// independently: 500 features per table and 300 lookups per feature.
+    /// Real fonts have more features than that, so the product itself is
+    /// now budgeted instead (`MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE`).
     #[test]
     #[cfg_attr(
         miri,
@@ -270,20 +276,17 @@ mod regression_tests {
             .into_iter()
             .flatten()
         {
+            let total_lookup_refs: usize = otl
+                .features
+                .iter()
+                .flatten()
+                .map(|feature| feature.lookups.len())
+                .sum();
             assert!(
-                otl.features.len()
-                    <= crate::table::otl::read::MAX_TOTAL_FEATURES_PER_TABLE as usize,
-                "features.len() = {} exceeds MAX_TOTAL_FEATURES_PER_TABLE",
-                otl.features.len()
+                total_lookup_refs
+                    <= crate::table::otl::read::MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE as usize,
+                "total feature lookup refs = {total_lookup_refs} exceeds MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE"
             );
-            for feature in otl.features.iter().flatten() {
-                assert!(
-                    feature.lookups.len()
-                        <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
-                    "feature.lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
-                    feature.lookups.len()
-                );
-            }
         }
         drop(font);
 
@@ -399,8 +402,8 @@ mod regression_tests {
     ///    a table-wide budget, now `OtlReadBudget::coverage_entries`.
     /// 2. `consolidate/otl.rs::consolidate_lookup`: once (1)'s fix
     ///    made most of this font's ~300,000 possible subtable slots
-    ///    (`MAX_TOTAL_LOOKUPS_PER_TABLE` * `MAX_TOTAL_SUBTABLES_PER_
-    ///    LOOKUP`) fail to parse, this loop's "Ignored empty subtable"
+    ///    (then 300 lookups times 1,000 subtables; now
+    ///    `MAX_TOTAL_SUBTABLES_PER_TABLE`) fail to parse, this loop's "Ignored empty subtable"
     ///    warning was unconditionally built for every one of them --
     ///    despite `verbosity_limit` defaulting to 0, below the
     ///    `LOG_VL_IMPORTANT` these warnings log at, meaning none of them

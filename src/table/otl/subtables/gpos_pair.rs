@@ -2,7 +2,7 @@
 //! matrix; building writes whichever format comes out smaller.
 
 use crate::support::handle::{GlyphHandle, handle_from_index};
-use crate::table::otl::budget::OtlReadBudget;
+use crate::table::otl::budget::{Limit, OtlReadBudget};
 use crate::table::otl::classdef::{ClassDef, expand_class_def, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage, shrink_coverage};
 use otfcc_json::ParsedValue;
@@ -167,6 +167,7 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     // ask for hundreds of MB. Same cap, for the same reason, as format 2's
     // class grid (see `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS`).
     if first_class_count.saturating_mul(class2_count) > MAX_TOTAL_GPOS_PAIR_CLASS_CELLS {
+        budget.reached(Limit::PairSubtableCells);
         return None;
     }
     if !budget.try_spend_pair_grid_cells(first_class_count * class2_count) {
@@ -245,6 +246,7 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     // `Vec::with_capacity(class2_count)` allocation below ever
     // runs, so a rejected subtable never pays for one.
     if total_cells > MAX_TOTAL_GPOS_PAIR_CLASS_CELLS {
+        budget.reached(Limit::PairSubtableCells);
         return None;
     }
     if !budget.try_spend_pair_grid_cells(total_cells) {

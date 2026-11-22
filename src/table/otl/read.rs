@@ -24,40 +24,24 @@ use otfcc_binary::{FontReader, ReadError};
 // already unusual) while stopping the aliasing amplification at a small
 // fraction of the CI timeout.
 const MAX_TOTAL_LANGUAGES: u32 = 10_000;
-// Same amplification shape one level down: `read_otl_lookup` reads a
-// `subtable_count` (raw `u16`) whose only guard is that its own
-// offset array fits in the table -- true for any large enough table
-// regardless of how many subtable offsets it declares, and nothing stops
-// those offsets from aliasing each other or from each subtable itself
-// being expensive to build (fuzzing found a lookup with 65535 declared
-// chaining subtables, several thousand of them independently valid and
-// each producing pages of `[Consolidate]` warnings downstream -- see
-// `chaining/read.rs`'s own `MAX_TOTAL_RULES_PER_TABLE`/
-// `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` for the amplification
-// layers underneath this one). Real lookups have at most a few dozen
-// subtables even in large fonts, so this cap is far above legitimate
-// usage.
-const MAX_TOTAL_SUBTABLES_PER_LOOKUP: u16 = 1_000;
-// One level up from `MAX_TOTAL_SUBTABLES_PER_LOOKUP`: `read_lookup_list`'s
-// own `LookupList` loop reads `lookup_count` (raw `u16`, up to 65535) with
-// only `require_room` guarding that its own offset array fits -- true for
-// any large enough table. Every per-lookup cap below this one only bounds
-// what *one* lookup costs; nothing bounded how many lookups a table could
-// declare. Fuzzing found a table with ~10,300 lookups whose combined JSON
-// output alone was ~217MB (and whose combined in-memory footprint, well
-// past what `MAX_TOTAL_RULES_PER_TABLE`'s own budget change was, turned
-// out not to move the needle on -- lookup *count* itself was the
-// remaining uncapped multiplier). Real fonts -- even `tests/payload/
-// NotoNastaliqUrdu-Regular.ttf`, deliberately complex, in this repo's own
-// golden corpus -- have at most a few hundred lookups per table (175, in
-// that font's own GSUB). 300 stays generously above any legitimate use
-// (~1.7x that font's own count) while keeping worst-case output size and
-// memory bounded -- tightened from an initial, still-too-loose 500 after
-// CI's ASan-instrumented fuzzing kept finding OOMs marginally over its
-// 2048MB limit even with every cap in this module active at once; see
-// `MAX_TOTAL_FEATURE_REFS_PER_TABLE`'s own comment for the sibling cap
-// tightened at the same time.
-pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 300;
+// Lookups and their subtables. `read_otl_lookup` reads a `subtableCount`
+// (raw `u16`) whose only guard is that its own offset array fits in the
+// table, and the LookupList's own `lookupCount` likewise. Nothing stops
+// lookup offsets from aliasing one lookup, or subtable offsets from
+// aliasing one subtable, so a few KB of table can declare billions of
+// subtables. Fuzzing found a lookup with 65,535 declared chaining
+// subtables and a table of ~10,300 lookups whose JSON alone was ~217 MB.
+//
+// Both used to be capped separately: 300 lookups per table and 1,000
+// subtables per lookup. Real fonts pass both: Noto Serif Tibetan has 1,197
+// GSUB lookups, Noto Sans Duployan 420, Noto Sans Balinese 337 GPOS
+// lookups, and one GSUB lookup of Gulzar has 3,483 subtables. What those
+// caps bounded was the product, the number of subtables read, so that is
+// what is budgeted now, for the whole table (`OtlReadBudget::subtables`),
+// and the lookup count is left as the font declares it. The most any of
+// those fonts has is 5,840 (Noto Sans Duployan's GSUB), so 100,000 leaves
+// a wide margin while staying below the 300,000 the two caps allowed.
+pub(crate) const MAX_TOTAL_SUBTABLES_PER_TABLE: u32 = 100_000;
 // A third, independent amplification axis found in the same investigation:
 // `parse_language`'s own `feature_count` (raw `u16`, up to 65535 per
 // language) is bounds-checked only against that one `LangSys` table's own
@@ -81,31 +65,23 @@ pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 300;
 pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
 // A fourth amplification axis, in `read_feature_list`'s Feature List
 // loop (not `parse_language`'s -- a different function, despite the
-// similar-sounding name): `feature_count` (raw `u16`, up to 65535) had no
-// cap at all, unlike `lookup_count` a few lines above it, and each
-// feature's own `feature_lookup_count` (also up to 65535, bounds-checked only
-// against that one feature table's own bytes) is read independently. A
-// crafted table can point many different `feature_count` entries at
-// `feature_offset`s that overlap or repeat, each claiming a large
-// `feature_lookup_count` -- the total inner-loop reads scale with
-// `feature_count * feature_lookup_count`, not with the table's real size,
-// exactly the "per-factor caps still let the product explode" shape
-// `MAX_TOTAL_FEATURE_REFS_PER_TABLE` already closed one level up.
-// CI's fuzz job found a table whose Feature List alone hung
-// `parse_otl_common` for 25+ seconds and pushed RSS over the 2048MB
-// limit. Capping each factor independently (this constant on the outer
-// loop, `MAX_TOTAL_LOOKUPS_PER_TABLE` -- reused, since a feature cannot
-// legitimately reference more distinct lookups than the table itself
-// declares -- on the inner one) bounds the worst-case product to
-// `MAX_TOTAL_FEATURES_PER_TABLE * MAX_TOTAL_LOOKUPS_PER_TABLE`
-// (150,000), without needing a shared cross-call budget the way
-// `MAX_TOTAL_FEATURE_REFS_PER_TABLE` did -- unlike languages (up to
-// 10,000 per table), a table's own feature count is capped right here,
-// in the same loop, not accumulated across many separate calls. Real
-// fonts have at most a few dozen features per table (`NotoNastaliqUrdu-
-// Regular.ttf`'s own GSUB has well under 100); 500 stays generously
-// above any legitimate use.
-pub(crate) const MAX_TOTAL_FEATURES_PER_TABLE: u16 = 500;
+// similar-sounding name): `featureCount` (raw `u16`, up to 65535) and each
+// feature's `lookupIndexCount` (also up to 65535, bounds-checked only
+// against that one feature table's own bytes) are read independently. A
+// crafted table can point many features at one feature table claiming a
+// large `lookupIndexCount`, so the inner-loop reads scale with their
+// product, not with the table's real size; CI's fuzz job found a table
+// whose Feature List alone took 25+ seconds and over 2048 MB.
+//
+// That used to be stopped by capping each factor: 500 features per table
+// and 300 lookups per feature. Real fonts pass the first: Cormorant has 610
+// GSUB features, and `tests/payload/Cormorant-Medium.otf` lost 110 of
+// them. Only the product needs a bound, so the lookup indices read are
+// budgeted for the whole table (`OtlReadBudget::feature_lookup_refs`) and
+// the feature count is left as the font declares it. 150,000 is the
+// product the two caps allowed; the most any font measured has is 816
+// (Cormorant's GSUB).
+pub(crate) const MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE: u32 = 150_000;
 
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
@@ -207,6 +183,7 @@ fn parse_otl_common(
     data: &[u8],
     lookup_type_base: LookupType,
     options: &Options,
+    budget: &mut OtlReadBudget,
 ) -> Result<Box<OtlTable>, ReadError> {
     let mut table_box: Box<OtlTable> = Box::new(OtlTable {
         lookups: Vec::new(),
@@ -219,7 +196,7 @@ fn parse_otl_common(
     let lookup_list_offset = u32::from(FontReader::new(data).at(8)?.u16()?);
 
     read_lookup_list(data, lookup_list_offset, lookup_type_base, &mut table_box)?;
-    read_feature_list(data, feature_list_offset, &mut table_box, options)?;
+    read_feature_list(data, feature_list_offset, &mut table_box, options, budget)?;
     read_script_list(data, script_list_offset, &mut table_box)?;
     name_unnamed_lookups(&mut table_box, options);
     Ok(table_box)
@@ -235,7 +212,7 @@ fn read_lookup_list(
     let mut lr = FontReader::new(data).at(lookup_list_offset as usize)?;
     let lookup_count = lr.u16()?;
     lr.require_room(lookup_count as usize, 2)?;
-    for _ in 0..lookup_count.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
+    for _ in 0..lookup_count {
         let mut lookup: Box<Lookup> = new_lookup();
         let lookup_offset = lookup_list_offset.wrapping_add(u32::from(lr.u16()?));
         // Needs 6 bytes at `lookup_offset` (lookupType/lookupFlag/
@@ -256,12 +233,13 @@ fn read_feature_list(
     feature_list_offset: u32,
     table: &mut OtlTable,
     options: &Options,
+    budget: &mut OtlReadBudget,
 ) -> Result<(), ReadError> {
     let mut fr = FontReader::new(data).at(feature_list_offset as usize)?;
     let feature_count = fr.u16()?;
     fr.require_room(feature_count as usize, 6)?;
     let mut lnk: TableId = 0;
-    for j in 0..feature_count.min(MAX_TOTAL_FEATURES_PER_TABLE) {
+    for j in 0..feature_count {
         let tag = fr.u32()?;
         let feature_offset = feature_list_offset.wrapping_add(u32::from(fr.u16()?));
         let mut feature: Box<Feature> = new_feature();
@@ -290,7 +268,11 @@ fn read_feature_list(
         fer.skip(2)?; // featureParams, unused
         let feature_lookup_count = fer.u16()?;
         fer.require_room(feature_lookup_count as usize, 2)?;
-        for _ in 0..feature_lookup_count.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
+        for _ in 0..feature_lookup_count {
+            // See `MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE`.
+            if !budget.take_feature_lookup_ref() {
+                break;
+            }
             let lookupid = fer.u16()?;
             if (lookupid as usize) < table.lookups.len() {
                 // Every slot is `Some` at this point in construction --
@@ -459,9 +441,10 @@ fn read_otl_lookup(
             let flags = r.u16()?;
             let subtable_count = r.u16()?;
             r.require_room(subtable_count as usize, 2)?;
-            let capped_count = subtable_count.min(MAX_TOTAL_SUBTABLES_PER_LOOKUP);
-            let mut subtable_offsets = Vec::with_capacity(capped_count as usize);
-            for _ in 0..capped_count {
+            // See `MAX_TOTAL_SUBTABLES_PER_TABLE`.
+            let read_count = budget.take_subtables(subtable_count);
+            let mut subtable_offsets = Vec::with_capacity(read_count as usize);
+            for _ in 0..read_count {
                 subtable_offsets.push(lookup._offset.wrapping_add(u32::from(r.u16()?)));
             }
             if subtable_count == 0 {
@@ -571,11 +554,18 @@ pub fn read_otl(
         OTL_TYPE_UNKNOWN
     };
     // OTL read failures are not logged, unlike most table readers.
-    let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options).ok()?;
-    // One budget for the whole table (GSUB or GPOS), shared by every lookup
-    // and subtable read below, so it bounds this table's total cost rather
-    // than each subtable's separately -- see `OtlReadBudget`.
-    let mut budget = OtlReadBudget::new();
+    // One budget for the whole table (GSUB or GPOS), shared by its feature
+    // list and by every lookup and subtable read below, so it bounds this
+    // table's total cost rather than each part's separately -- see
+    // `OtlReadBudget`.
+    let mut budget = OtlReadBudget::for_table(if tag == crate::tag::TAG_GSUB {
+        "GSUB"
+    } else if tag == crate::tag::TAG_GPOS {
+        "GPOS"
+    } else {
+        "OTL"
+    });
+    let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options, &mut budget).ok()?;
     // Every slot is still `Some` here -- this is the same freshly-built
     // table `parse_otl_common` just returned, before any consolidation.
     for lookup in otl_box.lookups.iter_mut().flatten() {
@@ -641,7 +631,13 @@ mod parse_otl_common_tests {
     fn well_formed_table_links_lookup_feature_and_language() {
         let data = well_formed_gsub();
         let options = zeroed_options();
-        let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+        let otl = parse_otl_common(
+            &data,
+            OTL_TYPE_GSUB_UNKNOWN,
+            &options,
+            &mut OtlReadBudget::new(),
+        )
+        .unwrap();
         assert_eq!(otl.lookups.len(), 1);
         assert_eq!(otl.features.len(), 1);
         assert_eq!(otl.features[0].as_ref().unwrap().name, b"liga_00000"); // Dec5 zero-pads the index
@@ -660,7 +656,15 @@ mod parse_otl_common_tests {
         data[44..46].copy_from_slice(&2u16.to_be_bytes()); // langSysCount: claims 2, only 1 present
         data.truncate(52); // cuts off right after the one real langSysRecord
         let options = zeroed_options();
-        assert!(parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).is_err());
+        assert!(
+            parse_otl_common(
+                &data,
+                OTL_TYPE_GSUB_UNKNOWN,
+                &options,
+                &mut OtlReadBudget::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -672,7 +676,13 @@ mod parse_otl_common_tests {
         let mut data = well_formed_gsub();
         data[56..58].copy_from_slice(&5u16.to_be_bytes()); // langSys.featureCount: claims 5, only 1 present
         let options = zeroed_options();
-        let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+        let otl = parse_otl_common(
+            &data,
+            OTL_TYPE_GSUB_UNKNOWN,
+            &options,
+            &mut OtlReadBudget::new(),
+        )
+        .unwrap();
         assert_eq!(otl.languages.len(), 1);
         assert!(otl.languages[0].features.is_empty());
         assert!(otl.languages[0].required_feature.is_none());
@@ -730,7 +740,13 @@ mod parse_otl_common_tests {
         data.extend_from_slice(&0u16.to_be_bytes()); // featureCount = 0
 
         let options = zeroed_options();
-        let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+        let otl = parse_otl_common(
+            &data,
+            OTL_TYPE_GSUB_UNKNOWN,
+            &options,
+            &mut OtlReadBudget::new(),
+        )
+        .unwrap();
         assert_eq!(otl.languages.len(), MAX_TOTAL_LANGUAGES as usize);
     }
 
@@ -761,7 +777,13 @@ mod parse_otl_common_tests {
     fn subtable_count_zero_marks_the_lookup_unknown() {
         let data = well_formed_gsub(); // subtableCount is already 0
         let options = zeroed_options();
-        let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+        let mut otl = parse_otl_common(
+            &data,
+            OTL_TYPE_GSUB_UNKNOWN,
+            &options,
+            &mut OtlReadBudget::new(),
+        )
+        .unwrap();
         read_otl_lookup(
             &data,
             otl.lookups[0].as_mut().unwrap(),
@@ -773,5 +795,124 @@ mod parse_otl_common_tests {
             otl.lookups[0].as_ref().unwrap().lookup_type,
             OTL_TYPE_UNKNOWN
         );
+    }
+}
+
+#[cfg(test)]
+mod table_wide_limit_tests {
+    use super::*;
+    use crate::table::otl::budget::Limit;
+
+    /// A GSUB with `lookups` lookups and `features` features, every one of
+    /// which lists `lookups_per_feature` lookups. The lookups all point at
+    /// one lookup table and the features at one feature table, which the
+    /// format allows.
+    fn gsub(lookups: u16, features: u16, lookups_per_feature: u16) -> Vec<u8> {
+        let mut data = vec![0u8; 10];
+        let put = |data: &mut Vec<u8>, v: u16| data.extend_from_slice(&v.to_be_bytes());
+        // LookupList at 10: count, offsets, then the one lookup table.
+        let lookup_list = data.len();
+        put(&mut data, lookups);
+        let lookup_table_rel = 2 + 2 * lookups;
+        for _ in 0..lookups {
+            put(&mut data, lookup_table_rel);
+        }
+        put(&mut data, 4); // lookupType: ligature
+        put(&mut data, 0); // lookupFlag
+        put(&mut data, 0); // subTableCount
+        // FeatureList: count, records, then the one feature table.
+        let feature_list = data.len();
+        put(&mut data, features);
+        let feature_table_rel = 2 + 6 * features;
+        for _ in 0..features {
+            data.extend_from_slice(b"liga");
+            put(&mut data, feature_table_rel);
+        }
+        put(&mut data, 0); // featureParamsOffset
+        put(&mut data, lookups_per_feature);
+        for j in 0..lookups_per_feature {
+            put(&mut data, j % lookups.max(1));
+        }
+        // ScriptList with no scripts.
+        let script_list = data.len();
+        put(&mut data, 0);
+        data[4..6].copy_from_slice(&(script_list as u16).to_be_bytes());
+        data[6..8].copy_from_slice(&(feature_list as u16).to_be_bytes());
+        data[8..10].copy_from_slice(&(lookup_list as u16).to_be_bytes());
+        data
+    }
+
+    #[test]
+    fn every_lookup_and_feature_is_read_however_many_there_are() {
+        // Past the 300 lookups, 500 features and 300 lookups per feature
+        // that used to be read; real fonts have more than each.
+        for (lookups, features, per_feature) in [(1200, 300, 400), (10, 700, 1)] {
+            let data = gsub(lookups, features, per_feature);
+            let mut budget = OtlReadBudget::new();
+            let otl = parse_otl_common(
+                &data,
+                OTL_TYPE_GSUB_UNKNOWN,
+                &Options::default(),
+                &mut budget,
+            )
+            .unwrap();
+            assert_eq!(otl.lookups.len(), lookups as usize);
+            let counts: Vec<usize> = otl
+                .features
+                .iter()
+                .flatten()
+                .map(|feature| feature.lookups.len())
+                .collect();
+            assert_eq!(counts, vec![per_feature as usize; features as usize]);
+            assert!(!budget.has_reached(Limit::FeatureLookupRefs));
+        }
+    }
+
+    #[test]
+    fn feature_lookup_refs_stop_at_the_table_wide_budget() {
+        let data = gsub(10, 4, 10);
+        let mut budget = OtlReadBudget {
+            feature_lookup_refs: 25,
+            ..OtlReadBudget::new()
+        };
+        let otl = parse_otl_common(
+            &data,
+            OTL_TYPE_GSUB_UNKNOWN,
+            &Options::default(),
+            &mut budget,
+        )
+        .unwrap();
+        let counts: Vec<usize> = otl
+            .features
+            .iter()
+            .flatten()
+            .map(|feature| feature.lookups.len())
+            .collect();
+        assert_eq!(counts, [10, 10, 5, 0]);
+        assert!(budget.has_reached(Limit::FeatureLookupRefs));
+    }
+
+    #[test]
+    fn subtables_stop_at_the_table_wide_budget() {
+        // Two lookups of three subtables each, with room for four in all.
+        let mut data = vec![0u8; 32];
+        for (at, subtables) in [(0usize, 3u16), (16, 3)] {
+            data[at..at + 2].copy_from_slice(&4u16.to_be_bytes()); // lookupType
+            data[at + 4..at + 6].copy_from_slice(&subtables.to_be_bytes());
+        }
+        let mut budget = OtlReadBudget {
+            subtables: 4,
+            ..OtlReadBudget::new()
+        };
+        let mut counts = Vec::new();
+        for offset in [0u32, 16] {
+            let mut lookup = new_lookup();
+            lookup._offset = offset;
+            lookup.lookup_type = LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 4);
+            read_otl_lookup(&data, &mut lookup, 0, &Options::default(), &mut budget);
+            counts.push(lookup.subtables.len());
+        }
+        assert_eq!(counts, [3, 1]);
+        assert!(budget.has_reached(Limit::Subtables));
     }
 }

@@ -2,7 +2,7 @@
 //! formats into rule sets, within the table's `OtlReadBudget`.
 
 use crate::support::handle::{GlyphHandle, LookupHandle, handle_from_index};
-use crate::table::otl::budget::OtlReadBudget;
+use crate::table::otl::budget::{Limit, OtlReadBudget};
 use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
@@ -245,6 +245,9 @@ fn general_read_contextual_rule(
     // Only the build loop below is capped (see `MAX_POSITIONS_PER_RULE`);
     // `n_input_read` still sets `lookup_base`.
     let n_input_built = n_input_read.min(MAX_POSITIONS_PER_RULE);
+    if n_input_built < n_input_read {
+        t.budget.reached(Limit::RulePositions);
+    }
     let match_count = implied_inputs.wrapping_add(n_input_built);
 
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
@@ -265,6 +268,9 @@ fn general_read_contextual_rule(
             .push(coverage_of(t, gid, offset, ContextKind::Input));
     }
 
+    if n_apply as usize > MAX_APPLY_PER_RULE {
+        t.budget.reached(Limit::RuleApplications);
+    }
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
     let lookup_base = offset as usize + 4 + 2 * n_input_read as usize;
     for j0 in 0..n_apply.min(MAX_APPLY_PER_RULE as u16) {
@@ -324,6 +330,9 @@ fn general_read_chaining_rule(
     let n_back_built = n_back.min(MAX_POSITIONS_PER_RULE);
     let n_input_built = n_input_read.min(MAX_POSITIONS_PER_RULE);
     let n_lookaround_built = n_lookaround.min(MAX_POSITIONS_PER_RULE);
+    if n_back_built < n_back || n_input_built < n_input_read || n_lookaround_built < n_lookaround {
+        t.budget.reached(Limit::RulePositions);
+    }
     let input_begins = n_back_built;
     let input_ends = n_back_built
         .wrapping_add(implied_inputs)
@@ -361,6 +370,9 @@ fn general_read_chaining_rule(
             .push(coverage_of(t, gid, offset, ContextKind::Lookahead));
     }
 
+    if n_apply as usize > MAX_APPLY_PER_RULE {
+        t.budget.reached(Limit::RuleApplications);
+    }
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
     let apply_base = lookaround_base + 2 * n_lookaround as usize + 2;
     for j2 in 0..n_apply.min(MAX_APPLY_PER_RULE as u16) {
