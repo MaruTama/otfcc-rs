@@ -1,5 +1,6 @@
 use crate::logger::ByteStr;
 use crate::support::options::Options;
+use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::kind::{LOOKUP_KINDS, LookupKind};
@@ -106,18 +107,20 @@ fn _parse_lookup(
     lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     lh: &mut PendingLookups,
+    budget: &mut OtlReadBudget,
 ) -> bool {
     // Tries every kind in turn, even after the first one has warned about a
     // missing type: the warning is repeated once per kind, as it always was.
     LOOKUP_KINDS
         .iter()
-        .any(|&kind| _declare_lookup_parser(kind, lookup, lookup_name, lh))
+        .any(|&kind| _declare_lookup_parser(kind, lookup, lookup_name, lh, budget))
 }
 fn _declare_lookup_parser(
     kind: &dyn LookupKind,
     _lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     lh: &mut PendingLookups,
+    budget: &mut OtlReadBudget,
 ) -> bool {
     let lv = _lookup;
     let llt = kind.lookup_type();
@@ -167,7 +170,8 @@ fn _declare_lookup_parser(
     {
         for _subtable in subtable_items {
             if _subtable.as_object().is_some() {
-                let st = kind.parse_subtable_in(_subtable, lv.expect("subtables came from lv"));
+                let st =
+                    kind.parse_subtable_in(_subtable, lv.expect("subtables came from lv"), budget);
                 lookup.subtables.push(st.map(Box::new));
             }
         }
@@ -193,7 +197,15 @@ fn _declare_lookup_parser(
     });
     true
 }
-fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>) -> PendingLookups {
+/// Reads the `lookups` object of the table `tag`. One budget bounds what
+/// the whole table's subtables may allocate, as when reading a binary table
+/// (see `OtlReadBudget`).
+fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>, tag: &[u8]) -> PendingLookups {
+    let mut budget = OtlReadBudget::for_table(match tag {
+        b"GSUB" => "GSUB",
+        b"GPOS" => "GPOS",
+        _ => "OTL",
+    });
     let mut lh = PendingLookups {
         entries: Vec::new(),
         lookups: Vec::new(),
@@ -204,7 +216,7 @@ fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>) -> PendingLookups
     for (key, lookup_val) in fields {
         let lookup_name = &key[..key.len() - 1];
         if lookup_val.as_object().is_some() {
-            let parsed: bool = _parse_lookup(Some(lookup_val), lookup_name, &mut lh);
+            let parsed: bool = _parse_lookup(Some(lookup_val), lookup_name, &mut lh, &mut budget);
             if !parsed {
                 tracing::warn!(
                     "[OTFCC-fea] Ignoring invalid or unsupported lookup {}.\n",
@@ -503,7 +515,7 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
     if languages_present && features_present && lookups_present {
         let stage = crate::logger::stage(ByteStr(tag));
         let mut lh: PendingLookups =
-            figure_out_lookups_from_json(table.get_typed(b"lookups", JsonType::Object));
+            figure_out_lookups_from_json(table.get_typed(b"lookups", JsonType::Object), tag);
         apply_lookup_order(&mut lh, table.get_typed(b"lookupOrder", JsonType::Array));
         let fh: PendingFeatures = figure_out_features_from_json(
             // `features_present` above already confirmed this is `Some`.

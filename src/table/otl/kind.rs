@@ -104,8 +104,14 @@ pub trait LookupKind: Sync {
     /// Writes one subtable as otfcc's JSON.
     fn dump_subtable(&self, subtable: &Subtable) -> BuiltValue;
     /// Reads one subtable of the JSON lookup object `lookup`. Kinds whose
-    /// subtables refer to fields of the lookup override it.
-    fn parse_subtable_in(&self, json: &ParsedValue, _lookup: &ParsedValue) -> Option<Subtable> {
+    /// subtables refer to fields of the lookup, or that spend from the
+    /// table's `budget`, override it.
+    fn parse_subtable_in(
+        &self,
+        json: &ParsedValue,
+        _lookup: &ParsedValue,
+        _budget: &mut OtlReadBudget,
+    ) -> Option<Subtable> {
         self.parse_subtable(Some(json))
     }
     /// Writes the `subtables` of `lookup` into its JSON object `dump`, with
@@ -249,7 +255,12 @@ impl LookupKind for Chaining {
     fn parse_subtable(&self, json: Option<&ParsedValue>) -> Option<Subtable> {
         otl_parse_chaining(json, None)
     }
-    fn parse_subtable_in(&self, json: &ParsedValue, lookup: &ParsedValue) -> Option<Subtable> {
+    fn parse_subtable_in(
+        &self,
+        json: &ParsedValue,
+        lookup: &ParsedValue,
+        _budget: &mut OtlReadBudget,
+    ) -> Option<Subtable> {
         otl_parse_chaining(Some(json), lookup.get_typed(b"classes", JsonType::Object))
     }
     fn dump_subtable(&self, subtable: &Subtable) -> BuiltValue {
@@ -386,7 +397,15 @@ impl LookupKind for GposPair {
         otl_read_gpos_pair(data, offset, max_glyphs, budget)
     }
     fn parse_subtable(&self, json: Option<&ParsedValue>) -> Option<Subtable> {
-        otl_gpos_parse_pair(json)
+        otl_gpos_parse_pair(json, &mut OtlReadBudget::new())
+    }
+    fn parse_subtable_in(
+        &self,
+        json: &ParsedValue,
+        _lookup: &ParsedValue,
+        budget: &mut OtlReadBudget,
+    ) -> Option<Subtable> {
+        otl_gpos_parse_pair(Some(json), budget)
     }
     fn dump_subtable(&self, subtable: &Subtable) -> BuiltValue {
         otl_gpos_dump_pair(subtable)
