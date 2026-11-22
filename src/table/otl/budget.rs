@@ -13,6 +13,8 @@
 //!   `MAX_TOTAL_RULE_POSITIONS_PER_TABLE`
 //! - `mark_attach_anchors`: `gpos_mark_common::MAX_TOTAL_MARK_ATTACH_ANCHORS_PER_TABLE`
 //! - `pair_grid_cells`: `gpos_pair::MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE`
+//! - `feature_param_characters`:
+//!   `feature_params::MAX_TOTAL_FEATURE_PARAM_CHARACTERS_PER_TABLE`
 //! - `subtables`, `feature_lookup_refs`: `read`'s
 //!   `MAX_TOTAL_SUBTABLES_PER_TABLE` and `MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE`
 //!
@@ -22,6 +24,7 @@
 //! a table, a warning says so (`OtlReadBudget::reached`).
 
 use crate::table::otl::coverage::MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE;
+use crate::table::otl::feature_params::MAX_TOTAL_FEATURE_PARAM_CHARACTERS_PER_TABLE;
 use crate::table::otl::read::{
     MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE, MAX_TOTAL_SUBTABLES_PER_TABLE,
 };
@@ -45,6 +48,7 @@ pub(crate) enum Limit {
     PairGridCells,
     Subtables,
     FeatureLookupRefs,
+    FeatureParamCharacters,
     /// `gpos_pair`'s per-subtable `MAX_TOTAL_GPOS_PAIR_CLASS_CELLS`.
     PairSubtableCells,
     /// `chaining::read`'s `MAX_POSITIONS_PER_RULE`.
@@ -65,6 +69,7 @@ impl Limit {
             Limit::PairGridCells => "pair positioning cells",
             Limit::Subtables => "lookup subtables",
             Limit::FeatureLookupRefs => "lookup references from features",
+            Limit::FeatureParamCharacters => "characters in character variant parameters",
             Limit::PairSubtableCells => "pair positioning cells in one subtable",
             Limit::RulePositions => "glyph positions in one contextual rule",
             Limit::RuleApplications => "lookup applications in one contextual rule",
@@ -98,6 +103,8 @@ pub struct OtlReadBudget {
     /// Lookup indices in the features' lookup lists, summed over every
     /// feature.
     pub(crate) feature_lookup_refs: u32,
+    /// Characters of `cv` feature parameters.
+    pub(crate) feature_param_characters: u32,
     /// The table's tag, for the warnings.
     pub(crate) table: &'static str,
     /// The limits already warned about, one bit per [`Limit`].
@@ -122,6 +129,7 @@ impl OtlReadBudget {
             pair_grid_cells: MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE,
             subtables: MAX_TOTAL_SUBTABLES_PER_TABLE,
             feature_lookup_refs: MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE,
+            feature_param_characters: MAX_TOTAL_FEATURE_PARAM_CHARACTERS_PER_TABLE,
             table,
             warned: 0,
         }
@@ -158,6 +166,7 @@ impl OtlReadBudget {
             Limit::PairGridCells => &mut self.pair_grid_cells,
             Limit::Subtables => &mut self.subtables,
             Limit::FeatureLookupRefs => &mut self.feature_lookup_refs,
+            Limit::FeatureParamCharacters => &mut self.feature_param_characters,
             Limit::PairSubtableCells | Limit::RulePositions | Limit::RuleApplications => {
                 unreachable!("{limit:?} is a fixed cap, not an allowance")
             }
@@ -208,6 +217,12 @@ impl OtlReadBudget {
     pub(crate) fn take_subtables(&mut self, n: u16) -> u16 {
         // At most `n`, so the result fits in a `u16`.
         self.spend_up_to(Limit::Subtables, u32::from(n)) as u16
+    }
+
+    /// Spends the `n` characters of one feature's parameters if all are
+    /// available.
+    pub(crate) fn try_spend_feature_param_characters(&mut self, n: u32) -> bool {
+        self.try_spend(Limit::FeatureParamCharacters, n)
     }
 
     /// Spends one lookup index of a feature; `false` once the allowance is

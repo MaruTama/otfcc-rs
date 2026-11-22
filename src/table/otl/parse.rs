@@ -3,6 +3,7 @@ use crate::support::options::Options;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS, USE_MARK_FILTERING_SET};
+use crate::table::otl::feature_params::{FeatureParams, parse_feature_params};
 use crate::table::otl::kind::{LOOKUP_KINDS, LookupKind};
 use crate::table::otl::{
     Feature, FeatureIdx, FeatureRefList, LanguageSystem, Lookup, LookupIdx, LookupRefList, OtlTable,
@@ -33,6 +34,7 @@ struct PendingFeatureId(u32);
 struct PendingFeature {
     name: Vec<u8>,
     lookups: Vec<PendingLookupId>,
+    params: Option<FeatureParams>,
 }
 /// Same bundling shape as `PendingLookups`, for not-yet-collected
 /// `Feature`s.
@@ -352,7 +354,25 @@ fn figure_out_features_from_json(
     };
     for (feature_name_key, feature_val) in fields {
         let feature_name = &feature_name_key[..feature_name_key.len() - 1];
-        if let Some(items) = feature_val.as_array() {
+        // A feature is its lookup list, or, when it has parameters, an
+        // object holding the list as `lookups` and the parameters as
+        // `params`.
+        // A missing `lookups` is an empty list.
+        let (lookup_list, params): (Option<&[ParsedValue]>, _) = match feature_val.as_object() {
+            Some(_) => (
+                Some(
+                    feature_val
+                        .get_typed(b"lookups", JsonType::Array)
+                        .and_then(ParsedValue::as_array)
+                        .unwrap_or(&[]),
+                ),
+                feature_val
+                    .get_typed(b"params", JsonType::Object)
+                    .and_then(|p| parse_feature_params(p, feature_name)),
+            ),
+            None => (feature_val.as_array(), None),
+        };
+        if let Some(items) = lookup_list {
             let mut al: Vec<PendingLookupId> = Vec::new();
             for term in items {
                 if let Some(term_bytes) = term.as_str_bytes() {
@@ -370,7 +390,9 @@ fn figure_out_features_from_json(
                     }
                 }
             }
-            if !al.is_empty() {
+            // A feature with parameters is kept without lookups: `size`
+            // must have none.
+            if !al.is_empty() || params.is_some() {
                 let feature_name_bytes: Vec<u8> = feature_name.to_vec();
                 if !fh.entries.iter().any(|e| e.name == feature_name_bytes) {
                     // Built as a local owned value, only actually
@@ -385,6 +407,7 @@ fn figure_out_features_from_json(
                     fh.features.push(Some(PendingFeature {
                         name: feature_name_bytes.clone(),
                         lookups: al,
+                        params,
                     }));
                     fh.entries.push(FeatureEntry {
                         name: feature_name_bytes,
@@ -628,6 +651,7 @@ fn finalize_features(
             otl_box.features.push(Some(Box::new(Feature {
                 name: pending.name,
                 lookups: remapped_lookups,
+                params: pending.params,
             })));
             feature_remap[entry.feature_id.0 as usize] = Some(idx);
         }

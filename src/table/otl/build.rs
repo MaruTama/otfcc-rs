@@ -1,6 +1,7 @@
 use crate::logger::ByteStr;
 use crate::support::primitives::TableId;
 use crate::table::otl::constants::USE_MARK_FILTERING_SET;
+use crate::table::otl::feature_params::build_feature_params;
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::chaining::build::chaining_lookup_is_contextual_lookup;
@@ -289,8 +290,12 @@ fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock
         table.features.iter().flatten().map(Box::as_ref).collect();
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (live.len()) as u32)]);
     for &feature in live.iter() {
+        let params = feature
+            .params
+            .as_ref()
+            .and_then(|p| bk_new_block_from_buffer(Some(build_feature_params(p))));
         let mut fea: BkBlock = bk_new_block(vec![
-            bk_ptr(BkCellType::P16, None),
+            bk_ptr(BkCellType::P16, params),
             bk_int(BkCellType::B16, (feature.lookups.len()) as u32),
         ]);
         for lookup_ref in feature.lookups.iter() {

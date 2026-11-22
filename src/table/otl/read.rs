@@ -85,6 +85,7 @@ pub(crate) const MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE: u32 = 150_000;
 
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR, USE_MARK_FILTERING_SET};
+use crate::table::otl::feature_params::read_feature_params;
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::subtables::chaining::read::otl_read_contextual;
 use crate::table::otl::subtables::extend::{read_otl_gpos_extend, read_otl_gsub_extend};
@@ -265,7 +266,15 @@ fn read_feature_list(
             );
         }
         let mut fer = FontReader::new(data).at(feature_offset as usize)?;
-        fer.skip(2)?; // featureParams, unused
+        let params_offset = fer.u16()?;
+        if params_offset != 0 {
+            feature.params = read_feature_params(
+                data,
+                feature_offset as usize + usize::from(params_offset),
+                &tag.to_be_bytes(),
+                budget,
+            );
+        }
         let feature_lookup_count = fer.u16()?;
         fer.require_room(feature_lookup_count as usize, 2)?;
         for _ in 0..feature_lookup_count {
