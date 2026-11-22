@@ -84,7 +84,7 @@ pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
 pub(crate) const MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE: u32 = 150_000;
 
 use crate::table::otl::budget::OtlReadBudget;
-use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
+use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR, USE_MARK_FILTERING_SET};
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::subtables::chaining::read::otl_read_contextual;
 use crate::table::otl::subtables::extend::{read_otl_gpos_extend, read_otl_gsub_extend};
@@ -453,9 +453,20 @@ fn read_otl_lookup(
                     available: 0,
                 });
             }
-            Ok((flags, subtable_offsets))
+            // The set index follows every subtable offset, read or not.
+            let mark_filtering_set = if flags & USE_MARK_FILTERING_SET != 0 {
+                r.skip(2 * usize::from(subtable_count - read_count))?;
+                Some(r.u16()?)
+            } else {
+                None
+            };
+            Ok((
+                flags & !USE_MARK_FILTERING_SET,
+                mark_filtering_set,
+                subtable_offsets,
+            ))
         });
-    let (flags, subtable_offsets) = match parsed {
+    let (flags, mark_filtering_set, subtable_offsets) = match parsed {
         Ok(v) => v,
         Err(_) => {
             lookup.lookup_type = OTL_TYPE_UNKNOWN;
@@ -463,6 +474,7 @@ fn read_otl_lookup(
         }
     };
     lookup.flags = flags;
+    lookup.mark_filtering_set = mark_filtering_set;
     for subtable_offset in subtable_offsets {
         let subtable = read_otl_subtable(
             data,
@@ -914,5 +926,55 @@ mod table_wide_limit_tests {
         }
         assert_eq!(counts, [3, 1]);
         assert!(budget.has_reached(Limit::Subtables));
+    }
+}
+
+#[cfg(test)]
+mod mark_filtering_set_tests {
+    use super::*;
+
+    /// A lookup with `subtables` subtable offsets, `flags`, and the 16-bit
+    /// `trailer` after the offsets.
+    fn lookup_bytes(flags: u16, subtables: u16, trailer: u16) -> Vec<u8> {
+        let mut data = Vec::new();
+        for v in [4, flags, subtables] {
+            data.extend_from_slice(&v.to_be_bytes());
+        }
+        for _ in 0..subtables {
+            data.extend_from_slice(&0u16.to_be_bytes());
+        }
+        data.extend_from_slice(&trailer.to_be_bytes());
+        data
+    }
+
+    fn read(data: &[u8], budget: &mut OtlReadBudget) -> Box<Lookup> {
+        let mut lookup = new_lookup();
+        lookup.lookup_type = LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 4);
+        read_otl_lookup(data, &mut lookup, 0, &Options::default(), budget);
+        lookup
+    }
+
+    #[test]
+    fn the_set_after_the_subtable_offsets_is_read_and_the_flag_bit_cleared() {
+        let lookup = read(&lookup_bytes(0x0018, 2, 7), &mut OtlReadBudget::new());
+        assert_eq!(lookup.mark_filtering_set, Some(7));
+        assert_eq!(lookup.flags, 0x0008); // ignoreMarks stays
+    }
+
+    #[test]
+    fn without_the_flag_the_trailing_word_is_not_a_set() {
+        let lookup = read(&lookup_bytes(0x0008, 2, 7), &mut OtlReadBudget::new());
+        assert_eq!(lookup.mark_filtering_set, None);
+    }
+
+    #[test]
+    fn the_set_is_found_when_not_every_subtable_is_read() {
+        let mut budget = OtlReadBudget {
+            subtables: 1,
+            ..OtlReadBudget::new()
+        };
+        let lookup = read(&lookup_bytes(0x0010, 3, 9), &mut budget);
+        assert_eq!(lookup.subtables.len(), 1);
+        assert_eq!(lookup.mark_filtering_set, Some(9));
     }
 }

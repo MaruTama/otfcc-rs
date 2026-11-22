@@ -335,13 +335,17 @@ pub struct GsubSingleEntry {
     pub to: GlyphHandle,
 }
 /// One lookup: its name (generated when the file gives none), its type, the
-/// `lookupFlag` bits, and its subtables.
+/// `lookupFlag` bits, its mark filtering set, and its subtables.
 #[derive(Debug)]
 pub struct Lookup {
     pub name: Vec<u8>,
     pub lookup_type: LookupType,
     pub _offset: u32,
+    /// The `lookupFlag` bits, without `USE_MARK_FILTERING_SET`.
     pub flags: u16,
+    /// The index of the GDEF mark glyph set whose marks are the only ones
+    /// the lookup does not skip, or `None` when it does not filter marks.
+    pub mark_filtering_set: Option<u16>,
     pub subtables: SubtableList,
 }
 // A lookup's subtables. A slot is `None` when consolidation removed the
@@ -419,6 +423,7 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
         lookup_type: OTL_TYPE_UNKNOWN,
         _offset: 0,
         flags: 0,
+        mark_filtering_set: None,
         subtables: Vec::new(),
     })
 }
