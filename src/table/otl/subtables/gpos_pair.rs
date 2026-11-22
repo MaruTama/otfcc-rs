@@ -94,6 +94,8 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
         second: None,
         first_values: Vec::new(),
         second_values: Vec::new(),
+        format: 1,
+        listed_zeros: Default::default(),
     };
     let mut header = FontReader::new(data).at(offset as usize + 2).ok()?;
     let cov_rel = header.u16().ok()?;
@@ -187,6 +189,14 @@ fn read_pair_format1(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
                 first_values[j3][cid] = read_gpos_value(data, (second_offset + 2) as u32, format1);
                 second_values[j3][cid] =
                     read_gpos_value(data, (second_offset + 2 + len1 as usize) as u32, format2);
+                let cell = (j3 as GlyphClass, cid as GlyphClass);
+                if required_position_format(first_values[j3][cid]) == 0
+                    && required_position_format(second_values[j3][cid]) == 0
+                {
+                    subtable.listed_zeros.insert(cell);
+                } else {
+                    subtable.listed_zeros.remove(&cell);
+                }
             }
         }
     }
@@ -207,6 +217,8 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
         second: None,
         first_values: Vec::new(),
         second_values: Vec::new(),
+        format: 2,
+        listed_zeros: Default::default(),
     };
     let mut header = FontReader::new(data).at(offset as usize + 2).ok()?;
     let cov_rel = header.u16().ok()?;
@@ -316,7 +328,10 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
         unreachable!()
     };
     let (first_cd, second_cd) = subtable.class_defs();
-    let mut st = BuiltValue::new_object(3);
+    let mut st = BuiltValue::new_object(4);
+    if subtable.format != 0 {
+        st.push_field(b"format", BuiltValue::Int(i64::from(subtable.format)));
+    }
     st.push_field(b"first", dump_class_def(first_cd));
     st.push_field(b"second", dump_class_def(second_cd));
     let mut mat = BuiltValue::new_array((i32::from(first_cd.maxclass) + 1) as usize);
@@ -346,6 +361,9 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
                     }
                     row.push_item(pair);
                 }
+            } else if subtable.listed_zeros.contains(&(j, k)) {
+                // Listed, so matched, though nothing moves.
+                row.push_item(BuiltValue::new_object(0));
             } else {
                 row.push_item(BuiltValue::position(Pos::from(0)));
             }
@@ -403,6 +421,7 @@ pub fn otl_gpos_parse_pair(
         vec![vec![position_zero(); class2_count]; class1_count];
     let mut second_values: Vec<Vec<PositionValue>> =
         vec![vec![position_zero(); class2_count]; class1_count];
+    let mut listed_zeros = std::collections::BTreeSet::new();
     if let Some(rows) = mat.as_array() {
         for (row_i, row) in rows.iter().enumerate().take(class1_count) {
             if let Some(items) = row.as_array() {
@@ -414,16 +433,30 @@ pub fn otl_gpos_parse_pair(
                     } else if item.as_object().is_some() {
                         first_values[row_i][col_i] = gpos_parse_value(item.get(b"first"));
                         second_values[row_i][col_i] = gpos_parse_value(item.get(b"second"));
+                        // An object that moves nothing, such as `{}`, is a
+                        // pair listed with no adjustment.
+                        if required_position_format(first_values[row_i][col_i]) == 0
+                            && required_position_format(second_values[row_i][col_i]) == 0
+                        {
+                            listed_zeros.insert((row_i as GlyphClass, col_i as GlyphClass));
+                        }
                     }
                 }
             }
         }
     }
+    // 1 or 2 as written; anything else leaves the choice to the build.
+    let format = match sv.and_then(|v| v.get_typed(b"format", JsonType::Integer)) {
+        Some(v) if matches!(v.as_int(), Some(1 | 2)) => v.as_int().unwrap_or(0) as u16,
+        _ => 0,
+    };
     Some(Subtable::GposPair(GposPairSubtable {
         first: first.map(Box::new),
         second: second.map(Box::new),
         first_values,
         second_values,
+        format,
+        listed_zeros,
     }))
 }
 fn cov_from_cd(cd: &ClassDef) -> Coverage {
@@ -433,8 +466,15 @@ fn cov_from_cd(cd: &ClassDef) -> Coverage {
     }
     cov
 }
+/// Whether format 1 lists the pair of classes `c1` and `c2`: it moves
+/// something, or it was listed with no adjustment.
+fn is_listed(subtable: &GposPairSubtable, c1: GlyphClass, c2: GlyphClass) -> bool {
+    required_position_format(subtable.first_values[c1 as usize][c2 as usize]) != 0
+        || required_position_format(subtable.second_values[c1 as usize][c2 as usize]) != 0
+        || subtable.listed_zeros.contains(&(c1, c2))
+}
 /// Lays out the subtable as PairPos format 1, one pair record per glyph pair
-/// with a non-zero adjustment.
+/// with a non-zero adjustment or listed with none.
 pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
@@ -459,12 +499,7 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
     let mut pair_counts: Vec<GlyphId> = vec![0 as GlyphId; first_cd.glyphs.len()];
     for (count, &c1) in pair_counts.iter_mut().zip(first_cd.classes.iter()) {
         for &c2 in second_cd.classes.iter() {
-            if i32::from(required_position_format(
-                subtable.first_values[c1 as usize][c2 as usize],
-            )) | i32::from(required_position_format(
-                subtable.second_values[c1 as usize][c2 as usize],
-            )) != 0
-            {
+            if is_listed(subtable, c1, c2) {
                 *count = count.wrapping_add(1);
             }
         }
@@ -504,12 +539,7 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
         let mut pairs: Vec<IndividualGposPair> = Vec::with_capacity(current_pair_count as usize);
         for k_2 in 0..second_cd.glyphs.len() {
             let c2_0: GlyphClass = second_cd.classes[k_2];
-            if i32::from(required_position_format(
-                subtable.first_values[c1_0 as usize][c2_0 as usize],
-            )) | i32::from(required_position_format(
-                subtable.second_values[c1_0 as usize][c2_0 as usize],
-            )) != 0
-            {
+            if is_listed(subtable, c1_0, c2_0) {
                 pairs.push(IndividualGposPair {
                     gid: second_cd.glyphs[k_2].index,
                     fv: subtable.first_values[c1_0 as usize][c2_0 as usize],
@@ -599,9 +629,24 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
     }
     root
 }
-/// Writes whichever of PairPos format 1 and format 2 comes out smaller;
-/// format 1 on a tie.
+/// Writes the subtable in its own format, or, when that is not known,
+/// whichever of PairPos format 1 and format 2 comes out smaller (format 1 on
+/// a tie).
 pub fn build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
+    let Subtable::GposPair(subtable) = _subtable else {
+        unreachable!()
+    };
+    if subtable.format == 1 || subtable.format == 2 {
+        let block = if subtable.format == 1 {
+            build_gpos_pair_individual(_subtable)
+        } else {
+            build_gpos_pair_classes(_subtable)
+        };
+        let mut graph: BkGraph = bk_new_graph_from_root_block(block);
+        bk_minimize_graph(&mut graph);
+        bk_untangle_graph(&mut graph);
+        return bk_build_graph(&graph);
+    }
     let format1: BkBlock = build_gpos_pair_individual(_subtable);
     let format2: BkBlock = build_gpos_pair_classes(_subtable);
     let mut g1: BkGraph = bk_new_graph_from_root_block(format1);
@@ -1008,5 +1053,129 @@ mod otl_gpos_parse_pair_class_limit_tests {
         assert!(otl_gpos_parse_pair(Some(&json), &mut budget).is_some());
         assert!(otl_gpos_parse_pair(Some(&json), &mut budget).is_none());
         assert_eq!(budget.pair_grid_cells, 50);
+    }
+}
+
+#[cfg(test)]
+mod pair_format_tests {
+    use super::*;
+    use otfcc_json::{
+        JSON_SERIALIZE_MODE_SINGLE_LINE, JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON,
+        JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA, JSON_SERIALIZE_OPT_PACK_BRACKETS,
+        JsonSerializeOpts, json_serialize_ex, parse_json,
+    };
+
+    fn put(d: &mut Vec<u8>, v: u16) {
+        d.extend_from_slice(&v.to_be_bytes());
+    }
+
+    /// Format 1, dx values: glyph 10 with glyph 20 (dx 0, listed) and with
+    /// glyph 21 (dx 7).
+    fn format1_with_a_listed_zero() -> Vec<u8> {
+        let mut d = Vec::new();
+        // format, coverage @12, valueFormat1 dx, valueFormat2 none, 1 set @18
+        for v in [1, 12, 1, 0, 1, 18] {
+            put(&mut d, v);
+        }
+        for v in [1, 1, 10] {
+            put(&mut d, v); // coverage: glyph 10
+        }
+        for v in [2, 20, 0, 21, 7] {
+            put(&mut d, v); // PairSet: two records
+        }
+        d
+    }
+
+    /// Format 2, dx values: glyph 10 (class 1) with glyph 20 (class 1) is
+    /// dx 7; every other cell is 0, so format 1 would be smaller.
+    fn format2_sparse() -> Vec<u8> {
+        let mut d = Vec::new();
+        // format, coverage @24, dx, none, classDef1 @30, classDef2 @38, 2x2
+        for v in [2, 24, 1, 0, 30, 38, 2, 2] {
+            put(&mut d, v);
+        }
+        for v in [0, 0, 0, 7] {
+            put(&mut d, v); // matrix
+        }
+        for v in [1, 1, 10] {
+            put(&mut d, v); // coverage
+        }
+        for v in [1, 10, 1, 1] {
+            put(&mut d, v); // ClassDef format 1: glyph 10 -> 1
+        }
+        for v in [1, 20, 1, 1] {
+            put(&mut d, v); // ClassDef format 1: glyph 20 -> 1
+        }
+        d
+    }
+
+    /// The subtable at the start of `data`, its glyphs named `g<id>`.
+    fn read(data: &[u8]) -> GposPairSubtable {
+        let Some(Subtable::GposPair(mut st)) =
+            otl_read_gpos_pair(data, 0, 0, &mut OtlReadBudget::new())
+        else {
+            panic!("not read")
+        };
+        let (first, second) = st.class_defs_mut();
+        for glyph in first.glyphs.iter_mut().chain(second.glyphs.iter_mut()) {
+            glyph.name = format!("g{}", glyph.index).into_bytes();
+        }
+        st
+    }
+
+    fn json(st: &GposPairSubtable) -> String {
+        let opts = JsonSerializeOpts {
+            mode: JSON_SERIALIZE_MODE_SINGLE_LINE,
+            opts: JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON
+                | JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA
+                | JSON_SERIALIZE_OPT_PACK_BRACKETS,
+            indent_size: 0,
+        };
+        let dumped = otl_gpos_dump_pair(&Subtable::GposPair(st.clone()));
+        String::from_utf8(json_serialize_ex(&dumped, opts)).unwrap()
+    }
+
+    fn parse(text: &str) -> GposPairSubtable {
+        let value = parse_json(text.as_bytes()).unwrap();
+        let Some(Subtable::GposPair(st)) =
+            otl_gpos_parse_pair(Some(&value), &mut OtlReadBudget::new())
+        else {
+            panic!("not parsed")
+        };
+        st
+    }
+
+    #[test]
+    fn a_format1_pair_listed_with_no_adjustment_is_kept() {
+        let st = read(&format1_with_a_listed_zero());
+        assert_eq!(st.format, 1);
+        // Glyph 10 is first class 0; glyph 20 is second class 1.
+        assert_eq!(
+            st.listed_zeros.iter().copied().collect::<Vec<_>>(),
+            [(0, 1)]
+        );
+        let text = json(&st);
+        assert!(text.starts_with(r#"{"format":1,"#), "{text}");
+        assert!(text.contains(r#"[0,{},{"first":{"dx":7}}]"#), "{text}");
+        let back = parse(&text);
+        assert_eq!(back.format, 1);
+        assert_eq!(back.listed_zeros, st.listed_zeros);
+    }
+
+    #[test]
+    fn a_format2_subtable_is_dumped_as_format2() {
+        let st = read(&format2_sparse());
+        assert_eq!(st.format, 2);
+        assert!(st.listed_zeros.is_empty());
+        let text = json(&st);
+        assert!(text.starts_with(r#"{"format":2,"#), "{text}");
+        assert_eq!(parse(&text).format, 2);
+    }
+
+    #[test]
+    fn json_without_a_format_leaves_the_choice_to_the_build() {
+        let st = parse(r#"{"first":{"a":1},"second":{"b":1},"matrix":[[0,0],[0,5]]}"#);
+        assert_eq!(st.format, 0);
+        assert!(st.listed_zeros.is_empty());
     }
 }

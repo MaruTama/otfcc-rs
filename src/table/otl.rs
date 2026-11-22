@@ -219,12 +219,23 @@ pub struct GposCursiveEntry {
 /// class definitions `first` and `second`, and `first_values` and `second_values`
 /// hold the adjustments for the first and second glyph of a pair, indexed by the
 /// class of the first glyph and then the class of the second.
+///
+/// Which pairs the subtable matches depends on its binary format, and a
+/// matching pair ends the lookup even when it moves nothing, so the format
+/// is kept: format 1 matches the pairs it lists, format 2 every pair whose
+/// first glyph is covered.
 #[derive(Clone, Debug)]
 pub struct GposPairSubtable {
     pub first: Option<Box<ClassDef>>,
     pub second: Option<Box<ClassDef>>,
     pub first_values: Vec<Vec<PositionValue>>,
     pub second_values: Vec<Vec<PositionValue>>,
+    /// 1 or 2, the format to write; 0 when not known (a JSON subtable
+    /// without `"format"`), and then the smaller one is written.
+    pub format: u16,
+    /// The (first class, second class) cells of pairs listed with no
+    /// adjustment, which format 1 still matches.
+    pub listed_zeros: std::collections::BTreeSet<(GlyphClass, GlyphClass)>,
 }
 impl GposPairSubtable {
     /// Every `GposPairSubtable` is built with both class definitions: the
