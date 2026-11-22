@@ -3,7 +3,7 @@
 
 use crate::support::handle::{GlyphHandle, handle_from_index};
 use crate::table::otl::budget::{Limit, OtlReadBudget};
-use crate::table::otl::classdef::{ClassDef, expand_class_def, read_class_def};
+use crate::table::otl::classdef::{ClassDef, expand_class_def, push_class_def, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage, shrink_coverage};
 use otfcc_json::ParsedValue;
 
@@ -222,18 +222,36 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     let first_coverage: Coverage =
         read_coverage(data, offset.wrapping_add(u32::from(cov_rel)), budget);
     // `expand_class_def` takes the class def it is given and returns a
-    // new one.
-    let first_cd = expand_class_def(
+    // new one, of the covered glyphs only.
+    let mut first_cd = expand_class_def(
         &first_coverage,
         read_class_def(data, offset.wrapping_add(u32::from(cd1_rel))),
     );
-    let second_cd = read_class_def(data, offset.wrapping_add(u32::from(cd2_rel)));
-    if first_cd.maxclass as usize + 1 != class1_count as usize {
+    let mut second_cd = read_class_def(data, offset.wrapping_add(u32::from(cd2_rel)));
+    if class1_count == 0 || class2_count == 0 {
         return None;
     }
-    if second_cd.maxclass as usize + 1 != class2_count as usize {
+    // A first glyph of a class past `class1Count` never matches (as in
+    // HarfBuzz), so it is left out of the subtable altogether.
+    let kept: Vec<(GlyphHandle, GlyphClass)> = first_cd
+        .glyphs
+        .drain(..)
+        .zip(first_cd.classes.drain(..))
+        .filter(|&(_, class)| class < class1_count)
+        .collect();
+    first_cd.maxclass = 0;
+    for (glyph, class) in kept {
+        push_class_def(&mut first_cd, glyph, class);
+    }
+    // A second glyph past `class2Count` would make its pairs not match,
+    // which the class matrix cannot say: such a subtable is not read.
+    if second_cd.maxclass >= class2_count {
         return None;
     }
+    // The counts may declare classes no glyph is in. They are kept, so
+    // the matrix keeps its shape and the subtable is written back the same.
+    first_cd.maxclass = class1_count - 1;
+    second_cd.maxclass = class2_count - 1;
     subtable.first = Some(Box::new(first_cd));
     subtable.second = Some(Box::new(second_cd));
 
@@ -746,6 +764,97 @@ mod otl_read_gpos_pair_tests {
         };
         assert_eq!(subtable.first_values[1][1].dx, 77.0);
         assert_eq!(subtable.first_values[0][0].dx, 0.0);
+    }
+
+    /// A format 2 subtable with a dx-only matrix of `class1` x `class2`
+    /// cells, all 5. The coverage lists `covered`; ClassDef1 maps each of
+    /// `first` to its class, and ClassDef2 maps glyph 50 to class 1.
+    fn format2(class1: u16, class2: u16, covered: &[u16], first: &[(u16, u16)]) -> Vec<u8> {
+        let put = |d: &mut Vec<u8>, v: u16| d.extend_from_slice(&v.to_be_bytes());
+        let matrix = 2 * usize::from(class1) * usize::from(class2);
+        let coverage = 16 + matrix;
+        let cd1 = coverage + 4 + 2 * covered.len();
+        let cd2 = cd1 + 4 + 6 * first.len();
+        let mut d = Vec::new();
+        for v in [
+            2,
+            coverage as u16,
+            1,
+            0,
+            cd1 as u16,
+            cd2 as u16,
+            class1,
+            class2,
+        ] {
+            put(&mut d, v);
+        }
+        for _ in 0..matrix / 2 {
+            put(&mut d, 5);
+        }
+        put(&mut d, 1);
+        put(&mut d, covered.len() as u16);
+        for &g in covered {
+            put(&mut d, g);
+        }
+        // ClassDef format 2, one range per glyph.
+        put(&mut d, 2);
+        put(&mut d, first.len() as u16);
+        for &(g, c) in first {
+            for v in [g, g, c] {
+                put(&mut d, v);
+            }
+        }
+        d.truncate(cd2);
+        for v in [2, 1, 50, 50, 1] {
+            put(&mut d, v);
+        }
+        d
+    }
+
+    fn first_glyphs(data: &[u8]) -> Option<Vec<(u16, u16)>> {
+        let Subtable::GposPair(st) = otl_read_gpos_pair(data, 0, 0, &mut OtlReadBudget::new())?
+        else {
+            unreachable!()
+        };
+        let cd = st.first.as_ref().unwrap();
+        Some(
+            cd.glyphs
+                .iter()
+                .map(|g| g.index)
+                .zip(cd.classes.iter().copied())
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn format2_first_glyphs_outside_the_coverage_are_left_out() {
+        // Glyph 11 is in ClassDef1 (as class 0, as some fonts list it) but
+        // not covered: it never matches, and used to be covered once built.
+        let data = format2(2, 2, &[10], &[(10, 1), (11, 0)]);
+        assert_eq!(first_glyphs(&data), Some(vec![(10, 1)]));
+    }
+
+    #[test]
+    fn format2_declared_classes_no_glyph_uses_are_kept() {
+        // Three first classes and three second classes declared; only
+        // classes 0 and 1 are used. Such a subtable used to be dropped.
+        let data = format2(3, 3, &[10], &[(10, 1)]);
+        let Some(Subtable::GposPair(st)) =
+            otl_read_gpos_pair(&data, 0, 0, &mut OtlReadBudget::new())
+        else {
+            panic!("not read")
+        };
+        assert_eq!(st.first.as_ref().unwrap().maxclass, 2);
+        assert_eq!(st.second.as_ref().unwrap().maxclass, 2);
+        assert_eq!(st.first_values[1][1].dx, 5.0);
+    }
+
+    #[test]
+    fn format2_first_glyphs_of_a_class_past_the_count_are_left_out() {
+        // Glyph 11 is covered but in class 2 of a 2-class subtable: it
+        // never matches, so it is not kept as a class 0 glyph either.
+        let data = format2(2, 2, &[10, 11], &[(10, 1), (11, 2)]);
+        assert_eq!(first_glyphs(&data), Some(vec![(10, 1)]));
     }
 
     #[test]
