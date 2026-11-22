@@ -37,8 +37,8 @@ pub struct Options {
     // font` call. Each individual contextual/chaining rule's own lookup-
     // application count is already capped at parse time
     // (`chaining/read.rs`'s `MAX_APPLY_PER_RULE`), and rules built across a
-    // whole table and one lookup's subtable count are capped too
-    // (`MAX_TOTAL_RULES_PER_TABLE`, `MAX_TOTAL_SUBTABLES_PER_LOOKUP`) --
+    // whole table and the subtables of a table are capped too
+    // (`MAX_TOTAL_RULES_PER_TABLE`, `MAX_TOTAL_SUBTABLES_PER_TABLE`) --
     // but those three caps multiply, and fuzzing found a font that rode
     // all three near their ceiling at once (many subtables, each with many
     // rules, each with many unresolvable lookup applications), reaching

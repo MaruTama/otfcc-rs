@@ -336,8 +336,8 @@ fn name_glyphs(font: &mut Font, gord: &GlyphOrder) {
 // rest of the dump pipeline (and the JSON output) expects. Each factor
 // feeding that expansion is individually capped upstream at parse time
 // (`chaining/read.rs`'s `MAX_TOTAL_RULES_PER_TABLE` bounds rules built
-// across a whole table; `otl/read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP`
-// bounds one lookup's own subtable count), but those two caps multiply
+// across a whole table; `otl/read.rs`'s `MAX_TOTAL_SUBTABLES_PER_TABLE`
+// bounds the subtables read), but those two caps multiply
 // here: fuzzing found a lookup with ~700 subtables that, combined,
 // expanded into 80,000+ standalone subtables -- each one then walked
 // again by `consolidate_chaining` and serialized to JSON, tens of seconds
@@ -346,6 +346,7 @@ fn name_glyphs(font: &mut Font, gord: &GlyphOrder) {
 const MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP: usize = 20_000;
 pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
     let mut newsts: SubtableList = Vec::new();
+    let mut truncated = false;
     'subtables: for slot in lookup.subtables.iter_mut() {
         if newsts.len() >= MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP {
             break 'subtables;
@@ -370,6 +371,7 @@ pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
                 // lookup is `Some`.
                 for rule_slot in ::core::mem::take(&mut ruleset.rules) {
                     if newsts.len() >= MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP {
+                        truncated = true;
                         break 'subtables;
                     }
                     let boxed_rule: Box<ChainingRule> =
@@ -404,6 +406,15 @@ pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
     // The old list still holds whatever this loop left as `Some` (e.g. a
     // `Classified` subtable, or every remaining slot once the budget above
     // cuts the loop short); assigning over it drops those.
+    // Whatever is still in the old list was not moved out: once the loop is
+    // cut short, those are the subtables that are dropped.
+    if truncated || lookup.subtables.iter().any(Option::is_some) {
+        tracing::warn!(
+            "[otl] Lookup {} has more contextual rules than otfcc writes out ({}); the rest are ignored.\n",
+            crate::logger::ByteStr(&lookup.name),
+            MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP
+        );
+    }
     lookup.subtables = newsts;
 }
 fn expand_chain(lookup: &mut Lookup) {

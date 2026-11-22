@@ -43,11 +43,10 @@ pub fn consolidate_lookup(
         options,
     };
     let stage = crate::logger::stage(ByteStr(&lookup.name));
-    // The "Ignored empty subtable" warning below can fire up to 300,000
-    // times for a font whose subtables mostly fail to parse (a lookup can
-    // hold up to `MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000) subtables and a
-    // table up to `MAX_TOTAL_LOOKUPS_PER_TABLE` (300) lookups); CI fuzz
-    // found exactly this shape. `tracing::warn!` formats nothing when
+    // The "Ignored empty subtable" warning below can fire up to 100,000
+    // times for a font whose subtables mostly fail to parse (a table can
+    // hold up to `MAX_TOTAL_SUBTABLES_PER_TABLE` subtables); CI fuzz found
+    // exactly this shape, when the limit was 300,000. `tracing::warn!` formats nothing when
     // warnings are not being printed, so that volume costs nothing then.
     for (j, slot) in lookup.subtables.iter_mut().enumerate() {
         if slot.is_none() {

@@ -140,7 +140,7 @@ pub fn read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     }
     // One budget for this whole table's `read_coverage` calls (reached
     // below via `LigCaretList`'s own coverage table) -- see `OtlReadBudget`.
-    let mut budget = OtlReadBudget::new();
+    let mut budget = OtlReadBudget::for_table("GDEF");
     let classdef_offset = FontReader::new(data).at(4).ok()?.u16().ok()?;
     // is purely a narrow bridge.
     let glyph_class_def = if classdef_offset != 0 {

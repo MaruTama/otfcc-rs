@@ -43,7 +43,7 @@ use otfcc_json::JsonType;
 /// its own single-reader BaseArray loop cannot alias bytes *within* one
 /// subtable, but nothing before this budget stopped many MarkToSingle/
 /// MarkToLigature subtables -- up to `otl/read.rs`'s own `MAX_TOTAL_
-/// SUBTABLES_PER_LOOKUP`/`MAX_TOTAL_LOOKUPS_PER_TABLE` ceiling of 300,000 --
+/// SUBTABLES_PER_TABLE` ceiling (300,000 when this was written) --
 /// from each independently pointing their BaseArray/LigatureArray at the
 /// same maximal-cost bytes).
 ///
