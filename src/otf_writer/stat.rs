@@ -850,7 +850,9 @@ fn stat_ltsh(font: &mut Font) {
         return;
     }
     let glyf = font.glyf.as_ref().expect("glyf table is present");
-    if !iter_glyphs(glyf).any(|g| g.y_pel > 1) {
+    // A yPel of 1 (linear at every size) is information too; only a table
+    // with nothing but zeros, which says nothing, is left out.
+    if !iter_glyphs(glyf).any(|g| g.y_pel > 0) {
         return;
     }
     let num_glyphs = count_u16(glyf.len());
@@ -933,7 +935,7 @@ fn stat_cff_header(font: &mut Font) {
     }
     stat_cff_widths(font);
 }
-/// Sets the glyph count in `maxp` and `post`, and for a version 1.0 `maxp`
+/// Sets the glyph count in `maxp`, and for a version 1.0 `maxp`
 /// recomputes the glyph-derived limits, raising the instruction size to
 /// cover `fpgm` and `prep`.
 fn stat_glyph_counts_and_maxp(font: &mut Font) {
@@ -941,11 +943,6 @@ fn stat_glyph_counts_and_maxp(font: &mut Font) {
         && let Some(maxp) = font.maxp.as_deref_mut()
     {
         maxp.num_glyphs = len;
-    }
-    if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u32)
-        && let Some(post) = font.post.as_deref_mut()
-    {
-        post.max_mem_type42 = len;
     }
     let maxp_version_is_10000 =
         font.maxp.as_deref().map(|m| m.version) == Some(0x10000 as F16Dot16);
@@ -962,7 +959,7 @@ fn stat_glyph_counts_and_maxp(font: &mut Font) {
     }
 }
 /// Recomputes everything derived from the glyphs before the font is built:
-/// `head.modified`, the CFF header, `maxp` and `post` counts, `OS/2`, and
+/// `head.modified`, the CFF header, the `maxp` counts, `OS/2`, and
 /// the metric tables (`hmtx`, `vmtx`, `VORG`, `LTSH`).
 pub fn stat_font(font: &mut Font, options: &Options) {
     if font.glyf.is_some() && font.head.is_some() {
