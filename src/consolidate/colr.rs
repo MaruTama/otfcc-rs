@@ -39,16 +39,17 @@ pub(crate) fn consolidate_colr(font: &mut Font) {
                     m.layers.push(layer.clone());
                 }
             }
-            if !mapping.layers.is_empty() {
+            // A base glyph with no layers is drawn as nothing in color, which
+            // the specification allows, so one the font has is kept. One that
+            // only becomes empty because its layer glyphs do not exist is
+            // dropped, so the glyph keeps its plain outline.
+            if !m.layers.is_empty() || mapping.layers.is_empty() {
                 consolidated.push(m);
             } else {
                 tracing::warn!(
-                    "[Consolidate] COLR decomposition for /{} is empth",
+                    "[Consolidate] COLR decomposition for /{} is empty",
                     ByteStr(&mapping.glyph.name)
                 );
-                // `m` is dropped here (its `Handle` and `layers: Vec<ColrLayer>`
-                // freed by their own compiler-generated drop glue) rather than
-                // pushed into `consolidated` -- no manual dispose call needed.
             }
         }
     }
