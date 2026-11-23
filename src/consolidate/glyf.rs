@@ -219,16 +219,17 @@ pub fn get_point_coordinates(
     // never reach a length of 65,536 (the same shape as the `glyf` hang).
     for p in g.contours.iter().flatten() {
         if i32::from(search.stated) == i32::from(n) {
+            // (a·x + c·y, b·x + d·y), as in `otf_writer/stat.rs`.
             search.x = vq_point_linear_tfm(
                 gr.x.borrow().clone(),
                 gr.a as Pos,
                 p.x.clone(),
-                gr.b as Pos,
+                gr.c as Pos,
                 p.y.clone(),
             );
             search.y = vq_point_linear_tfm(
                 gr.y.borrow().clone(),
-                gr.c as Pos,
+                gr.b as Pos,
                 p.x.clone(),
                 gr.d as Pos,
                 p.y.clone(),
@@ -241,23 +242,34 @@ pub fn get_point_coordinates(
         consolidate_anchor_ref(table, gr, rr, options, depth + 1);
         let mut glyph_ref: ComponentReference = (glyf_component_reference_empty)();
         glyph_ref.glyph = handle_from_index(rr.glyph.index) as GlyphHandle;
-        glyph_ref.a = gr.a * rr.a + rr.b * gr.c;
-        glyph_ref.b = rr.a * gr.b + rr.b * gr.d;
+        // `rr` placed where `gr` places its glyph, as in `otf_writer/stat.rs`.
+        glyph_ref.a = gr.a * rr.a + gr.c * rr.b;
+        glyph_ref.b = gr.b * rr.a + gr.d * rr.b;
         glyph_ref.c = gr.a * rr.c + gr.c * rr.d;
-        glyph_ref.d = gr.b * rr.c + rr.d * gr.d;
+        glyph_ref.d = gr.b * rr.c + gr.d * rr.d;
+        let (ox, oy) = (rr.x.borrow().clone(), rr.y.borrow().clone());
+        let (ox, oy) = if rr.scaled_offset {
+            let zero = vq_neutral;
+            (
+                vq_point_linear_tfm(zero(), rr.a as Pos, ox.clone(), rr.c as Pos, oy.clone()),
+                vq_point_linear_tfm(zero(), rr.b as Pos, ox, rr.d as Pos, oy),
+            )
+        } else {
+            (ox, oy)
+        };
         glyph_ref.x = std::cell::RefCell::new(vq_point_linear_tfm(
-            rr.x.borrow().clone(),
-            rr.a as Pos,
             gr.x.borrow().clone(),
-            rr.b as Pos,
-            gr.y.borrow().clone(),
+            gr.a as Pos,
+            ox.clone(),
+            gr.c as Pos,
+            oy.clone(),
         ));
         glyph_ref.y = std::cell::RefCell::new(vq_point_linear_tfm(
-            rr.y.borrow().clone(),
-            rr.c as Pos,
-            gr.x.borrow().clone(),
-            rr.d as Pos,
             gr.y.borrow().clone(),
+            gr.b as Pos,
+            ox,
+            gr.d as Pos,
+            oy,
         ));
         let success: bool = get_point_coordinates(table, &glyph_ref, n, search, options, depth + 1);
         // `ref_0` is a plain owned local; every field auto-drops when it
@@ -333,16 +345,18 @@ pub fn consolidate_anchor_ref(
             ByteStr(&rr.glyph.name)
         );
     }
+    // The offset that brings the component's point onto the outer one:
+    // outer − M·inner, with M as in `get_point_coordinates`.
     let rrx: VQ = vq_point_linear_tfm(
         outer.x.clone(),
         -(rr.a as Pos),
         inner.x.clone(),
-        -(rr.b as Pos),
+        -(rr.c as Pos),
         inner.y.clone(),
     );
     let rry: VQ = vq_point_linear_tfm(
         outer.y.clone(),
-        -(rr.c as Pos),
+        -(rr.b as Pos),
         inner.x.clone(),
         -(rr.d as Pos),
         inner.y.clone(),
