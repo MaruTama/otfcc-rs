@@ -134,6 +134,10 @@ pub struct ComponentReference {
     pub y: std::cell::RefCell<VQ>,
     pub round_to_grid: bool,
     pub use_my_metrics: bool,
+    /// Whether the transform applies to the offset too
+    /// (`SCALED_COMPONENT_OFFSET`). Otherwise it does not, which is also
+    /// what Microsoft's and Apple's rasterizers do when neither flag is set.
+    pub scaled_offset: bool,
     pub glyph: GlyphHandle,
     pub a: Scale,
     pub b: Scale,
@@ -253,6 +257,7 @@ pub fn glyf_component_reference_empty() -> ComponentReference {
         inner: 0 as ShapeId,
         round_to_grid: false,
         use_my_metrics: false,
+        scaled_offset: false,
     }
 }
 /// An empty glyph.
@@ -366,6 +371,9 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
         }
         if r.use_my_metrics {
             ref_json.push_field(b"useMyMetrics", BuiltValue::Bool(true));
+        }
+        if r.scaled_offset {
+            ref_json.push_field(b"scaledOffset", BuiltValue::Bool(true));
         }
         references.push_item(ref_json.preserialize());
     }
@@ -559,6 +567,7 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
         glyph_ref.d = 1.0 as Scale;
         glyph_ref.round_to_grid = false;
         glyph_ref.use_my_metrics = false;
+        glyph_ref.scaled_offset = false;
         return glyph_ref;
     };
     glyph_ref.glyph = handle_from_name(_gname.as_str_bytes().map(|b| b.to_vec()));
@@ -570,6 +579,7 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     glyph_ref.d = refdump.get_num_or(b"d", 1.0) as Scale;
     glyph_ref.round_to_grid = refdump.get_bool(b"roundToGrid");
     glyph_ref.use_my_metrics = refdump.get_bool(b"useMyMetrics");
+    glyph_ref.scaled_offset = refdump.get_bool(b"scaledOffset");
     if refdump.get_bool(b"isAnchored") {
         glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorXy);
         glyph_ref.inner = refdump.get_int(b"inner") as ShapeId;

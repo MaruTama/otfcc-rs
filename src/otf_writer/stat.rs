@@ -109,14 +109,26 @@ pub fn stat_single_glyph(
         glyph_ref.b = rr.a * gr.b + rr.b * gr.d;
         glyph_ref.c = gr.a * rr.c + gr.c * rr.d;
         glyph_ref.d = gr.b * rr.c + rr.d * gr.d;
+        // A scaled offset goes through the component's transform, the same
+        // way its points do below.
+        let (ox, oy) = (
+            vq_get_still(rr.x.borrow().clone()),
+            vq_get_still(rr.y.borrow().clone()),
+        );
+        let (ox, oy) = if rr.scaled_offset {
+            (
+                rr.a as Pos * ox + rr.b as Pos * oy,
+                rr.c as Pos * ox + rr.d as Pos * oy,
+            )
+        } else {
+            (ox, oy)
+        };
         glyph_ref.x = std::cell::RefCell::new(vq_create_still(
-            vq_get_still(rr.x.borrow().clone())
-                + rr.a as Pos * vq_get_still(gr.x.borrow().clone())
+            ox + rr.a as Pos * vq_get_still(gr.x.borrow().clone())
                 + rr.b as Pos * vq_get_still(gr.y.borrow().clone()),
         ));
         glyph_ref.y = std::cell::RefCell::new(vq_create_still(
-            vq_get_still(rr.y.borrow().clone())
-                + rr.c as Pos * vq_get_still(gr.x.borrow().clone())
+            oy + rr.c as Pos * vq_get_still(gr.x.borrow().clone())
                 + rr.d as Pos * vq_get_still(gr.y.borrow().clone()),
         ));
         let thatstat: GlyphStat = stat_single_glyph(
@@ -187,6 +199,7 @@ pub fn stat_glyf(font: &mut Font) {
             }),
             round_to_grid: false,
             use_my_metrics: false,
+            scaled_offset: false,
             glyph: Handle::new(HandleState::Empty, 0, Vec::new()),
             a: 0.,
             b: 0.,

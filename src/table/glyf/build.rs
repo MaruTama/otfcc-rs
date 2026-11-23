@@ -131,7 +131,13 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         if r.use_my_metrics {
             flags.insert(ComponentFlags::USE_MY_METRICS);
         }
-        flags.insert(ComponentFlags::UNSCALED_COMPONENT_OFFSET);
+        // Unscaled when the font did not say scaled: the same as neither
+        // flag on Microsoft's and Apple's rasterizers.
+        flags.insert(if r.scaled_offset {
+            ComponentFlags::SCALED_COMPONENT_OFFSET
+        } else {
+            ComponentFlags::UNSCALED_COMPONENT_OFFSET
+        });
         gbuf.write_u16be(flags.bits());
         gbuf.write_u16be(r.glyph.index);
         if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
