@@ -40,12 +40,10 @@ pub static WHITE: CpalColor = CpalColor {
     alpha: 0xff,
     label: 0xffff,
 };
-/// The 3 v1 offset arrays (`offsetPaletteTypeArray`/`...LabelArray`/
-/// `...EntryLabelArray`) are read at absolute offsets `16`/`20`/`24 + 2 *
-/// num_palettes` -- 4 bytes further into the table than the OpenType 'CPAL'
-/// spec places them (`12`/`16`/`20 + 2 * num_palettes`, immediately after
-/// `colorRecordIndices`). Kept as upstream otfcc reads them, for
-/// byte-identical output.
+/// The 3 v1 offsets (`paletteTypesArrayOffset`, `paletteLabelsArrayOffset`,
+/// `paletteEntryLabelsArrayOffset`) follow `colorRecordIndices` directly, at
+/// `12`/`16`/`20 + 2 * num_palettes`. (otfcc used to read them 4 bytes
+/// further on, so each array was read from the next one's offset.)
 ///
 /// `offset_first_color_record` and the three v1 array offsets are raw `u32`s
 /// straight from the file (up to `u32::MAX`), so every position is computed
@@ -170,17 +168,18 @@ fn open_v1_array(
 /// per-entry labels shared by all palettes.
 fn read_v1_extensions(data: &[u8], palettes: &mut [CpalPalette], num_palettes_entries: usize) {
     let num_palettes = palettes.len();
-    if let Some(mut tr) = open_v1_array(data, 16 + 2 * num_palettes, num_palettes, 4) {
+    if let Some(mut tr) = open_v1_array(data, 12 + 2 * num_palettes, num_palettes, 4) {
         for p in palettes.iter_mut() {
             p.palette_type = tr.u32().expect("require_room above covered this read");
         }
     }
-    if let Some(mut lr) = open_v1_array(data, 20 + 2 * num_palettes, num_palettes, 2) {
+    if let Some(mut lr) = open_v1_array(data, 16 + 2 * num_palettes, num_palettes, 2) {
         for p in palettes.iter_mut() {
             p.label = u32::from(lr.u16().expect("require_room above covered this read"));
         }
     }
-    if let Some(mut er) = open_v1_array(data, 24 + 2 * num_palettes, num_palettes_entries, 4) {
+    // A uint16 name ID per entry.
+    if let Some(mut er) = open_v1_array(data, 20 + 2 * num_palettes, num_palettes_entries, 2) {
         for j in 0..num_palettes_entries {
             let label = er.u16().expect("require_room above covered this read");
             for p in palettes.iter_mut() {
@@ -293,7 +292,7 @@ pub fn parse_cpal(root: &ParsedValue) -> Option<Box<CpalTable>> {
         let mut palette: CpalPalette = CpalPalette {
             colorset: Vec::new(),
             palette_type: _palette.get_int(b"type") as u32,
-            label: _palette.get_int_or(b"type", 0xffff) as u32,
+            label: _palette.get_int_or(b"label", 0xffff) as u32,
         };
         for _color in color_items {
             palette.colorset.push(parse_color(Some(_color)));
@@ -470,43 +469,43 @@ mod parse_cpal_tests {
         assert!(decode_cpal(&data).is_err());
     }
 
-    // version=1, one palette/entry/color record, plus a palette-type array
-    // so the v1-only offset arithmetic is exercised. `table_header_length`
-    // is 26 for v1, and the colorRecordIndices-region guard conservatively
-    // demands `table_header_length + 2 * num_palettes` (28 bytes here) of
-    // total table length even though colorRecordIndices itself only needs
-    // 14 (as upstream otfcc does), so the table must reach at least 28
-    // bytes before the v1 arrays are even considered.
+    // version=1, one palette, entry and color record, and all three v1
+    // arrays, laid out as the specification has it: the 12-byte header,
+    // colorRecordIndices (2 bytes per palette), then the three offsets.
     fn well_formed_v1_table_with_palette_type() -> Vec<u8> {
         let mut b = Vec::new();
         b.extend_from_slice(&1u16.to_be_bytes()); // version
         b.extend_from_slice(&1u16.to_be_bytes()); // numPaletteEntries
         b.extend_from_slice(&1u16.to_be_bytes()); // numPalettes
         b.extend_from_slice(&1u16.to_be_bytes()); // numColorRecords
-        b.extend_from_slice(&14u32.to_be_bytes()); // offsetFirstColorRecord
+        b.extend_from_slice(&26u32.to_be_bytes()); // colorRecordsArrayOffset
         b.extend_from_slice(&0u16.to_be_bytes()); // colorRecordIndices[0], @12
-        b.extend_from_slice(&[10, 20, 30, 255]); // color record, @14
-        // offsetPaletteTypeArray lives at absolute offset 16 + 2*numPalettes
-        // = 18 (this crate's CPAL reads it 4 bytes later than the spec
-        // position -- see decode_cpal's doc comment).
-        b.extend_from_slice(&28u32.to_be_bytes()); // @18: offsetPaletteTypeArray = 28
-        b.resize(28, 0); // padding up to the guard2-mandated 28-byte minimum
-        b.extend_from_slice(&0xCAFEBABEu32.to_be_bytes()); // @28: palette 0's type
+        b.extend_from_slice(&30u32.to_be_bytes()); // @14: paletteTypesArrayOffset
+        b.extend_from_slice(&34u32.to_be_bytes()); // @18: paletteLabelsArrayOffset
+        b.extend_from_slice(&36u32.to_be_bytes()); // @22: paletteEntryLabelsArrayOffset
+        b.extend_from_slice(&[10, 20, 30, 255]); // @26: the color record
+        b.extend_from_slice(&0xCAFEBABEu32.to_be_bytes()); // @30: palette 0's type
+        b.extend_from_slice(&256u16.to_be_bytes()); // @34: palette 0's label
+        b.extend_from_slice(&257u16.to_be_bytes()); // @36: entry 0's label
         b
     }
 
     #[test]
-    fn v1_palette_type_array_is_read_at_its_shifted_offset() {
+    fn v1_arrays_are_read_where_the_specification_puts_them() {
         let data = well_formed_v1_table_with_palette_type();
         let (version, palettes) = decode_cpal(&data).unwrap();
         assert_eq!(version, 1);
         assert_eq!(palettes[0].palette_type, 0xCAFEBABE);
+        assert_eq!(palettes[0].label, 256);
+        // The entry labels are uint16, so an array at the very end of the
+        // table, two bytes long, is read.
+        assert_eq!(palettes[0].colorset[0].label, 257);
     }
 
     #[test]
     fn palette_type_array_offset_near_u32_max_is_rejected_not_wrapped() {
         let mut data = well_formed_v1_table_with_palette_type();
-        data[18..22].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes());
+        data[14..18].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes());
         let (_, palettes) = decode_cpal(&data).unwrap();
         // The optional array is simply left unpopulated on rejection --
         // the whole table isn't corrupted by one bad optional offset.
