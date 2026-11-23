@@ -186,10 +186,10 @@ pub fn stat_glyf(font: &mut Font) {
     let head = font.head.as_deref_mut().expect("head table is present");
     let glyf = font.glyf.as_mut().expect("glyf table is present");
     let mut stated: Vec<StatStatus> = vec![StatStatus::NotStarted; glyf.len()];
-    let mut xmin: Pos = Pos::from(0xffffffff_u32);
-    let mut xmax: Pos = Pos::from(0xffffffff_u32.wrapping_neg());
-    let mut ymin: Pos = Pos::from(0xffffffff_u32);
-    let mut ymax: Pos = Pos::from(0xffffffff_u32.wrapping_neg());
+    let mut xmin: Pos = Pos::from(POS_MAX);
+    let mut xmax: Pos = Pos::from(-POS_MAX);
+    let mut ymin: Pos = Pos::from(POS_MAX);
+    let mut ymax: Pos = Pos::from(-POS_MAX);
     for j in 0..count_u16(glyf.len()) {
         let mut gr: ComponentReference = ComponentReference {
             x: std::cell::RefCell::new(VQ {
@@ -224,6 +224,11 @@ pub fn stat_glyf(font: &mut Font) {
             .as_mut()
             .expect("glyph slot is filled")
             .stat = thatstat;
+        // The font's box is that of the glyphs with an outline: an empty
+        // glyph's (0, 0, 0, 0) is not a box.
+        if !has_outline(&thatstat) {
+            continue;
+        }
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
         }
@@ -237,10 +242,19 @@ pub fn stat_glyf(font: &mut Font) {
             ymax = thatstat.y_max;
         }
     }
+    if xmin > xmax {
+        // No glyph has an outline.
+        (xmin, xmax, ymin, ymax) = (0.0, 0.0, 0.0, 0.0);
+    }
     head.x_min = xmin as i16;
     head.x_max = xmax as i16;
     head.y_min = ymin as i16;
     head.y_max = ymax as i16;
+}
+/// Whether a glyph's flattened outline has any point, as its stat counts
+/// them: the bounding box of one that does not is a placeholder of zeros.
+fn has_outline(stat: &GlyphStat) -> bool {
+    stat.n_composite_points > 0
 }
 pub fn stat_maxp(font: &mut Font) {
     // Only ever called (from `stat_font`) under a `.maxp.is_some()`/
@@ -350,6 +364,11 @@ fn stat_hmtx(font: &mut Font) {
         if advw > max_width {
             max_width = advw as Length;
         }
+        // The side bearing minimums and the extent are over the glyphs with
+        // an outline, as `hhea` defines them.
+        if !has_outline(&g.stat) {
+            continue;
+        }
         if lsb < min_lsb {
             min_lsb = lsb;
         }
@@ -359,6 +378,10 @@ fn stat_hmtx(font: &mut Font) {
         if g.stat.x_max - hori > max_extent {
             max_extent = g.stat.x_max - hori;
         }
+    }
+    if max_extent == Pos::from(-0x8000) {
+        // No glyph has an outline.
+        (min_lsb, min_rsb, max_extent) = (0.0, 0.0, 0.0);
     }
     let hhea = font.hhea.as_deref_mut().expect("hhea table is present");
     hhea.number_of_metrics = count_a as u16;
