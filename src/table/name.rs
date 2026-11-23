@@ -194,32 +194,49 @@ pub fn parse_name(root: &ParsedValue) -> Option<NameTable> {
 /// Serialises a format 0 `name` table, or `None` for no table. Strings are
 /// encoded back by record kind (see [`NameRecord`]); a base64 string that does
 /// not decode becomes empty. A 32-byte "-- By OTFCC x.y.z --" signature is
-/// appended after the strings, and the count, offsets and lengths are `u16`,
-/// so more than 65,535 bytes of strings would wrap.
+/// appended after the strings. The string offsets, lengths and the offset to
+/// the strings are 16 bits, so a record that would not fit (past 65,535
+/// bytes of strings, or past the 5,460 records whose header still fits) is
+/// left out with a warning instead of being written with a wrapped offset.
 pub fn build_name(name: Option<&NameTable>) -> Option<Buffer> {
     let records: &Vec<NameRecord> = name?;
+    // 6 + 12 * count must itself be a 16-bit offset.
+    const MAX_RECORDS: usize = (0xffff - 6) / 12;
+    let mut strings = Buffer::new();
+    let mut written: Vec<(&NameRecord, u16, u16)> = Vec::with_capacity(records.len());
+    let mut left_out = 0usize;
+    for record in records.iter() {
+        let encoded: Vec<u8> = if should_decode_as_utf16(record) {
+            utf8toutf16be(&record.name_string)
+        } else if should_decode_as_bytes(record) {
+            record.name_string.clone()
+        } else {
+            base64_decode(&record.name_string).unwrap_or_default()
+        };
+        let offset = strings.pos();
+        if written.len() >= MAX_RECORDS || offset > 0xffff || encoded.len() > 0xffff {
+            left_out += 1;
+            continue;
+        }
+        strings.write_bytes(&encoded);
+        written.push((record, encoded.len() as u16, offset as u16));
+    }
+    if left_out > 0 {
+        tracing::warn!(
+            "[name] {left_out} records do not fit in the 16-bit offsets of a 'name' table and are left out."
+        );
+    }
     let mut buf = Buffer::new();
     buf.write_u16be(0);
-    buf.write_u16be(records.len() as u16);
+    buf.write_u16be(written.len() as u16);
     buf.write_u16be(0);
-    let mut strings = Buffer::new();
-    for record in records.iter() {
+    for (record, length, offset) in written {
         buf.write_u16be(record.platform_id);
         buf.write_u16be(record.encoding_id);
         buf.write_u16be(record.language_id);
         buf.write_u16be(record.name_id);
-        let cbefore = strings.pos();
-        if should_decode_as_utf16(record) {
-            let u16: Vec<u8> = utf8toutf16be(&record.name_string);
-            strings.write_bytes(&u16);
-        } else if should_decode_as_bytes(record) {
-            strings.write_bytes(&record.name_string);
-        } else if let Some(decoded) = base64_decode(&record.name_string) {
-            strings.write_bytes(&decoded);
-        }
-        let cafter = strings.pos();
-        buf.write_u16be(cafter.wrapping_sub(cbefore) as u16);
-        buf.write_u16be(cbefore as u16);
+        buf.write_u16be(length);
+        buf.write_u16be(offset);
     }
     let mut copyright: Vec<u8> = crate::bytesbuild!(
         b"-- By OTFCC ",
@@ -345,5 +362,27 @@ mod parse_name_tests {
         data.extend(record(1, 0, 0, 0, 0, 0));
         let name = decode_name(&data).unwrap();
         assert_eq!(name[0].name_string, Vec::<u8>::new());
+    }
+
+    // String offsets are 16 bits. Records whose strings start past 65,535
+    // bytes used to be written with a wrapped offset, pointing at another
+    // record's string; they are left out now.
+    #[test]
+    fn records_past_the_16_bit_string_offsets_are_left_out() {
+        let record = |name_id: u16| NameRecord {
+            platform_id: 3,
+            encoding_id: 1,
+            language_id: 0x409,
+            name_id,
+            name_string: vec![b'a'; 20_000],
+        };
+        // Each string is 40,000 bytes in UTF-16: the third starts at 80,000.
+        let table: NameTable = vec![record(1), record(2), record(3)];
+        let data = build_name(Some(&table)).unwrap().data;
+        assert_eq!(u16::from_be_bytes([data[2], data[3]]), 2);
+        let offsets: Vec<u16> = (0..2)
+            .map(|i| u16::from_be_bytes([data[6 + 12 * i + 10], data[6 + 12 * i + 11]]))
+            .collect();
+        assert_eq!(offsets, [0, 40_000]);
     }
 }
