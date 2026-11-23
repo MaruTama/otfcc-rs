@@ -231,6 +231,11 @@ pub fn build_glyf(table: Option<&GlyfTable>, head: Option<&mut HeadTable>) -> Gl
                 glyf_build_simple(g, &mut gbuf);
             } else if !g.references.is_empty() {
                 glyf_build_composite(g, &mut gbuf);
+            } else if !g.instructions.is_empty() {
+                // No outline but instructions: a simple glyph with no
+                // contours, which the specification allows. Only a glyph
+                // with nothing at all is written with zero length.
+                glyf_build_simple(g, &mut gbuf);
             }
             gbuf.long_align();
             bufglyf.write_buffer(&gbuf);

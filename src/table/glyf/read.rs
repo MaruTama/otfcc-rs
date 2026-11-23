@@ -274,7 +274,9 @@ fn read_glyph(body: &[u8], offset: usize, length: usize) -> Option<Box<Glyph>> {
     // Every one of the 5 header reads above succeeded, so at least 10
     // bytes exist -- slicing the body here can't panic.
     let body = &glyph_bytes[10..];
-    let mut g = if number_of_contours > 0 {
+    // A glyph with no contours is still a simple glyph, and can still have
+    // instructions; only a negative count marks a composite.
+    let mut g = if number_of_contours >= 0 {
         read_simple_glyph(body, number_of_contours as ShapeId)?
     } else {
         read_composite_glyph(body)?
