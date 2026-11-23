@@ -181,12 +181,8 @@ fn decode_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
         });
     }
     if os2.version >= 5 {
-        // Kept from upstream otfcc for byte-identical output: both reads
-        // assign to `us_lower_optical_point_size`, so
-        // `us_upper_optical_point_size` is never populated from the file
-        // (stays 0). See RUST_MIGRATION.md.
         os2.us_lower_optical_point_size = r.u16()?;
-        os2.us_lower_optical_point_size = r.u16()?;
+        os2.us_upper_optical_point_size = r.u16()?;
     }
     Ok(os2)
 }
@@ -721,18 +717,17 @@ mod parse_os_2_tests {
     }
 
     #[test]
-    fn version_5_table_leaves_upper_optical_point_size_at_zero() {
-        // The upstream field-name bug: both reads at this version tier
-        // assign to `us_lower_optical_point_size`, so
-        // `us_upper_optical_point_size` is never actually populated.
+    fn version_5_table_reads_both_optical_point_sizes() {
+        // Upstream otfcc read both fields into the lower size, so the lower
+        // size got the upper one and the upper size stayed 0.
         let mut data = version_0_base(0);
         data[0..2].copy_from_slice(&5u16.to_be_bytes());
         data.resize(100, 0);
         data[96..98].copy_from_slice(&12u16.to_be_bytes());
         data[98..100].copy_from_slice(&34u16.to_be_bytes());
         let os2 = decode_os_2(&data).unwrap();
-        assert_eq!(os2.us_lower_optical_point_size, 34);
-        assert_eq!(os2.us_upper_optical_point_size, 0);
+        assert_eq!(os2.us_lower_optical_point_size, 12);
+        assert_eq!(os2.us_upper_optical_point_size, 34);
     }
 
     #[test]

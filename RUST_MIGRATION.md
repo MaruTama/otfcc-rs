@@ -5170,7 +5170,9 @@ than any new caution invented for this plan.
     populated from the file. Fixing that is a correctness change outside
     this migration's parse-bounds-safety scope, called out in the code
     and covered (not fixed) by
-    `version_5_table_leaves_upper_optical_point_size_at_zero`. Sequential
+    `version_5_table_leaves_upper_optical_point_size_at_zero`. (Fixed
+    later, for #667: both fields are now read, and the test is
+    `version_5_table_reads_both_optical_point_sizes`.) Sequential
     `FontReader` reads land on the same fixed byte offsets the original's
     explicit `data.offset(N)` calls used, because each version tier's
     length threshold (68 < 78 < 86 < 96 < 100) is strictly increasing and

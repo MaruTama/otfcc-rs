@@ -312,7 +312,7 @@ static STANDARD_MAC_NAMES: [&str; 258] = [
 #[derive(Debug)]
 struct ParsedPost {
     fixed: PostFixedHeader,
-    // `None` unless `fixed.version == 0x20000`.
+    // `None` unless the version is 2.0 or 2.5.
     names: Option<Vec<(GlyphId, Vec<u8>)>>,
 }
 #[derive(Debug)]
@@ -328,6 +328,28 @@ struct PostFixedHeader {
     max_mem_type1: u32,
 }
 
+/// `post` version 2.5 (deprecated): every glyph is one of the standard
+/// Macintosh glyphs, named by a signed offset from its glyph id into
+/// their order.
+const POST_VERSION_2_5: F16Dot16 = 0x25000;
+/// The names of a version 2.5 table, read after the fixed header. A glyph
+/// whose offset points outside the standard names gets an empty name.
+fn decode_post_2_5_names(mut r: FontReader<'_>) -> Result<Vec<(GlyphId, Vec<u8>)>, ReadError> {
+    let number_glyphs = r.u16()?;
+    let offsets = r.bytes(number_glyphs as usize)?;
+    Ok(offsets
+        .iter()
+        .enumerate()
+        .map(|(gid, &offset)| {
+            let index = gid as i64 + i64::from(offset as i8);
+            let name = usize::try_from(index)
+                .ok()
+                .and_then(|i| STANDARD_MAC_NAMES.get(i))
+                .map_or_else(Vec::new, |n| n.as_bytes().to_vec());
+            (gid as GlyphId, name)
+        })
+        .collect())
+}
 fn decode_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
     let mut r = FontReader::new(data);
     let fixed = PostFixedHeader {
@@ -341,6 +363,12 @@ fn decode_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
         min_mem_type1: r.u32()?,
         max_mem_type1: r.u32()?,
     };
+    if fixed.version == POST_VERSION_2_5 {
+        return decode_post_2_5_names(r).map(|names| ParsedPost {
+            fixed,
+            names: Some(names),
+        });
+    }
     if fixed.version != 0x20000 {
         return Ok(ParsedPost { fixed, names: None });
     }
@@ -430,8 +458,7 @@ pub fn read_post(packet: &Packet) -> Option<Box<PostTable>> {
     Some(Box::new(post_val))
 }
 /// Dumps the table as the `"post"` object. The glyph names are not part of it:
-/// they live in the glyph order. `italicAngle` is written as an integer, so a
-/// fractional angle is truncated in the dump.
+/// they live in the glyph order.
 pub fn dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
@@ -439,10 +466,14 @@ pub fn dump_post(table: Option<&PostTable>, root: &mut BuiltValue) {
     let stage = crate::logger::stage("post");
     let mut post = BuiltValue::new_object(10);
     post.push_field(b"version", BuiltValue::Double(from_fixed(table.version)));
-    post.push_field(
-        b"italicAngle",
-        BuiltValue::Int(from_fixed(table.italic_angle) as i64),
-    );
+    // A whole angle stays an integer, as it always was; a fractional one
+    // keeps its fraction instead of being cut to the integer.
+    let italic_angle = if table.italic_angle % 0x10000 == 0 {
+        BuiltValue::Int(i64::from(table.italic_angle >> 16))
+    } else {
+        BuiltValue::Double(from_fixed(table.italic_angle))
+    };
+    post.push_field(b"italicAngle", italic_angle);
     post.push_field(
         b"underlinePosition",
         BuiltValue::Int(i64::from(table.underline_position)),
@@ -511,11 +542,19 @@ pub fn parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable
 }
 /// Serializes the table. For version 2.0 the glyph names follow the fixed
 /// header, taken from `glyphorder` in glyph id order, which must therefore be
-/// present. Any other version is just the fixed header.
+/// present. Version 2.5, which can only name standard Macintosh glyphs and
+/// is deprecated, is written as 2.0 with the same names. Any other version
+/// is just the fixed header.
 pub fn build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> Option<Buffer> {
     let post = post?;
     let mut buf = Buffer::new();
-    buf.write_u32be(post.version as u32);
+    let version = if post.version == POST_VERSION_2_5 {
+        tracing::warn!("'post' version 2.5 is deprecated; it is written as version 2.0.");
+        0x20000 as F16Dot16
+    } else {
+        post.version
+    };
+    buf.write_u32be(version as u32);
     buf.write_u32be(post.italic_angle as u32);
     buf.write_u16be(post.underline_position as u16);
     buf.write_u16be(post.underline_thickness as u16);
@@ -524,7 +563,7 @@ pub fn build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> 
     buf.write_u32be(post.max_mem_type42);
     buf.write_u32be(post.min_mem_type1);
     buf.write_u32be(post.max_mem_type1);
-    if post.version == 0x20000 as F16Dot16 {
+    if version == 0x20000 as F16Dot16 {
         // A version-2.0 post table always has a glyph order to draw names
         // from (consolidation guarantees it).
         let glyphorder = glyphorder.expect("post version 2.0 requires a glyph order");
@@ -585,6 +624,27 @@ mod parse_post_tests {
         // than overread by up to 22 bytes.
         let data = header(0x00010000, 0, 0);
         assert!(decode_post(&data[..10]).is_err());
+    }
+
+    // Version 2.5 names every glyph by a signed offset from its glyph id
+    // into the standard Macintosh names; it used to be read as the fixed
+    // header only.
+    #[test]
+    fn version_2_5_names_come_from_the_standard_order() {
+        let mut data = header(0x00025000, 0, 0);
+        data.extend_from_slice(&3u16.to_be_bytes()); // numberOfGlyphs
+        // gid 0 -> .notdef (0), gid 1 -> A (36), gid 2 -> before the start.
+        data.extend_from_slice(&[0, 35, 0x80]);
+        let parsed = decode_post(&data).unwrap();
+        let names = parsed.names.unwrap();
+        assert_eq!(
+            names,
+            vec![
+                (0u16, b".notdef".to_vec()),
+                (1, b"A".to_vec()),
+                (2, Vec::new())
+            ]
+        );
     }
 
     #[test]
@@ -707,5 +767,22 @@ mod build_post_tests {
         assert_eq!(names[256], 1);
         assert_eq!(names[257], b'b');
         assert_eq!(names.len(), 258);
+    }
+
+    // Version 2.5 cannot name arbitrary glyphs and is deprecated, so it is
+    // written as 2.0 with the glyph order's names, not as a 2.5 header with
+    // nothing after it.
+    #[test]
+    fn version_2_5_is_written_as_2_0_with_names() {
+        let mut post = post_v2();
+        post.version = 0x25000;
+        let go = glyph_order(&[b".notdef".to_vec(), b"A".to_vec()]);
+        let buf = build_post(Some(&post), Some(&go)).unwrap();
+        let parsed = decode_post(&buf.data).unwrap();
+        assert_eq!(parsed.fixed.version, 0x20000);
+        assert_eq!(
+            parsed.names.unwrap(),
+            vec![(0u16, b".notdef".to_vec()), (1, b"A".to_vec())]
+        );
     }
 }
