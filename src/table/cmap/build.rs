@@ -138,13 +138,18 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
             *cur = Format4Segment::starting_at(unicode, gid);
         }
     }
-    // With no BMP mapping, an empty sequential segment at 0xFFFFFF is
-    // written, as otfcc does.
-    let last = seg.unwrap_or_else(|| Format4Segment::starting_at(0xffffff, 0xffffff));
-    arrays.push_segment(&last);
-    // The last segment must end at U+FFFF.
-    if last.unicode_end < 0xffff {
-        arrays.push_closing_segment();
+    // The last segment must end at U+FFFF. With no BMP mapping, that
+    // closing segment, which maps U+FFFF to the missing glyph, is the only
+    // one. (otfcc used to write a segment at 0xFFFFFF with idDelta 0 there,
+    // which maps U+FFFF to glyph 65535.)
+    match seg {
+        Some(last) => {
+            arrays.push_segment(&last);
+            if last.unicode_end < 0xffff {
+                arrays.push_closing_segment();
+            }
+        }
+        None => arrays.push_closing_segment(),
     }
     arrays.relativize_range_offsets();
     arrays.into_subtable()
@@ -517,6 +522,16 @@ mod format4_tests {
     fn a_mapping_of_u_ffff_is_not_followed_by_a_second_ffff_segment() {
         let sub = build_cmap_format4(&cmap_of(&[(0x41, 3), (0xffff, 5)]));
         assert_eq!(end_codes(&sub), vec![0x41, 0xffff]);
+    }
+
+    #[test]
+    fn with_no_bmp_mapping_only_the_closing_segment_is_written() {
+        // It maps U+FFFF to glyph 0; otfcc used to map it to glyph 65535.
+        let sub = build_cmap_format4(&cmap_of(&[(0x1f600, 3)]));
+        assert_eq!(end_codes(&sub), vec![0xffff]);
+        let d = &sub.data;
+        // idDelta[0] follows endCode[0], reservedPad and startCode[0].
+        assert_eq!(u16::from_be_bytes([d[20], d[21]]), 1);
     }
 
     #[test]
