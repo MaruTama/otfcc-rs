@@ -709,31 +709,20 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     // Only ever called (from `stat_font`, via `stat_os_2`) under a
     // `.glyf.is_some()` guard.
     let glyf = font.glyf.as_ref().expect("glyf table is present");
-    let mut total_width: u32 = 0;
-    for slot in glyf.iter() {
-        let adw: Pos = vq_get_still(
-            slot.as_deref()
-                .expect("glyph slot is filled")
-                .advance_width
-                .clone(),
-        ) as Pos;
-        if adw > Pos::from(0) {
-            total_width = (Pos::from(total_width) + adw) as u32;
-        }
-    }
-    let glyf_len = glyf.len();
+    // The arithmetic average of the widths of the glyphs whose width is not
+    // 0, as `OS/2` defines it: a mark of width 0 does not pull it down.
+    // (An advance width is unsigned; a negative one does not count either.)
+    let (total, count) = iter_glyphs(glyf)
+        .map(|g| vq_get_still(g.advance_width.clone()))
+        .filter(|&w| w > 0.0)
+        .fold((0.0, 0u32), |(total, count), w| (total + w, count + 1));
     let os_2 = font.os_2.as_deref_mut().expect("os_2 table is present");
-    // `glyf_len` is attacker-controlled (a JSON `glyf` table can declare
-    // zero glyphs) and was fed straight into `wrapping_div` -- unlike
-    // `MIN / -1`, division by zero always panics regardless of which
-    // division operation is used. A font with no glyphs has no average
-    // width to compute, so this is the same "nothing to divide" guard
-    // `stat_cff_widths` a few functions down already uses for its own
-    // `nnsum.wrapping_div(nn)`.
-    os_2.x_avg_char_width = if glyf_len == 0 {
+    // A font with no glyph of any width has no average.
+    os_2.x_avg_char_width = if count == 0 {
         0
     } else {
-        (total_width as usize).wrapping_div(glyf_len) as i16
+        // `f64::round` rounds half away from zero, like C99's `round`.
+        (total / f64::from(count)).round() as i16
     };
 }
 fn stat_max_context_otl(table: &OtlTable) -> u16 {
