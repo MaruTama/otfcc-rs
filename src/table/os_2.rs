@@ -494,8 +494,8 @@ pub fn dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue) {
 }
 /// Reads the `"OS_2"` object. Missing numbers are 0 and missing flags are empty,
 /// so a partial object still produces a table. A missing `"OS_2"` object is
-/// not an error either: the result is a table of defaults. The version is raised
-/// to at least 1, and `achVendID` is padded with spaces.
+/// not an error either: the result is a table of defaults. A missing version is
+/// 1, and `achVendID` is padded with spaces.
 pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     let mut os_2 = Os2Table {
         version: 4,
@@ -540,7 +540,8 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     };
     if let Some(table) = root.get_typed(b"OS_2", JsonType::Object) {
         let stage = crate::logger::stage("OS/2");
-        os_2.version = table.get_num(b"version") as u16;
+        // A table without a version gets version 1, as it always did.
+        os_2.version = table.get_num_or(b"version", 1.0) as u16;
         os_2.x_avg_char_width = table.get_num(b"xAvgCharWidth") as i16;
         os_2.us_weight_class = table.get_num(b"usWeightClass") as u16;
         os_2.us_width_class = table.get_num(b"usWidthClass") as u16;
@@ -610,14 +611,12 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
         }
         stage.finish();
     }
-    if i32::from(os_2.version) < 1 {
-        os_2.version = 1;
-    }
     Some(Box::new(os_2))
 }
 /// Serializes the table. Only the fields the table's `version` has are written:
-/// the 0/1 layout ends after the code page ranges, version 2 to 4 adds the height
-/// and character fields, and version 5 adds the optical point sizes.
+/// version 0 ends after `usWinDescent`, version 1 after the code page ranges,
+/// version 2 to 4 adds the height and character fields, and version 5 adds the
+/// optical point sizes.
 pub fn build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
     let os_2 = os_2?;
     let mut buf = Buffer::new();
@@ -651,6 +650,9 @@ pub fn build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
     buf.write_u16be(os_2.s_typo_line_gap as u16);
     buf.write_u16be(os_2.us_win_ascent);
     buf.write_u16be(os_2.us_win_descent);
+    if os_2.version == 0 {
+        return Some(buf);
+    }
     buf.write_u32be(os_2.ul_code_page_range1);
     buf.write_u32be(os_2.ul_code_page_range2);
     if i32::from(os_2.version) < 2 {
