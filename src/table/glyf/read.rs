@@ -241,12 +241,11 @@ fn read_composite_glyph(body: &[u8]) -> Option<Box<Glyph>> {
         }
         glyph_ref.round_to_grid = flags.contains(ComponentFlags::ROUND_XY_TO_GRID);
         glyph_ref.use_my_metrics = flags.contains(ComponentFlags::USE_MY_METRICS);
-        if flags.contains(ComponentFlags::SCALED_COMPONENT_OFFSET)
-            && (flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
-                || flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
-        {
-            tracing::warn!("glyf: SCALED_COMPONENT_OFFSET is not supported.");
-        }
+        // Both flags set is invalid, and both are ignored without
+        // ARGS_ARE_XY_VALUES: the rasterizer's default, unscaled, applies.
+        glyph_ref.scaled_offset = flags.contains(ComponentFlags::SCALED_COMPONENT_OFFSET)
+            && !flags.contains(ComponentFlags::UNSCALED_COMPONENT_OFFSET)
+            && flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES);
         if flags.contains(ComponentFlags::WE_HAVE_INSTRUCTIONS) {
             glyph_has_instruction = true;
         }
