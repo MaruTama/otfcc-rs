@@ -4,6 +4,7 @@ pub mod classdef;
 pub mod constants;
 pub mod coverage;
 pub mod dump;
+pub mod feature_params;
 pub mod kind;
 pub mod parse;
 pub mod read;
@@ -390,11 +391,20 @@ pub(crate) fn lookup_at(list: &LookupList, idx: LookupIdx) -> Option<&Lookup> {
 }
 // Indices into `OtlTable.lookups`; owns nothing.
 pub type LookupRefList = Vec<LookupIdx>;
-/// A feature: a tag-like name and the lookups it runs, by index.
+/// A feature: a tag-like name, the lookups it runs, by index, and its
+/// parameters, if its tag takes any.
 #[derive(Debug)]
 pub struct Feature {
     pub name: Vec<u8>,
     pub lookups: LookupRefList,
+    pub params: Option<feature_params::FeatureParams>,
+}
+impl Feature {
+    /// Whether the feature does anything: it runs a lookup or carries
+    /// parameters. A `size` feature, for one, must have no lookups.
+    pub fn is_empty(&self) -> bool {
+        self.lookups.is_empty() && self.params.is_none()
+    }
 }
 /// `lookups` holds only indices into `OtlTable.lookups`, not owned lookups.
 /// Same shape as `LookupIdx`, indexing `OtlTable.features`.
@@ -470,6 +480,7 @@ pub(crate) fn new_feature() -> Box<Feature> {
     Box::new(Feature {
         name: Vec::new(),
         lookups: Vec::new(),
+        params: None,
     })
 }
 pub(crate) fn otl_feature_list_punch_holes(

@@ -1,6 +1,7 @@
 use crate::logger::ByteStr;
 use crate::support::options::Options;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
+use crate::table::otl::feature_params::dump_feature_params;
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::{Feature, Lookup, OtlTable};
 use otfcc_json::BuiltValue;
@@ -93,7 +94,19 @@ pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8], opt
                         _feature.push_item(BuiltValue::str_truncated_at_nul(&lookup.name));
                     }
                 }
-                features_obj.push_field_bytes_key(&feature.name, _feature.preserialize());
+                let lookups = _feature.preserialize();
+                // With parameters, the lookup list goes in an object beside
+                // them; without, it is the feature's value, as it always was.
+                let value = match &feature.params {
+                    Some(params) => {
+                        let mut v = BuiltValue::new_object(2);
+                        v.push_field(b"lookups", lookups);
+                        v.push_field(b"params", dump_feature_params(params));
+                        v
+                    }
+                    None => lookups,
+                };
+                features_obj.push_field_bytes_key(&feature.name, value);
             }
             otl.push_field(b"features", features_obj);
             stage_2.finish();

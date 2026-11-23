@@ -140,14 +140,14 @@ pub(crate) fn consolidate_otl_table(
             // an *earlier* iteration of this same loop) is treated the same
             // as "empty": either way, nothing valid to require.
             if let Some(rf) = lang.required_feature {
-                let target_empty = crate::table::otl::feature_at(&table.features, rf)
-                    .is_none_or(|f| f.lookups.is_empty());
+                let target_empty =
+                    crate::table::otl::feature_at(&table.features, rf).is_none_or(|f| f.is_empty());
                 if target_empty {
                     lang.required_feature = None;
                 }
             }
             otl_feature_ref_list_filter_env(&mut lang.features, &table.features, |feat| {
-                feat.is_some_and(|f| !f.lookups.is_empty())
+                feat.is_some_and(|f| !f.is_empty())
             });
         }
         // A hole-preserving `Vec` never shrinks, unlike the old
@@ -158,7 +158,7 @@ pub(crate) fn consolidate_otl_table(
         let punched_lookups =
             otl_lookup_list_punch_holes(&mut table.lookups, |lut| !lut.subtables.is_empty());
         let punched_features =
-            otl_feature_list_punch_holes(&mut table.features, |feat| !feat.lookups.is_empty());
+            otl_feature_list_punch_holes(&mut table.features, |feat| !feat.is_empty());
         if !punched_lookups && !punched_features {
             break;
         }
