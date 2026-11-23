@@ -1,4 +1,4 @@
-use crate::font::model::Font;
+use crate::font::model::{Font, FontSubtype};
 use crate::support::fmt::{BytePart, Hex2Upper, Hex4Upper};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
@@ -448,10 +448,25 @@ fn merge_hmtx(font: &mut Font) {
             .number_of_metrics,
     );
     let hmtx = font.hmtx.take().expect("hmtx table is present");
+    // A CFF glyph already has the width its charstring gives; `hmtx` is the
+    // one OpenType layout uses, so it replaces that. Its left side bearing
+    // is left to the curves, which the build takes it from again.
+    let cff = font.subtype == FontSubtype::Cff;
     let glyf = font.glyf.as_mut().expect("glyf table is present");
     let count_a = count_a as usize;
+    // The CFF table, not `maxp`, sets a CFF font's glyph count, so `hmtx`
+    // can cover fewer glyphs; the rest keep their charstring widths.
+    let covered = count_a + hmtx.left_side_bearing.len();
     for (j, slot) in glyf.iter_mut().enumerate() {
         let g = slot.as_mut().expect("glyph slot is filled");
+        if cff {
+            if j >= covered {
+                break;
+            }
+            let adw = hmtx.metrics[j.min(count_a - 1)].advance_width;
+            g.advance_width = vq_create_still(adw as Pos);
+            continue;
+        }
         // The first `count_a` glyphs have a full metric each; every glyph
         // past them shares the last metric's advance width and takes its
         // left side bearing from the trailing `left_side_bearing` array.
