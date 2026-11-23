@@ -131,7 +131,11 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
         // `budget` only ever causes an early `break`, checked first in the
         // body, the same position the `while`'s `&& *budget > 0` checked
         // it in.
-        let upper = u32::from(end_code).min(0xfffe);
+        //
+        // U+FFFF is read too: the last segment, which must end there, may
+        // map it. The usual last segment maps it to glyph 0, the missing
+        // glyph, which is not a mapping and is skipped.
+        let upper = u32::from(end_code);
         if id_range_offset == 0 {
             for c in u32::from(start_code)..=upper {
                 if *budget == 0 {
@@ -139,6 +143,9 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
                 }
                 *budget -= 1;
                 let gid = (c.wrapping_add(id_delta as u32) & 0xffff) as u16;
+                if c == 0xffff && gid == 0 {
+                    continue;
+                }
                 encode_cmap_by_index(cmap, c as i32, gid);
             }
         } else {
@@ -152,7 +159,11 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
                 let glyph_offset_rel = u32::from(id_range_offset)
                     .wrapping_add(c.wrapping_sub(u32::from(start_code)).wrapping_mul(2))
                     .wrapping_add(id_range_offset_entry_rel as u32);
-                if let Some(raw) = read_u16(glyph_offset_rel as usize) {
+                // A glyphIdArray entry of 0 is the missing glyph: the code
+                // is not mapped, and idDelta is not added to it.
+                if let Some(raw) = read_u16(glyph_offset_rel as usize)
+                    && raw != 0
+                {
                     let gid = ((i32::from(raw) + i32::from(id_delta)) & 0xffff) as u16;
                     encode_cmap_by_index(cmap, c as i32, gid);
                 }
@@ -492,6 +503,70 @@ mod cmap_read_tests {
         read_format4(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 7);
         assert_eq!(cmap.unicodes.get(&0x42).unwrap().index, 8);
+    }
+
+    /// A format 4 subtable of the segments `(start, end, idDelta, glyph ids)`;
+    /// a segment with glyph ids is listed (idRangeOffset into the array).
+    fn format4(segments: &[(u16, u16, i16, &[u16])]) -> Vec<u8> {
+        let n = segments.len();
+        let put = |d: &mut Vec<u8>, v: u16| d.extend_from_slice(&v.to_be_bytes());
+        let mut d = Vec::new();
+        for v in [4, 0, 0, 2 * n as u16, 0, 0, 0] {
+            put(&mut d, v);
+        }
+        for s in segments {
+            put(&mut d, s.1);
+        }
+        put(&mut d, 0); // reservedPad
+        for s in segments {
+            put(&mut d, s.0);
+        }
+        for s in segments {
+            put(&mut d, s.2 as u16);
+        }
+        let mut array_at = 0;
+        for (j, s) in segments.iter().enumerate() {
+            if s.3.is_empty() {
+                put(&mut d, 0);
+            } else {
+                // From this entry to the array start, then into the array.
+                put(&mut d, (2 * (n - j) + 2 * array_at) as u16);
+                array_at += s.3.len();
+            }
+        }
+        for s in segments {
+            for &g in s.3 {
+                put(&mut d, g);
+            }
+        }
+        d
+    }
+
+    fn read(data: &[u8]) -> Vec<(i32, u16)> {
+        let mut cmap = empty_cmap();
+        read_format4(data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
+        cmap.unicodes.iter().map(|(&u, g)| (u, g.index)).collect()
+    }
+
+    #[test]
+    fn format4_a_glyph_id_array_entry_of_0_maps_nothing() {
+        // idDelta 5 is not added to the 0 for U+0042: it stays unmapped,
+        // where it used to map to glyph 5.
+        let data = format4(&[(0x41, 0x43, 5, &[7, 0, 8]), (0xffff, 0xffff, 1, &[])]);
+        assert_eq!(read(&data), [(0x41, 12), (0x43, 13)]);
+    }
+
+    #[test]
+    fn format4_a_mapping_of_u_ffff_is_read() {
+        let data = format4(&[(0x41, 0x41, 2, &[]), (0xfffe, 0xffff, 0, &[30, 31])]);
+        assert_eq!(read(&data), [(0x41, 0x43), (0xfffe, 30), (0xffff, 31)]);
+    }
+
+    #[test]
+    fn format4_the_usual_closing_segment_maps_nothing() {
+        // U+FFFF with idDelta 1 is glyph 0, the missing glyph.
+        let data = format4(&[(0xffff, 0xffff, 1, &[])]);
+        assert!(read(&data).is_empty());
     }
 
     #[test]

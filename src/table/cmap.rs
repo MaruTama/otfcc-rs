@@ -159,9 +159,10 @@ pub(crate) fn parse_unicode(unicode_str: &[u8]) -> Option<Unicode> {
     }
     Unicode::from_str_radix(std::str::from_utf8(digits).ok()?, radix).ok()
 }
-/// Whether `u` may be mapped: U+0001 to U+10FFFF.
+/// Whether `u` may be mapped: U+0000 to U+10FFFF. Fonts map U+0000
+/// (often to `.null`), and the reader keeps it, so it is kept here too.
 fn is_code_point(u: Unicode) -> bool {
-    u > 0 && u <= 0x10ffff
+    u <= 0x10ffff
 }
 fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
@@ -220,7 +221,11 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
-        if !(is_code_point(k.unicode) && is_code_point(k.selector)) {
+        // A variation sequence on U+0000, or with selector 0, means nothing.
+        if !(is_code_point(k.unicode) && is_code_point(k.selector))
+            || k.unicode == 0
+            || k.selector == 0
+        {
             continue;
         }
         let gname: Vec<u8> = bytes.to_vec();
@@ -295,6 +300,19 @@ mod parse_unicode_tests {
                 String::from_utf8_lossy(key)
             );
         }
+    }
+
+    #[test]
+    fn a_mapping_of_u_0000_is_kept() {
+        // Fonts map U+0000 to `.null`; the dump writes it, so it is read back.
+        let json = otfcc_json::parse_json(br#"{"0": ".null", "65": "A"}"#).unwrap();
+        let mut cmap = CmapTable {
+            unicodes: std::collections::BTreeMap::new(),
+            uvs: std::collections::BTreeMap::new(),
+        };
+        parse_cmap_unicodes(&mut cmap, Some(&json));
+        let keys: Vec<i32> = cmap.unicodes.keys().copied().collect();
+        assert_eq!(keys, [0, 65]);
     }
 
     #[test]
