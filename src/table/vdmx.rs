@@ -173,7 +173,7 @@ pub fn parse_vdmx(root: &ParsedValue) -> Option<Box<VdmxTable>> {
 }
 /// Serializes the table. Returns `None` when there are no ratio ranges. The
 /// `startSize`/`endSize` of each group are recomputed as the smallest and
-/// largest `y_pel_height` among its records.
+/// largest `y_pel_height` among its records, at most 255.
 pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
     let vdmx = vdmx?;
     let ratios: &Vec<VdmxRatioRange> = &vdmx.ratios;
@@ -207,10 +207,16 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
                 endsz = r.y_pel_height;
             }
         }
+        // `startsz` and `endsz` are 8 bits while a record's `yPelHeight` is
+        // 16: a size past 255 stands as 255 rather than wrapping (300 used to
+        // become 44). A group without records gets 0 for both.
+        if rr_0.records.is_empty() {
+            startsz = 0;
+        }
         let mut group: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, (rr_0.records.len()) as u32),
-            bk_int(BkCellType::B8, i32::from(startsz) as u32),
-            bk_int(BkCellType::B8, i32::from(endsz) as u32),
+            bk_int(BkCellType::B8, u32::from(startsz.min(0xff))),
+            bk_int(BkCellType::B8, u32::from(endsz.min(0xff))),
         ]);
         for r_0 in rr_0.records.iter() {
             bk_push(
@@ -286,5 +292,38 @@ mod parse_vdmx_tests {
     #[test]
     fn truncated_header_errs_instead_of_reading_oob() {
         assert!(decode_vdmx(&[0x00, 0x00]).is_err());
+    }
+
+    // A record past 255 ppem used to wrap the group's 8-bit `endsz` (300
+    // became 44); it stands as 255 now.
+    #[test]
+    fn a_size_past_255_is_capped_in_the_group_range() {
+        let vdmx = VdmxTable {
+            version: 1,
+            ratios: vec![VdmxRatioRange {
+                b_charset: 1,
+                x_ratio: 1,
+                y_start_ratio: 1,
+                y_end_ratio: 1,
+                records: [12u16, 300]
+                    .iter()
+                    .map(|&y_pel_height| VdmxRecord {
+                        y_pel_height,
+                        y_max: 900,
+                        y_min: -200,
+                    })
+                    .collect(),
+            }],
+        };
+        let data = build_vdmx(Some(&vdmx)).unwrap().data;
+        let group = usize::from(u16::from_be_bytes([data[10], data[11]]));
+        assert_eq!(&data[group + 2..group + 4], &[12, 255]);
+        let read = decode_vdmx(&data).unwrap();
+        let heights: Vec<u16> = read.ratios[0]
+            .records
+            .iter()
+            .map(|r| r.y_pel_height)
+            .collect();
+        assert_eq!(heights, [12, 300]);
     }
 }
