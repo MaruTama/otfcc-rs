@@ -76,33 +76,32 @@ pub fn sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer: Opti
 }
 // `builder.is_null()` was dead here too, same reasoning as
 // `sfnt_builder_push_table` above.
+/// The table directory's `searchRange`, `entrySelector` and `rangeShift` for
+/// `n_tables` tables: 16 times the largest power of two not above
+/// `n_tables`, the log2 of that power, and 16 times `n_tables` less
+/// `searchRange`. A directory with no tables gets zeros.
+fn table_directory_search_fields(n_tables: u16) -> (u16, u16, u16) {
+    if n_tables == 0 {
+        return (0, 0, 0);
+    }
+    let entry_selector = 15 - n_tables.leading_zeros();
+    let search_range = 16u32 << entry_selector;
+    let range_shift = 16 * u32::from(n_tables) - search_range;
+    (
+        search_range as u16,
+        entry_selector as u16,
+        range_shift as u16,
+    )
+}
 pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
     let mut buffer = Buffer::new();
     let n_tables: u16 = builder.tables.len() as u16;
-    let search_range: u16 = ((if i32::from(n_tables) < 16 {
-        8
-    } else {
-        if i32::from(n_tables) < 32 {
-            16
-        } else {
-            if i32::from(n_tables) < 64 { 32 } else { 64 }
-        }
-    }) * 16) as u16;
+    let (search_range, entry_selector, range_shift) = table_directory_search_fields(n_tables);
     buffer.write_u32be(builder.header);
     buffer.write_u16be(n_tables);
     buffer.write_u16be(search_range);
-    buffer.write_u16be(
-        (if i32::from(n_tables) < 16 {
-            3
-        } else if i32::from(n_tables) < 32 {
-            4
-        } else if i32::from(n_tables) < 64 {
-            5
-        } else {
-            6
-        }) as u16,
-    );
-    buffer.write_u16be((i32::from(n_tables) * 16 - i32::from(search_range)) as u16);
+    buffer.write_u16be(entry_selector);
+    buffer.write_u16be(range_shift);
     let mut offset: usize = (12 + i32::from(n_tables) * 16) as usize;
     let mut head_offset: usize = offset;
     for (tag, table) in builder.tables.iter() {
@@ -124,4 +123,20 @@ pub fn sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
     buffer.seek(head_offset.wrapping_add(8));
     buffer.write_u32be(0xb1b0afba_u32.wrapping_sub(whole_checksum));
     buffer
+}
+
+#[cfg(test)]
+mod table_directory_search_fields_tests {
+    use super::table_directory_search_fields;
+
+    #[test]
+    fn follows_the_largest_power_of_two_not_above_the_table_count() {
+        assert_eq!(table_directory_search_fields(1), (16, 0, 0));
+        assert_eq!(table_directory_search_fields(5), (64, 2, 16));
+        assert_eq!(table_directory_search_fields(8), (128, 3, 0));
+        assert_eq!(table_directory_search_fields(15), (128, 3, 112));
+        assert_eq!(table_directory_search_fields(16), (256, 4, 0));
+        assert_eq!(table_directory_search_fields(130), (2048, 7, 32));
+        assert_eq!(table_directory_search_fields(0), (0, 0, 0));
+    }
 }
