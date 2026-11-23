@@ -74,15 +74,18 @@ pub fn stat_single_glyph(
     let mut n_points: u16 = 0;
     let mut n_composite_points: u16;
     let mut n_composite_contours: u16;
+    // A component's matrix maps (x, y) to (a·x + c·y, b·x + d·y): the glyf
+    // chapter's x′ = xscale·x + scale10·y, y′ = scale01·x + yscale·y, with
+    // `a`, `b`, `c`, `d` read from xscale, scale01, scale10, yscale.
     for contour in &g.contours {
         for p in contour {
             // `f64::round` rounds half away from zero, like C99's `round`.
             let x: Pos = (vq_get_still(gr.x.borrow().clone()) as f64
                 + gr.a * vq_get_still(p.x.clone()) as f64
-                + gr.b * vq_get_still(p.y.clone()) as f64)
+                + gr.c * vq_get_still(p.y.clone()) as f64)
                 .round() as Pos;
             let y: Pos = (vq_get_still(gr.y.borrow().clone()) as f64
-                + gr.c * vq_get_still(p.x.clone()) as f64
+                + gr.b * vq_get_still(p.x.clone()) as f64
                 + gr.d * vq_get_still(p.y.clone()) as f64)
                 .round() as Pos;
             if x < xmin {
@@ -105,31 +108,31 @@ pub fn stat_single_glyph(
     for rr in &g.references {
         let mut glyph_ref: ComponentReference = glyf_component_reference_empty();
         glyph_ref.glyph = handle_from_index(rr.glyph.index);
-        glyph_ref.a = gr.a * rr.a + rr.b * gr.c;
-        glyph_ref.b = rr.a * gr.b + rr.b * gr.d;
+        // The component `rr` of `g`, placed where `gr` places `g`: its
+        // matrix after `gr`'s, and its offset moved by `gr`'s matrix and
+        // then by `gr`'s offset.
+        glyph_ref.a = gr.a * rr.a + gr.c * rr.b;
+        glyph_ref.b = gr.b * rr.a + gr.d * rr.b;
         glyph_ref.c = gr.a * rr.c + gr.c * rr.d;
-        glyph_ref.d = gr.b * rr.c + rr.d * gr.d;
-        // A scaled offset goes through the component's transform, the same
-        // way its points do below.
+        glyph_ref.d = gr.b * rr.c + gr.d * rr.d;
+        // A scaled offset goes through the component's own matrix first.
         let (ox, oy) = (
             vq_get_still(rr.x.borrow().clone()),
             vq_get_still(rr.y.borrow().clone()),
         );
         let (ox, oy) = if rr.scaled_offset {
             (
-                rr.a as Pos * ox + rr.b as Pos * oy,
-                rr.c as Pos * ox + rr.d as Pos * oy,
+                rr.a as Pos * ox + rr.c as Pos * oy,
+                rr.b as Pos * ox + rr.d as Pos * oy,
             )
         } else {
             (ox, oy)
         };
         glyph_ref.x = std::cell::RefCell::new(vq_create_still(
-            ox + rr.a as Pos * vq_get_still(gr.x.borrow().clone())
-                + rr.b as Pos * vq_get_still(gr.y.borrow().clone()),
+            vq_get_still(gr.x.borrow().clone()) + gr.a as Pos * ox + gr.c as Pos * oy,
         ));
         glyph_ref.y = std::cell::RefCell::new(vq_create_still(
-            oy + rr.c as Pos * vq_get_still(gr.x.borrow().clone())
-                + rr.d as Pos * vq_get_still(gr.y.borrow().clone()),
+            vq_get_still(gr.y.borrow().clone()) + gr.b as Pos * ox + gr.d as Pos * oy,
         ));
         let thatstat: GlyphStat = stat_single_glyph(
             table,
