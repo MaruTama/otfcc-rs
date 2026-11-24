@@ -333,12 +333,13 @@ fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: &mut CmapTable,
         read_format14(data, offset, cmap, budget);
     }
 }
+/// The encoding records whose subtables map Unicode code points: every
+/// Unicode platform encoding (0/0 to 0/2 are deprecated but defined, and
+/// fonts that have nothing else ship them), and Windows' Unicode BMP (3/1)
+/// and full repertoire (3/10).
 #[inline]
 fn is_valid_cmap_encoding(platform: u16, encoding: u16) -> bool {
-    matches!(
-        (platform, encoding),
-        (0, 3) | (0, 4) | (0, 5) | (3, 1) | (3, 10)
-    )
+    matches!((platform, encoding), (0, 0..=5) | (3, 1) | (3, 10))
 }
 /// The mapping subtable formats, in the order they are read: every format
 /// 12 subtable, then every format 4 one. The first mapping of a code point
