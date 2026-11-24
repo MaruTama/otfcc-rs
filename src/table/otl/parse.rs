@@ -497,7 +497,19 @@ fn figure_out_languages_from_json(
             continue;
         }
         let (required_feature, features) = read_language_features(language_val, fh);
-        if required_feature.is_none() && features.is_empty() {
+        // A language system with no features is valid, and differs from
+        // having none: the language then uses no feature, rather than
+        // falling back to the script's default. One the JSON gives empty is
+        // kept; one that is empty only because its features do not exist is
+        // still dropped.
+        let names_given = language_val
+            .get_typed(b"requiredFeature", JsonType::String)
+            .is_some()
+            || language_val
+                .get_typed(b"features", JsonType::Array)
+                .and_then(ParsedValue::as_array)
+                .is_some_and(|names| !names.is_empty());
+        if required_feature.is_none() && features.is_empty() && names_given {
             tracing::warn!(
                 "[OTFCC-fea] There is no valid feature assignments for [{}/{}]. This language term will be ignored.\n",
                 ByteStr(tag),
