@@ -11,7 +11,8 @@ use crate::table::ltsh::LtshTable;
 use crate::table::vorg::{VorgEntry, VorgTable};
 
 use crate::table::glyf::{
-    ComponentReference, GlyfTable, Glyph, GlyphStat, RefAnchorStatus, iter_glyphs,
+    ComponentReference, ContourList, GlyfTable, Glyph, GlyphStat, MASK_ON_CURVE, RefAnchorStatus,
+    iter_glyphs,
 };
 
 use crate::table::hmtx::{HmtxTable, HorizontalMetric};
@@ -182,6 +183,8 @@ pub fn stat_single_glyph(
     stat
 }
 pub fn stat_glyf(font: &mut Font) {
+    // A CFF outline is cubic, and its box is that of the curves.
+    let cubic = font.subtype == FontSubtype::Cff;
     // `stat_font` calls this only when both tables exist.
     let head = font.head.as_deref_mut().expect("head table is present");
     let glyf = font.glyf.as_mut().expect("glyf table is present");
@@ -219,7 +222,16 @@ pub fn stat_glyf(font: &mut Font) {
         gr.b = Scale::from(0);
         gr.c = Scale::from(0);
         gr.d = Scale::from(1);
-        let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0, j);
+        let mut thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0, j);
+        if cubic {
+            let g = glyf[j as usize].as_deref().expect("glyph slot is filled");
+            if g.references.is_empty()
+                && let Some([x_min, y_min, x_max, y_max]) = cubic_outline_bounds(&g.contours)
+            {
+                (thatstat.x_min, thatstat.y_min) = (x_min, y_min);
+                (thatstat.x_max, thatstat.y_max) = (x_max, y_max);
+            }
+        }
         glyf[j as usize]
             .as_mut()
             .expect("glyph slot is filled")
@@ -250,6 +262,103 @@ pub fn stat_glyf(font: &mut Font) {
     head.x_max = xmax as i16;
     head.y_min = ymin as i16;
     head.y_max = ymax as i16;
+}
+/// The bounding box (xMin, yMin, xMax, yMax) of a cubic outline: of its
+/// curves, not of their control points, as a CFF rasterizer sees it, rounded
+/// outwards to whole units.
+/// A contour is read as on-curve points joined by lines, or by a cubic
+/// through two off-curve points; a lone off-curve point, which a cubic
+/// outline does not have, counts as a point of the box. `None` when the
+/// outline has no point.
+pub(crate) fn cubic_outline_bounds(contours: &ContourList) -> Option<[Pos; 4]> {
+    let mut b = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    let mut add = |x: f64, y: f64| {
+        b[0] = b[0].min(x);
+        b[1] = b[1].min(y);
+        b[2] = b[2].max(x);
+        b[3] = b[3].max(y);
+    };
+    for contour in contours {
+        let pts: Vec<(f64, f64, bool)> = contour
+            .iter()
+            .map(|p| {
+                (
+                    vq_get_still(p.x.clone()),
+                    vq_get_still(p.y.clone()),
+                    p.on_curve & MASK_ON_CURVE != 0,
+                )
+            })
+            .collect();
+        let n = pts.len();
+        // Walk the contour from an on-curve point, wrapping around.
+        let Some(start) = pts.iter().position(|p| p.2) else {
+            pts.iter().for_each(|p| add(p.0, p.1));
+            continue;
+        };
+        let at = |k: usize| pts[(start + k) % n];
+        let mut k = 0;
+        while k < n {
+            let p0 = at(k);
+            add(p0.0, p0.1);
+            // A cubic: this on-curve point, two off-curve points, and the
+            // next on-curve point (the contour's first when it wraps).
+            if p0.2 && k + 3 <= n {
+                let (c1, c2, p3) = (at(k + 1), at(k + 2), at(k + 3));
+                if !c1.2 && !c2.2 && p3.2 {
+                    let tx = cubic_extremum_times(p0.0, c1.0, c2.0, p3.0);
+                    let ty = cubic_extremum_times(p0.1, c1.1, c2.1, p3.1);
+                    for t in tx.into_iter().chain(ty).flatten() {
+                        add(
+                            cubic_at(p0.0, c1.0, c2.0, p3.0, t),
+                            cubic_at(p0.1, c1.1, c2.1, p3.1, t),
+                        );
+                    }
+                    k += 3;
+                    continue;
+                }
+            }
+            k += 1;
+        }
+    }
+    if b[0] > b[2] {
+        return None;
+    }
+    // Rounded outwards, so the box is never smaller than the curves (a
+    // curve's extreme is rarely a whole unit): the minimums down, the
+    // maximums up, as fontTools rounds a CFF glyph's box.
+    Some([b[0].floor(), b[1].floor(), b[2].ceil(), b[3].ceil()])
+}
+/// The value at `t` of the cubic Bezier with control values `p0`..`p3`.
+fn cubic_at(p0: f64, p1: f64, p2: f64, p3: f64, t: f64) -> f64 {
+    let u = 1.0 - t;
+    u * u * u * p0 + 3.0 * u * u * t * p1 + 3.0 * u * t * t * p2 + t * t * t * p3
+}
+/// The times strictly between 0 and 1 where one coordinate of a cubic Bezier
+/// has a zero derivative: the roots of
+/// 3[(p1 - p0)(1 - t)² + 2(p2 - p1)(1 - t)t + (p3 - p2)t²].
+fn cubic_extremum_times(p0: f64, p1: f64, p2: f64, p3: f64) -> [Option<f64>; 2] {
+    let (d0, d1, d2) = (p1 - p0, p2 - p1, p3 - p2);
+    let a = d0 - 2.0 * d1 + d2;
+    let b = 2.0 * (d1 - d0);
+    let c = d0;
+    let inside = |t: f64| (t > 0.0 && t < 1.0).then_some(t);
+    if a.abs() < 1e-12 {
+        if b.abs() < 1e-12 {
+            return [None, None];
+        }
+        return [inside(-c / b), None];
+    }
+    let disc = b * b - 4.0 * a * c;
+    if disc < 0.0 {
+        return [None, None];
+    }
+    let r = disc.sqrt();
+    [inside((-b + r) / (2.0 * a)), inside((-b - r) / (2.0 * a))]
 }
 /// Whether a glyph's flattened outline has any point, as its stat counts
 /// them: the bounding box of one that does not is a placeholder of zeros.
@@ -709,31 +818,20 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     // Only ever called (from `stat_font`, via `stat_os_2`) under a
     // `.glyf.is_some()` guard.
     let glyf = font.glyf.as_ref().expect("glyf table is present");
-    let mut total_width: u32 = 0;
-    for slot in glyf.iter() {
-        let adw: Pos = vq_get_still(
-            slot.as_deref()
-                .expect("glyph slot is filled")
-                .advance_width
-                .clone(),
-        ) as Pos;
-        if adw > Pos::from(0) {
-            total_width = (Pos::from(total_width) + adw) as u32;
-        }
-    }
-    let glyf_len = glyf.len();
+    // The arithmetic average of the widths of the glyphs whose width is not
+    // 0, as `OS/2` defines it: a mark of width 0 does not pull it down.
+    // (An advance width is unsigned; a negative one does not count either.)
+    let (total, count) = iter_glyphs(glyf)
+        .map(|g| vq_get_still(g.advance_width.clone()))
+        .filter(|&w| w > 0.0)
+        .fold((0.0, 0u32), |(total, count), w| (total + w, count + 1));
     let os_2 = font.os_2.as_deref_mut().expect("os_2 table is present");
-    // `glyf_len` is attacker-controlled (a JSON `glyf` table can declare
-    // zero glyphs) and was fed straight into `wrapping_div` -- unlike
-    // `MIN / -1`, division by zero always panics regardless of which
-    // division operation is used. A font with no glyphs has no average
-    // width to compute, so this is the same "nothing to divide" guard
-    // `stat_cff_widths` a few functions down already uses for its own
-    // `nnsum.wrapping_div(nn)`.
-    os_2.x_avg_char_width = if glyf_len == 0 {
+    // A font with no glyph of any width has no average.
+    os_2.x_avg_char_width = if count == 0 {
         0
     } else {
-        (total_width as usize).wrapping_div(glyf_len) as i16
+        // `f64::round` rounds half away from zero, like C99's `round`.
+        (total / f64::from(count)).round() as i16
     };
 }
 fn stat_max_context_otl(table: &OtlTable) -> u16 {
@@ -936,7 +1034,8 @@ fn stat_cff_header(font: &mut Font) {
     if cff.font_b_box_top < f64::from(i32::from(head_y_max)) {
         cff.font_b_box_top = f64::from(i32::from(head_y_max));
     }
-    if cff.font_b_box_left < f64::from(i32::from(head_x_min)) {
+    // The box only grows to take in the glyphs': the left edge moves left.
+    if cff.font_b_box_left > f64::from(i32::from(head_x_min)) {
         cff.font_b_box_left = f64::from(i32::from(head_x_min));
     }
     if cff.font_b_box_right < f64::from(i32::from(head_x_max)) {
@@ -1140,5 +1239,59 @@ mod unicode_range_tests {
         assert!(has_bit(unicode_range_bits(0x1F600), 57)); // any non-BMP code point
         assert!(!has_bit(unicode_range_bits(0xFFFF), 57));
         assert_eq!(unicode_range_bits(0x41), [1, 0, 0, 0], "only bit 0");
+    }
+}
+
+#[cfg(test)]
+mod cubic_outline_bounds_tests {
+    use super::*;
+    use crate::table::glyf::Point;
+
+    fn point(x: f64, y: f64, on: bool) -> Point {
+        Point {
+            x: vq_create_still(x),
+            y: vq_create_still(y),
+            on_curve: i8::from(on),
+        }
+    }
+
+    // A cubic's control points lie outside its curve: the box is that of
+    // the curve, rounded outwards.
+    #[test]
+    fn the_box_follows_the_curve_not_its_control_points() {
+        // (0, 0) -> (0, 100), bulging right through controls at x = 100:
+        // the curve reaches x = 75 at t = 1/2.
+        let contour = vec![
+            point(0.0, 0.0, true),
+            point(100.0, 0.0, false),
+            point(100.0, 100.0, false),
+            point(0.0, 100.0, true),
+        ];
+        assert_eq!(
+            cubic_outline_bounds(&vec![contour]),
+            Some([0.0, 0.0, 75.0, 100.0])
+        );
+    }
+
+    // The closing segment can be a cubic back to the contour's first point,
+    // and a fractional extreme is rounded outwards.
+    #[test]
+    fn a_curve_back_to_the_start_counts_and_rounds_outwards() {
+        let contour = vec![
+            point(0.0, 0.0, true),
+            point(10.0, 0.0, true),
+            point(10.0, -11.0, false),
+            point(0.0, -11.0, false),
+        ];
+        // The curve dips to y = -8.25.
+        assert_eq!(
+            cubic_outline_bounds(&vec![contour]),
+            Some([0.0, -9.0, 10.0, 0.0])
+        );
+    }
+
+    #[test]
+    fn an_outline_without_points_has_no_box() {
+        assert_eq!(cubic_outline_bounds(&Vec::new()), None);
     }
 }
