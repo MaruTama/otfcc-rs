@@ -97,7 +97,8 @@ fn read_caret_value(data: &[u8], offset: usize) -> CaretValue {
         if format == 2 {
             v.point_index = value as i16;
         } else {
-            v.coordiante = Pos::from(value);
+            // Formats 1 and 3 hold a signed (int16) coordinate.
+            v.coordiante = Pos::from(value as i16);
         }
     }
     v
@@ -472,6 +473,16 @@ mod read_gdef_tests {
         assert_eq!(gdef.lig_carets[0].carets.len(), 1);
         assert_eq!(gdef.lig_carets[0].carets[0].format, 1);
         assert_eq!(gdef.lig_carets[0].carets[0].coordiante, 100.0);
+    }
+
+    // A CaretValue coordinate is an int16. It was read unsigned, so -50
+    // was dumped as 65486 and written back as 32767.
+    #[test]
+    fn a_negative_caret_coordinate_is_read_as_negative() {
+        let mut data = well_formed_gdef_table();
+        data[30..32].copy_from_slice(&(-50i16).to_be_bytes());
+        let gdef = read_gdef(&packet_with_gdef(data)).unwrap();
+        assert_eq!(gdef.lig_carets[0].carets[0].coordiante, -50.0);
     }
 
     #[test]
