@@ -1,4 +1,5 @@
-use crate::font::model::Font;
+use crate::font::model::{Font, FontSubtype};
+use crate::otf_writer::stat::cubic_outline_bounds;
 use crate::support::fmt::{BytePart, Hex2Upper, Hex4Upper};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
@@ -492,10 +493,18 @@ fn merge_vmtx(font: &mut Font) {
         }
         vorgs = Some(v);
     }
+    // The glyph's top: a TrueType glyph's from its `glyf` header, a CFF
+    // glyph's from its curves, which have no header to read it from.
+    let cubic = font.subtype == FontSubtype::Cff;
     let glyf = font.glyf.as_mut().expect("glyf table is present");
     let count_a = count_a as usize;
     for (j, slot) in glyf.iter_mut().enumerate() {
         let g = slot.as_mut().expect("glyph slot is filled");
+        let y_max = if cubic {
+            cubic_outline_bounds(&g.contours).map_or(0.0, |b| b[3])
+        } else {
+            g.stat.y_max
+        };
         // Same long-metric / shared-last-metric split as `merge_hmtx`.
         let (adh, tsb): (Pos, Pos) = if j < count_a {
             (vmtx.metrics[j].advance_height as Pos, vmtx.metrics[j].tsb)
@@ -511,7 +520,7 @@ fn merge_vmtx(font: &mut Font) {
             vq_create_still(if let Some(v) = &vorgs {
                 v[j]
             } else {
-                tsb + g.stat.y_max
+                tsb + y_max
             }),
         );
     }

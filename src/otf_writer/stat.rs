@@ -270,7 +270,7 @@ pub fn stat_glyf(font: &mut Font) {
 /// through two off-curve points; a lone off-curve point, which a cubic
 /// outline does not have, counts as a point of the box. `None` when the
 /// outline has no point.
-fn cubic_outline_bounds(contours: &ContourList) -> Option<[Pos; 4]> {
+pub(crate) fn cubic_outline_bounds(contours: &ContourList) -> Option<[Pos; 4]> {
     let mut b = [
         f64::INFINITY,
         f64::INFINITY,
