@@ -261,6 +261,9 @@ pub const OP_VMOVETO: CffCharstringOperator = CffCharstringOperator(4);
 
 pub const OP_AND: CffCharstringOperator = CffCharstringOperator(3075);
 
+/// `dotsection` (12 0): deprecated, and a no-op that clears the stack.
+pub const OP_DOTSECTION: CffCharstringOperator = CffCharstringOperator(3072);
+
 pub const OP_VSTEM: CffCharstringOperator = CffCharstringOperator(3);
 
 pub const OP_HSTEM: CffCharstringOperator = CffCharstringOperator(1);

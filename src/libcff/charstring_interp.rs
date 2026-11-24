@@ -16,11 +16,12 @@ use crate::libcff::parser::{
 use crate::libcff::value::{CffValue, cffnum};
 use crate::libcff::{
     CffCharstringOperator, CffStack, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR,
-    OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_ENDCHAR, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET,
-    OP_HFLEX, OP_HFLEX1, OP_HHCURVETO, OP_HINTMASK, OP_HLINETO, OP_HMOVETO, OP_HSTEM, OP_HSTEMHM,
-    OP_HVCURVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RANDOM,
-    OP_RCURVELINE, OP_RETURN, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_ROLL, OP_RRCURVETO,
-    OP_SQRT, OP_SUB, OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, OP_VVCURVETO,
+    OP_CNTRMASK, OP_DIV, OP_DOTSECTION, OP_DROP, OP_DUP, OP_ENDCHAR, OP_EQ, OP_EXCH, OP_FLEX,
+    OP_FLEX1, OP_GET, OP_HFLEX, OP_HFLEX1, OP_HHCURVETO, OP_HINTMASK, OP_HLINETO, OP_HMOVETO,
+    OP_HSTEM, OP_HSTEMHM, OP_HVCURVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT,
+    OP_RANDOM, OP_RCURVELINE, OP_RETURN, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_ROLL,
+    OP_RRCURVETO, OP_SQRT, OP_SUB, OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM,
+    OP_VVCURVETO,
 };
 use crate::logger::ByteStr;
 use crate::support::primitives::Arity;
@@ -174,6 +175,13 @@ pub fn parse_outline(
                     OP_CALLSUBR => op_callsubr(stack, outline, &subrs, depth, total_calls),
                     OP_CALLGSUBR => op_callgsubr(stack, outline, &subrs, depth, total_calls),
                     OP_RETURN => Flow::Stop,
+                    // Deprecated (5177 appendix C): read as a no-op, like
+                    // other interpreters, rather than as an unknown operator
+                    // that ends the charstring.
+                    OP_DOTSECTION => {
+                        stack.clear();
+                        Flow::Continue
+                    }
                     _ => {
                         tracing::warn!(
                             "Warning: unknown operator {} occurs in Type 2 CharString. It may caused by file corruption.",

@@ -171,3 +171,13 @@ fn op_index_with_operand_count_multiple_of_256_does_not_panic() {
     assert_eq!(stack.index, 257);
     assert_eq!(stack.num(256), 1.0);
 }
+
+#[test]
+fn dotsection_is_a_no_op_not_the_end_of_the_charstring() {
+    // `dotsection` (12 0), then the numbers 0 and 1. As an unknown
+    // operator it used to end the charstring, so nothing after it ran.
+    let data: Vec<u8> = vec![12, 0, 139, 140];
+    let mut stack = fresh_stack();
+    run(&data, &mut stack);
+    assert_eq!(stack.index, 2);
+}

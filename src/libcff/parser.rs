@@ -109,9 +109,12 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
     cff.head.minor = header_reader.u8().unwrap_or(0);
     cff.head.hdr_size = header_reader.u8().unwrap_or(0);
     cff.head.off_size = header_reader.u8().unwrap_or(0);
-    pos = u32::from(cff.head.hdr_size);
+    // The Name INDEX starts at `hdrSize` (5176 §6), and each INDEX after it
+    // where the one before ends.
+    let header_len = u32::from(cff.head.hdr_size);
+    pos = header_len;
     cff.name = parse_index(header_slice, pos);
-    pos = 4_u32.wrapping_add(get_index_length(&cff.name));
+    pos = header_len.wrapping_add(get_index_length(&cff.name));
     cff.top_dict = parse_index(header_slice, pos);
     if cff.name.count != cff.top_dict.count {
         tracing::warn!(
@@ -120,11 +123,11 @@ fn parse_cff_bytecode(cff: &mut CffFile) {
             cff.top_dict.count
         );
     }
-    pos = 4_u32
+    pos = header_len
         .wrapping_add(get_index_length(&cff.name))
         .wrapping_add(get_index_length(&cff.top_dict));
     cff.string = parse_index(header_slice, pos);
-    pos = 4_u32
+    pos = header_len
         .wrapping_add(get_index_length(&cff.name))
         .wrapping_add(get_index_length(&cff.top_dict))
         .wrapping_add(get_index_length(&cff.string));
@@ -511,18 +514,19 @@ mod cff_open_stream_tests {
     use super::*;
 
     // A minimal CFF blob whose Top DICT INDEX is empty (`count == 0`):
-    // header + 4 empty INDEXes (Name/Top DICT/String/Global Subr). With an
+    // header + 4 empty INDEXes (Name/Top DICT/String/Global Subr), each
+    // its 2-byte count alone. With an
     // empty Top DICT, `parse_cff_bytecode` never assigns `char_strings`,
     // `font_dict`, `encodings`, `charsets` or `fdselect`; dropping the
     // `CffFile` must still be sound (checked under Miri).
     #[test]
     fn open_and_close_on_a_font_with_an_empty_top_dict_does_not_construct_invalid_values() {
-        let data: [u8; 16] = [
+        let data: [u8; 12] = [
             1, 0, 4, 4, // header: major, minor, hdrSize, offSize
-            0, 0, 0, // Name INDEX: empty
-            0, 0, 0, // Top DICT INDEX: empty
-            0, 0, 0, // String INDEX: empty
-            0, 0, 0, // Global Subr INDEX: empty
+            0, 0, // Name INDEX: empty
+            0, 0, // Top DICT INDEX: empty
+            0, 0, // String INDEX: empty
+            0, 0, // Global Subr INDEX: empty
         ];
         let file = open_stream(&data);
         assert_eq!(file.top_dict.count, 0);
@@ -534,6 +538,33 @@ mod cff_open_stream_tests {
         assert!(matches!(file.fdselect, CffFdSelect::Unspecified));
         assert_eq!(file.local_subr.count, 0);
         drop(file);
+    }
+}
+
+#[cfg(test)]
+mod cff_index_layout_tests {
+    use super::*;
+
+    // The INDEXes after the header start at `hdrSize`, which can be more
+    // than 4, and an empty INDEX is its 2-byte count alone. The String
+    // INDEX here is empty, so the Global Subr INDEX starts 2 bytes after
+    // the Top DICT INDEX. Both used to be misplaced: the positions after
+    // the Name INDEX were counted from 4, and an empty INDEX as 3 bytes.
+    #[test]
+    fn indexes_follow_hdr_size_and_two_byte_empty_indexes() {
+        let data: Vec<u8> = vec![
+            1, 0, 5, 4, 0, // header with one extra byte: hdrSize 5
+            0, 1, 1, 1, 2, b'A', // Name INDEX: "A"
+            0, 1, 1, 1, 1, // Top DICT INDEX: one empty DICT
+            0, 0, // String INDEX: empty
+            0, 1, 1, 1, 2, 11, // Global Subr INDEX: one `return`
+        ];
+        let file = open_stream(&data);
+        assert_eq!(file.name.count, 1);
+        assert_eq!(file.top_dict.count, 1);
+        assert_eq!(file.string.count, 0);
+        assert_eq!(file.global_subr.count, 1);
+        assert_eq!(file.global_subr.data, [11]);
     }
 }
 
