@@ -29,6 +29,12 @@ pub struct CmapUvsKey {
 pub struct CmapTable {
     pub unicodes: std::collections::BTreeMap<i32, GlyphHandle>,
     pub uvs: std::collections::BTreeMap<CmapUvsKey, GlyphHandle>,
+    /// Whether the font's Windows mapping is the Symbol encoding (3/0)
+    /// rather than Unicode: a font whose only Windows subtables are 3/0 ones.
+    /// Its mappings are in `unicodes` all the same. Dumped as
+    /// `"cmap_encoding": "symbol"`; the build then files its format 4
+    /// subtable under 3/0 alone.
+    pub symbol: bool,
 }
 /// Maps `key` to `glyph` unless it is already mapped; returns whether it
 /// was added. The first mapping of a key always wins.
@@ -118,6 +124,9 @@ pub fn dump_cmap(table: Option<&CmapTable>, sink: &mut dyn DumpSink, options: &O
             }
         }
         sink.end_object();
+    }
+    if table.symbol {
+        sink.field(b"cmap_encoding", BuiltValue::Str(b"symbol".to_vec()));
     }
     if !table.uvs.is_empty() {
         sink.begin_field_object(b"cmap_uvs");
@@ -242,7 +251,8 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
         }
     }
 }
-/// Reads the `"cmap"` and `"cmap_uvs"` objects of `root`. Keys that are not code
+/// Reads the `"cmap"` and `"cmap_uvs"` objects of `root`, and
+/// `"cmap_encoding": "symbol"` for a font mapped under Windows Symbol. Keys that are not code
 /// points (or, for `"cmap_uvs"`, a pair of code points separated by a space),
 /// values that are not strings, and code points outside 1..=0x10FFFF are
 /// ignored. When a key repeats, the first assignment wins and a warning is
@@ -253,6 +263,10 @@ pub fn parse_cmap(root: &ParsedValue) -> Option<Box<CmapTable>> {
     let mut cmap_box: Box<CmapTable> = Box::new(CmapTable {
         unicodes: std::collections::BTreeMap::new(),
         uvs: std::collections::BTreeMap::new(),
+        symbol: root
+            .get_typed(b"cmap_encoding", JsonType::String)
+            .and_then(ParsedValue::as_str_bytes)
+            == Some(b"symbol".as_slice()),
     });
     let cmap: &mut CmapTable = cmap_box.as_mut();
     let stage = crate::logger::stage("cmap");
@@ -309,6 +323,7 @@ mod parse_unicode_tests {
         let mut cmap = CmapTable {
             unicodes: std::collections::BTreeMap::new(),
             uvs: std::collections::BTreeMap::new(),
+            symbol: false,
         };
         parse_cmap_unicodes(&mut cmap, Some(&json));
         let keys: Vec<i32> = cmap.unicodes.keys().copied().collect();
