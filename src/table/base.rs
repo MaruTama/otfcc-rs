@@ -372,8 +372,11 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
                 );
             }
         }
+        // A script with no baseline data has a NULL BaseValues offset,
+        // rather than a table setting every baseline to 0.
+        let has_values = entry_0.default_baseline_tag != 0 || !entry_0.base_values.is_empty();
         let script_record: BkBlock = bk_new_block(vec![
-            bk_ptr(BkCellType::P16, Some(base_values)),
+            bk_ptr(BkCellType::P16, has_values.then_some(base_values)),
             bk_ptr(BkCellType::P16, None),
             bk_int(BkCellType::B16, 0),
         ]);
@@ -545,5 +548,48 @@ mod parse_base_tests {
         assert_eq!(axis.entries[0].tag, HANG);
         assert_eq!(axis.entries[0].default_baseline_tag, 0);
         assert!(axis.entries[0].base_values.is_empty());
+    }
+
+    // A script without baseline data used to be written with a BaseValues
+    // table setting every baseline to 0; its offset is NULL now, and it reads
+    // back with no data while the other script keeps its values.
+    #[test]
+    fn a_script_without_baselines_gets_a_null_base_values_offset() {
+        let tag = |t: &[u8; 4]| u32::from_be_bytes(*t);
+        let axis = BaseAxis {
+            entries: vec![
+                BaseScriptEntry {
+                    tag: tag(b"hani"),
+                    default_baseline_tag: tag(b"ideo"),
+                    base_values: vec![BaseValue {
+                        tag: tag(b"ideo"),
+                        coordinate: -120.0,
+                    }],
+                },
+                BaseScriptEntry {
+                    tag: tag(b"latn"),
+                    default_baseline_tag: 0,
+                    base_values: Vec::new(),
+                },
+            ],
+        };
+        let base = BaseTable {
+            horizontal: Some(Box::new(axis)),
+            vertical: None,
+        };
+        let data = build_base(Some(&base)).unwrap().data;
+        let (horizontal, _) = decode_base(&data).unwrap();
+        let entries = horizontal.unwrap().entries;
+        assert_eq!(entries[0].base_values[0].coordinate, -120.0);
+        assert!(entries[1].base_values.is_empty());
+        // The record of `latn`: its BaseScript's first field, the BaseValues
+        // offset, is NULL.
+        let axis_at = usize::from(u16::from_be_bytes([data[4], data[5]]));
+        let list_at =
+            axis_at + usize::from(u16::from_be_bytes([data[axis_at + 2], data[axis_at + 3]]));
+        let record = list_at + 2 + 6;
+        let script_at =
+            list_at + usize::from(u16::from_be_bytes([data[record + 4], data[record + 5]]));
+        assert_eq!(&data[script_at..script_at + 2], &[0, 0]);
     }
 }
