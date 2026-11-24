@@ -219,14 +219,13 @@ impl FontTable for Os2 {
     }
 }
 
-/// Only read from TrueType fonts: a CFF font's horizontal metrics come from
-/// its CFF table. Never in JSON; the metrics live on the glyphs there.
+/// Read from every font: a CFF font's charstrings carry widths too, but
+/// OpenType layout takes them from `hmtx`. Never in JSON; the metrics live
+/// on the glyphs there.
 struct Hmtx;
 impl FontTable for Hmtx {
     fn read(&self, font: &mut Font, packet: &Packet, _options: &Options) {
-        if is_ttf(font) {
-            font.hmtx = read_hmtx(packet, font.hhea.as_deref(), font.maxp.as_deref());
-        }
+        font.hmtx = read_hmtx(packet, font.hhea.as_deref(), font.maxp.as_deref());
     }
     fn build(
         &self,
