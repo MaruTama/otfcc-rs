@@ -333,13 +333,17 @@ fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: &mut CmapTable,
         read_format14(data, offset, cmap, budget);
     }
 }
-/// The encoding records whose subtables map Unicode code points: every
-/// Unicode platform encoding (0/0 to 0/2 are deprecated but defined, and
-/// fonts that have nothing else ship them), and Windows' Unicode BMP (3/1)
-/// and full repertoire (3/10).
+/// The encoding records whose subtables are read as mappings: every Unicode
+/// platform encoding (0/0 to 0/2 are deprecated but defined, and fonts that
+/// have nothing else ship them), Windows' Unicode BMP (3/1) and full
+/// repertoire (3/10), and, in a Symbol-encoded font, Windows Symbol (3/0),
+/// whose codes are kept as they are (usually U+F020 to U+F0FF). A font with
+/// a Windows Unicode subtable too keeps that one alone, so the symbol codes
+/// do not join its Unicode mappings.
 #[inline]
-fn is_valid_cmap_encoding(platform: u16, encoding: u16) -> bool {
+fn is_valid_cmap_encoding(platform: u16, encoding: u16, symbol: bool) -> bool {
     matches!((platform, encoding), (0, 0..=5) | (3, 1) | (3, 10))
+        || (symbol && (platform, encoding) == (3, 0))
 }
 /// The mapping subtable formats, in the order they are read: every format
 /// 12 subtable, then every format 4 one. The first mapping of a code point
@@ -359,6 +363,7 @@ fn decode_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     let mut cmap_box = Box::new(CmapTable {
         unicodes: std::collections::BTreeMap::new(),
         uvs: std::collections::BTreeMap::new(),
+        symbol: false,
     });
     let cmap: &mut CmapTable = cmap_box.as_mut();
 
@@ -382,6 +387,17 @@ fn decode_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     // each time), so skipping the repeat parses never changes the final
     // table -- only the wasted work is removed.
     let mut budget: u32 = MAX_TOTAL_CMAP_MAPPINGS;
+    // A font is Symbol-encoded when its Windows subtables are 3/0 ones
+    // only; one that also has a Windows Unicode subtable stays Unicode.
+    let mut windows_encodings = Vec::with_capacity(num_tables);
+    for j in 0..num_tables {
+        let mut entry = FontReader::new(data).at(4 + 8 * j)?;
+        if entry.u16()? == 3 {
+            windows_encodings.push(entry.u16()?);
+        }
+    }
+    cmap.symbol =
+        windows_encodings.contains(&0) && !windows_encodings.iter().any(|&e| e == 1 || e == 10);
     let mut processed_offsets: std::collections::BTreeSet<usize> =
         std::collections::BTreeSet::new();
     for &required_format in FORMAT_PRIORITIES.iter().take_while(|&&f| f != 0) {
@@ -390,7 +406,7 @@ fn decode_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
             let mut entry = FontReader::new(data).at(entry_rel)?;
             let platform = entry.u16()?;
             let encoding = entry.u16()?;
-            if is_valid_cmap_encoding(platform, encoding) {
+            if is_valid_cmap_encoding(platform, encoding, cmap.symbol) {
                 let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()? as usize;
                 let Some(format) = FontReader::new(data)
                     .at(table_offset)
@@ -412,7 +428,7 @@ fn decode_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
         let mut entry = FontReader::new(data).at(entry_rel)?;
         let platform = entry.u16()?;
         let encoding = entry.u16()?;
-        if is_valid_cmap_encoding(platform, encoding) {
+        if is_valid_cmap_encoding(platform, encoding, cmap.symbol) {
             let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()? as usize;
             if processed_uvs_offsets.insert(table_offset) {
                 read_cmap_mapping_table_uvs(data, table_offset, cmap, &mut budget);
@@ -451,6 +467,7 @@ mod cmap_read_tests {
         Box::new(CmapTable {
             unicodes: std::collections::BTreeMap::new(),
             uvs: std::collections::BTreeMap::new(),
+            symbol: false,
         })
     }
 

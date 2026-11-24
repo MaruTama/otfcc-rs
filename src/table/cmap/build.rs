@@ -392,11 +392,17 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
             requires_format12 = true;
         }
     }
+    // A Symbol-encoded font files its format 4 subtable under Windows
+    // Symbol (3/0) alone, in place of Unicode 0/3 and Windows 3/1.
+    let symbol = cmap.symbol;
     let mut n_tables: u8 = (if i32::from(requires_format12) != 0 {
         4
     } else {
         2
     }) as u8;
+    if symbol {
+        n_tables -= 1;
+    }
     if has_uvs {
         n_tables = (i32::from(n_tables) + 1) as u8;
     }
@@ -425,17 +431,19 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         bk_int(BkCellType::B16, 0),
         bk_int(BkCellType::B16, i32::from(n_tables) as u32),
     ]);
-    bk_push(
-        &mut root,
-        vec![
-            bk_int(BkCellType::B16, 0),
-            bk_int(BkCellType::B16, 3),
-            bk_ptr(
-                BkCellType::P32,
-                bk_new_block_from_buffer_copy(Some(&format4)),
-            ),
-        ],
-    );
+    if !symbol {
+        bk_push(
+            &mut root,
+            vec![
+                bk_int(BkCellType::B16, 0),
+                bk_int(BkCellType::B16, 3),
+                bk_ptr(
+                    BkCellType::P32,
+                    bk_new_block_from_buffer_copy(Some(&format4)),
+                ),
+            ],
+        );
+    }
     if requires_format12 {
         bk_push(
             &mut root,
@@ -464,7 +472,7 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         &mut root,
         vec![
             bk_int(BkCellType::B16, 3),
-            bk_int(BkCellType::B16, 1),
+            bk_int(BkCellType::B16, if symbol { 0 } else { 1 }),
             bk_ptr(
                 BkCellType::P32,
                 bk_new_block_from_buffer_copy(Some(&format4)),
@@ -496,6 +504,7 @@ mod format4_tests {
         let mut cmap = CmapTable {
             unicodes: std::collections::BTreeMap::new(),
             uvs: std::collections::BTreeMap::new(),
+            symbol: false,
         };
         for &(u, gid) in pairs {
             encode_cmap_by_index(&mut cmap, u, gid);
