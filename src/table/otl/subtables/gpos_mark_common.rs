@@ -10,7 +10,9 @@ use otfcc_json::ParsedValue;
 use otfcc_binary::FontReader;
 
 use crate::support::primitives::{GlyphClass, Pos, count_u16};
-use crate::table::otl::subtables::gpos_common::{otl_anchor_absent, otl_read_anchor};
+use crate::table::otl::subtables::gpos_common::{
+    otl_anchor_absent, otl_read_anchor, parse_anchor_point,
+};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord};
 use otfcc_json::JsonType;
 /// Bounds mark-attachment anchor-slot construction (`gpos_mark_to_single.rs`'s
@@ -168,6 +170,7 @@ pub fn otl_parse_mark_array(
                 present: false,
                 x: 0.,
                 y: 0.,
+                point: None,
             },
         };
         mark.glyph = handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
@@ -185,6 +188,7 @@ pub fn otl_parse_mark_array(
                 mark.anchor.present = true;
                 mark.anchor.x = anchor_record.get_num(b"x") as Pos;
                 mark.anchor.y = anchor_record.get_num(b"y") as Pos;
+                mark.anchor.point = parse_anchor_point(anchor_record);
                 array.push(mark);
             }
         }
