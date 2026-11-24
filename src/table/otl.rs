@@ -174,6 +174,9 @@ pub struct Anchor {
     pub present: bool,
     pub x: Pos,
     pub y: Pos,
+    /// The glyph contour point the anchor follows once hinted (an Anchor
+    /// table of format 2, JSON `atPoint`); `None` for format 1.
+    pub point: Option<u16>,
 }
 /// Embedded by value in both `GposMarkToSingleSubtable` and
 /// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.

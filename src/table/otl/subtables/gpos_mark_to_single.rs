@@ -12,7 +12,7 @@ use crate::support::primitives::{GlyphClass, GlyphId, count_u16};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
-    bk_from_anchor, otl_anchor_absent, otl_parse_anchor,
+    bk_from_anchor, otl_anchor_absent, otl_parse_anchor, push_anchor_point,
 };
 use crate::table::otl::subtables::gpos_mark_common::{
     MarkAttachHeader, otl_parse_mark_array, otl_read_mark_array, read_anchor_row,
@@ -116,6 +116,7 @@ pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
         _mark.push_field(b"class", BuiltValue::str_truncated_at_nul(&mark_class_name));
         _mark.push_field(b"x", BuiltValue::Int(mark.anchor.x as i64));
         _mark.push_field(b"y", BuiltValue::Int(mark.anchor.y as i64));
+        push_anchor_point(&mut _mark, &mark.anchor);
         _marks.push_field_bytes_key(&mark.glyph.name, _mark.preserialize());
     }
     for base in subtable.base_array.iter() {
@@ -132,6 +133,7 @@ pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
                 let mut _anchor = BuiltValue::new_object(2);
                 _anchor.push_field(b"x", BuiltValue::Int(anchor.x as i64));
                 _anchor.push_field(b"y", BuiltValue::Int(anchor.y as i64));
+                push_anchor_point(&mut _anchor, anchor);
                 let anchor_key: Vec<u8> = crate::bytesbuild!(b"anchor", k as i32);
                 _base.push_field_bytes_key(&anchor_key, _anchor);
             }

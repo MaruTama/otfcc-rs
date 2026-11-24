@@ -17,16 +17,19 @@ pub fn otl_anchor_absent() -> Anchor {
         present: false,
         x: Pos::from(0),
         y: Pos::from(0),
+        point: None,
     };
     anchor
 }
-/// Reads the Anchor table at `offset`, keeping only its x and y; any format
-/// is read as format 1. An anchor that does not fit in `data` is absent.
+/// Reads the Anchor table at `offset`: its x and y, and the contour point of
+/// a format 2 anchor. A format 3 anchor's Device tables are not kept. An
+/// anchor that does not fit in `data` is absent.
 pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: Pos::from(0),
         y: Pos::from(0),
+        point: None,
     };
     let Ok(bytes) = FontReader::new(data)
         .at(offset as usize)
@@ -37,25 +40,49 @@ pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     anchor.present = true;
     anchor.x = Pos::from(i16::from_be_bytes([bytes[2], bytes[3]]));
     anchor.y = Pos::from(i16::from_be_bytes([bytes[4], bytes[5]]));
+    if u16::from_be_bytes([bytes[0], bytes[1]]) == 2 {
+        anchor.point = FontReader::new(data)
+            .at(offset as usize + 6)
+            .and_then(|mut r| r.u16())
+            .ok();
+    }
     anchor
 }
-/// Writes an anchor as `{ x, y }`, or `null` if it is absent.
+/// Adds a format 2 anchor's contour point to its JSON object, as `atPoint`.
+pub fn push_anchor_point(object: &mut BuiltValue, a: &Anchor) {
+    if let Some(point) = a.point {
+        object.push_field(b"atPoint", BuiltValue::Int(i64::from(point)));
+    }
+}
+/// The contour point a JSON anchor object gives in `atPoint`, if it gives
+/// one that fits a uint16.
+pub fn parse_anchor_point(v: &ParsedValue) -> Option<u16> {
+    v.get(b"atPoint")
+        .and_then(ParsedValue::as_num)
+        .filter(|p| (0.0..=f64::from(u16::MAX)).contains(p) && p.fract() == 0.0)
+        .map(|p| p as u16)
+}
+/// Writes an anchor as `{ x, y }` (and `atPoint` for format 2), or `null`
+/// if it is absent.
 pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
     if a.present {
-        let mut v = BuiltValue::new_object(2);
+        let mut v = BuiltValue::new_object(3);
         v.push_field(b"x", BuiltValue::position(a.x));
         v.push_field(b"y", BuiltValue::position(a.y));
+        push_anchor_point(&mut v, &a);
         v
     } else {
         BuiltValue::Null
     }
 }
-/// Reads a JSON `{ x, y }` anchor; anything that is not an object is absent.
+/// Reads a JSON `{ x, y }` anchor, with `atPoint` for format 2; anything that
+/// is not an object is absent.
 pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: Pos::from(0),
         y: Pos::from(0),
+        point: None,
     };
     let Some(v) = v.filter(|v| v.as_object().is_some()) else {
         return anchor;
@@ -63,19 +90,25 @@ pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     anchor.present = true;
     anchor.x = v.get_num_or(b"x", 0.0) as Pos;
     anchor.y = v.get_num_or(b"y", 0.0) as Pos;
+    anchor.point = parse_anchor_point(v);
     anchor
 }
-/// Lays out an anchor as a format 1 Anchor table, or `None` if it is absent
-/// (the caller then writes a null offset).
+/// Lays out an anchor as an Anchor table, format 2 when it has a contour
+/// point and format 1 otherwise, or `None` if it is absent (the caller then
+/// writes a null offset).
 pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
     if !a.present {
         return None;
     }
-    Some(bk_new_block(vec![
-        bk_int(BkCellType::B16, 1),
+    let mut cells = vec![
+        bk_int(BkCellType::B16, if a.point.is_some() { 2 } else { 1 }),
         bk_int(BkCellType::B16, i32::from(a.x as i16) as u32),
         bk_int(BkCellType::B16, i32::from(a.y as i16) as u32),
-    ]))
+    ];
+    if let Some(point) = a.point {
+        cells.push(bk_int(BkCellType::B16, u32::from(point)));
+    }
+    Some(bk_new_block(cells))
 }
 // ValueFormat bits for the four fields otfcc keeps. Device table offsets
 // are not read.
@@ -248,6 +281,32 @@ mod read_anchor_and_value_tests {
         assert!(anchor.present);
         assert_eq!(anchor.x, 100.0);
         assert_eq!(anchor.y, -50.0);
+    }
+
+    // A format 2 anchor's contour point was dropped, so the anchor came back
+    // as format 1 and no longer followed the hinted outline.
+    #[test]
+    fn a_format_2_anchor_keeps_its_contour_point() {
+        let mut data = Vec::new();
+        for v in [2u16, 100, (-50i16) as u16, 12] {
+            data.extend_from_slice(&v.to_be_bytes());
+        }
+        let anchor = otl_read_anchor(&data, 0);
+        assert_eq!((anchor.x, anchor.y, anchor.point), (100.0, -50.0, Some(12)));
+
+        let json = otfcc_json::parse_json(br#"{"x": 100, "y": -50, "atPoint": 12}"#).unwrap();
+        let parsed = otl_parse_anchor(Some(&json));
+        assert_eq!(parsed.point, Some(12));
+        let built = otfcc_binary::bk::graph::bk_build_block(bk_from_anchor(parsed).unwrap());
+        assert_eq!(built.data, data);
+
+        // A format 1 anchor stays format 1.
+        let plain = otfcc_json::parse_json(br#"{"x": 100, "y": -50}"#).unwrap();
+        let built = otfcc_binary::bk::graph::bk_build_block(
+            bk_from_anchor(otl_parse_anchor(Some(&plain))).unwrap(),
+        );
+        assert_eq!(&built.data[..2], &[0, 1]);
+        assert_eq!(built.data.len(), 6);
     }
 
     #[test]
