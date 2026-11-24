@@ -462,9 +462,13 @@ fn read_format1(
     header.require_room(rule_set_count as usize, 2).ok()?;
 
     // First pass: validate every rule set's own header and rule-offset array.
+    // A NULL rule set offset is a covered glyph with no rules, as in format 2.
     let mut total_rules: usize = 0;
     for j in 0..rule_set_count {
         let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
+        if srs_rel == 0 {
+            continue;
+        }
         let srs_offset = offset.wrapping_add(u32::from(srs_rel));
         let srs_count = checked_rule_count(slice, srs_offset as usize)?;
         total_rules = total_rules.saturating_add(srs_count as usize);
@@ -479,6 +483,9 @@ fn read_format1(
     ruleset.rules = Vec::new();
     'rulesets: for j in 0..rule_set_count {
         let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
+        if srs_rel == 0 {
+            continue;
+        }
         let srs_offset = offset.wrapping_add(u32::from(srs_rel));
         let srs_count = u16_at(slice, srs_offset as usize);
         for k in 0..srs_count {
@@ -839,6 +846,33 @@ mod chaining_read_tests {
         put(&mut data, coverage + 2, 1);
         put(&mut data, coverage + 4, 5);
         data
+    }
+
+    // A rule set offset may be NULL: that covered glyph has no rules. It
+    // was followed to the subtable's start, which read a nonsense rule set
+    // or failed the whole subtable.
+    #[test]
+    fn a_null_format_1_rule_set_is_a_glyph_without_rules() {
+        let mut data = context_format1_with_rules(1, 2);
+        // A second covered glyph (6), whose rule set is NULL.
+        let coverage = usize::from(u16::from_be_bytes([data[2], data[3]]));
+        data[4..6].copy_from_slice(&2u16.to_be_bytes()); // ruleSetCount
+        // Room for the second ruleSetOffset: shift everything after byte 8.
+        data.splice(8..8, [0, 0]);
+        let shift = |v: u16| (v + 2).to_be_bytes();
+        let cov = shift(coverage as u16);
+        data[2..4].copy_from_slice(&cov);
+        let rs = u16::from_be_bytes([data[6], data[7]]);
+        data[6..8].copy_from_slice(&shift(rs));
+        data[coverage + 2 + 2..coverage + 2 + 4].copy_from_slice(&2u16.to_be_bytes());
+        data.extend_from_slice(&6u16.to_be_bytes());
+        let mut budget = OtlReadBudget::new();
+        let before = budget.rules;
+        let sub = otl_read_contextual(&data, 0, 100, &mut budget).unwrap();
+        assert_eq!(rule_count(&sub), 1);
+        // Only the real rule was read: the NULL rule set was not followed
+        // to a rule made of the subtable's own header.
+        assert_eq!(before - budget.rules, 1);
     }
 
     fn rule_count(sub: &Subtable) -> usize {
