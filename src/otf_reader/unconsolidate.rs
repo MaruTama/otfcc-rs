@@ -513,7 +513,11 @@ fn merge_vmtx(font: &mut Font) {
     let cubic = font.subtype == FontSubtype::Cff;
     let glyf = font.glyf.as_mut().expect("glyf table is present");
     let count_a = count_a as usize;
-    for (j, slot) in glyf.iter_mut().enumerate() {
+    // `vmtx` is sized by `maxp`, but a CFF font's glyph count comes from its
+    // CFF table and can be larger: the glyphs past what `vmtx` covers keep
+    // no vertical metrics, as `merge_hmtx` does for widths.
+    let covered = count_a + vmtx.top_side_bearing.len();
+    for (j, slot) in glyf.iter_mut().enumerate().take(covered) {
         let g = slot.as_mut().expect("glyph slot is filled");
         let y_max = if cubic {
             cubic_outline_bounds(&g.contours).map_or(0.0, |b| b[3])
