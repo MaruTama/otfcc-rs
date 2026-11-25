@@ -263,28 +263,44 @@ fn cff_compile_nameindex(cff: &mut CffTable) -> Result<Buffer, BuildError> {
     Ok(buf)
 }
 /// The CID of each glyph after `.notdef`, in glyph order: the glyph's own
-/// `cid`, or its glyph id when it has none (0) or repeats an earlier one,
-/// so a font built without CIDs is numbered as before.
+/// `cid`, so a subset CID font keeps its CIDs. A glyph without one (0), or
+/// repeating an earlier glyph's, takes its glyph id, or when another glyph
+/// already has that CID, the first free CID above the given ones: each CID
+/// names one glyph (5176 §18). A font built without CIDs is numbered as before.
 pub(crate) fn charset_cids(glyf: &GlyfTable) -> Vec<u16> {
-    let mut seen = std::collections::HashSet::new();
-    glyf.iter()
-        .enumerate()
+    let given: Vec<u16> = glyf
+        .iter()
         .skip(1)
-        .map(|(gid, slot)| {
-            let cid = slot.as_deref().map_or(0, |g| g.cid);
-            if cid != 0 && seen.insert(cid) {
-                cid
+        .map(|slot| slot.as_deref().map_or(0, |g| g.cid))
+        .collect();
+    let mut taken = std::collections::HashSet::new();
+    let mut cids: Vec<Option<u16>> = given
+        .iter()
+        .map(|&cid| (cid != 0 && taken.insert(cid)).then_some(cid))
+        .collect();
+    let mut next = given.iter().copied().max().unwrap_or(0);
+    for (j, cid) in cids.iter_mut().enumerate() {
+        if cid.is_none() {
+            let gid = (j + 1) as u16;
+            let fallback = if taken.insert(gid) {
+                gid
             } else {
-                gid as u16
-            }
-        })
-        .collect()
+                next = next.saturating_add(1);
+                while !taken.insert(next) {
+                    next = next.saturating_add(1);
+                }
+                next
+            };
+            *cid = Some(fallback);
+        }
+    }
+    cids.into_iter().flatten().collect()
 }
 /// A charset for `ids`, the SIDs or CIDs of the glyphs after `.notdef`:
 /// one run of consecutive ids as a format 2 range, and otherwise the
 /// smallest of format 0 (two bytes per glyph) and the runs as format 1
 /// (three bytes per run of up to 256) or format 2 (four bytes per run).
-fn smallest_charset(ids: &[u16]) -> CffCharset {
+fn charset_for_ids(ids: &[u16]) -> CffCharset {
     let mut runs: Vec<(u16, u16)> = Vec::new();
     for &id in ids {
         match runs.last_mut() {
@@ -352,7 +368,7 @@ fn cff_make_charset(
                 })
                 .collect()
         };
-        smallest_charset(&ids)
+        charset_for_ids(&ids)
     } else {
         CffCharset::IsoAdobe
     };
@@ -637,7 +653,7 @@ pub fn build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Result<Buffe
 }
 
 #[cfg(test)]
-mod smallest_charset_tests {
+mod charset_tests {
     use super::*;
 
     fn format_of(c: &CffCharset) -> u8 {
@@ -649,13 +665,41 @@ mod smallest_charset_tests {
         }
     }
 
+    fn glyf_with_cids(cids: &[u16]) -> GlyfTable {
+        std::iter::once(0)
+            .chain(cids.iter().copied())
+            .map(|cid| {
+                let mut g = crate::table::glyf::new_glyf_glyph();
+                g.cid = cid;
+                Some(g)
+            })
+            .collect()
+    }
+
+    // Each CID names one glyph. A glyph without a CID takes its glyph id,
+    // unless another glyph already has that CID; a repeated CID is not kept.
+    #[test]
+    fn every_glyph_gets_a_cid_of_its_own() {
+        // Glyph 1 has none, and glyph 2 has CID 1, so glyph 1 takes the first
+        // free CID above the given ones (2); glyph 3 repeats CID 1 and takes
+        // its glyph id.
+        assert_eq!(charset_cids(&glyf_with_cids(&[0, 1, 1])), [2, 1, 3]);
+        // Given CIDs are kept as they are.
+        assert_eq!(
+            charset_cids(&glyf_with_cids(&[5, 500, 1000])),
+            [5, 500, 1000]
+        );
+        // No CIDs at all: numbered by glyph id, as before.
+        assert_eq!(charset_cids(&glyf_with_cids(&[0, 0, 0])), [1, 2, 3]);
+    }
+
     #[test]
     fn the_charset_format_fits_the_ids() {
         // One run, as nearly every font has: a single format 2 range.
-        let c = smallest_charset(&[1, 2, 3, 4]);
+        let c = charset_for_ids(&[1, 2, 3, 4]);
         assert_eq!(format_of(&c), 2);
         // Scattered ids: two bytes each in format 0.
-        assert_eq!(format_of(&smallest_charset(&[5, 500, 1000])), 0);
+        assert_eq!(format_of(&charset_for_ids(&[5, 500, 1000])), 0);
         // Short runs: format 1 (three bytes a run against four), with a run
         // of more than 256 split in two.
         let ids: Vec<u16> = (10..310)
@@ -663,7 +707,7 @@ mod smallest_charset_tests {
             .chain(2000..2010)
             .chain(3000..3010)
             .collect();
-        let CffCharset::Format1(ranges) = smallest_charset(&ids) else {
+        let CffCharset::Format1(ranges) = charset_for_ids(&ids) else {
             panic!("format 1 expected");
         };
         let ranges: Vec<(u16, u8)> = ranges.iter().map(|r| (r.first, r.nleft)).collect();
@@ -673,6 +717,6 @@ mod smallest_charset_tests {
         );
         // Few long runs: format 2.
         let ids: Vec<u16> = (10..600).chain(1000..1600).collect();
-        assert_eq!(format_of(&smallest_charset(&ids)), 2);
+        assert_eq!(format_of(&charset_for_ids(&ids)), 2);
     }
 }

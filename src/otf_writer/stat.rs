@@ -5,6 +5,7 @@ use crate::support::options::Options;
 use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, count_u16};
 
 use crate::table::cff::CffFontMatrix;
+use crate::table::cff::build::charset_cids;
 
 use crate::table::ltsh::LtshTable;
 
@@ -1026,12 +1027,12 @@ fn stat_cff_header(font: &mut Font) {
     let (head_y_min, head_y_max) = (head.y_min, head.y_max);
     let (head_x_min, head_x_max) = (head.x_min, head.x_max);
     let units_per_em = head.units_per_em;
-    let max_cid = font.glyf.as_ref().map(|g| {
-        crate::table::cff::build::charset_cids(g)
-            .into_iter()
-            .max()
-            .unwrap_or(0)
-    });
+    let is_cid = font.cff.as_deref().is_some_and(|cff| cff.is_cid);
+    let max_cid = font
+        .glyf
+        .as_ref()
+        .filter(|_| is_cid)
+        .map(|g| charset_cids(g).into_iter().max().unwrap_or(0));
     let cff = font.cff.as_deref_mut().expect("cff table is present");
     if cff.font_b_box_bottom > f64::from(i32::from(head_y_min)) {
         cff.font_b_box_bottom = f64::from(i32::from(head_y_min));
@@ -1048,9 +1049,7 @@ fn stat_cff_header(font: &mut Font) {
     }
     // CIDCount must be more than every CID the charset gives (5176 table
     // 10): the font's own count is kept when it is, raised when it is not.
-    if let Some(max_cid) = max_cid
-        && cff.is_cid
-    {
+    if let Some(max_cid) = max_cid {
         cff.cid_count = cff.cid_count.max(u32::from(max_cid) + 1);
     }
     if cff.is_cid {
