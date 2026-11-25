@@ -203,9 +203,10 @@ fn prev_touched(nudges: &[VqSegment], j: ShapeId, j_min: ShapeId, j_max: ShapeId
     j_prev
 }
 /// The delta of an untouched point at coordinate `at`, from its two touched
-/// neighbours, each given as (coordinate, delta). Outside the neighbours'
-/// span it takes the nearer one's delta; inside it is interpolated
-/// linearly between the two deltas, in 16.16 fixed point.
+/// neighbours, each given as (coordinate, delta). Neighbours at the same
+/// coordinate give their delta if they agree and 0 if not; otherwise, outside
+/// the neighbours' span it takes the nearer one's delta, and inside it is
+/// interpolated linearly between the two deltas, in 16.16 fixed point.
 fn interpolate_delta(at: Pos, prev: (Pos, Pos), next: (Pos, Pos)) -> Pos {
     let untouch_j: F16Dot16 = to_fixed(at);
     let untouch_prev: F16Dot16 = to_fixed(prev.0);
@@ -221,6 +222,16 @@ fn interpolate_delta(at: Pos, prev: (Pos, Pos), next: (Pos, Pos)) -> Pos {
         u_max = untouch_prev;
         d_min = delta_next;
         d_max = delta_prev;
+    }
+    // Neighbours at the same coordinate (gvar, "Inferred deltas"): their
+    // delta when it is the same, and 0 when it is not, whichever side of
+    // them the point is on.
+    if u_min == u_max {
+        return if d_min == d_max {
+            from_fixed(d_min) as Pos
+        } else {
+            0.0
+        };
     }
     if untouch_j <= u_min {
         from_fixed(d_min) as Pos
@@ -670,6 +681,17 @@ mod gvar_polymorphize_tests {
         assert_eq!(interpolate_delta(5.0, (20.0, 30.0), (0.0, 10.0)), 15.0);
         // A falling delta: 30 down to 10.
         assert_eq!(interpolate_delta(15.0, (0.0, 30.0), (20.0, 10.0)), 15.0);
+    }
+
+    // gvar, "Inferred deltas": neighbours at the same coordinate give their
+    // delta when they agree and 0 when they do not, on either side of them.
+    // It took the delta of whichever neighbour the point was past.
+    #[test]
+    fn neighbours_at_the_same_coordinate_agree_or_give_zero() {
+        for at in [50.0, 100.0, 150.0] {
+            assert_eq!(interpolate_delta(at, (100.0, 10.0), (100.0, 30.0)), 0.0);
+            assert_eq!(interpolate_delta(at, (100.0, 10.0), (100.0, 10.0)), 10.0);
+        }
     }
 
     #[test]

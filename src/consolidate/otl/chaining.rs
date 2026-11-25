@@ -77,8 +77,8 @@ struct SelfLookup<'a> {
 }
 
 /// Consolidates the match (backtrack/input/lookahead) coverages and clamps the
-/// input range to the match count. Returns `false` when some coverage ended up
-/// empty, i.e. the rule can never match.
+/// input range to the match count. Returns `false` when the rule can never
+/// match: some coverage ended up empty, or the input is empty.
 fn consolidate_match_sequence(glyph_order: &GlyphOrder, rule: &mut ChainingRule) -> bool {
     let mut possible: bool = true;
     let match_count = rule.match_count as usize;
@@ -93,7 +93,10 @@ fn consolidate_match_sequence(glyph_order: &GlyphOrder, rule: &mut ChainingRule)
     if i32::from(rule.input_ends) > i32::from(rule.match_count) {
         rule.input_ends = rule.match_count;
     }
-    possible
+    // The input is at least one glyph, the one the rule starts on: a rule
+    // with none (`inputEnds` at or before `inputBegins`, as only hand-written
+    // JSON can have) cannot be written, nor match.
+    possible && rule.input_begins < rule.input_ends
 }
 
 /// Spends one unit of the whole-font warning budget; `true` when the caller

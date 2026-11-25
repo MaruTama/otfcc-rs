@@ -210,10 +210,18 @@ mod consolidate_otl_table_tests {
             tsi_01: None,
             tsi_23: None,
             tsi5: None,
-            glyph_order: Some(Box::new(GlyphOrder {
-                entries: Vec::new(),
-                by_gid: Default::default(),
-                by_name: Default::default(),
+            glyph_order: Some(Box::new({
+                let mut go = GlyphOrder {
+                    entries: Vec::new(),
+                    by_gid: Default::default(),
+                    by_name: Default::default(),
+                };
+                crate::support::glyph_order::set_glyph_order_by_gid(
+                    &mut go,
+                    0,
+                    b".notdef".to_vec(),
+                );
+                go
             })),
         })
     }
@@ -293,11 +301,13 @@ mod consolidate_otl_table_tests {
         lookup.name = b"self_ref_lookup".to_vec();
         lookup.lookup_type = lookup_type;
         lookup.subtables.push(Some(Box::new(Subtable::Chaining(
+            // One input position, `.notdef`, which the glyph order of
+            // `empty_font_with_glyph_order` has: a rule needs an input glyph.
             ChainingSubtable::Canonical(ChainingRule {
-                match_count: 0,
+                match_count: 1,
                 input_begins: 0,
-                input_ends: 0,
-                sequence: Vec::new(),
+                input_ends: 1,
+                sequence: vec![vec![Handle::new(HandleState::Name, 0, b".notdef".to_vec())]],
                 apply: vec![ChainLookupApplication {
                     index: 0,
                     lookup: app_lookup,

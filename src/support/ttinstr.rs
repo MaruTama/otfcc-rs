@@ -431,7 +431,8 @@ fn read_number_run(
 /// opened (`state`): reads the `NPUSH*` count byte if it is due, then writes
 /// as many values as the push still expects. Returns how many of the first
 /// `npos` numbers were used, or `None` (after reporting) when the line
-/// contradicts the push.
+/// contradicts the push. A line with no number where a push count is due is
+/// reported without stopping.
 fn consume_pushed_values(
     text: &[u8],
     pt: usize,
@@ -467,7 +468,8 @@ fn consume_pushed_values(
             instrs.push((i32::from(stack[nread as usize]) >> 8) as u8);
             instrs.push((i32::from(stack[nread as usize]) & 0xff) as u8);
             nread += 1;
-        } else if i32::from(stack[0]) > 255 || i32::from(stack[0]) < 0 {
+        } else if !(0..=255).contains(&i32::from(stack[nread as usize])) {
+            // Each value is checked, not only the line's first.
             iv_error(
                 b"A value to be pushed by a byte push must be between 0 and 255",
                 pt as i32,
@@ -815,6 +817,32 @@ mod tests {
             ],
             [1, 2, 3, 4, 5]
         );
+    }
+
+    /// The bytes `parse_ttinstr` makes of the JSON instruction list `json`,
+    /// and the errors it reports.
+    fn parse(json: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
+        let value = otfcc_json::parse_json(json.as_bytes()).expect("valid JSON");
+        let (mut bytes, mut errors) = (Vec::new(), Vec::new());
+        parse_ttinstr(Some(&value), |b| bytes = b, |e, _| errors.push(e.to_vec()));
+        (bytes, errors)
+    }
+
+    // A byte push checked only the line's first value, so `5 300` was
+    // written as 5 and 44 (300 cut to a byte) with no error, while `300 5`
+    // was refused.
+    #[test]
+    fn every_value_of_a_byte_push_must_fit_a_byte() {
+        let (_, errors) = parse(r#"["PUSHB_2", "5 300", "DUP"]"#);
+        assert!(!errors.is_empty(), "300 does not fit a byte push");
+        let (_, errors) = parse(r#"["PUSHB_2", "300 5", "DUP"]"#);
+        assert!(!errors.is_empty());
+        let (bytes, errors) = parse(r#"["PUSHB_2", "5 255", "DUP"]"#);
+        assert!(errors.is_empty(), "{errors:?}");
+        assert_eq!(bytes, [TTF_PUSHB + 1, 5, 255, 0x20]);
+        // The count of an NPUSHB is not one of its values.
+        let (_, errors) = parse(r#"["NPUSHB", "2 5 300"]"#);
+        assert!(!errors.is_empty(), "300 does not fit an NPUSHB");
     }
 
     // The four opcodes whose operands sit inside the instruction stream. These
