@@ -146,6 +146,9 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
             b"cidSupplement",
             BuiltValue::Int(i64::from(table.cid_supplement)),
         );
+        if table.cid_count != 0 {
+            _cff.push_field(b"cidCount", BuiltValue::Int(i64::from(table.cid_count)));
+        }
     }
     if !table.fd_array.is_empty() {
         let mut _fd_array = BuiltValue::new_object(table.fd_array.len());

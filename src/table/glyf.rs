@@ -702,6 +702,11 @@ fn glyf_parse_glyph(
         g.y_pel = glyphdump.get_int(b"LTSH_yPel") as u8;
     }
     g.fd_select = handle_from_name(glyphdump.get_bytes_owned(b"CFF_fdSelect"));
+    // A CID-keyed glyph's CID; 0 (none given) leaves the build to number it
+    // by glyph id.
+    g.cid = glyphdump
+        .get_int(b"CFF_CID")
+        .clamp(0, i32::from(GlyphId::MAX)) as GlyphId;
     if g.y_pel == 0 {
         g.y_pel = glyphdump.get_int(b"yPel") as u8;
     }

@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::libcff::CffDictOperator;
-use crate::libcff::charset::{CffCharset, CffCharsetRangeFormat2};
+use crate::libcff::charset::{CffCharset, CffCharsetRangeFormat1, CffCharsetRangeFormat2};
 use crate::libcff::charstring_il::CffCharstringIl;
 use crate::libcff::dict::{CffDict, CffDictEntry};
 use crate::libcff::fdselect::{CffFdSelect, CffFdSelectRangeFormat3};
@@ -262,36 +262,113 @@ fn cff_compile_nameindex(cff: &mut CffTable) -> Result<Buffer, BuildError> {
     cff.font_name = Vec::new();
     Ok(buf)
 }
+/// The CID of each glyph after `.notdef`, in glyph order: the glyph's own
+/// `cid`, so a subset CID font keeps its CIDs. A glyph without one (0), or
+/// repeating an earlier glyph's, takes its glyph id, or when another glyph
+/// already has that CID, the first free CID above the given ones: each CID
+/// names one glyph (5176 §18). A font built without CIDs is numbered as before.
+pub(crate) fn charset_cids(glyf: &GlyfTable) -> Vec<u16> {
+    let given: Vec<u16> = glyf
+        .iter()
+        .skip(1)
+        .map(|slot| slot.as_deref().map_or(0, |g| g.cid))
+        .collect();
+    let mut taken = std::collections::HashSet::new();
+    let mut cids: Vec<Option<u16>> = given
+        .iter()
+        .map(|&cid| (cid != 0 && taken.insert(cid)).then_some(cid))
+        .collect();
+    let mut next = given.iter().copied().max().unwrap_or(0);
+    for (j, cid) in cids.iter_mut().enumerate() {
+        if cid.is_none() {
+            let gid = (j + 1) as u16;
+            let fallback = if taken.insert(gid) {
+                gid
+            } else {
+                next = next.saturating_add(1);
+                while !taken.insert(next) {
+                    next = next.saturating_add(1);
+                }
+                next
+            };
+            *cid = Some(fallback);
+        }
+    }
+    cids.into_iter().flatten().collect()
+}
+/// A charset for `ids`, the SIDs or CIDs of the glyphs after `.notdef`:
+/// one run of consecutive ids as a format 2 range, and otherwise the
+/// smallest of format 0 (two bytes per glyph) and the runs as format 1
+/// (three bytes per run of up to 256) or format 2 (four bytes per run).
+fn charset_for_ids(ids: &[u16]) -> CffCharset {
+    let mut runs: Vec<(u16, u16)> = Vec::new();
+    for &id in ids {
+        match runs.last_mut() {
+            Some((first, nleft)) if first.wrapping_add(*nleft).wrapping_add(1) == id => *nleft += 1,
+            _ => runs.push((id, 0)),
+        }
+    }
+    let format0 = 2 * ids.len();
+    let format1: usize = runs
+        .iter()
+        .map(|&(_, n)| 3 * (usize::from(n) / 256 + 1))
+        .sum();
+    let format2 = 4 * runs.len();
+    // One run (the ids of nearly every font) stays the single format 2
+    // range it has always been written as.
+    if runs.len() == 1 {
+        let (first, nleft) = runs[0];
+        return CffCharset::Format2(vec![CffCharsetRangeFormat2 { first, nleft }]);
+    }
+    if format0 <= format1.min(format2) {
+        CffCharset::Format0(ids.to_vec())
+    } else if format1 < format2 {
+        let mut ranges = Vec::new();
+        for (first, nleft) in runs {
+            let mut at = 0u32;
+            while at <= u32::from(nleft) {
+                let n = (u32::from(nleft) - at).min(255);
+                ranges.push(CffCharsetRangeFormat1 {
+                    first: (u32::from(first) + at) as u16,
+                    nleft: n as u8,
+                });
+                at += n + 1;
+            }
+        }
+        CffCharset::Format1(ranges)
+    } else {
+        CffCharset::Format2(
+            runs.into_iter()
+                .map(|(first, nleft)| CffCharsetRangeFormat2 { first, nleft })
+                .collect(),
+        )
+    }
+}
+/// The charset: each glyph's CID in a CID-keyed font, and the SID of its
+/// name otherwise. The ids are written as they are, not assumed to follow
+/// one another: a name can share the SID of an earlier string (a `Weight`
+/// of `B` and a glyph `B`), and a subset CID font keeps its CIDs.
 fn cff_make_charset(
     cff: &CffTable,
     glyf: &GlyfTable,
     string_hash: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> Buffer {
     let charset: CffCharset = if glyf.len() > 1 {
-        let (first, nleft) = if cff.is_cid {
-            (1, (glyf.len() - 2) as u16)
+        let ids: Vec<u16> = if cff.is_cid {
+            charset_cids(glyf)
         } else {
-            for entry in glyf.iter().skip(1) {
-                sidof(
-                    string_hash,
-                    &entry
+            glyf.iter()
+                .skip(1)
+                .map(|entry| {
+                    let name = &entry
                         .as_deref()
                         .expect("every glyph slot is filled by the time the CFF table is built")
-                        .name,
-                );
-            }
-            (
-                sidof(
-                    string_hash,
-                    &glyf[1]
-                        .as_deref()
-                        .expect("every glyph slot is filled by the time the CFF table is built")
-                        .name,
-                ) as u16,
-                (glyf.len() - 2) as u16,
-            )
+                        .name;
+                    sidof(string_hash, name) as u16
+                })
+                .collect()
         };
-        CffCharset::Format2(vec![CffCharsetRangeFormat2 { first, nleft }])
+        charset_for_ids(&ids)
     } else {
         CffCharset::IsoAdobe
     };
@@ -573,4 +650,73 @@ pub(super) fn writecff_cid_keyed(
 /// 65535 entries (the CFF 1 limit on its 16-bit count).
 pub fn build_cff(cff_and_glyf: CffAndGlyfRef, options: &Options) -> Result<Buffer, BuildError> {
     writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options)
+}
+
+#[cfg(test)]
+mod charset_tests {
+    use super::*;
+
+    fn format_of(c: &CffCharset) -> u8 {
+        match c {
+            CffCharset::Format0(_) => 0,
+            CffCharset::Format1(_) => 1,
+            CffCharset::Format2(_) => 2,
+            _ => 255,
+        }
+    }
+
+    fn glyf_with_cids(cids: &[u16]) -> GlyfTable {
+        std::iter::once(0)
+            .chain(cids.iter().copied())
+            .map(|cid| {
+                let mut g = crate::table::glyf::new_glyf_glyph();
+                g.cid = cid;
+                Some(g)
+            })
+            .collect()
+    }
+
+    // Each CID names one glyph. A glyph without a CID takes its glyph id,
+    // unless another glyph already has that CID; a repeated CID is not kept.
+    #[test]
+    fn every_glyph_gets_a_cid_of_its_own() {
+        // Glyph 1 has none, and glyph 2 has CID 1, so glyph 1 takes the first
+        // free CID above the given ones (2); glyph 3 repeats CID 1 and takes
+        // its glyph id.
+        assert_eq!(charset_cids(&glyf_with_cids(&[0, 1, 1])), [2, 1, 3]);
+        // Given CIDs are kept as they are.
+        assert_eq!(
+            charset_cids(&glyf_with_cids(&[5, 500, 1000])),
+            [5, 500, 1000]
+        );
+        // No CIDs at all: numbered by glyph id, as before.
+        assert_eq!(charset_cids(&glyf_with_cids(&[0, 0, 0])), [1, 2, 3]);
+    }
+
+    #[test]
+    fn the_charset_format_fits_the_ids() {
+        // One run, as nearly every font has: a single format 2 range.
+        let c = charset_for_ids(&[1, 2, 3, 4]);
+        assert_eq!(format_of(&c), 2);
+        // Scattered ids: two bytes each in format 0.
+        assert_eq!(format_of(&charset_for_ids(&[5, 500, 1000])), 0);
+        // Short runs: format 1 (three bytes a run against four), with a run
+        // of more than 256 split in two.
+        let ids: Vec<u16> = (10..310)
+            .chain(1000..1010)
+            .chain(2000..2010)
+            .chain(3000..3010)
+            .collect();
+        let CffCharset::Format1(ranges) = charset_for_ids(&ids) else {
+            panic!("format 1 expected");
+        };
+        let ranges: Vec<(u16, u8)> = ranges.iter().map(|r| (r.first, r.nleft)).collect();
+        assert_eq!(
+            ranges,
+            [(10, 255), (266, 43), (1000, 9), (2000, 9), (3000, 9)]
+        );
+        // Few long runs: format 2.
+        let ids: Vec<u16> = (10..600).chain(1000..1600).collect();
+        assert_eq!(format_of(&charset_for_ids(&ids)), 2);
+    }
 }
