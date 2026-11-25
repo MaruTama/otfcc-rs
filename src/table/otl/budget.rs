@@ -61,7 +61,7 @@ impl Limit {
     fn what(self) -> &'static str {
         match self {
             Limit::CoverageEntries => "coverage glyphs",
-            Limit::ClassZeroGlyphs => "glyphs in contextual class 0",
+            Limit::ClassZeroGlyphs => "glyphs in contextual classes",
             Limit::ClassCoverageCalls => "contextual class references",
             Limit::Rules => "contextual rules",
             Limit::AllRulePositions => "glyph positions in contextual rules",
@@ -86,7 +86,8 @@ impl Limit {
 pub struct OtlReadBudget {
     /// Glyphs added while building a `Coverage` (`read_coverage`).
     pub(crate) coverage_entries: u32,
-    /// Glyphs scanned by `class_coverage`.
+    /// Glyphs scanned by `class_coverage`, and glyphs copied into the first
+    /// position of format 2 contextual rules.
     pub(crate) class_zero_glyphs: u32,
     /// Calls to `class_coverage` itself.
     pub(crate) class_coverage_calls: u32,
@@ -240,6 +241,14 @@ impl OtlReadBudget {
             self.reached(Limit::ClassZeroGlyphs);
             false
         }
+    }
+
+    /// Spends `n` glyphs copied into one position of a contextual rule (the
+    /// first position of a format 2 rule, a class's covered glyphs) from the
+    /// allowance `class_coverage` draws on for the other positions; `false`
+    /// once it is gone.
+    pub(crate) fn try_spend_class_glyphs(&mut self, n: usize) -> bool {
+        self.try_spend(Limit::ClassZeroGlyphs, u32::try_from(n).unwrap_or(u32::MAX))
     }
 
     /// Charges one scanned glyph to `class_coverage`'s allowance. Callers
