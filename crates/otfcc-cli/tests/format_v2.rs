@@ -3,7 +3,7 @@
 //! that several chaining rules share named in their lookup. Building from it
 //! must give the same font, byte for byte, as building from the v1 dump of
 //! the same input, and `otfccbuild` must not follow a glyph file path out of
-//! the directory.
+//! the directory, nor read more than the directory holds.
 
 mod support;
 
@@ -138,4 +138,132 @@ fn a_glyph_path_outside_the_glyph_directory_is_refused() {
         .status()
         .expect("otfccbuild runs");
     assert!(!status.success(), "a glyph path with .. must be refused");
+}
+
+/// Builds the v2 directory `dir` and returns otfccbuild's stderr, after
+/// checking that the build failed.
+fn build_fails(dir: &Path, out: &Path, why: &str) -> String {
+    let output = Command::new(otfccbuild())
+        .arg(dir)
+        .arg("-o")
+        .arg(out)
+        .output()
+        .expect("otfccbuild runs");
+    assert!(!output.status.success(), "{why}");
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+/// A v2 directory whose `font.json` is `index`, with an empty `glyf/`.
+fn v2_dir(build: &Path, name: &str, index: &str) -> std::path::PathBuf {
+    let dir = build.join(name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("glyf")).expect("scratch directory");
+    std::fs::write(dir.join("font.json"), index).expect("scratch file");
+    dir
+}
+
+// One glyph file named by many glyphs was read and parsed once per glyph,
+// so a small directory could make the build take any amount of memory. A
+// dump never names one file twice.
+#[test]
+fn a_glyph_file_named_by_two_glyphs_is_refused() {
+    let build = scratch_dir("format-v2-shared-file");
+    let dir = v2_dir(
+        &build,
+        "shared",
+        r#"{"glyf": {".notdef": "glyf/a.json", "a": "glyf/a.json"}}"#,
+    );
+    std::fs::write(dir.join("glyf/a.json"), br#"{"advanceWidth": 1}"#).expect("scratch file");
+    let stderr = build_fails(
+        &dir,
+        &build.join("shared.ttf"),
+        "a shared file must be refused",
+    );
+    assert!(stderr.contains("named by more than one glyph"), "{stderr}");
+}
+
+// An index of more glyphs than a font can have is refused before any file
+// is read.
+#[test]
+fn an_index_of_too_many_glyphs_is_refused_before_reading() {
+    let build = scratch_dir("format-v2-too-many");
+    let entries: Vec<String> = (0..=65_535)
+        .map(|j| format!("\"g{j}\": \"glyf/g{j}.json\""))
+        .collect();
+    let dir = v2_dir(
+        &build,
+        "many",
+        &format!("{{\"glyf\": {{{}}}}}", entries.join(",")),
+    );
+    let stderr = build_fails(
+        &dir,
+        &build.join("many.ttf"),
+        "too many glyphs must be refused",
+    );
+    assert!(stderr.contains("more than a font can have"), "{stderr}");
+}
+
+// A symbolic link under `glyf/` could point at any file, a FIFO would hang
+// the build, and a device such as /dev/zero would never end: only regular
+// files are read.
+#[cfg(unix)]
+#[test]
+fn a_glyph_file_that_is_not_a_regular_file_is_refused() {
+    let build = scratch_dir("format-v2-not-a-file");
+    std::fs::write(build.join("outside.json"), br#"{"advanceWidth": 1234}"#).expect("scratch file");
+    let dir = v2_dir(&build, "link", r#"{"glyf": {".notdef": "glyf/a.json"}}"#);
+    std::os::unix::fs::symlink(build.join("outside.json"), dir.join("glyf/a.json"))
+        .expect("symlink");
+    let stderr = build_fails(
+        &dir,
+        &build.join("link.ttf"),
+        "a symbolic link must be refused",
+    );
+    assert!(stderr.contains("not a regular file"), "{stderr}");
+
+    let dir = v2_dir(&build, "fifo", r#"{"glyf": {".notdef": "glyf/a.json"}}"#);
+    let status = Command::new("mkfifo")
+        .arg(dir.join("glyf/a.json"))
+        .status()
+        .expect("mkfifo runs");
+    assert!(status.success());
+    let stderr = build_fails(&dir, &build.join("fifo.ttf"), "a FIFO must be refused");
+    assert!(stderr.contains("not a regular file"), "{stderr}");
+
+    // `glyf/` itself a link: every file under it would come from elsewhere.
+    let dir = build.join("linked-dir");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("scratch directory");
+    let elsewhere = build.join("elsewhere");
+    let _ = std::fs::remove_dir_all(&elsewhere);
+    std::fs::create_dir_all(&elsewhere).expect("scratch directory");
+    std::fs::write(elsewhere.join("a.json"), br#"{"advanceWidth": 1234}"#).expect("scratch file");
+    std::os::unix::fs::symlink(&elsewhere, dir.join("glyf")).expect("symlink");
+    std::fs::write(
+        dir.join("font.json"),
+        r#"{"glyf": {".notdef": "glyf/a.json"}}"#,
+    )
+    .expect("scratch file");
+    let stderr = build_fails(
+        &dir,
+        &build.join("linked-dir.ttf"),
+        "a linked glyf/ must be refused",
+    );
+    assert!(stderr.contains("is not a directory"), "{stderr}");
+
+    // Two names of one file (a hard link, as `A.json` is for `a.json` where
+    // case is ignored) are the same file.
+    let dir = v2_dir(
+        &build,
+        "hardlink",
+        r#"{"glyf": {".notdef": "glyf/a.json", "a": "glyf/b.json"}}"#,
+    );
+    std::fs::write(dir.join("glyf/a.json"), br#"{"advanceWidth": 1}"#).expect("scratch file");
+    std::fs::hard_link(dir.join("glyf/a.json"), dir.join("glyf/b.json")).expect("hard link");
+    let stderr = build_fails(
+        &dir,
+        &build.join("hardlink.ttf"),
+        "one file twice must be refused",
+    );
+    assert!(stderr.contains("named by more than one glyph"), "{stderr}");
 }

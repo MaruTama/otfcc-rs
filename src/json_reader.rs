@@ -12,11 +12,21 @@ use otfcc_json::JsonType;
 /// Reads a `v2` dump directory (see `json_writer::write_split_dir`) back into
 /// the single JSON tree a `v1` dump parses to: `font.json`, with each member
 /// of its `glyf` index replaced by the parsed contents of the file it names.
-/// Only files directly under `glyf/` are read, so an index entry cannot reach
-/// outside the directory.
+///
+/// What is read is bounded by the directory's own contents, as a `v1` file
+/// is by its size: only regular files directly under `glyf/` are read (a
+/// symbolic link, which could point anywhere, a FIFO or a device is
+/// refused), each at most once (two glyphs never share a file in a dump),
+/// and an index of more glyphs than a font can have is refused before any
+/// file is read.
 pub fn load_split_dir(dir: &std::path::Path) -> Result<ParsedValue, String> {
     use crate::json_writer::{SPLIT_GLYPH_DIR, SPLIT_MAIN_FILE};
     let read = |path: &std::path::Path| -> Result<ParsedValue, String> {
+        let meta = std::fs::symlink_metadata(path)
+            .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        if !meta.is_file() {
+            return Err(format!("{} is not a regular file", path.display()));
+        }
         let bytes =
             std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
         parse_json(&bytes).ok_or_else(|| format!("cannot parse {} as JSON", path.display()))
@@ -30,6 +40,19 @@ pub fn load_split_dir(dir: &std::path::Path) -> Result<ParsedValue, String> {
     else {
         return Ok(root);
     };
+    let glyph_dir = dir.join(SPLIT_GLYPH_DIR);
+    // `glyf/` itself must not be a link either, or every file under it
+    // would be read from wherever it points.
+    if !std::fs::symlink_metadata(&glyph_dir).is_ok_and(|m| m.is_dir()) {
+        return Err(format!("{} is not a directory", glyph_dir.display()));
+    }
+    if glyphs.len() > MAX_ENTRIES {
+        return Err(format!(
+            "{SPLIT_MAIN_FILE} lists {} glyphs, more than a font can have ({MAX_ENTRIES})",
+            glyphs.len()
+        ));
+    }
+    let mut files_read = std::collections::HashSet::new();
     for (_, entry) in glyphs.iter_mut() {
         let Some(path) = entry.as_str_bytes() else {
             continue;
@@ -43,10 +66,35 @@ pub fn load_split_dir(dir: &std::path::Path) -> Result<ParsedValue, String> {
                     "glyph file {:?} is not a file directly under {SPLIT_GLYPH_DIR}/",
                     String::from_utf8_lossy(path)
                 )
-            })?;
-        *entry = read(&dir.join(SPLIT_GLYPH_DIR).join(file))?;
+            })?
+            .to_owned();
+        let path = glyph_dir.join(&file);
+        // The same file under another spelling (`a.json` and `A.json` where
+        // case is ignored) is the same file: told apart by what it is, and
+        // refused before it is read again.
+        if !files_read.insert(file_identity(&path, &file)) {
+            return Err(format!(
+                "glyph file {SPLIT_GLYPH_DIR}/{file} is named by more than one glyph"
+            ));
+        }
+        *entry = read(&path)?;
     }
     Ok(root)
+}
+
+/// What tells two glyph files apart: the file itself on Unix (its device and
+/// inode), and elsewhere its name with case folded, as the dump never writes
+/// two names that differ only in case.
+fn file_identity(path: &std::path::Path, name: &str) -> (u64, u64, String) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let Ok(meta) = std::fs::metadata(path) {
+            return (meta.dev(), meta.ino(), String::new());
+        }
+    }
+    let _ = path;
+    (0, 0, name.to_lowercase())
 }
 
 fn decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
