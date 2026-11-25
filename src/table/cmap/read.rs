@@ -59,11 +59,12 @@ fn read_format12(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut 
                 break;
             }
             *budget -= 1;
-            encode_cmap_by_index(
-                cmap,
-                c as i32,
-                c.wrapping_sub(start_code).wrapping_add(start_gid) as u16,
-            );
+            // Glyph 0 is the missing glyph: a code mapped to it is not
+            // mapped, as in format 4.
+            let gid = c.wrapping_sub(start_code).wrapping_add(start_gid) as u16;
+            if gid != 0 {
+                encode_cmap_by_index(cmap, c as i32, gid);
+            }
         }
     }
 }
@@ -676,6 +677,23 @@ mod cmap_read_tests {
     }
 
     #[test]
+    fn format12_a_code_given_glyph_0_maps_nothing() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&12u16.to_be_bytes()); // format
+        data.extend_from_slice(&0u16.to_be_bytes()); // reserved
+        data.extend_from_slice(&28u32.to_be_bytes()); // length
+        data.extend_from_slice(&0u32.to_be_bytes()); // language
+        data.extend_from_slice(&1u32.to_be_bytes()); // numGroups
+        data.extend_from_slice(&0u32.to_be_bytes()); // startCharCode
+        data.extend_from_slice(&2u32.to_be_bytes()); // endCharCode
+        data.extend_from_slice(&0u32.to_be_bytes()); // startGlyphID
+        let mut cmap = empty_cmap();
+        read_format12(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
+        let read: Vec<(i32, u16)> = cmap.unicodes.iter().map(|(&u, g)| (u, g.index)).collect();
+        assert_eq!(read, [(1, 1), (2, 2)]);
+    }
+
+    #[test]
     fn format12_n_groups_large_enough_to_overflow_the_multiplication_is_a_noop() {
         // Was `length_limit < 16.wrapping_add(12.wrapping_mul(n_groups))`:
         // an n_groups this large wraps `12 * n_groups` back down to a small
@@ -751,7 +769,7 @@ mod cmap_read_tests {
         for i in 0..3u32 {
             data.extend_from_slice(&0u32.to_be_bytes()); // startCharCode
             data.extend_from_slice(&0x10ffffu32.to_be_bytes()); // endCharCode: the whole Unicode range
-            data.extend_from_slice(&(i * 1000).to_be_bytes()); // startGlyphID
+            data.extend_from_slice(&(1 + i * 1000).to_be_bytes()); // startGlyphID, past glyph 0
         }
         assert_eq!(data.len(), 52);
 
