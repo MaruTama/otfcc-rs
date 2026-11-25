@@ -9,8 +9,8 @@ use crate::libcff::fdselect::CffFdSelect;
 use crate::libcff::index::{CffIndex, CffIndexCountType};
 use crate::libcff::value::CffValue;
 use crate::libcff::{
-    CffFile, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_COPYRIGHT,
-    OP_DEFAULT_WIDTH_X, OP_EXPANSION_FACTOR, OP_FAMILY_BLUES, OP_FAMILY_NAME,
+    CffFile, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CID_COUNT,
+    OP_COPYRIGHT, OP_DEFAULT_WIDTH_X, OP_EXPANSION_FACTOR, OP_FAMILY_BLUES, OP_FAMILY_NAME,
     OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME,
     OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP,
     OP_NOMINAL_WIDTH_X, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW,
@@ -168,6 +168,7 @@ fn callback_extract_fd(
                 });
             }
         }
+        OP_CID_COUNT if top != 0 => meta.cid_count = last(1) as u32,
         OP_ROS if top >= 3 => {
             meta.is_cid = true;
             meta.cid_registry = sid(3);
@@ -460,17 +461,17 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
     // range that runs past 65535.
     let ranges: Vec<(CffSid, u32)> = match &cff_file.charsets {
         CffCharset::Format0(sids) => {
-            // An explicit SID per glyph. A CID font names its glyphs by
-            // string too here, and records the SID as the CID.
+            // An explicit SID per glyph, or in a CID font an explicit CID
+            // (5176 §18), which names no string.
             for (j, &sid) in sids.iter().enumerate() {
-                if let Some(name) = get_cff_sid(sid, &cff_file.string) {
-                    let glyph = glyphs[j + 1]
-                        .as_mut()
-                        .expect("build_outline filled every glyph slot");
+                let Some(glyph) = glyphs.get_mut(j + 1).and_then(Option::as_mut) else {
+                    break;
+                };
+                if is_cid {
+                    glyph.name = form_cid_string(sid);
+                    glyph.cid = sid as GlyphId;
+                } else if let Some(name) = get_cff_sid(sid, &cff_file.string) {
                     glyph.name = name;
-                    if is_cid {
-                        glyph.cid = sid as GlyphId;
-                    }
                 }
             }
             return;
