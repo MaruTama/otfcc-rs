@@ -625,11 +625,10 @@ fn read_format2(
 }
 /// The glyphs of `coverage` grouped by their class in `ic`, one coverage per
 /// class below `class_count`. A glyph `ic` does not list is class 0; a glyph
-/// whose class has no class set is dropped.
-/// The covered glyphs of each input class, `coverage` split by `ic`. A glyph
-/// id the font does not have is left out: it can never be matched, and
-/// copied into every rule of its class it would only be warned about once per
-/// copy.
+/// whose class has no class set is dropped. A glyph id the font does not
+/// have (`max_glyphs` or above) is left out too: it can never be matched,
+/// and copied into every rule of its class it would only be warned about
+/// once per copy.
 fn covered_glyphs_by_class(
     coverage: &Coverage,
     max_glyphs: GlyphId,
