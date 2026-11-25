@@ -40,6 +40,12 @@ pub fn load_split_dir(dir: &std::path::Path) -> Result<ParsedValue, String> {
     else {
         return Ok(root);
     };
+    let glyph_dir = dir.join(SPLIT_GLYPH_DIR);
+    // `glyf/` itself must not be a link either, or every file under it
+    // would be read from wherever it points.
+    if !std::fs::symlink_metadata(&glyph_dir).is_ok_and(|m| m.is_dir()) {
+        return Err(format!("{} is not a directory", glyph_dir.display()));
+    }
     if glyphs.len() > MAX_ENTRIES {
         return Err(format!(
             "{SPLIT_MAIN_FILE} lists {} glyphs, more than a font can have ({MAX_ENTRIES})",
@@ -62,14 +68,33 @@ pub fn load_split_dir(dir: &std::path::Path) -> Result<ParsedValue, String> {
                 )
             })?
             .to_owned();
-        if !files_read.insert(file.clone()) {
+        let path = glyph_dir.join(&file);
+        // The same file under another spelling (`a.json` and `A.json` where
+        // case is ignored) is the same file: told apart by what it is, and
+        // refused before it is read again.
+        if !files_read.insert(file_identity(&path, &file)) {
             return Err(format!(
                 "glyph file {SPLIT_GLYPH_DIR}/{file} is named by more than one glyph"
             ));
         }
-        *entry = read(&dir.join(SPLIT_GLYPH_DIR).join(&file))?;
+        *entry = read(&path)?;
     }
     Ok(root)
+}
+
+/// What tells two glyph files apart: the file itself on Unix (its device and
+/// inode), and elsewhere its name with case folded, as the dump never writes
+/// two names that differ only in case.
+fn file_identity(path: &std::path::Path, name: &str) -> (u64, u64, String) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let Ok(meta) = std::fs::metadata(path) {
+            return (meta.dev(), meta.ino(), String::new());
+        }
+    }
+    let _ = path;
+    (0, 0, name.to_lowercase())
 }
 
 fn decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {

@@ -229,4 +229,41 @@ fn a_glyph_file_that_is_not_a_regular_file_is_refused() {
     assert!(status.success());
     let stderr = build_fails(&dir, &build.join("fifo.ttf"), "a FIFO must be refused");
     assert!(stderr.contains("not a regular file"), "{stderr}");
+
+    // `glyf/` itself a link: every file under it would come from elsewhere.
+    let dir = build.join("linked-dir");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("scratch directory");
+    let elsewhere = build.join("elsewhere");
+    let _ = std::fs::remove_dir_all(&elsewhere);
+    std::fs::create_dir_all(&elsewhere).expect("scratch directory");
+    std::fs::write(elsewhere.join("a.json"), br#"{"advanceWidth": 1234}"#).expect("scratch file");
+    std::os::unix::fs::symlink(&elsewhere, dir.join("glyf")).expect("symlink");
+    std::fs::write(
+        dir.join("font.json"),
+        r#"{"glyf": {".notdef": "glyf/a.json"}}"#,
+    )
+    .expect("scratch file");
+    let stderr = build_fails(
+        &dir,
+        &build.join("linked-dir.ttf"),
+        "a linked glyf/ must be refused",
+    );
+    assert!(stderr.contains("is not a directory"), "{stderr}");
+
+    // Two names of one file (a hard link, as `A.json` is for `a.json` where
+    // case is ignored) are the same file.
+    let dir = v2_dir(
+        &build,
+        "hardlink",
+        r#"{"glyf": {".notdef": "glyf/a.json", "a": "glyf/b.json"}}"#,
+    );
+    std::fs::write(dir.join("glyf/a.json"), br#"{"advanceWidth": 1}"#).expect("scratch file");
+    std::fs::hard_link(dir.join("glyf/a.json"), dir.join("glyf/b.json")).expect("hard link");
+    let stderr = build_fails(
+        &dir,
+        &build.join("hardlink.ttf"),
+        "one file twice must be refused",
+    );
+    assert!(stderr.contains("named by more than one glyph"), "{stderr}");
 }
