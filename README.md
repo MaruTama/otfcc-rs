@@ -116,8 +116,9 @@ font.otfccdir/
   shortens fonts that use them a lot (Noto Nastaliq Urdu: 13 MB to 4.9 MB).
   `otfccbuild` accepts `classes` in v1 JSON too.
 - `otfccbuild font.otfccdir -o font.ttf` reads it back; the result is the same
-  font, byte for byte, as building from the v1 dump. It only reads glyph files
-  directly under `glyf/`.
+  font, byte for byte, as building from the v1 dump. It only reads regular
+  files directly under `glyf/` (not a symbolic link, a FIFO or a device), each
+  glyph its own file, and refuses an index of more than 65,535 glyphs.
 
 ### `otfccbuild` : Build an OpenType font file from JSON
 ```
