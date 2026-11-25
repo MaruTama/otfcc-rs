@@ -568,6 +568,7 @@ fn read_format2(
     let first_coverage = read_coverage(slice, offset.wrapping_add(u32::from(cov_rel)), t.budget);
     let first_by_class = covered_glyphs_by_class(
         &first_coverage,
+        t.max_glyphs,
         cds.ic
             .as_deref()
             .expect("format 2 always reads an input ClassDef"),
@@ -586,17 +587,33 @@ fn read_format2(
             continue;
         }
         let srs_count = u16_at(slice, offset as usize + src_rel as usize);
+        // A rule offset repeated within a class set is the same rule again,
+        // which can never match where the first did not: read once.
+        let mut seen_rules = std::collections::HashSet::new();
         for k in 0..srs_count {
-            if !t.budget.take_rule() {
-                break 'class_sets;
-            }
             let sr_rel = u16_at(
                 slice,
                 offset as usize + src_rel as usize + 2 + 2 * k as usize,
             );
+            if !seen_rules.insert(sr_rel) {
+                continue;
+            }
+            if !t.budget.take_rule() {
+                break 'class_sets;
+            }
             let sr_offset = offset
                 .wrapping_add(u32::from(src_rel))
                 .wrapping_add(u32::from(sr_rel));
+            // Each rule holds its own copy of the class's covered glyphs, so
+            // a class set of many rules aliasing one rule copies them as many
+            // times: charged like the glyphs `class_coverage` builds for the
+            // other positions.
+            if !t
+                .budget
+                .try_spend_class_glyphs(first_by_class[j as usize].len())
+            {
+                break 'class_sets;
+            }
             let first = first_by_class[j as usize].clone();
             let rule = shape.read_rule(t, sr_offset, Some(first), |t, cls, _, kind| {
                 class_coverage(t, cls, kind, &cds)
@@ -608,8 +625,16 @@ fn read_format2(
 }
 /// The glyphs of `coverage` grouped by their class in `ic`, one coverage per
 /// class below `class_count`. A glyph `ic` does not list is class 0; a glyph
-/// whose class has no class set is dropped.
-fn covered_glyphs_by_class(coverage: &Coverage, ic: &ClassDef, class_count: u16) -> Vec<Coverage> {
+/// whose class has no class set is dropped. A glyph id the font does not
+/// have (`max_glyphs` or above) is left out too: it can never be matched,
+/// and copied into every rule of its class it would only be warned about
+/// once per copy.
+fn covered_glyphs_by_class(
+    coverage: &Coverage,
+    max_glyphs: GlyphId,
+    ic: &ClassDef,
+    class_count: u16,
+) -> Vec<Coverage> {
     let class_of: std::collections::HashMap<GlyphId, GlyphClass> = ic
         .glyphs
         .iter()
@@ -617,7 +642,7 @@ fn covered_glyphs_by_class(coverage: &Coverage, ic: &ClassDef, class_count: u16)
         .map(|(g, &c)| (g.index, c))
         .collect();
     let mut by_class: Vec<Coverage> = (0..class_count).map(|_| Coverage::new()).collect();
-    for g in coverage.iter() {
+    for g in coverage.iter().filter(|g| g.index < max_glyphs) {
         let cls = class_of.get(&g.index).copied().unwrap_or(0);
         if let Some(cov) = by_class.get_mut(cls as usize) {
             push_to_coverage(cov, g.clone());
@@ -986,6 +1011,70 @@ mod chaining_read_tests {
         let mut data = context_format2_with_coverage();
         data[34..36].copy_from_slice(&3u16.to_be_bytes());
         assert_eq!(first_positions(&data), vec![vec![3]]);
+    }
+
+    /// A format 2 context subtable: a one-range coverage of glyphs
+    /// `0..covered` (all class 0, the ClassDef has no ranges) and one class
+    /// set of `rules` rules, all at the offset of one 1-glyph rule.
+    fn context_format2_aliased_rules(covered: u16, rules: u16) -> Vec<u8> {
+        let mut data = Vec::new();
+        let rule_at = 10 + 2 + 2 * rules;
+        let cov_at = rule_at + 4;
+        let cd_at = cov_at + 10;
+        for v in [2, cov_at, cd_at, 1, 10, rules] {
+            data.extend_from_slice(&v.to_be_bytes());
+        }
+        for _ in 0..rules {
+            data.extend_from_slice(&(rule_at - 10).to_be_bytes());
+        }
+        for v in [1u16, 0, 2, 1, 0, covered - 1, 0, 2, 0] {
+            data.extend_from_slice(&v.to_be_bytes());
+        }
+        data
+    }
+
+    // A class set's rules can all point at one rule. Each copied the
+    // class's covered glyphs into its first position, uncharged, so a few
+    // kilobytes made gigabytes. The repeated rule is read once now, and the
+    // copies are charged.
+    #[test]
+    fn rules_aliasing_one_rule_are_read_once() {
+        let data = context_format2_aliased_rules(1000, 3000);
+        let mut budget = OtlReadBudget::new();
+        let sub = otl_read_contextual(&data, 0, 1000, &mut budget).unwrap();
+        let Subtable::Chaining(ChainingSubtable::Poly(ruleset)) = &sub else {
+            unreachable!()
+        };
+        assert_eq!(ruleset.rules.len(), 1);
+        assert_eq!(ruleset.rules[0].as_ref().unwrap().sequence[0].len(), 1000);
+    }
+
+    #[test]
+    fn copied_first_glyphs_are_charged_to_the_class_budget() {
+        let data = context_format2_aliased_rules(1000, 1);
+        let mut budget = OtlReadBudget {
+            class_zero_glyphs: 999,
+            ..OtlReadBudget::new()
+        };
+        let sub = otl_read_contextual(&data, 0, 1000, &mut budget).unwrap();
+        let Subtable::Chaining(ChainingSubtable::Poly(ruleset)) = &sub else {
+            unreachable!()
+        };
+        assert!(ruleset.rules.is_empty());
+        assert!(budget.has_reached(Limit::ClassZeroGlyphs));
+    }
+
+    // A coverage glyph the font does not have can never match, and is not
+    // copied into the rules.
+    #[test]
+    fn covered_glyphs_past_the_glyph_count_are_left_out() {
+        let data = context_format2_aliased_rules(1000, 1);
+        let mut budget = OtlReadBudget::new();
+        let sub = otl_read_contextual(&data, 0, 10, &mut budget).unwrap();
+        let Subtable::Chaining(ChainingSubtable::Poly(ruleset)) = &sub else {
+            unreachable!()
+        };
+        assert_eq!(ruleset.rules[0].as_ref().unwrap().sequence[0].len(), 10);
     }
 
     #[test]
