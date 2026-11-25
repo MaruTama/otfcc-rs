@@ -19,15 +19,24 @@ pub struct CffIndex {
     pub offset: Vec<u32>,
     pub data: Vec<u8>,
 }
+/// The INDEX's size in bytes: its count, and unless it is empty, its
+/// offSize, offsets and data. An empty INDEX is only its count (5176 §5),
+/// 2 bytes in CFF and 4 in CFF2.
 pub(crate) fn get_index_length(i: &CffIndex) -> u32 {
+    let count_len: u32 = match i.count_type {
+        CffIndexCountType::U16 => 2,
+        CffIndexCountType::U32 => 4,
+    };
     if i.count != 0 {
         // Read from the font, so the arithmetic wraps rather than panics on
         // a corrupt offset.
         let data_len = i.offset[i.count as usize].wrapping_sub(1);
         let offsets_len = i.count.wrapping_add(1).wrapping_mul(u32::from(i.off_size));
-        3u32.wrapping_add(data_len).wrapping_add(offsets_len)
+        (count_len + 1)
+            .wrapping_add(data_len)
+            .wrapping_add(offsets_len)
     } else {
-        3
+        count_len
     }
 }
 pub(crate) fn empty_index(i: &mut CffIndex) {
@@ -126,7 +135,8 @@ pub(crate) fn build_index(index: &CffIndex) -> Result<Buffer, BuildError> {
     })?;
     let mut blob = Buffer::new();
     if index.count == 0 {
-        blob.write_bytes(&[0, 0, 0]);
+        // An empty INDEX is its count alone (5176 §5), with no offSize.
+        blob.write_bytes(&[0, 0]);
         return Ok(blob);
     }
     let offset = &index.offset;
