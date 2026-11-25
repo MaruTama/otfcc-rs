@@ -123,6 +123,13 @@ fn build_cmap_format4(cmap: &CmapTable) -> Buffer {
             continue;
         }
         let gid = i32::from(glyph.index);
+        // U+FFFF goes in a segment of its own: the last segment must start
+        // and end there.
+        if unicode == 0xffff
+            && let Some(cur) = seg.take()
+        {
+            arrays.push_segment(&cur);
+        }
         let Some(cur) = seg.as_mut() else {
             seg = Some(Format4Segment::starting_at(unicode, gid));
             continue;
@@ -393,8 +400,15 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
         }
     }
     // A Symbol-encoded font files its format 4 subtable under Windows
-    // Symbol (3/0) alone, in place of Unicode 0/3 and Windows 3/1.
-    let symbol = cmap.symbol;
+    // Symbol (3/0) alone, in place of Unicode 0/3 and Windows 3/1. Symbol
+    // has no format 12 subtable: a font whose mappings need one is written
+    // as a Unicode font.
+    let symbol = cmap.symbol && !requires_format12;
+    if cmap.symbol && requires_format12 {
+        tracing::warn!(
+            "[Build] cmap: the mappings do not fit a Windows Symbol (3/0) format 4 subtable; written as Unicode.\n"
+        );
+    }
     let mut n_tables: u8 = (if i32::from(requires_format12) != 0 {
         4
     } else {
@@ -531,6 +545,25 @@ mod format4_tests {
     fn a_mapping_of_u_ffff_is_not_followed_by_a_second_ffff_segment() {
         let sub = build_cmap_format4(&cmap_of(&[(0x41, 3), (0xffff, 5)]));
         assert_eq!(end_codes(&sub), vec![0x41, 0xffff]);
+    }
+
+    /// The startCode of every segment of a format 4 subtable.
+    fn start_codes(subtable: &Buffer) -> Vec<u16> {
+        let d = &subtable.data;
+        let seg_count = usize::from(u16::from_be_bytes([d[6], d[7]]) / 2);
+        let at = 16 + 2 * seg_count;
+        (0..seg_count)
+            .map(|j| u16::from_be_bytes([d[at + 2 * j], d[at + 1 + 2 * j]]))
+            .collect()
+    }
+
+    #[test]
+    fn u_ffff_is_a_segment_of_its_own_after_a_run_that_reaches_it() {
+        // The last segment must start and end at 0xFFFF; a run of U+FFFE
+        // and U+FFFF used to end the subtable as [0xFFFE, 0xFFFF].
+        let sub = build_cmap_format4(&cmap_of(&[(0x41, 3), (0xfffe, 7), (0xffff, 8)]));
+        assert_eq!(end_codes(&sub), vec![0x41, 0xfffe, 0xffff]);
+        assert_eq!(start_codes(&sub), vec![0x41, 0xfffe, 0xffff]);
     }
 
     #[test]

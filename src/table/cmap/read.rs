@@ -133,8 +133,11 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
         // it in.
         //
         // U+FFFF is read too: the last segment, which must end there, may
-        // map it. The usual last segment maps it to glyph 0, the missing
-        // glyph, which is not a mapping and is skipped.
+        // map it. A code mapped to glyph 0, the missing glyph, is not
+        // mapped, whichever way the segment gives it: the usual last
+        // segment maps U+FFFF so. Glyph 65535 cannot exist (a font has at
+        // most 65535 glyphs, 0 to 65534); the closing segment of fonts built
+        // by older otfcc gave it to U+FFFF with an idDelta of 0.
         let upper = u32::from(end_code);
         if id_range_offset == 0 {
             for c in u32::from(start_code)..=upper {
@@ -143,7 +146,7 @@ fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u
                 }
                 *budget -= 1;
                 let gid = (c.wrapping_add(id_delta as u32) & 0xffff) as u16;
-                if c == 0xffff && gid == 0 {
+                if gid == 0 || (c == 0xffff && gid == 0xffff) {
                     continue;
                 }
                 encode_cmap_by_index(cmap, c as i32, gid);
@@ -338,8 +341,8 @@ fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: &mut CmapTable,
 /// have nothing else ship them), Windows' Unicode BMP (3/1) and full
 /// repertoire (3/10), and, in a Symbol-encoded font, Windows Symbol (3/0),
 /// whose codes are kept as they are (usually U+F020 to U+F0FF). A font with
-/// a Windows Unicode subtable too keeps that one alone, so the symbol codes
-/// do not join its Unicode mappings.
+/// a Unicode subtable too keeps those alone, so the symbol codes do not join
+/// its Unicode mappings.
 #[inline]
 fn is_valid_cmap_encoding(platform: u16, encoding: u16, symbol: bool) -> bool {
     matches!((platform, encoding), (0, 0..=5) | (3, 1) | (3, 10))
@@ -387,17 +390,21 @@ fn decode_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     // each time), so skipping the repeat parses never changes the final
     // table -- only the wasted work is removed.
     let mut budget: u32 = MAX_TOTAL_CMAP_MAPPINGS;
-    // A font is Symbol-encoded when its Windows subtables are 3/0 ones
-    // only; one that also has a Windows Unicode subtable stays Unicode.
-    let mut windows_encodings = Vec::with_capacity(num_tables);
+    // A font is Symbol-encoded when it has a Windows Symbol (3/0) subtable
+    // and no Unicode mapping subtable (0/0 to 0/4, 3/1 or 3/10): one that
+    // has both stays Unicode, and its symbol codes do not join the Unicode
+    // mappings. A variation sequence subtable (0/5) maps no codes alone.
+    let mut has_symbol = false;
+    let mut has_unicode = false;
     for j in 0..num_tables {
         let mut entry = FontReader::new(data).at(4 + 8 * j)?;
-        if entry.u16()? == 3 {
-            windows_encodings.push(entry.u16()?);
+        match (entry.u16()?, entry.u16()?) {
+            (3, 0) => has_symbol = true,
+            (0, 0..=4) | (3, 1) | (3, 10) => has_unicode = true,
+            _ => {}
         }
     }
-    cmap.symbol =
-        windows_encodings.contains(&0) && !windows_encodings.iter().any(|&e| e == 1 || e == 10);
+    cmap.symbol = has_symbol && !has_unicode;
     let mut processed_offsets: std::collections::BTreeSet<usize> =
         std::collections::BTreeSet::new();
     for &required_format in FORMAT_PRIORITIES.iter().take_while(|&&f| f != 0) {
@@ -578,6 +585,21 @@ mod cmap_read_tests {
     fn format4_a_mapping_of_u_ffff_is_read() {
         let data = format4(&[(0x41, 0x41, 2, &[]), (0xfffe, 0xffff, 0, &[30, 31])]);
         assert_eq!(read(&data), [(0x41, 0x43), (0xfffe, 30), (0xffff, 31)]);
+    }
+
+    #[test]
+    fn format4_a_code_given_glyph_0_by_id_delta_maps_nothing() {
+        // As a glyph ID array entry of 0 does: glyph 0 is the missing glyph.
+        let data = format4(&[(0x0, 0x1, 0, &[]), (0xffff, 0xffff, 1, &[])]);
+        assert_eq!(read(&data), [(0x1, 1)]);
+    }
+
+    #[test]
+    fn format4_a_closing_segment_of_id_delta_0_maps_nothing() {
+        // Older otfcc wrote one, which gives U+FFFF glyph 65535: a glyph no
+        // font can have.
+        let data = format4(&[(0x41, 0x41, 2, &[]), (0xffff, 0xffff, 0, &[])]);
+        assert_eq!(read(&data), [(0x41, 0x43)]);
     }
 
     #[test]
