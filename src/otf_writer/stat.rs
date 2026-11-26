@@ -81,18 +81,18 @@ pub fn stat_single_glyph(
     // `a`, `b`, `c`, `d` read from xscale, scale01, scale10, yscale.
     for contour in &g.contours {
         for p in contour {
-            // Rounded half up, as fontTools' `otRound` rounds a scaled
-            // component's points (-34.5 to -34, not -35).
-            let x: Pos = (vq_get_still(gr.x.borrow().clone()) as f64
-                + gr.a * vq_get_still(p.x.clone()) as f64
-                + gr.c * vq_get_still(p.y.clone()) as f64
-                + 0.5)
-                .floor() as Pos;
-            let y: Pos = (vq_get_still(gr.y.borrow().clone()) as f64
-                + gr.b * vq_get_still(p.x.clone()) as f64
-                + gr.d * vq_get_still(p.y.clone()) as f64
-                + 0.5)
-                .floor() as Pos;
+            // The point as the glyf writer stores it (rounded half away
+            // from zero), placed by the component's transform and rounded
+            // half up, as fontTools' `otRound` rounds a scaled component's
+            // points (-34.5 to -34, not -35).
+            let (px, py) = (
+                vq_get_still(p.x.clone()).round(),
+                vq_get_still(p.y.clone()).round(),
+            );
+            let x: Pos =
+                (vq_get_still(gr.x.borrow().clone()) + gr.a * px + gr.c * py + 0.5).floor() as Pos;
+            let y: Pos =
+                (vq_get_still(gr.y.borrow().clone()) + gr.b * px + gr.d * py + 0.5).floor() as Pos;
             if x < xmin {
                 xmin = x;
             }

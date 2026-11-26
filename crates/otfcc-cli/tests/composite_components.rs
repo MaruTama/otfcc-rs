@@ -7,7 +7,9 @@
 //! - hand-written x/y beside an anchor, or `scaledOffset` with one, were
 //!   used for the box though the font draws the component by its anchor;
 //! - a scaled point at exactly -34.5 was rounded to -35, where fontTools
-//!   and the original fonts round half up to -34.
+//!   and the original fonts round half up to -34 (a point of the font is
+//!   still taken as the glyf writer stores it, rounded half away from
+//!   zero).
 //!
 //! Every expected box below is the one fontTools computes.
 
@@ -129,6 +131,17 @@ fn composite_boxes_follow_the_components_as_drawn() {
             .push((*name).into());
         font["glyf"][*name] = serde_json::json!({ "advanceWidth": 500, "contours": contours });
     }
+    // A point at -10.5 is stored as -11 (rounded half away from zero), and
+    // the box is that of the stored point.
+    let fraction = font["glyph_order"].as_array().unwrap().len();
+    font["glyph_order"]
+        .as_array_mut()
+        .unwrap()
+        .push("cc.fraction".into());
+    font["glyf"]["cc.fraction"] = serde_json::json!({
+        "advanceWidth": 500,
+        "contours": [[{ "x": -10.5, "y": 0, "on": true }, on(100, 0), on(100, 100)]],
+    });
     font["glyph_order"]
         .as_array_mut()
         .unwrap()
@@ -152,6 +165,11 @@ fn composite_boxes_follow_the_components_as_drawn() {
         &[input.as_os_str(), OsStr::new("-o"), ttf.as_os_str()],
     );
     check(&ttf, "built from hand-written JSON");
+    assert_eq!(
+        stored_bbox(&std::fs::read(&ttf).unwrap(), fraction),
+        [-11, 0, 100, 100],
+        "a point at -10.5"
+    );
 
     // Dumped, the anchored component of the nested H keeps H's own offset,
     // and built again the boxes are the same.
