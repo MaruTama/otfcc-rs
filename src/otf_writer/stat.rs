@@ -120,11 +120,18 @@ pub fn stat_single_glyph(
         glyph_ref.b = gr.b * rr.a + gr.d * rr.b;
         glyph_ref.c = gr.a * rr.c + gr.c * rr.d;
         glyph_ref.d = gr.b * rr.c + gr.d * rr.d;
-        // A scaled offset goes through the component's own matrix first.
-        let (ox, oy) = (
-            vq_get_still(rr.x.borrow().clone()),
-            vq_get_still(rr.y.borrow().clone()),
-        );
+        // The offset as the glyf writer stores it (an anchored one is not
+        // stored: the rasterizer finds it from the points). A scaled
+        // offset goes through the component's own matrix first.
+        let (ox, oy) = if rr.is_written_as_anchor() {
+            (
+                vq_get_still(rr.x.borrow().clone()),
+                vq_get_still(rr.y.borrow().clone()),
+            )
+        } else {
+            let ((x, y), _) = rr.written_offset();
+            (Pos::from(x), Pos::from(y))
+        };
         let (ox, oy) = if rr.scaled_offset {
             (
                 rr.a as Pos * ox + rr.c as Pos * oy,

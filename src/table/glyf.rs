@@ -147,6 +147,28 @@ pub struct ComponentReference {
     pub inner: ShapeId,
     pub outer: ShapeId,
 }
+impl ComponentReference {
+    /// Whether the component is placed by an anchor (a pair of point ids)
+    /// in the font it is written to, rather than by an x/y offset.
+    pub fn is_written_as_anchor(&self) -> bool {
+        self.is_anchored.get() == RefAnchorStatus::AnchorConsolidated
+    }
+    /// The x/y offset as the glyf writer stores it: rounded half away from
+    /// zero, as the points of a glyph are, and clamped to the signed 16
+    /// bits the format holds. The flag tells whether it had to be clamped.
+    pub fn written_offset(&self) -> ((i16, i16), bool) {
+        let fit = |v: Pos| {
+            let r = v.round();
+            (
+                r.clamp(-32768.0, 32767.0) as i16,
+                !(-32768.0..=32767.0).contains(&r),
+            )
+        };
+        let (x, x_clamped) = fit(vq_get_still(self.x.borrow().clone()));
+        let (y, y_clamped) = fit(vq_get_still(self.y.borrow().clone()));
+        ((x, y), x_clamped || y_clamped)
+    }
+}
 /// A glyph's component references.
 pub type ReferenceList = Vec<ComponentReference>;
 /// Measurements of a glyph, filled in by `stat_glyf`: its bounding box,
