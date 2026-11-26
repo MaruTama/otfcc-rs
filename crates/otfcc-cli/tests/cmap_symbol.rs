@@ -2,8 +2,9 @@
 //! otfcc did not read 3/0, so a font with no other subtable came back with
 //! no `cmap`. Its mappings are read now, the encoding is dumped as
 //! `"cmap_encoding": "symbol"`, and the build files the format 4 subtable
-//! under 3/0 again. A font with a Windows Unicode subtable as well keeps
-//! that one alone.
+//! under 3/0 again. A font with a Unicode subtable as well (0/x, 3/1 or
+//! 3/10) keeps those alone, and a symbol font whose mappings need format 12
+//! is built as a Unicode one: Symbol has no format 12 subtable.
 
 mod support;
 
@@ -100,4 +101,52 @@ fn a_symbol_cmap_survives_a_dump_and_a_build() {
             .get("cmap_encoding")
             .is_none()
     );
+
+    // So does one whose Unicode subtable is on the Unicode platform only.
+    let mut windows_symbol = original.clone();
+    let cmap = cmap_offset(&windows_symbol);
+    for (i, record) in encodings(&original).into_iter().enumerate() {
+        if record.0 == 3 {
+            let at = cmap + 4 + 8 * i;
+            windows_symbol[at..at + 4].copy_from_slice(&[0, 3, 0, 0]);
+        }
+    }
+    let records = encodings(&windows_symbol);
+    assert!(
+        records.contains(&(0, 3)) && records.contains(&(3, 0)),
+        "{records:?}"
+    );
+    let windows_symbol_ttf = build.join("windows-symbol.ttf");
+    std::fs::write(&windows_symbol_ttf, &windows_symbol).unwrap();
+    let dumped = dump(&windows_symbol_ttf, &build.join("windows-symbol.json"));
+    assert!(dumped.get("cmap_encoding").is_none());
+    assert_eq!(dumped["cmap"], unicode["cmap"]);
+
+    // A symbol font with a mapping above U+FFFF is built as Unicode.
+    let mut wide: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(build.join("symbol.json")).unwrap()).unwrap();
+    wide["cmap"]["128512"] = "A".into();
+    let wide_json = build.join("wide.json");
+    std::fs::write(&wide_json, serde_json::to_vec(&wide).unwrap()).unwrap();
+    let wide_ttf = build.join("wide.ttf");
+    let built = std::process::Command::new(otfccbuild())
+        .args([
+            wide_json.as_os_str(),
+            OsStr::new("-o"),
+            wide_ttf.as_os_str(),
+        ])
+        .output()
+        .expect("otfccbuild runs");
+    assert!(built.status.success(), "otfccbuild failed");
+    let stderr = String::from_utf8_lossy(&built.stderr);
+    assert!(stderr.contains("written as Unicode"), "{stderr}");
+    let records = encodings(&std::fs::read(&wide_ttf).unwrap());
+    assert!(!records.contains(&(3, 0)), "{records:?}");
+    assert!(
+        records.contains(&(3, 1)) && records.contains(&(3, 10)),
+        "{records:?}"
+    );
+    let again = dump(&wide_ttf, &build.join("wide.dump.json"));
+    assert!(again.get("cmap_encoding").is_none());
+    assert_eq!(again["cmap"], wide["cmap"]);
 }
