@@ -135,6 +135,31 @@ pub(crate) fn read_feature_params(
     }
 }
 
+impl FeatureParams {
+    /// Whether `size` parameters make sense, by the test HarfBuzz applies
+    /// (the specification describes the same values): a design size, and
+    /// either nothing else or a range that holds the design size and a
+    /// subfamily name ID in the font-specific range 256 to 32767. Other
+    /// kinds of parameters always pass.
+    pub(crate) fn is_plausible(&self) -> bool {
+        match *self {
+            FeatureParams::Size {
+                design_size,
+                subfamily,
+                subfamily_name,
+                range_start,
+                range_end,
+            } => {
+                design_size != 0
+                    && ((subfamily, subfamily_name, range_start, range_end) == (0, 0, 0, 0)
+                        || ((range_start..=range_end).contains(&design_size)
+                            && (256..=32767).contains(&subfamily_name)))
+            }
+            _ => true,
+        }
+    }
+}
+
 /// The binary table of `params`.
 pub(crate) fn build_feature_params(params: &FeatureParams) -> Buffer {
     let mut b = Buffer::new();
@@ -357,6 +382,30 @@ mod tests {
         let parsed = parse_json(text.as_bytes()).unwrap();
         assert_eq!(parse_feature_params(&parsed, tag), Some(params));
         text
+    }
+
+    #[test]
+    fn size_parameters_must_make_sense_as_harfbuzz_requires() {
+        let size = |design_size, subfamily, subfamily_name, range_start, range_end| {
+            FeatureParams::Size {
+                design_size,
+                subfamily,
+                subfamily_name,
+                range_start,
+                range_end,
+            }
+            .is_plausible()
+        };
+        assert!(size(100, 0, 0, 0, 0), "a design size alone");
+        assert!(size(100, 3, 256, 80, 120));
+        assert!(!size(0, 0, 0, 0, 0), "no design size");
+        assert!(
+            !size(100, 3, 256, 110, 120),
+            "a range without the design size"
+        );
+        assert!(!size(100, 3, 255, 80, 120), "a name ID below 256");
+        assert!(!size(100, 3, 32768, 80, 120), "a name ID above 32767");
+        assert!(FeatureParams::StylisticSet { ui_label: 0 }.is_plausible());
     }
 
     #[test]

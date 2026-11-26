@@ -541,8 +541,9 @@ fn figure_out_languages_from_json(
 /// Reads the `tag` table (`"GSUB"`/`"GPOS"`) from `root`. `lookups` and
 /// `lookupOrder` are read first, into a `PendingLookups`; then `features`
 /// is rewritten in place (`feature_merger_activate`); then `languages` is
-/// read. Nothing is parsed, and no lookup is warned about, unless all three
-/// of `lookups`, `features` and `languages` are present.
+/// read. Nothing is parsed, and no lookup is warned about, unless both
+/// `features` and `languages` are present. A missing `lookups` is no
+/// lookups: a table of only a `size` feature needs none.
 pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
     let table = root.get_typed_mut(tag, JsonType::Object)?;
     let mut otl_box: Box<OtlTable> = Box::new(OtlTable {
@@ -552,8 +553,7 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
     });
     let languages_present = table.get_typed(b"languages", JsonType::Object).is_some();
     let features_present = table.get_typed(b"features", JsonType::Object).is_some();
-    let lookups_present = table.get_typed(b"lookups", JsonType::Object).is_some();
-    if languages_present && features_present && lookups_present {
+    if languages_present && features_present {
         let stage = crate::logger::stage(ByteStr(tag));
         let mut lh: PendingLookups =
             figure_out_lookups_from_json(table.get_typed(b"lookups", JsonType::Object), tag);
@@ -573,7 +573,9 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
                 &fh,
                 tag,
             );
-        if lh.entries.is_empty() || fh.entries.is_empty() || sh.is_empty() {
+        // No lookup is fine when a feature carries parameters instead: a
+        // `size` feature has none, and may be all a GPOS holds.
+        if fh.entries.is_empty() || sh.is_empty() {
             // Nothing usable: close the stage without a `Finish` line.
             drop(stage);
         } else {

@@ -94,3 +94,103 @@ fn feature_parameters_survive_a_build_and_a_dump() {
     assert_eq!(size_feature["params"], size);
     assert_eq!(size_feature["lookups"], serde_json::json!([]));
 }
+
+fn be16(data: &[u8], at: usize) -> usize {
+    usize::from(u16::from_be_bytes([data[at], data[at + 1]]))
+}
+
+/// The offset of the first Feature table of the GPOS in `font`, and that of
+/// the FeatureList.
+fn first_gpos_feature(font: &[u8]) -> (usize, usize) {
+    let gpos = (0..be16(font, 4))
+        .map(|i| 12 + 16 * i)
+        .find(|&r| &font[r..r + 4] == b"GPOS")
+        .map(|r| u32::from_be_bytes([font[r + 8], font[r + 9], font[r + 10], font[r + 11]]))
+        .expect("a GPOS table") as usize;
+    let feature_list = gpos + be16(font, gpos + 6);
+    (feature_list + be16(font, feature_list + 6), feature_list)
+}
+
+/// A `size` feature is all a GPOS needs to hold, and parameters written at
+/// an offset counted from the FeatureList (as older Adobe tools did) are
+/// found there.
+#[test]
+fn a_gpos_of_only_a_size_feature_is_kept() {
+    let build = scratch_dir("feature-params-size-only");
+    let base = build.join("base.json");
+    run_ok(
+        "base dump",
+        &otfccdump(),
+        &[
+            payload("iosevka-r.ttf").as_os_str(),
+            OsStr::new("-o"),
+            base.as_os_str(),
+        ],
+    );
+    let mut font: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&base).unwrap()).unwrap();
+    let size = serde_json::json!({
+        "designSize": 10, "subfamily": 3, "subfamilyName": 256, "rangeStart": 8, "rangeEnd": 12,
+    });
+    font["GPOS"] = serde_json::json!({
+        "languages": { "DFLT_DFLT": { "features": ["size_00000"] } },
+        "features": { "size_00000": { "lookups": [], "params": size } },
+        "lookups": {},
+        "lookupOrder": [],
+    });
+    let input = build.join("size.json");
+    std::fs::write(&input, serde_json::to_vec(&font).unwrap()).unwrap();
+    let ttf = build.join("size.ttf");
+    let built = std::process::Command::new(otfccbuild())
+        .args([input.as_os_str(), OsStr::new("-o"), ttf.as_os_str()])
+        .output()
+        .expect("otfccbuild runs");
+    assert!(built.status.success(), "otfccbuild failed");
+    let stderr = String::from_utf8_lossy(&built.stderr);
+    assert!(
+        !stderr.contains("Ignoring invalid or incomplete OTL table GPOS"),
+        "{stderr}"
+    );
+    let dump = |ttf: &std::path::Path, name: &str| -> serde_json::Value {
+        let out = build.join(name);
+        run_ok(
+            "dump",
+            &otfccdump(),
+            &[ttf.as_os_str(), OsStr::new("-o"), out.as_os_str()],
+        );
+        serde_json::from_str(&std::fs::read_to_string(out).unwrap()).unwrap()
+    };
+    assert_eq!(
+        dump(&ttf, "size.dump.json")["GPOS"]["features"]["size_00000"]["params"],
+        size
+    );
+
+    // No `lookups` at all is no lookups.
+    font["GPOS"].as_object_mut().unwrap().remove("lookups");
+    font["GPOS"].as_object_mut().unwrap().remove("lookupOrder");
+    let bare = build.join("bare.json");
+    std::fs::write(&bare, serde_json::to_vec(&font).unwrap()).unwrap();
+    let bare_ttf = build.join("bare.ttf");
+    run_ok(
+        "build without lookups",
+        &otfccbuild(),
+        &[bare.as_os_str(), OsStr::new("-o"), bare_ttf.as_os_str()],
+    );
+    assert_eq!(
+        dump(&bare_ttf, "bare.dump.json")["GPOS"]["features"]["size_00000"]["params"],
+        size
+    );
+
+    // The same parameters, their offset counted from the FeatureList.
+    let mut bytes = std::fs::read(&ttf).unwrap();
+    let (feature, feature_list) = first_gpos_feature(&bytes);
+    let params = feature + be16(&bytes, feature);
+    let old_style = (params - feature_list) as u16;
+    bytes[feature..feature + 2].copy_from_slice(&old_style.to_be_bytes());
+    let old_ttf = build.join("old-style.ttf");
+    std::fs::write(&old_ttf, &bytes).unwrap();
+    assert_eq!(
+        dump(&old_ttf, "old-style.dump.json")["GPOS"]["features"]["size_00000"]["params"],
+        size
+    );
+}
