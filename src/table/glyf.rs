@@ -579,7 +579,10 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     glyph_ref.d = refdump.get_num_or(b"d", 1.0) as Scale;
     glyph_ref.round_to_grid = refdump.get_bool(b"roundToGrid");
     glyph_ref.use_my_metrics = refdump.get_bool(b"useMyMetrics");
-    glyph_ref.scaled_offset = refdump.get_bool(b"scaledOffset");
+    // An anchored component's offset is where its point meets the outer
+    // one, never scaled: the flag means nothing without x/y arguments, and
+    // the reader drops it there too.
+    glyph_ref.scaled_offset = refdump.get_bool(b"scaledOffset") && !refdump.get_bool(b"isAnchored");
     if refdump.get_bool(b"isAnchored") {
         glyph_ref.is_anchored = std::cell::Cell::new(RefAnchorStatus::AnchorXy);
         glyph_ref.inner = refdump.get_int(b"inner") as ShapeId;
