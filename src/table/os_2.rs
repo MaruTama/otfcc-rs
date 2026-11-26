@@ -540,8 +540,16 @@ pub fn parse_os_2(root: &ParsedValue) -> Option<Box<Os2Table>> {
     };
     if let Some(table) = root.get_typed(b"OS_2", JsonType::Object) {
         let stage = crate::logger::stage("OS/2");
-        // A table without a version gets version 1, as it always did.
-        os_2.version = table.get_num_or(b"version", 1.0) as u16;
+        // A table without a version gets version 1, as it always did, and
+        // so does one whose version is no version at all: a negative one
+        // was turned into 0 and written as the shortest table.
+        let version = table.get_num_or(b"version", 1.0);
+        os_2.version = if version >= 0.0 && version <= f64::from(u16::MAX) {
+            version as u16
+        } else {
+            tracing::warn!("[OS/2] version {version} is not a version; version 1 is written.\n");
+            1
+        };
         os_2.x_avg_char_width = table.get_num(b"xAvgCharWidth") as i16;
         os_2.us_weight_class = table.get_num(b"usWeightClass") as u16;
         os_2.us_width_class = table.get_num(b"usWidthClass") as u16;

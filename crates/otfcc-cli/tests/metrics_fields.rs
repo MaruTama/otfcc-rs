@@ -63,3 +63,43 @@ fn metrics_fields_survive_a_build_and_a_dump() {
         "the LTSH of ones was dropped"
     );
 }
+
+/// A negative `OS/2.version` is no version: it was turned into 0 and the
+/// table written as the shortest, version 0 one (#704). Version 1 is written,
+/// as for a table without a version, with a warning.
+#[test]
+fn a_negative_os2_version_is_written_as_version_1() {
+    let build = scratch_dir("metrics-fields-os2-version");
+    let base = build.join("base.json");
+    run_ok(
+        "base dump",
+        &otfccdump(),
+        &[
+            payload("iosevka-r.ttf").as_os_str(),
+            OsStr::new("-o"),
+            base.as_os_str(),
+        ],
+    );
+    let mut font: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&base).unwrap()).unwrap();
+    font["OS_2"]["version"] = (-1).into();
+    let input = build.join("negative.json");
+    std::fs::write(&input, serde_json::to_vec(&font).unwrap()).unwrap();
+    let ttf = build.join("negative.ttf");
+    let built = std::process::Command::new(otfccbuild())
+        .args([input.as_os_str(), OsStr::new("-o"), ttf.as_os_str()])
+        .output()
+        .expect("otfccbuild runs");
+    assert!(built.status.success(), "otfccbuild failed");
+    let stderr = String::from_utf8_lossy(&built.stderr);
+    assert!(stderr.contains("version -1 is not a version"), "{stderr}");
+    let dumped = build.join("negative.dump.json");
+    run_ok(
+        "dump",
+        &otfccdump(),
+        &[ttf.as_os_str(), OsStr::new("-o"), dumped.as_os_str()],
+    );
+    let dump: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&dumped).unwrap()).unwrap();
+    assert_eq!(dump["OS_2"]["version"], 1);
+}
