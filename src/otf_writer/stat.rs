@@ -267,9 +267,10 @@ pub fn stat_glyf(font: &mut Font) {
 /// The bounding box (xMin, yMin, xMax, yMax) of a cubic outline: of its
 /// curves, not of their control points, as a CFF rasterizer sees it, rounded
 /// outwards to whole units.
-/// A contour is read as on-curve points joined by lines, or by a cubic
-/// through two off-curve points; a lone off-curve point, which a cubic
-/// outline does not have, counts as a point of the box. `None` when the
+/// Each contour is followed as the CharString writer draws it: a cubic for
+/// every on-curve point reached through two off-curve points, and a line to
+/// every other point, so an off-curve point outside such a run (a cubic
+/// outline does not have one) is a corner of the box. `None` when the
 /// outline has no point.
 pub(crate) fn cubic_outline_bounds(contours: &ContourList) -> Option<[Pos; 4]> {
     let mut b = [
@@ -285,7 +286,7 @@ pub(crate) fn cubic_outline_bounds(contours: &ContourList) -> Option<[Pos; 4]> {
         b[3] = b[3].max(y);
     };
     for contour in contours {
-        let pts: Vec<(f64, f64, bool)> = contour
+        let mut pts: Vec<(f64, f64, bool)> = contour
             .iter()
             .map(|p| {
                 (
@@ -295,35 +296,36 @@ pub(crate) fn cubic_outline_bounds(contours: &ContourList) -> Option<[Pos; 4]> {
                 )
             })
             .collect();
-        let n = pts.len();
-        // Walk the contour from an on-curve point, wrapping around.
-        let Some(start) = pts.iter().position(|p| p.2) else {
-            pts.iter().for_each(|p| add(p.0, p.1));
+        // The contour as `compile_glyph_to_il` writes it: closed by its
+        // first point when it ends off the curve, a moveto to point 0 even
+        // when that is off the curve, a curve for each off, off, on run,
+        // and a line to every other point, the closing one included.
+        if pts.len() > 2 && pts.last().is_some_and(|p| !p.2) {
+            pts.push(pts[0]);
+        }
+        let n = pts.len() as u16 as usize;
+        if n == 0 {
             continue;
-        };
-        let at = |k: usize| pts[(start + k) % n];
-        let mut k = 0;
-        while k < n {
-            let p0 = at(k);
-            add(p0.0, p0.1);
-            // A cubic: this on-curve point, two off-curve points, and the
-            // next on-curve point (the contour's first when it wraps).
-            if p0.2 && k + 3 <= n {
-                let (c1, c2, p3) = (at(k + 1), at(k + 2), at(k + 3));
-                if !c1.2 && !c2.2 && p3.2 {
-                    let tx = cubic_extremum_times(p0.0, c1.0, c2.0, p3.0);
-                    let ty = cubic_extremum_times(p0.1, c1.1, c2.1, p3.1);
-                    for t in tx.into_iter().chain(ty).flatten() {
-                        add(
-                            cubic_at(p0.0, c1.0, c2.0, p3.0, t),
-                            cubic_at(p0.1, c1.1, c2.1, p3.1, t),
-                        );
-                    }
-                    k += 3;
-                    continue;
+        }
+        add(pts[0].0, pts[0].1);
+        let mut j = 1;
+        while j < n {
+            if !pts[j].2 && j + 2 < n && !pts[j + 1].2 && pts[j + 2].2 {
+                let (p0, c1, c2, p3) = (pts[j - 1], pts[j], pts[j + 1], pts[j + 2]);
+                let tx = cubic_extremum_times(p0.0, c1.0, c2.0, p3.0);
+                let ty = cubic_extremum_times(p0.1, c1.1, c2.1, p3.1);
+                for t in tx.into_iter().chain(ty).flatten() {
+                    add(
+                        cubic_at(p0.0, c1.0, c2.0, p3.0, t),
+                        cubic_at(p0.1, c1.1, c2.1, p3.1, t),
+                    );
                 }
+                add(p3.0, p3.1);
+                j += 3;
+            } else {
+                add(pts[j].0, pts[j].1);
+                j += 1;
             }
-            k += 1;
         }
     }
     if b[0] > b[2] {
@@ -332,7 +334,18 @@ pub(crate) fn cubic_outline_bounds(contours: &ContourList) -> Option<[Pos; 4]> {
     // Rounded outwards, so the box is never smaller than the curves (a
     // curve's extreme is rarely a whole unit): the minimums down, the
     // maximums up, as fontTools rounds a CFF glyph's box.
-    Some([b[0].floor(), b[1].floor(), b[2].ceil(), b[3].ceil()])
+    // An extreme computed to a hair off a whole unit (832.0000000000001
+    // for 832) is that unit, not one more.
+    let snap = |v: f64| {
+        let r = v.round();
+        if (v - r).abs() < 1e-9 { r } else { v }
+    };
+    Some([
+        snap(b[0]).floor(),
+        snap(b[1]).floor(),
+        snap(b[2]).ceil(),
+        snap(b[3]).ceil(),
+    ])
 }
 /// The value at `t` of the cubic Bezier with control values `p0`..`p3`.
 fn cubic_at(p0: f64, p1: f64, p2: f64, p3: f64, t: f64) -> f64 {
@@ -1293,6 +1306,39 @@ mod cubic_outline_bounds_tests {
         assert_eq!(
             cubic_outline_bounds(&vec![contour]),
             Some([0.0, -9.0, 10.0, 0.0])
+        );
+    }
+
+    // A whole-unit extreme computed a hair off is that unit: this curve's
+    // largest x comes out as -333.99999999999994, which rounded outwards
+    // was -333.
+    #[test]
+    fn an_extreme_a_hair_off_a_whole_unit_is_that_unit() {
+        let contour = vec![
+            point(-361.0, 0.0, true),
+            point(-373.0, 0.0, false),
+            point(-182.0, 0.0, false),
+            point(-670.0, 0.0, true),
+        ];
+        assert_eq!(
+            cubic_outline_bounds(&vec![contour]),
+            Some([-670.0, 0.0, -334.0, 0.0])
+        );
+    }
+
+    // Point 0 off the curve: the writer moves to it and draws lines, as it
+    // does to every off-curve point outside an off, off, on run, so it is
+    // a corner of the box, not a control point of a closing curve.
+    #[test]
+    fn a_contour_starting_off_the_curve_is_drawn_as_the_writer_draws_it() {
+        let contour = vec![
+            point(100.0, -500.0, false),
+            point(100.0, 1500.0, false),
+            point(900.0, 500.0, true),
+        ];
+        assert_eq!(
+            cubic_outline_bounds(&vec![contour]),
+            Some([100.0, -500.0, 900.0, 1500.0])
         );
     }
 
