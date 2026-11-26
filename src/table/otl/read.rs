@@ -83,9 +83,10 @@ pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
 // (Cormorant's GSUB).
 pub(crate) const MAX_TOTAL_FEATURE_LOOKUP_REFS_PER_TABLE: u32 = 150_000;
 
+use crate::logger::ByteStr;
 use crate::table::otl::budget::OtlReadBudget;
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR, USE_MARK_FILTERING_SET};
-use crate::table::otl::feature_params::read_feature_params;
+use crate::table::otl::feature_params::{FeatureParams, read_feature_params};
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::subtables::chaining::read::otl_read_contextual;
 use crate::table::otl::subtables::extend::{read_otl_gpos_extend, read_otl_gsub_extend};
@@ -268,12 +269,34 @@ fn read_feature_list(
         let mut fer = FontReader::new(data).at(feature_offset as usize)?;
         let params_offset = fer.u16()?;
         if params_offset != 0 {
-            feature.params = read_feature_params(
+            let tag_bytes = tag.to_be_bytes();
+            let mut params = read_feature_params(
                 data,
                 feature_offset as usize + usize::from(params_offset),
-                &tag.to_be_bytes(),
+                &tag_bytes,
                 budget,
             );
+            // Older Adobe tools counted the `size` offset from the
+            // FeatureList instead of the Feature table. `size` parameters
+            // that cannot be read or make no sense where the specification
+            // puts them are looked for there, as HarfBuzz does, and dropped
+            // when they make no sense there either.
+            if &tag_bytes == b"size" && !params.as_ref().is_some_and(FeatureParams::is_plausible) {
+                params = read_feature_params(
+                    data,
+                    feature_list_offset as usize + usize::from(params_offset),
+                    &tag_bytes,
+                    budget,
+                )
+                .filter(FeatureParams::is_plausible);
+                if params.is_none() {
+                    tracing::warn!(
+                        "[otl] The parameters of feature {} make no sense; they are ignored.\n",
+                        ByteStr(&tag_bytes)
+                    );
+                }
+            }
+            feature.params = params;
         }
         let feature_lookup_count = fer.u16()?;
         fer.require_room(feature_lookup_count as usize, 2)?;

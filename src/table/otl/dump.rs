@@ -36,9 +36,12 @@ pub fn dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, tag: &[u8], opt
     // `table.lookups`/`.features` are hole-preserving now -- a `None`-only
     // `Vec` (every lookup/feature punched by consolidation) is the "empty"
     // case this guard means to catch, not merely a non-empty backing `Vec`.
-    // `table.languages` is unaffected (never hole-punched).
+    // `table.languages` is unaffected (never hole-punched). A table with no
+    // lookup is still kept when a feature carries parameters: a `size`
+    // feature has none, and may be all a GPOS holds.
+    let has_params = table.features.iter().flatten().any(|f| f.params.is_some());
     if table.languages.is_empty()
-        || table.lookups.iter().all(Option::is_none)
+        || (table.lookups.iter().all(Option::is_none) && !has_params)
         || table.features.iter().all(Option::is_none)
     {
         return;

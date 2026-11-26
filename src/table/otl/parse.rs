@@ -573,7 +573,9 @@ pub fn parse_otl(root: &mut ParsedValue, options: &Options, tag: &[u8]) -> Optio
                 &fh,
                 tag,
             );
-        if lh.entries.is_empty() || fh.entries.is_empty() || sh.is_empty() {
+        // No lookup is fine when a feature carries parameters instead: a
+        // `size` feature has none, and may be all a GPOS holds.
+        if fh.entries.is_empty() || sh.is_empty() {
             // Nothing usable: close the stage without a `Finish` line.
             drop(stage);
         } else {
