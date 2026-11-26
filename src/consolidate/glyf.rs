@@ -238,8 +238,14 @@ pub fn get_point_coordinates(
         }
         search.stated = (i32::from(search.stated) + 1) as ShapeId;
     }
+    // `g`'s own anchored components are resolved in `g`'s own coordinates,
+    // the outer point being one of `g` where it stands, not where `gr`
+    // places it: their offsets are `g`'s, as stored, and only then moved
+    // by `gr` below.
+    let mut g_itself: ComponentReference = (glyf_component_reference_empty)();
+    g_itself.glyph = handle_from_index(j) as GlyphHandle;
     for rr in &g.references {
-        consolidate_anchor_ref(table, gr, rr, options, depth + 1);
+        consolidate_anchor_ref(table, &g_itself, rr, options, depth + 1);
         let mut glyph_ref: ComponentReference = (glyf_component_reference_empty)();
         glyph_ref.glyph = handle_from_index(rr.glyph.index) as GlyphHandle;
         // `rr` placed where `gr` places its glyph, as in `otf_writer/stat.rs`.
@@ -361,23 +367,24 @@ pub fn consolidate_anchor_ref(
         -(rr.d as Pos),
         inner.y.clone(),
     );
-    if rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingAnchor {
+    // The component is written as an anchor, so the offset the anchor
+    // gives is where it is drawn; x/y given beside it (in JSON) that say
+    // otherwise are warned about and replaced, so the bounding box is that
+    // of the glyph as drawn.
+    let from_font = rr.is_anchored.get() == RefAnchorStatus::AnchorConsolidatingAnchor;
+    let differs = (vq_get_still(rr.x.borrow().clone()) - vq_get_still(rrx.clone())).abs() > 0.5
+        || (vq_get_still(rr.y.borrow().clone()) - vq_get_still(rry.clone())).abs() > 0.5;
+    if !from_font && differs {
+        tracing::warn!(
+            "Anchored reference to {} does not match its X/Y offset data.",
+            ByteStr(&rr.glyph.name)
+        );
+    }
+    if from_font || (s1 && s2) {
         rr.x.replace(rrx);
         rr.y.replace(rry);
-        rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
-    } else {
-        if (vq_get_still(rr.x.borrow().clone()) as f64 - vq_get_still(rrx.clone()) as f64).abs()
-            > 0.5
-            && (vq_get_still(rr.y.borrow().clone()) as f64 - vq_get_still(rry.clone()) as f64).abs()
-                > 0.5
-        {
-            tracing::warn!(
-                "Anchored reference to {} does not match its X/Y offset data.",
-                ByteStr(&rr.glyph.name)
-            );
-        }
-        rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     }
+    rr.is_anchored.set(RefAnchorStatus::AnchorConsolidated);
     // `rr1`/`inner`/`outer` (and, in this branch, `rrx`/`rry`) are all plain
     // owned locals that were never moved out -- they auto-drop at the
     // `return false` below, so no explicit dispose calls are needed.

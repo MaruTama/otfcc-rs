@@ -81,15 +81,18 @@ pub fn stat_single_glyph(
     // `a`, `b`, `c`, `d` read from xscale, scale01, scale10, yscale.
     for contour in &g.contours {
         for p in contour {
-            // `f64::round` rounds half away from zero, like C99's `round`.
+            // Rounded half up, as fontTools' `otRound` rounds a scaled
+            // component's points (-34.5 to -34, not -35).
             let x: Pos = (vq_get_still(gr.x.borrow().clone()) as f64
                 + gr.a * vq_get_still(p.x.clone()) as f64
-                + gr.c * vq_get_still(p.y.clone()) as f64)
-                .round() as Pos;
+                + gr.c * vq_get_still(p.y.clone()) as f64
+                + 0.5)
+                .floor() as Pos;
             let y: Pos = (vq_get_still(gr.y.borrow().clone()) as f64
                 + gr.b * vq_get_still(p.x.clone()) as f64
-                + gr.d * vq_get_still(p.y.clone()) as f64)
-                .round() as Pos;
+                + gr.d * vq_get_still(p.y.clone()) as f64
+                + 0.5)
+                .floor() as Pos;
             if x < xmin {
                 xmin = x;
             }
@@ -143,17 +146,13 @@ pub fn stat_single_glyph(
             (i32::from(depth) + 1) as u8,
             topj,
         );
-        if thatstat.x_min < xmin {
-            xmin = thatstat.x_min;
-        }
-        if thatstat.x_max > xmax {
-            xmax = thatstat.x_max;
-        }
-        if thatstat.y_min < ymin {
-            ymin = thatstat.y_min;
-        }
-        if thatstat.y_max > ymax {
-            ymax = thatstat.y_max;
+        // A component without points (a space placed in a composite) has
+        // a placeholder box of zeros, which is not where anything is.
+        if has_outline(&thatstat) {
+            xmin = xmin.min(thatstat.x_min);
+            xmax = xmax.max(thatstat.x_max);
+            ymin = ymin.min(thatstat.y_min);
+            ymax = ymax.max(thatstat.y_max);
         }
         if i32::from(thatstat.nest_depth) + 1 > i32::from(nest_depth) {
             nest_depth = (i32::from(thatstat.nest_depth) + 1) as u16;
