@@ -6,7 +6,7 @@ use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, count_u16};
 use otfcc_binary::Buffer;
 
-use crate::table::glyf::{GlyfTable, Glyph, PostscriptHintMask};
+use crate::table::glyf::{GlyfTable, Glyph, PostscriptHintMask, RefAnchorStatus};
 
 use crate::table::otl::kind::lookup_kind;
 use crate::table::otl::{ChainingRule, ChainingSubtable, Lookup, Subtable, SubtableList};
@@ -103,6 +103,17 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
         buf.write_u32be(to_f2dot14(r.b) as u32);
         buf.write_u32be(to_f2dot14(r.c) as u32);
         buf.write_u32be(to_f2dot14(r.d) as u32);
+        // How the offset applies changes the drawing too. Written only
+        // when present, so a glyph without either keeps its hash (and its
+        // name).
+        if r.scaled_offset {
+            buf.write_u8(b'S');
+        }
+        if r.is_anchored.get() != RefAnchorStatus::Xy {
+            buf.write_u8(b'A');
+            buf.write_u16be(r.outer);
+            buf.write_u16be(r.inner);
+        }
     }
     buf.write_u8(')' as i32 as u8);
     buf.write_u8('s' as i32 as u8);
