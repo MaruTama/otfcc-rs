@@ -165,6 +165,22 @@ fn a_gpos_of_only_a_size_feature_is_kept() {
         size
     );
 
+    // No `lookups` at all is no lookups.
+    font["GPOS"].as_object_mut().unwrap().remove("lookups");
+    font["GPOS"].as_object_mut().unwrap().remove("lookupOrder");
+    let bare = build.join("bare.json");
+    std::fs::write(&bare, serde_json::to_vec(&font).unwrap()).unwrap();
+    let bare_ttf = build.join("bare.ttf");
+    run_ok(
+        "build without lookups",
+        &otfccbuild(),
+        &[bare.as_os_str(), OsStr::new("-o"), bare_ttf.as_os_str()],
+    );
+    assert_eq!(
+        dump(&bare_ttf, "bare.dump.json")["GPOS"]["features"]["size_00000"]["params"],
+        size
+    );
+
     // The same parameters, their offset counted from the FeatureList.
     let mut bytes = std::fs::read(&ttf).unwrap();
     let (feature, feature_list) = first_gpos_feature(&bytes);
