@@ -365,7 +365,7 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
                 // Listed, so matched, though nothing moves.
                 row.push_item(BuiltValue::new_object(0));
             } else {
-                row.push_item(BuiltValue::position(Pos::from(0)));
+                row.push_item(BuiltValue::position(0.0));
             }
         }
         mat.push_item(row.preserialize());
@@ -512,8 +512,8 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),
         ),
-        bk_int(BkCellType::B16, i32::from(format1) as u32),
-        bk_int(BkCellType::B16, i32::from(format2) as u32),
+        bk_int(BkCellType::B16, u32::from(format1)),
+        bk_int(BkCellType::B16, u32::from(format2)),
         bk_int(BkCellType::B16, (first_cd.glyphs.len() as i32) as u32),
     ]);
     for cov_entry in cov.iter() {
@@ -530,10 +530,8 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
                 current_pair_count = count as TableId;
             }
         }
-        let mut pair_set: BkBlock = bk_new_block(vec![bk_int(
-            BkCellType::B16,
-            i32::from(current_pair_count) as u32,
-        )]);
+        let mut pair_set: BkBlock =
+            bk_new_block(vec![bk_int(BkCellType::B16, u32::from(current_pair_count))]);
         // Exactly `current_pair_count` entries (the counting pass used the
         // same test), sorted stably.
         let mut pairs: Vec<IndividualGposPair> = Vec::with_capacity(current_pair_count as usize);
@@ -552,7 +550,7 @@ pub fn build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
             bk_push(
                 &mut pair_set,
                 vec![
-                    bk_int(BkCellType::B16, i32::from(pair.gid) as u32),
+                    bk_int(BkCellType::B16, u32::from(pair.gid)),
                     bk_ptr(BkCellType::Embed, Some(bk_gpos_value(pair.fv, format1))),
                     bk_ptr(BkCellType::Embed, Some(bk_gpos_value(pair.sv, format2))),
                 ],
@@ -591,8 +589,8 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),
         ),
-        bk_int(BkCellType::B16, i32::from(format1) as u32),
-        bk_int(BkCellType::B16, i32::from(format2) as u32),
+        bk_int(BkCellType::B16, u32::from(format1)),
+        bk_int(BkCellType::B16, u32::from(format2)),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_class_def(first_cd))),
@@ -601,8 +599,8 @@ pub fn build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_class_def(second_cd))),
         ),
-        bk_int(BkCellType::B16, i32::from(class1_count) as u32),
-        bk_int(BkCellType::B16, i32::from(class2_count) as u32),
+        bk_int(BkCellType::B16, u32::from(class1_count)),
+        bk_int(BkCellType::B16, u32::from(class2_count)),
     ]);
     for row_i in 0..class1_count {
         for col_i in 0..class2_count {

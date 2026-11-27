@@ -191,8 +191,8 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
         bk_push(
             &mut base_records,
             vec![
-                bk_int(BkCellType::B16, i32::from(mapping.glyph.index) as u32),
-                bk_int(BkCellType::B16, i32::from(current_layer_index) as u32),
+                bk_int(BkCellType::B16, u32::from(mapping.glyph.index)),
+                bk_int(BkCellType::B16, u32::from(current_layer_index)),
                 bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
             ],
         );
@@ -200,8 +200,8 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
             bk_push(
                 &mut layer_records,
                 vec![
-                    bk_int(BkCellType::B16, i32::from(layer.glyph.index) as u32),
-                    bk_int(BkCellType::B16, i32::from(layer.palette_index) as u32),
+                    bk_int(BkCellType::B16, u32::from(layer.glyph.index)),
+                    bk_int(BkCellType::B16, u32::from(layer.palette_index)),
                 ],
             );
             current_layer_index = (i32::from(current_layer_index) + 1) as GlyphId;
@@ -212,7 +212,7 @@ pub fn build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
         bk_int(BkCellType::B16, (colr.len()) as u32),
         bk_ptr(BkCellType::P32, Some(base_records)),
         bk_ptr(BkCellType::P32, Some(layer_records)),
-        bk_int(BkCellType::B16, i32::from(current_layer_index) as u32),
+        bk_int(BkCellType::B16, u32::from(current_layer_index)),
     ]);
     // `colr` drops naturally at the end of this scope -- no explicit
     // dispose call needed (`ColrMapping`'s `Handle` fields already free

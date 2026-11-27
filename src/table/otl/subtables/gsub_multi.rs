@@ -152,7 +152,7 @@ fn build_gsub_multi_subtable_range(
         for entry in to {
             bk_push(
                 &mut b,
-                vec![bk_int(BkCellType::B16, i32::from(entry.index) as u32)],
+                vec![bk_int(BkCellType::B16, u32::from(entry.index))],
             );
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(b))]);

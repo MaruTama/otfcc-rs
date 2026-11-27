@@ -181,7 +181,7 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
         return None;
     }
     let mut root: BkBlock = bk_new_block(vec![
-        bk_int(BkCellType::B16, i32::from(vdmx.version) as u32),
+        bk_int(BkCellType::B16, u32::from(vdmx.version)),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
     ]);
@@ -189,10 +189,10 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
         bk_push(
             &mut root,
             vec![
-                bk_int(BkCellType::B8, i32::from(rr.b_charset) as u32),
-                bk_int(BkCellType::B8, i32::from(rr.x_ratio) as u32),
-                bk_int(BkCellType::B8, i32::from(rr.y_start_ratio) as u32),
-                bk_int(BkCellType::B8, i32::from(rr.y_end_ratio) as u32),
+                bk_int(BkCellType::B8, u32::from(rr.b_charset)),
+                bk_int(BkCellType::B8, u32::from(rr.x_ratio)),
+                bk_int(BkCellType::B8, u32::from(rr.y_start_ratio)),
+                bk_int(BkCellType::B8, u32::from(rr.y_end_ratio)),
             ],
         );
     }
@@ -222,7 +222,7 @@ pub fn build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
             bk_push(
                 &mut group,
                 vec![
-                    bk_int(BkCellType::B16, i32::from(r_0.y_pel_height) as u32),
+                    bk_int(BkCellType::B16, u32::from(r_0.y_pel_height)),
                     bk_int(BkCellType::B16, i32::from(r_0.y_max) as u32),
                     bk_int(BkCellType::B16, i32::from(r_0.y_min) as u32),
                 ],

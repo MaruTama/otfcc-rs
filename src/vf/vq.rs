@@ -54,7 +54,7 @@ pub struct VQ {
 }
 #[inline]
 fn init_vq_segment(vqs: &mut VqSegment) {
-    *vqs = VqSegment::Still(Pos::from(0));
+    *vqs = VqSegment::Still(0.0);
 }
 #[inline]
 fn copy_vq_segment(dst: &mut VqSegment, src: &VqSegment) {
@@ -120,7 +120,7 @@ fn vqs_compare(a: &VqSegment, b: &VqSegment) -> i32 {
     }
 }
 pub(crate) fn vq_neutral() -> VQ {
-    vq_create_still(Pos::from(0))
+    vq_create_still(0.0)
 }
 fn vqs_compatible(a: &VqSegment, b: &VqSegment) -> bool {
     match (a, b) {

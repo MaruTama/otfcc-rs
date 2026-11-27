@@ -176,8 +176,8 @@ pub fn build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
         bk_push(
             &mut major,
             vec![
-                bk_int(BkCellType::B16, i32::from(a.start) as u32),
-                bk_int(BkCellType::B16, i32::from(a.end) as u32),
+                bk_int(BkCellType::B16, u32::from(a.start)),
+                bk_int(BkCellType::B16, u32::from(a.end)),
                 bk_ptr(
                     BkCellType::P32,
                     bk_new_block_from_buffer_copy(Some(&doc_buf)),

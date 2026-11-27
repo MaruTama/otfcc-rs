@@ -204,13 +204,13 @@ pub fn build_gsub_ligature_subtable(
             .filter(|rule| i32::from(rule.from[0].index) == gid)
         {
             let mut ligdef: BkBlock = bk_new_block(vec![
-                bk_int(BkCellType::B16, i32::from(rule.to.index) as u32),
+                bk_int(BkCellType::B16, u32::from(rule.to.index)),
                 bk_int(BkCellType::B16, (rule.from.len() as i32) as u32),
             ]);
             for component in rule.from.iter().skip(1) {
                 bk_push(
                     &mut ligdef,
-                    vec![bk_int(BkCellType::B16, i32::from(component.index) as u32)],
+                    vec![bk_int(BkCellType::B16, u32::from(component.index))],
                 );
             }
             bk_push(&mut ligset, vec![bk_ptr(BkCellType::P16, Some(ligdef))]);

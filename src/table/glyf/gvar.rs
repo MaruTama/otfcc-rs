@@ -295,7 +295,7 @@ fn apply_coords(
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     for _ in 0..total_points {
         nudges.push(VqSegment::Delta(VqSegmentDelta {
-            quantity: Pos::from(0),
+            quantity: 0.0,
             touched: false,
             region: Rc::clone(tuple.region),
         }));
@@ -436,9 +436,9 @@ fn create_region_from_tuples(
         };
         let peak_val: Pos = from_f2dot14(peak_raw as F2Dot14) as Pos;
         let mut span: VqAxisSpan = VqAxisSpan {
-            start: Pos::from(if peak_val <= Pos::from(0) { -1 } else { 0 }),
+            start: Pos::from(if peak_val <= 0.0 { -1 } else { 0 }),
             peak: peak_val,
-            end: Pos::from(if peak_val >= Pos::from(0) { 1 } else { 0 }),
+            end: Pos::from(if peak_val >= 0.0 { 1 } else { 0 }),
         };
         if let Some(start_offset) = range_offset {
             let end_offset = start_offset + dimensions as usize * 2;
@@ -554,8 +554,8 @@ fn polymorphize_glyph(
             point_indeces = ::std::borrow::Cow::Borrowed(&shared_point_indeces);
         }
         if !point_indeces.is_empty() {
-            let mut delta_x: Vec<Pos> = vec![Pos::from(0); n_points as usize];
-            let mut delta_y: Vec<Pos> = vec![Pos::from(0); n_points as usize];
+            let mut delta_x: Vec<Pos> = vec![0.0; n_points as usize];
+            let mut delta_y: Vec<Pos> = vec![0.0; n_points as usize];
             let after_x = read_packed_delta(gvar, after_points, n_points, &mut delta_x)?;
             read_packed_delta(gvar, after_x, n_points, &mut delta_y)?;
             // `apply_polymorphism` is a safe `fn` now; `glyph` reborrows

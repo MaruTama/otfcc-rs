@@ -100,7 +100,7 @@ fn read_base_script(
                 base_values_offset + val_offset as usize,
             ))
         } else {
-            Pos::from(0)
+            0.0
         };
         base_values.push(BaseValue { tag, coordinate });
     }
@@ -336,7 +336,7 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
             .unwrap_or(0) as TableId;
         bk_push(
             &mut base_values,
-            vec![bk_int(BkCellType::B16, i32::from(default_index) as u32)],
+            vec![bk_int(BkCellType::B16, u32::from(default_index))],
         );
         bk_push(
             &mut base_values,

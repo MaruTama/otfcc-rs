@@ -167,7 +167,8 @@ fn _declare_lookup_parser(
     if mark_attachment_type != 0 {
         lookup.flags = (i32::from(lookup.flags) | i32::from(mark_attachment_type) << 8) as u16;
     }
-    // The flag bit comes from whether a set is named, never from `flags`.
+    // The flag bit comes from whether a set is named, never from `flags`,
+    // which may be given as a number with the bit set.
     lookup.flags &= !USE_MARK_FILTERING_SET;
     lookup.mark_filtering_set = lv
         .and_then(|v| v.get_typed(b"markFilteringSet", JsonType::Integer))

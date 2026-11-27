@@ -443,7 +443,7 @@ pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer>
     let format12 = build_cmap_format12(cmap);
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0),
-        bk_int(BkCellType::B16, i32::from(n_tables) as u32),
+        bk_int(BkCellType::B16, u32::from(n_tables)),
     ]);
     if !symbol {
         bk_push(

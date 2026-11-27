@@ -53,7 +53,7 @@ fn feature_name_to_tag(name: &[u8]) -> u32 {
         tag |= (i32::from(' ' as i32 as u8) << 8) as u32;
     }
     if name.len() > 3 {
-        tag |= i32::from(name[3]) as u32;
+        tag |= u32::from(name[3]);
     } else {
         tag |= i32::from(' ' as i32 as u8) as u32;
     }
@@ -200,8 +200,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
             tracing::info!("Lookup {} is empty.\n", ByteStr(&live_lookup.name));
         }
         let can_be_contextual: bool = chaining_lookup_is_contextual_lookup(live_lookup);
-        let use_extended_for_it: bool =
-            i32::from(use_extended) != 0 || i32::from(prefer_ext_for_this_lut[j_1]) != 0;
+        let use_extended_for_it: bool = use_extended || prefer_ext_for_this_lut[j_1];
         if use_extended_for_it {
             tracing::info!(
                 "[OTFCC-fea] Using extended OpenType table layout for {}/{}.\n",
@@ -227,9 +226,9 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
                 .wrapping_sub(u32::from(can_be_contextual))
         }) as u16;
         let mut blk: BkBlock = bk_new_block(vec![
-            bk_int(BkCellType::B16, i32::from(lookup_type) as u32),
+            bk_int(BkCellType::B16, u32::from(lookup_type)),
             bk_int(BkCellType::B16, u32::from(lookup_flag(live_lookup))),
-            bk_int(BkCellType::B16, i32::from(subtable_quantity[j_1]) as u32),
+            bk_int(BkCellType::B16, u32::from(subtable_quantity[j_1])),
         ]);
         // Bounded by `subtable_quantity[j_1]` rather than assumed equal
         // to `subtables[j_1].len()` (they are equal by construction --
@@ -244,7 +243,7 @@ fn write_otl_lookups(table: &OtlTable, tag: &[u8]) -> BkBlock {
                     as u16;
                 let stub: BkBlock = bk_new_block(vec![
                     bk_int(BkCellType::B16, 1),
-                    bk_int(BkCellType::B16, i32::from(extension_lookup_type) as u32),
+                    bk_int(BkCellType::B16, u32::from(extension_lookup_type)),
                     bk_ptr(
                         BkCellType::P32,
                         bk_new_block_from_buffer(Some(::core::mem::take(buf))),
