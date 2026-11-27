@@ -3,7 +3,7 @@ use otfcc_binary::Buffer;
 
 use crate::table::glyf::{
     ComponentFlags, ComponentReference, GlyfAndLocaBuffers, GlyfTable, Glyph, MASK_ON_CURVE,
-    PointFlags, RefAnchorStatus,
+    PointFlags,
 };
 use crate::table::head::HeadTable;
 
@@ -123,6 +123,13 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         } else {
             ComponentFlags::empty()
         };
+        if !r.is_written_as_anchor() && r.written_offset().1 {
+            tracing::warn!(
+                "[Build] glyf: the offset of component /{} in /{} does not fit 16 bits; it is clamped.\n",
+                crate::logger::ByteStr(&r.glyph.name),
+                crate::logger::ByteStr(&g.name)
+            );
+        }
         let (arg1, arg2) = component_arguments(r, &mut flags);
         flags.insert(component_transform_flags(r));
         if r.round_to_grid {
@@ -160,7 +167,7 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
 /// returned as raw 16-bit patterns; `ARG_1_AND_2_ARE_WORDS` is set in `flags`
 /// when they do not fit in a byte.
 fn component_arguments(r: &ComponentReference, flags: &mut ComponentFlags) -> (u16, u16) {
-    let output_anchor: bool = r.is_anchored.get() == RefAnchorStatus::AnchorConsolidated;
+    let output_anchor: bool = r.is_written_as_anchor();
     // `arg1`/`arg2` are point ids or signed offsets; either way they
     // are written as raw 16-bit patterns (`as u16` keeps an `i16`'s
     // bits).
@@ -173,8 +180,7 @@ fn component_arguments(r: &ComponentReference, flags: &mut ComponentFlags) -> (u
         (a1, a2)
     } else {
         flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
-        let c1 = vq_get_still(r.x.borrow().clone()) as i16;
-        let c2 = vq_get_still(r.y.borrow().clone()) as i16;
+        let ((c1, c2), _) = r.written_offset();
         if !(i32::from(c1) < 128
             && i32::from(c1) >= -128
             && i32::from(c2) < 128

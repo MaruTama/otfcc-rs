@@ -194,3 +194,83 @@ fn composite_boxes_follow_the_components_as_drawn() {
     );
     check(&rebuilt, "dumped and built again");
 }
+
+/// A component's x/y offset is stored rounded half away from zero, as a
+/// glyph's points are, and the box is that of the stored offset (#718). It
+/// was truncated (10.7 written as 10) while the box used 10.7; one beyond
+/// 16 bits was clamped without a word.
+#[test]
+fn a_fractional_component_offset_is_rounded_as_it_is_stored() {
+    let build = scratch_dir("component-offset");
+    let base = build.join("base.json");
+    run_ok(
+        "base dump",
+        &otfccdump(),
+        &[
+            payload("iosevka-r.ttf").as_os_str(),
+            OsStr::new("-o"),
+            base.as_os_str(),
+        ],
+    );
+    let mut font: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&base).unwrap()).unwrap();
+    let on = |x: i32, y: i32| serde_json::json!({ "x": x, "y": y, "on": true });
+    let first = font["glyph_order"].as_array().unwrap().len();
+    let placed = [
+        ("co.plus", 10.7, 20.5, [111, 121, 311, 521]),
+        ("co.minus", -10.7, -20.5, [89, 79, 289, 479]),
+        ("co.far", 40000.0, 0.0, [0, 0, 0, 0]),
+    ];
+    for (name, x, y, _) in &placed {
+        font["glyph_order"]
+            .as_array_mut()
+            .unwrap()
+            .push((*name).into());
+        font["glyf"][*name] = serde_json::json!({
+            "advanceWidth": 500, "references": [{ "glyph": "co.A", "x": x, "y": y }],
+        });
+    }
+    font["glyph_order"]
+        .as_array_mut()
+        .unwrap()
+        .push("co.A".into());
+    font["glyf"]["co.A"] = serde_json::json!({
+        "advanceWidth": 500,
+        "contours": [[on(100, 100), on(300, 100), on(300, 500), on(100, 500)]],
+    });
+    let input = build.join("offset.json");
+    std::fs::write(&input, serde_json::to_vec(&font).unwrap()).unwrap();
+    let ttf = build.join("offset.ttf");
+    let built = std::process::Command::new(otfccbuild())
+        .args([input.as_os_str(), OsStr::new("-o"), ttf.as_os_str()])
+        .output()
+        .expect("otfccbuild runs");
+    assert!(built.status.success(), "otfccbuild failed");
+    let stderr = String::from_utf8_lossy(&built.stderr);
+    assert!(
+        stderr.contains("of component /co.A in /co.far does not fit 16 bits"),
+        "{stderr}"
+    );
+    let bytes = std::fs::read(&ttf).unwrap();
+    // The clamped one's box is past 16 bits as well (the font cannot hold
+    // it), so only its offset is checked, through the dump.
+    for (i, (name, _, _, expected)) in placed.iter().take(2).enumerate() {
+        assert_eq!(stored_bbox(&bytes, first + i), *expected, "{name}");
+    }
+    let dumped = build.join("offset.dump.json");
+    run_ok(
+        "dump",
+        &otfccdump(),
+        &[ttf.as_os_str(), OsStr::new("-o"), dumped.as_os_str()],
+    );
+    let dump: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&dumped).unwrap()).unwrap();
+    let order = dump["glyph_order"].as_array().unwrap();
+    let offset = |i: usize| {
+        let r = &dump["glyf"][order[first + i].as_str().unwrap()]["references"][0];
+        (r["x"].clone(), r["y"].clone())
+    };
+    assert_eq!(offset(0), (11.into(), 21.into()));
+    assert_eq!(offset(1), ((-11).into(), (-21).into()));
+    assert_eq!(offset(2), (32767.into(), 0.into()));
+}
