@@ -231,7 +231,7 @@ fn format3_coverage(t: &mut TableReader<'_>, shift: u16, rule_offset: u32) -> Co
 /// `coverage_of`. In formats 1 and 2 the first input position is not
 /// stored; `first_input` gives its coverage: the covered glyph, or the
 /// covered glyphs of the class, that selected this rule set. Returns `None`
-/// if the rule does not fit in `slice`.
+/// if the rule does not fit in the table.
 // The `FontReader` reads and `require_room` checks below never reserve
 // bytes the following reads do not use.
 fn general_read_contextual_rule(

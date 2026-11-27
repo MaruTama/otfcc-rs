@@ -104,9 +104,10 @@ pub fn dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue) {
     root.push_field(b"hhea", hhea);
     stage.finish();
 }
-/// Reads `hhea` from JSON. Always returns `Some`: a missing `hhea` object or
-/// key leaves the default (`version` 1.0, everything else 0). Numbers go
-/// through `as`, so out-of-range values saturate instead of failing.
+/// Reads `hhea` from JSON. Always returns `Some`: a missing `hhea` object
+/// leaves the default (`version` 1.0, everything else 0), and a key missing
+/// from the object is 0, `version` included. Numbers go through `as`, so
+/// out-of-range values saturate instead of failing.
 pub fn parse_hhea(root: &ParsedValue) -> Option<Box<HheaTable>> {
     let mut hhea = HheaTable {
         version: 0x10000 as F16Dot16,

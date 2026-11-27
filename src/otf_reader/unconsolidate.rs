@@ -415,11 +415,9 @@ pub(crate) fn unconsolidate_chaining(lookup: &mut Lookup) {
             ChainingSubtable::Classified(_) => {}
         }
     }
-    // The old list still holds whatever this loop left as `Some` (e.g. a
+    // Whatever is still `Some` in the old list was not moved out (a
     // `Classified` subtable, or every remaining slot once the budget above
-    // cuts the loop short); assigning over it drops those.
-    // Whatever is still in the old list was not moved out: once the loop is
-    // cut short, those are the subtables that are dropped.
+    // cuts the loop short); assigning over the list below drops those.
     if truncated || lookup.subtables.iter().any(Option::is_some) {
         tracing::warn!(
             "[otl] Lookup {} has more contextual rules than otfcc writes out ({}); the rest are ignored.\n",

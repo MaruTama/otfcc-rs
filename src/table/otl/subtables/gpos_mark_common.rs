@@ -110,7 +110,9 @@ pub(crate) fn read_anchor_row(
 ) -> Vec<Anchor> {
     let mut row: Vec<Anchor> = Vec::with_capacity(count as usize);
     for _ in 0..count {
-        let anchor_rel = r.u16().expect("require_room above covered this read");
+        let anchor_rel = r
+            .u16()
+            .expect("the caller's require_room covered this read");
         if anchor_rel != 0 {
             row.push(otl_read_anchor(
                 data,

@@ -524,8 +524,8 @@ fn figure_out_languages_from_json(
         } else {
             // Built as a local owned value, only actually allocated into
             // `OtlTable.languages` at the very end (`parse_otl`'s remap).
-            // Unlike `LookupEntry`/`FeatureEntry`, `LanguageHash` has no
-            // alias mechanism, so every entry here is unique.
+            // Unlike `LookupEntry`/`FeatureEntry`, a `PendingLanguage` has
+            // no alias mechanism, so every entry here is unique.
             sh.insert(
                 language_name.to_vec(),
                 PendingLanguage {

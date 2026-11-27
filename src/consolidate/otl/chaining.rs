@@ -126,7 +126,8 @@ fn resolve_apply_by_name(
     // as upstream otfcc does.
     for (k, slot) in lookups.iter().enumerate() {
         let k = k as TableId;
-        // `k == self_index` is answered from `self_name` instead of `slot`.
+        // `k == self_lookup.index` is answered from `self_lookup.name`
+        // instead of `slot`.
         // "exists" needn't be checked for that case: reaching this call at
         // all means the own subtable list still has at least one slot
         // (`consolidate_lookup` bails out before calling in here otherwise,
@@ -180,8 +181,8 @@ fn resolve_apply_by_index(
 ) {
     // Invalid covers both "out of range" and "in range but a hole": either
     // way there is no real `Lookup` at this index to resolve against.
-    // `idx == self_index` never reads `lookups[self_index]` (a `None` hole);
-    // it is answered from `self_name` instead.
+    // The lookup's own index never reads `lookups[self_lookup.index]` (a
+    // `None` hole); it is answered from `self_lookup` instead.
     let target_exists = if app.lookup.index == self_lookup.index {
         true
     } else {

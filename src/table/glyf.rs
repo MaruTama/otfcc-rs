@@ -21,7 +21,8 @@ use otfcc_json::ParsedValue;
 
 /// An outline point. `x`/`y` are variable quantities (a still value plus
 /// per-region deltas for variable fonts); `on_curve` is 1 for an on-curve
-/// point and 0 for a quadratic off-curve control point (see [`MASK_ON_CURVE`]).
+/// point and 0 for an off-curve control point (see [`MASK_ON_CURVE`]): of a
+/// quadratic curve in a TrueType outline, of a cubic one in a CFF outline.
 #[derive(Clone, Debug)]
 pub struct Point {
     pub x: VQ,
