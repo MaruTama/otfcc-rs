@@ -3,6 +3,9 @@
 //! `UNSCALED_COMPONENT_OFFSET`, which moves a scaled component; it now keeps
 //! the flag, written in JSON as `"scaledOffset": true`.
 
+// A test file: its helper functions may `unwrap()` like its tests do.
+#![allow(clippy::unwrap_used)]
+
 mod support;
 
 use std::ffi::OsStr;

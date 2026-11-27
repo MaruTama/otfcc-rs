@@ -6,6 +6,9 @@
 //! 3/10) keeps those alone, and a symbol font whose mappings need format 12
 //! is built as a Unicode one: Symbol has no format 12 subtable.
 
+// A test file: its helper functions may `unwrap()` like its tests do.
+#![allow(clippy::unwrap_used)]
+
 mod support;
 
 use std::ffi::OsStr;

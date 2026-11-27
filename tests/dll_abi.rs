@@ -107,6 +107,11 @@ fn otfccdll_build_matches_golden_within_timestamp_tolerance() {
         lib_path.display()
     );
 
+    // SAFETY: the library is the cdylib this workspace just built, and the
+    // four symbols are called with the signatures `src/ffi/dll.rs` exports
+    // them with. The buffer pointer is checked for NULL, `data_ptr` points
+    // at `len` bytes the library owns until `free_fn`, and they are copied
+    // out before it is called.
     let output: Vec<u8> = unsafe {
         let lib = libloading::Library::new(&lib_path)
             .unwrap_or_else(|e| panic!("failed to dlopen {}: {e}", lib_path.display()));
