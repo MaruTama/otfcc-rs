@@ -15,8 +15,8 @@ use otfcc_json::BuiltValue;
 pub fn otl_anchor_absent() -> Anchor {
     let anchor: Anchor = Anchor {
         present: false,
-        x: Pos::from(0),
-        y: Pos::from(0),
+        x: 0.0,
+        y: 0.0,
         point: None,
     };
     anchor
@@ -27,8 +27,8 @@ pub fn otl_anchor_absent() -> Anchor {
 pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
-        x: Pos::from(0),
-        y: Pos::from(0),
+        x: 0.0,
+        y: 0.0,
         point: None,
     };
     let Ok(bytes) = FontReader::new(data)
@@ -80,8 +80,8 @@ pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
 pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
-        x: Pos::from(0),
-        y: Pos::from(0),
+        x: 0.0,
+        y: 0.0,
         point: None,
     };
     let Some(v) = v.filter(|v| v.as_object().is_some()) else {

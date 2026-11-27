@@ -149,7 +149,7 @@ pub fn build_gpos_single(_subtable: &Subtable, mut _heuristics: BuildHeuristics)
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(coverage_buf)),
             ),
-            bk_int(BkCellType::B16, i32::from(format) as u32),
+            bk_int(BkCellType::B16, u32::from(format)),
             bk_ptr(
                 BkCellType::Embed,
                 Some(bk_gpos_value(subtable[0].value, format)),
@@ -163,7 +163,7 @@ pub fn build_gpos_single(_subtable: &Subtable, mut _heuristics: BuildHeuristics)
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(coverage_buf)),
             ),
-            bk_int(BkCellType::B16, i32::from(format) as u32),
+            bk_int(BkCellType::B16, u32::from(format)),
             bk_int(BkCellType::B16, (subtable.len()) as u32),
         ]);
         for entry in subtable.iter() {

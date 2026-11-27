@@ -231,7 +231,7 @@ pub fn build_gpos_mark_to_single(_subtable: &Subtable, mut _heuristics: BuildHeu
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&bases))),
         ),
-        bk_int(BkCellType::B16, i32::from(subtable.class_count) as u32),
+        bk_int(BkCellType::B16, u32::from(subtable.class_count)),
     ]);
     let mut mark_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
@@ -241,7 +241,7 @@ pub fn build_gpos_mark_to_single(_subtable: &Subtable, mut _heuristics: BuildHeu
         bk_push(
             &mut mark_array,
             vec![
-                bk_int(BkCellType::B16, i32::from(mark.mark_class) as u32),
+                bk_int(BkCellType::B16, u32::from(mark.mark_class)),
                 bk_ptr(BkCellType::P16, bk_from_anchor(mark.anchor)),
             ],
         );

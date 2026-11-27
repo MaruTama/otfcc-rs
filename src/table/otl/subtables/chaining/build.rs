@@ -67,7 +67,7 @@ pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3)]);
     bk_push(
         &mut root,
-        vec![bk_int(BkCellType::B16, i32::from(n_backtrack) as u32)],
+        vec![bk_int(BkCellType::B16, u32::from(n_backtrack))],
     );
     for cov in backtrack.iter() {
         bk_push(
@@ -78,10 +78,7 @@ pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
             )],
         );
     }
-    bk_push(
-        &mut root,
-        vec![bk_int(BkCellType::B16, i32::from(n_input) as u32)],
-    );
+    bk_push(&mut root, vec![bk_int(BkCellType::B16, u32::from(n_input))]);
     for cov in &rule.sequence[rule.input_begins as usize..rule.input_ends as usize] {
         bk_push(
             &mut root,
@@ -93,7 +90,7 @@ pub fn build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     }
     bk_push(
         &mut root,
-        vec![bk_int(BkCellType::B16, i32::from(n_lookahead) as u32)],
+        vec![bk_int(BkCellType::B16, u32::from(n_lookahead))],
     );
     for cov in &rule.sequence[rule.input_ends as usize..rule.match_count as usize] {
         bk_push(
@@ -212,7 +209,7 @@ fn build_class_rule(rule: &ChainingRule) -> BkBlock {
     let mut r: BkBlock = bk_new_block(Vec::new());
     bk_push(
         &mut r,
-        vec![bk_int(BkCellType::B16, i32::from(n_backtrack) as u32)],
+        vec![bk_int(BkCellType::B16, u32::from(n_backtrack))],
     );
     for cov in backtrack.iter() {
         bk_push(
@@ -220,10 +217,7 @@ fn build_class_rule(rule: &ChainingRule) -> BkBlock {
             vec![bk_int(BkCellType::B16, u32::from(cov[0].index))],
         );
     }
-    bk_push(
-        &mut r,
-        vec![bk_int(BkCellType::B16, i32::from(n_input) as u32)],
-    );
+    bk_push(&mut r, vec![bk_int(BkCellType::B16, u32::from(n_input))]);
     let m_0_start = (i32::from(rule.input_begins) + 1) as usize;
     for cov in &rule.sequence[m_0_start..rule.input_ends as usize] {
         bk_push(
@@ -233,7 +227,7 @@ fn build_class_rule(rule: &ChainingRule) -> BkBlock {
     }
     bk_push(
         &mut r,
-        vec![bk_int(BkCellType::B16, i32::from(n_lookahead) as u32)],
+        vec![bk_int(BkCellType::B16, u32::from(n_lookahead))],
     );
     for cov in &rule.sequence[rule.input_ends as usize..rule.match_count as usize] {
         bk_push(
@@ -282,14 +276,8 @@ pub fn build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
     // simply not needed, rather than needing the clone-then-reverse
     // treatment `build_chaining_coverage` needs.
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3)]);
-    bk_push(
-        &mut root,
-        vec![bk_int(BkCellType::B16, i32::from(n_input) as u32)],
-    );
-    bk_push(
-        &mut root,
-        vec![bk_int(BkCellType::B16, i32::from(n_subst) as u32)],
-    );
+    bk_push(&mut root, vec![bk_int(BkCellType::B16, u32::from(n_input))]);
+    bk_push(&mut root, vec![bk_int(BkCellType::B16, u32::from(n_subst))]);
     for cov in &rule.sequence[rule.input_begins as usize..rule.input_ends as usize] {
         bk_push(
             &mut root,
@@ -357,10 +345,7 @@ pub fn build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
                     let n_input: TableId =
                         (i32::from(rule.input_ends) - i32::from(rule.input_begins)) as TableId;
                     let mut r: BkBlock = bk_new_block(Vec::new());
-                    bk_push(
-                        &mut r,
-                        vec![bk_int(BkCellType::B16, i32::from(n_input) as u32)],
-                    );
+                    bk_push(&mut r, vec![bk_int(BkCellType::B16, u32::from(n_input))]);
                     bk_push(
                         &mut r,
                         vec![bk_int(BkCellType::B16, (rule.apply.len() as i32) as u32)],

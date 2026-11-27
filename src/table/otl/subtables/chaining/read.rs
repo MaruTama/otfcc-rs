@@ -463,21 +463,19 @@ fn read_format1(
 
     // First pass: validate every rule set's own header and rule-offset array.
     // A NULL rule set offset is a covered glyph with no rules, as in format 2.
-    let mut total_rules: usize = 0;
     for j in 0..rule_set_count {
         let srs_rel = u16_at(slice, offset as usize + 6 + 2 * j as usize);
         if srs_rel == 0 {
             continue;
         }
         let srs_offset = offset.wrapping_add(u32::from(srs_rel));
-        let srs_count = checked_rule_count(slice, srs_offset as usize)?;
-        total_rules = total_rules.saturating_add(srs_count as usize);
+        checked_rule_count(slice, srs_offset as usize)?;
     }
 
     // Second pass: build, re-deriving each offset as the first pass did.
     let ruleset = chaining_ruleset_mut(subtable);
-    // Grown as rules are built rather than reserved from `total_rules`:
-    // the counts come from the file, and a rule set that builds nothing
+    // Grown as rules are built rather than reserved from the rule counts:
+    // they come from the file, and a rule set that builds nothing
     // (skipped, or out of budget) would still hold the reservation, once
     // per subtable.
     ruleset.rules = Vec::new();
@@ -551,14 +549,12 @@ fn read_format2(
     };
 
     // First pass: check every non-empty class set's header and rule offsets.
-    let mut total_rules: usize = 0;
     for j in 0..class_set_count {
         let src_rel = u16_at(slice, sets_base + 2 * j as usize);
         if src_rel == 0 {
             continue;
         }
-        let srs_count = checked_rule_count(slice, offset as usize + src_rel as usize)?;
-        total_rules = total_rules.saturating_add(srs_count as usize);
+        checked_rule_count(slice, offset as usize + src_rel as usize)?;
     }
 
     // The first input glyph must be in the subtable's coverage, so the first
@@ -576,8 +572,8 @@ fn read_format2(
     );
 
     let ruleset = chaining_ruleset_mut(subtable);
-    // Grown as rules are built rather than reserved from `total_rules`:
-    // the counts come from the file, and a rule set that builds nothing
+    // Grown as rules are built rather than reserved from the rule counts:
+    // they come from the file, and a rule set that builds nothing
     // (skipped, or out of budget) would still hold the reservation, once
     // per subtable.
     ruleset.rules = Vec::new();

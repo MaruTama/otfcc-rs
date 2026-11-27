@@ -279,7 +279,7 @@ pub fn build_gpos_mark_to_ligature(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&bases))),
         ),
-        bk_int(BkCellType::B16, i32::from(subtable.class_count) as u32),
+        bk_int(BkCellType::B16, u32::from(subtable.class_count)),
     ]);
     let mut mark_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
@@ -289,7 +289,7 @@ pub fn build_gpos_mark_to_ligature(
         bk_push(
             &mut mark_array,
             vec![
-                bk_int(BkCellType::B16, i32::from(mark.mark_class) as u32),
+                bk_int(BkCellType::B16, u32::from(mark.mark_class)),
                 bk_ptr(BkCellType::P16, bk_from_anchor(mark.anchor)),
             ],
         );
@@ -301,7 +301,7 @@ pub fn build_gpos_mark_to_ligature(
     for lig in subtable.lig_array.iter() {
         let mut attach: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
-            i32::from(lig.component_count) as u32,
+            u32::from(lig.component_count),
         )]);
         // Same count-vs-length caution as the dump side above:
         // `.take()` on the field, not an assumption about `.len()`.

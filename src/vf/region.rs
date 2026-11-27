@@ -43,21 +43,17 @@ pub fn vq_axis_span_is_one(s: &VqAxisSpan) -> bool {
     let a: Pos = s.start;
     let p: Pos = s.peak;
     let z: Pos = s.end;
-    a > p || p > z || a < Pos::from(0) && z > Pos::from(0) && p != Pos::from(0) || p == Pos::from(0)
+    a > p || p > z || a < 0.0 && z > 0.0 && p != 0.0 || p == 0.0
 }
 #[inline]
 fn weight_axis_region(as_0: &VqAxisSpan, x: Pos) -> Pos {
     let a: Pos = as_0.start;
     let p: Pos = as_0.peak;
     let z: Pos = as_0.end;
-    if a > p
-        || p > z
-        || a < Pos::from(0) && z > Pos::from(0) && p != Pos::from(0)
-        || p == Pos::from(0)
-    {
+    if a > p || p > z || a < 0.0 && z > 0.0 && p != 0.0 || p == 0.0 {
         Pos::from(1)
     } else if x < a || x > z {
-        Pos::from(0)
+        0.0
     } else if x == p {
         Pos::from(1)
     } else if x < p {

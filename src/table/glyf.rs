@@ -269,8 +269,8 @@ fn glyf_contour_fill(arr: &mut Contour, n: usize) {
 pub fn glyf_component_reference_empty() -> ComponentReference {
     ComponentReference {
         glyph: handle_empty(),
-        x: std::cell::RefCell::new(vq_create_still(Pos::from(0))),
-        y: std::cell::RefCell::new(vq_create_still(Pos::from(0))),
+        x: std::cell::RefCell::new(vq_create_still(0.0)),
+        y: std::cell::RefCell::new(vq_create_still(0.0)),
         a: Scale::from(1),
         b: Scale::from(0),
         c: Scale::from(0),
@@ -314,10 +314,10 @@ pub fn new_glyf_glyph() -> Box<Glyph> {
         fd_select: handle_empty() as FdHandle,
         cid: 0 as GlyphId,
         stat: GlyphStat {
-            x_min: Pos::from(0),
-            x_max: Pos::from(0),
-            y_min: Pos::from(0),
-            y_max: Pos::from(0),
+            x_min: 0.0,
+            x_max: 0.0,
+            y_min: 0.0,
+            y_max: 0.0,
             nest_depth: 0,
             n_points: 0,
             n_contours: 0,
@@ -582,8 +582,8 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     let mut glyph_ref: ComponentReference = glyf_component_reference_empty();
     let Some(_gname) = refdump.get_typed(b"glyph", JsonType::String) else {
         glyph_ref.glyph.name = Vec::new();
-        glyph_ref.x = std::cell::RefCell::new(vq_create_still(Pos::from(0)));
-        glyph_ref.y = std::cell::RefCell::new(vq_create_still(Pos::from(0)));
+        glyph_ref.x = std::cell::RefCell::new(vq_create_still(0.0));
+        glyph_ref.y = std::cell::RefCell::new(vq_create_still(0.0));
         glyph_ref.a = 1.0 as Scale;
         glyph_ref.b = 0.0 as Scale;
         glyph_ref.c = 0.0 as Scale;

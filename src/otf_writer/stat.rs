@@ -43,10 +43,10 @@ pub fn stat_single_glyph(
     topj: GlyphId,
 ) -> GlyphStat {
     let mut stat: GlyphStat = GlyphStat {
-        x_min: Pos::from(0),
-        x_max: Pos::from(0),
-        y_min: Pos::from(0),
-        y_max: Pos::from(0),
+        x_min: 0.0,
+        x_max: 0.0,
+        y_min: 0.0,
+        y_max: 0.0,
         nest_depth: 0,
         n_points: 0,
         n_contours: 0,
@@ -170,11 +170,11 @@ pub fn stat_single_glyph(
             (i32::from(n_composite_contours) + i32::from(thatstat.n_composite_contours)) as u16;
     }
     if xmin > xmax {
-        xmax = Pos::from(0);
+        xmax = 0.0;
         xmin = xmax;
     }
     if ymin > ymax {
-        ymax = Pos::from(0);
+        ymax = 0.0;
         ymin = ymax;
     }
     stat.x_min = xmin;
@@ -223,8 +223,8 @@ pub fn stat_glyf(font: &mut Font) {
             outer: 0,
         };
         gr.glyph = handle_from_index(j);
-        gr.x = std::cell::RefCell::new(vq_create_still(Pos::from(0)));
-        gr.y = std::cell::RefCell::new(vq_create_still(Pos::from(0)));
+        gr.x = std::cell::RefCell::new(vq_create_still(0.0));
+        gr.y = std::cell::RefCell::new(vq_create_still(0.0));
         gr.a = Scale::from(1);
         gr.b = Scale::from(0);
         gr.c = Scale::from(0);
@@ -950,7 +950,7 @@ fn stat_vorg(font: &mut Font) {
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for g in iter_glyphs(glyf) {
         let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
-        if vori >= Pos::from(0) && vori < Pos::from(MAX_STAT_METRIC) {
+        if vori >= 0.0 && vori < Pos::from(MAX_STAT_METRIC) {
             frequency[vori as u16 as usize] = frequency[vori as u16 as usize].wrapping_add(1);
         }
     }

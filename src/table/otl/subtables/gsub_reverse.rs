@@ -196,10 +196,7 @@ pub fn build_gsub_reverse(_subtable: &Subtable, mut _heuristics: BuildHeuristics
     ]);
     bk_push(
         &mut root,
-        vec![bk_int(
-            BkCellType::B16,
-            i32::from(subtable.input_index) as u32,
-        )],
+        vec![bk_int(BkCellType::B16, u32::from(subtable.input_index))],
     );
     for cov in backtrack.iter() {
         bk_push(
@@ -236,7 +233,7 @@ pub fn build_gsub_reverse(_subtable: &Subtable, mut _heuristics: BuildHeuristics
     for entry in subtable.to.iter() {
         bk_push(
             &mut root,
-            vec![bk_int(BkCellType::B16, i32::from(entry.index) as u32)],
+            vec![bk_int(BkCellType::B16, u32::from(entry.index))],
         );
     }
     bk_build_block(root)

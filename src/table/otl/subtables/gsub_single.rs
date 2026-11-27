@@ -134,7 +134,7 @@ pub fn build_gsub_single_subtable(_subtable: &Subtable, heuristics: BuildHeurist
     if is_constant_difference {
         let difference: i32 = i32::from(subtable[0].to.index) - i32::from(subtable[0].from.index);
         is_constant_difference =
-            i32::from(is_constant_difference) != 0 && difference < 0x8000 && difference > -0x8000;
+            is_constant_difference && difference < 0x8000 && difference > -0x8000;
         for entry in subtable.iter().skip(1) {
             let diff_j: i32 = i32::from(entry.to.index) - i32::from(entry.from.index);
             is_constant_difference = is_constant_difference
@@ -151,7 +151,7 @@ pub fn build_gsub_single_subtable(_subtable: &Subtable, heuristics: BuildHeurist
         &cov,
         u16::from(heuristics.contains(BuildHeuristics::GSUB_VERT)),
     );
-    if i32::from(is_constant_difference) != 0 && !heuristics.contains(BuildHeuristics::GSUB_VERT) {
+    if is_constant_difference && !heuristics.contains(BuildHeuristics::GSUB_VERT) {
         let b: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 1),
             bk_ptr(
@@ -176,7 +176,7 @@ pub fn build_gsub_single_subtable(_subtable: &Subtable, heuristics: BuildHeurist
         for entry in subtable.iter() {
             bk_push(
                 &mut sub_block,
-                vec![bk_int(BkCellType::B16, i32::from(entry.to.index) as u32)],
+                vec![bk_int(BkCellType::B16, u32::from(entry.to.index))],
             );
         }
         bk_build_block(sub_block)
