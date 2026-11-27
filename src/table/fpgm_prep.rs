@@ -41,7 +41,8 @@ pub fn table_dump_table_fpgm_prep(
     stage.finish();
 }
 /// Reads the instructions under `tag` in `root`, or `None` if the key is
-/// absent. Instruction parse problems are ignored here, not reported.
+/// absent. Instructions that cannot be parsed leave the table empty, with a
+/// warning that says why and where.
 pub fn parse_fpgm_prep(root: &ParsedValue, tag: &[u8]) -> Option<Box<FpgmPrepTable>> {
     let table = root.get(tag)?;
     let stage = crate::logger::stage(ByteStr(tag));
@@ -52,7 +53,14 @@ pub fn parse_fpgm_prep(root: &ParsedValue, tag: &[u8]) -> Option<Box<FpgmPrepTab
     parse_ttinstr(
         Some(table),
         |instrs| boxed.bytes = instrs,
-        |_reason, _pos| {},
+        |reason, pos| {
+            tracing::warn!(
+                "[OTFCC] TrueType instructions parse error : {}, at {} in {}; the table is written empty.\n",
+                ByteStr(reason),
+                pos,
+                ByteStr(tag)
+            );
+        },
     );
     stage.finish();
     Some(boxed)
