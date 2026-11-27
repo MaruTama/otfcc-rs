@@ -254,7 +254,7 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>) {
 /// Reads the `"cmap"` and `"cmap_uvs"` objects of `root`, and
 /// `"cmap_encoding": "symbol"` for a font mapped under Windows Symbol. Keys that are not code
 /// points (or, for `"cmap_uvs"`, a pair of code points separated by a space),
-/// values that are not strings, and code points outside 1..=0x10FFFF are
+/// values that are not strings, and code points outside 0..=0x10FFFF are
 /// ignored. When a key repeats, the first assignment wins and a warning is
 /// logged. Glyphs are referenced by name, to be resolved against the glyph order
 /// later.

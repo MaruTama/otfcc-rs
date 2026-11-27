@@ -52,9 +52,10 @@ const MAX_TOTAL_GPOS_PAIR_CLASS_CELLS: usize = 2_000_000;
 // both formats. A subtable's grids stay allocated until the table is read, so
 // many subtables each under the per-subtable cap still add up: a fuzzed GPOS
 // of ~100 format 1 subtables, each with an empty coverage (which reads as
-// 65,536 classes of one cell), asked for ~20M cells and ~1.5 GB. The most any
-// font in this repo spends is under 30,000 cells, so 3,000,000 leaves
-// generous headroom. Each cell costs ~144 bytes once row overhead is counted,
+// 65,536 classes of one cell), asked for ~20M cells and ~1.5 GB. Real fonts
+// come close: Inter's kerning spends about 2.6 million cells, 87% of the
+// cap, and a font past it loses its pair subtables with only a warning.
+// Each cell costs ~144 bytes once row overhead is counted,
 // so the cap keeps the grids near 430 MB (8,000,000 allowed over 1 GB, which
 // ran the fuzzer out of memory under ASan).
 pub(crate) const MAX_TOTAL_GPOS_PAIR_GRID_CELLS_PER_TABLE: u32 = 3_000_000;
@@ -260,8 +261,9 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
     if second_cd.maxclass >= class2_count {
         return None;
     }
-    // The counts may declare classes no glyph is in. They are kept, so
-    // the matrix keeps its shape and the subtable is written back the same.
+    // The counts may declare classes no glyph is in. They are kept here, so
+    // the matrix keeps its shape in the dump; the build drops a class with
+    // no glyph, which changes no pair that can match.
     first_cd.maxclass = class1_count - 1;
     second_cd.maxclass = class2_count - 1;
     subtable.first = Some(Box::new(first_cd));
@@ -321,8 +323,10 @@ fn read_pair_format2(data: &[u8], offset: u32, budget: &mut OtlReadBudget) -> Op
 }
 /// Writes the subtable as `{ first, second, matrix }`: the two class
 /// definitions and one row per first class. A cell is `0` when there is no
-/// adjustment, a bare number when only the first glyph's advance changes,
-/// and `{ first, second }` value records otherwise.
+/// adjustment, `{}` when the font lists the pair with no adjustment (it
+/// still matches, so a later subtable is not tried), a bare number when only
+/// the first glyph's advance changes, and `{ first, second }` value records
+/// otherwise.
 pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()

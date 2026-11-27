@@ -375,11 +375,12 @@ fn build_cmap_format14(cmap: &CmapTable) -> Buffer {
 }
 /// Serializes the table. Returns `None` when no code point is mapped.
 ///
-/// The result always has a format 4 subtable for the BMP, except that with
-/// `options.stub_cmap4` a font that needs format 12 gets a minimal placeholder
-/// instead. A format 12 subtable is added when some code point is above
-/// 0xFFFF, or when the format 4 one would not fit in 64 KB. Variation
-/// sequences, if any, add a format 14 subtable.
+/// The result always has a format 4 subtable for the BMP. It is a minimal
+/// placeholder when the real one would not fit in 64 KB, and, with
+/// `options.stub_cmap4`, whenever the font needs format 12. A format 12
+/// subtable is added when some code point is above 0xFFFF, or when the
+/// format 4 one would not fit in 64 KB. Variation sequences, if any, add a
+/// format 14 subtable.
 pub fn build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
     let cmap = match cmap {
         Some(c) if !c.unicodes.is_empty() => c,
