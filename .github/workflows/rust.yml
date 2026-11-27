@@ -126,6 +126,39 @@ jobs:
       - name: cargo test
         run: cargo test --workspace --release --locked
 
+  # Advisory, NOT a merge gate yet (continue-on-error): asks other tools
+  # whether the fonts otfcc writes are right, which tests/golden cannot say
+  # (it pins what otfcc wrote the day a checksum was taken, bugs included).
+  # Every payload font is dumped and built again, then the rebuilt font is
+  # run through the OpenType Sanitizer and compared with its source by
+  # fontTools and HarfBuzz: cmap, outlines, advances, origins, shaping, and
+  # the stored glyph boxes. See scripts/spec-check.py. Known findings are
+  # listed in scripts/spec-check-known.txt; the job fails on a new one, and
+  # on a listed one that is gone. To become a gate once it has run quietly
+  # for a while.
+  spec-check:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Pinned, like the toolchain: a new release of a checker must not turn
+      # the job red on a day nothing in the repo changed.
+      - name: Install the checkers
+        run: pip install fonttools==4.68.0 uharfbuzz==0.57.0 opentype-sanitizer==9.2.0
+
+      - name: cargo build
+        run: cargo build --release --locked
+
+      - name: Check the rebuilt payload fonts
+        run: |
+          python scripts/spec-check.py --known scripts/spec-check-known.txt \
+            tests/payload/*.ttf tests/payload/*.otf
+
   # Advisory, NOT a merge gate (continue-on-error on every step): this is new
   # dynamic-analysis tooling added specifically because the byte-comparison
   # checks above only ever exercise *valid* payloads, never malformed input --

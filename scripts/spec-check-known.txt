@@ -1,0 +1,8 @@
+# Findings of scripts/spec-check.py that are known and tracked, one
+# `FONT: CHECK` per line. A finding listed here is printed but does not fail
+# the run; one that is no longer found must be removed.
+
+# A variable font's horizontal origin carries deltas, and the dump writes it
+# only when it does not: the left side bearing is rebuilt from xMin.
+# Tracked in #725.
+gvar-test.ttf: roundtrip/origin

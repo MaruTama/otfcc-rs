@@ -62,6 +62,14 @@ cargo clippy --workspace --all-targets -- -D warnings   # also: no bare unwrap()
 cargo doc --workspace --no-deps          # broken or private doc links fail
 ```
 
+For a change to what a table reads or writes, also ask other tools whether
+the output is right (needs `fonttools`; `uharfbuzz` and `opentype-sanitizer`
+add their checks):
+
+```
+python scripts/spec-check.py --known scripts/spec-check-known.txt tests/payload/*.ttf tests/payload/*.otf
+```
+
 `jevlint --ast-only` (local, no API key) can point at long functions and
 `unwrap`. Its model-based checks send code to an external service and need
 the owner's approval first.
