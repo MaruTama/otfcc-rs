@@ -3,6 +3,9 @@
 //! otfcc read only 0/3 to 0/5, 3/1 and 3/10, so a font whose subtables were
 //! all filed under 0/1 came back with no `cmap` at all.
 
+// A test file: its helper functions may `unwrap()` like its tests do.
+#![allow(clippy::unwrap_used)]
+
 mod support;
 
 use std::ffi::OsStr;

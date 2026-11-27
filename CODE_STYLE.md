@@ -55,9 +55,10 @@ apply them.
 ## Checking a change
 
 ```
+cargo fmt --all -- --check
 cargo build --release -p otfcc_rust
 cargo test --workspace --release   # includes tests/golden checksums
-cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings   # also: no bare unwrap(), a SAFETY note on every unsafe block
 cargo doc --workspace --no-deps          # broken or private doc links fail
 ```
 

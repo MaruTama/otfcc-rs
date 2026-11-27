@@ -5,6 +5,9 @@
 //! name after it. A format 0 charset was read as SIDs in a CID font too,
 //! and CIDCount was replaced by the glyph count.
 
+// A test file: its helper functions may `unwrap()` like its tests do.
+#![allow(clippy::unwrap_used)]
+
 mod support;
 
 use std::ffi::OsStr;

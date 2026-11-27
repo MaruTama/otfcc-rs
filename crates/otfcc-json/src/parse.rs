@@ -671,6 +671,9 @@ mod tests {
         let ParsedValue::Str(val_bytes) = val else {
             panic!("expected a string value, got {val:?}");
         };
+        // SAFETY: both pointers go into storage this test still holds, and
+        // the contract under test is that each is NUL-terminated, so
+        // `strcmp` and `CStr::from_ptr` stop inside it.
         unsafe {
             let key_ptr = key.as_ptr() as *const ::core::ffi::c_char;
             assert_eq!(::libc::strcmp(key_ptr, c"abc".as_ptr()), 0);

@@ -11,6 +11,9 @@
 //! script's sequential execution relied on -- `cargo test`'s default
 //! parallel harness would race that if these were separate test fns.
 
+// A test file: its helper functions may `unwrap()` like its tests do.
+#![allow(clippy::unwrap_used)]
+
 mod support;
 
 use regex::Regex;

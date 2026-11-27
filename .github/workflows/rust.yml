@@ -99,6 +99,11 @@ jobs:
       - name: cargo build
         run: cargo build --release --locked
 
+      # The pinned toolchain's rustfmt, so a new release cannot change what
+      # counts as formatted.
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
       # Pinned exact toolchain (rust-toolchain.toml) means a new stable/clippy
       # release can't invent a warning that breaks this build out from under
       # us -- same reasoning as `warnings = "deny"` in Cargo.toml. The

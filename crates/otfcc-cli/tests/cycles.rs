@@ -13,6 +13,9 @@
 //! the same ordering the two separate script invocations
 //! (`run-cycles.sh` then `compare-roundtrips.js`) relied on.
 
+// A test file: its helper functions may `unwrap()` like its tests do.
+#![allow(clippy::unwrap_used)]
+
 mod support;
 
 use serde_json::Value;

@@ -92,6 +92,12 @@ warnings = "deny"
 # own rule (verify everything, assume nothing) exists to catch, for a
 # lint-only cosmetic win. See RUST_MIGRATION.md.
 too_many_arguments = "allow" # 2 -- re-measured (was 4)
+# CODE_STYLE.md's rules, checked instead of reviewed: no bare `unwrap()`
+# outside tests (`clippy.toml` allows it in test functions and modules), and
+# every `unsafe` block says why it is sound. Both had no hit outside tests the
+# day they were added.
+unwrap_used = "deny"
+undocumented_unsafe_blocks = "deny"
 
 [dependencies]
 otfcc-binary = { path = "crates/otfcc-binary" }

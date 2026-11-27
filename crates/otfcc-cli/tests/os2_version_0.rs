@@ -3,6 +3,9 @@
 //! come back as it was. It is kept now; a table with no version is still
 //! version 1.
 
+// A test file: its helper functions may `unwrap()` like its tests do.
+#![allow(clippy::unwrap_used)]
+
 mod support;
 
 use std::ffi::OsStr;
