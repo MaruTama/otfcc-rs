@@ -446,8 +446,12 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> Bui
         b"advanceWidth",
         json_new_vq(g.advance_width.clone(), ctx.fvar.as_deref()),
     );
-    if vq_is_still(g.horizontal_origin.clone())
-        && (vq_get_still(g.horizontal_origin.clone()) as f64).abs() > 1.0 / 1000.0
+    // Left out when it is 0 everywhere. An origin that varies is written
+    // even when it is 0 at the default instance: a variable font's phantom
+    // points move it, and without the key the build would put the left side
+    // bearing back on xMin.
+    if !vq_is_still(g.horizontal_origin.clone())
+        || (vq_get_still(g.horizontal_origin.clone()) as f64).abs() > 1.0 / 1000.0
     {
         glyph.push_field(
             b"horizontalOrigin",
